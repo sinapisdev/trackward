@@ -92,10 +92,9 @@ svg{display:block;flex:none}
   position:sticky;top:0;height:100dvh;overflow:hidden}
 .side-rolagem{flex:1;overflow-y:auto;padding:4px 10px 12px;display:flex;flex-direction:column;gap:1px;min-height:0}
 
-.ws{display:flex;align-items:center;gap:11px;padding:17px 14px 13px}
+.ws{display:flex;align-items:center;gap:10px;padding:18px 15px 14px}
 .logo{display:grid;place-items:center;color:var(--tx);flex:none}
-.ws b{font-weight:600;font-size:13.5px;display:block;line-height:1.2;letter-spacing:-.015em}
-.ws span{font-size:11.5px;color:var(--tx-3);display:block;line-height:1.2}
+.marca{font-size:18px;font-weight:600;letter-spacing:-.04em;line-height:1;color:var(--tx)}
 
 /* seletor de empresa */
 .emp{margin:0 10px 10px;position:relative}
@@ -994,3 +993,12 @@ h1{font-weight:600;letter-spacing:-.032em}
 /* separador "ou" entre escolher uma pessoa de exemplo e criar conta */
 .sep-ou{display:flex;align-items:center;gap:12px;margin:18px 0 14px;color:var(--tx-3);font-size:11.5px}
 .sep-ou::before,.sep-ou::after{content:'';height:1px;background:var(--line);flex:1}
+
+/* seletor de espaço: organização em cima, empresa em foco embaixo */
+.emp-btn .nm{display:flex;flex-direction:column;gap:1px;align-items:flex-start}
+.emp-btn .nm b{font-size:12.5px;font-weight:600;letter-spacing:-.012em;line-height:1.25;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.emp-btn .nm small{font-size:10.5px;color:var(--tx-3);line-height:1.25;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.emp-rot{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--tx-3);padding:7px 9px 4px}

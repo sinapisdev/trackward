@@ -164,6 +164,13 @@ export const Ic = {
       <path d="M11.8 8.6A5.2 5.2 0 0 1 5.4 2.2a5.2 5.2 0 1 0 6.4 6.4Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
     </svg>
   ),
+  /** Uma pessoa só, para o espaço pessoal. */
+  eu: () => (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <circle cx="8" cy="5.5" r="2.6" />
+      <path d="M3 13.2c.7-2.2 2.6-3.4 5-3.4s4.3 1.2 5 3.4" strokeLinecap="round" />
+    </svg>
+  ),
   chat: () => (
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
       <path d="M13.5 9.5a1.5 1.5 0 0 1-1.5 1.5H5.5L3 13.2V4a1.5 1.5 0 0 1 1.5-1.5h7.5A1.5 1.5 0 0 1 13.5 4z"

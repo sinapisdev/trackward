@@ -60,7 +60,7 @@ export function semente(): Base {
     id: string, nome: string, cor: string,
     papel = 'colaborador', area: string | null = null, gestor: string | null = null,
   ) => ({
-    id, nome, email: `${id}@meridiano.com.br`, cor, papel,
+    id, user_id: id, nome, email: `${id}@meridiano.com.br`, cor, papel,
     area_id: area, gestor_id: gestor, ve_area: papel !== 'colaborador',
     ativo: true, criado_em: criado, org_id: 'org1',
   })

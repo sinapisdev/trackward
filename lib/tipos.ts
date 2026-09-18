@@ -12,6 +12,8 @@ export type Freq = 'semanal' | 'quinzenal' | 'mensal'
 
 export type Perfil = {
   id: string
+  /** O login a que este perfil pertence. Um login pode ter um perfil por espaço. */
+  user_id: string
   nome: string
   email: string
   cor: string
@@ -110,6 +112,17 @@ export type Empresa = {
  * A empresa (ou a pessoa) que usa o Track. Uma linha por cliente, e é o id dela
  * que aparece em todas as outras tabelas, como a etiqueta que diz de quem é o dado.
  */
+/** Um espaço a que o meu login pertence, para o seletor no alto da lateral. */
+export type Espaco = {
+  perfil_id: string
+  org_id: string
+  nome: string
+  tipo: 'pessoal' | 'equipe'
+  papel: Papel
+  ativo: boolean
+  atual: boolean
+}
+
 export type Organizacao = {
   id: string
   nome: string

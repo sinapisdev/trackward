@@ -10,9 +10,15 @@ create extension if not exists pgcrypto;
 -- 1. Tabelas, na ordem em que dependem umas das outras
 -- --------------------------------------------------------------------------
 
--- Uma linha por pessoa. O id é o mesmo do login (auth.users).
+-- Uma linha por pessoa **em cada espaço**.
+--
+-- Um login pode ter o Track pessoal e o da empresa, e um dia o de uma segunda
+-- empresa. São perfis diferentes, com papéis diferentes, do mesmo user_id. Por
+-- isso o id do perfil deixou de ser o id do login: se fosse, cada pessoa só
+-- poderia existir em um lugar.
 create table if not exists public.perfis (
-  id         uuid primary key references auth.users on delete cascade,
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references auth.users on delete cascade,
   nome       text not null,
   email      text not null,
   cor        text not null default '#C2703C',
@@ -387,9 +393,11 @@ end $$;
 
 -- Quem sou eu, e de qual organização. security definer para não cair em
 -- recursão ao consultar perfis dentro das políticas do próprio perfis.
+-- Definida de novo mais abaixo, quando meu_perfil() já existe. Esta primeira
+-- versão serve só para as funções criadas antes dela poderem ser compiladas.
 create or replace function public.minha_org()
 returns uuid language sql stable security definer set search_path = public as $$
-  select org_id from perfis where id = auth.uid();
+  select org_id from perfis where user_id = auth.uid() order by criado_em, id limit 1;
 $$;
 
 -- A pergunta que toda política faz: esta linha é da minha organização?
@@ -430,6 +438,33 @@ begin
   end loop;
 end $$;
 
+-- Uma pessoa, um perfil por espaço. A restrição entra aqui porque depende da
+-- coluna org_id, que nasce no bloco acima.
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'perfis_user_org_uk') then
+    alter table public.perfis add constraint perfis_user_org_uk unique (user_id, org_id);
+  end if;
+end $$;
+
+-- Qual dos meus perfis está em uso agora. Sem escolha registrada, vale o mais
+-- antigo, que é o primeiro espaço que a pessoa abriu.
+create table if not exists public.sessoes (
+  user_id   uuid primary key references auth.users on delete cascade,
+  perfil_id uuid not null references public.perfis on delete cascade,
+  trocado_em timestamptz not null default now()
+);
+
+create or replace function public.meu_perfil()
+returns uuid language sql stable security definer set search_path = public as $$
+  select coalesce(
+    (select s.perfil_id from sessoes s
+      join perfis p on p.id = s.perfil_id and p.user_id = auth.uid()
+     where s.user_id = auth.uid()),
+    (select p.id from perfis p where p.user_id = auth.uid() order by p.criado_em, p.id limit 1)
+  );
+$$;
+
 -- Agora que perfis tem a coluna, a organização pode apontar para o dono.
 do $$
 begin
@@ -438,6 +473,12 @@ begin
       foreign key (dono_id) references public.perfis on delete set null;
   end if;
 end $$;
+
+-- Agora sim: a organização em uso é a do perfil escolhido, não a do primeiro.
+create or replace function public.minha_org()
+returns uuid language sql stable security definer set search_path = public as $$
+  select org_id from perfis where id = meu_perfil();
+$$;
 
 -- Convite pertence a uma organização e vence, como em qualquer produto sério:
 -- link de convite que vale para sempre é uma porta destrancada esquecida aberta.
@@ -462,12 +503,12 @@ alter table public.convites alter column vence_em set default (now() + interval 
 
 create or replace function public.ativo()
 returns boolean language sql stable security definer set search_path = public as $$
-  select exists (select 1 from perfis where id = auth.uid() and ativo);
+  select exists (select 1 from perfis where id = meu_perfil() and ativo);
 $$;
 
 create or replace function public.eh_admin()
 returns boolean language sql stable security definer set search_path = public as $$
-  select exists (select 1 from perfis where id = auth.uid() and ativo and papel = 'admin');
+  select exists (select 1 from perfis where id = meu_perfil() and ativo and papel = 'admin');
 $$;
 
 -- A pessoa logada e todo mundo abaixo dela na hierarquia, em qualquer profundidade.
@@ -475,7 +516,7 @@ $$;
 create or replace function public.meu_alcance()
 returns setof uuid language sql stable security definer set search_path = public as $$
   with recursive abaixo as (
-    select id, org_id from perfis where id = auth.uid()
+    select id, org_id from perfis where id = meu_perfil()
     union
     select p.id, p.org_id from perfis p join abaixo a on p.gestor_id = a.id
     where p.org_id = a.org_id
@@ -489,7 +530,7 @@ create or replace function public.ve_area_de(p_fluxo uuid)
 returns boolean language sql stable security definer set search_path = public as $$
   select exists (
     select 1 from perfis p join fluxos f on f.id = p_fluxo
-    where p.id = auth.uid() and p.ve_area and p.area_id is not null and f.area_id = p.area_id
+    where p.id = meu_perfil() and p.ve_area and p.area_id is not null and f.area_id = p.area_id
   );
 $$;
 
@@ -518,7 +559,7 @@ returns boolean language sql stable security definer set search_path = public as
     exists (select 1 from fluxos x where x.id = f and minha(x.org_id))
     and (
     -- só eu: ninguém além de quem criou
-    exists (select 1 from fluxos x where x.id = f and x.visib = 'so_eu' and x.autor_id = auth.uid())
+    exists (select 1 from fluxos x where x.id = f and x.visib = 'so_eu' and x.autor_id = meu_perfil())
     -- pessoas escolhidas: quem foi convidado entra, o resto depende de participar
     or exists (
       select 1 from fluxos x join fluxo_pessoas fp on fp.fluxo_id = x.id
@@ -551,10 +592,10 @@ returns boolean language sql stable security definer set search_path = public as
     eh_admin()
     or exists (
       select 1 from fluxos x
-      where x.id = f and (x.autor_id = auth.uid() or x.dono_id = auth.uid())
+      where x.id = f and (x.autor_id = meu_perfil() or x.dono_id = meu_perfil())
     )
     or exists (
-      select 1 from fluxos x join perfis p on p.id = auth.uid()
+      select 1 from fluxos x join perfis p on p.id = meu_perfil()
       where x.id = f and p.papel = 'gestor' and x.dono_id in (select meu_alcance())
     ));
 $$;
@@ -602,6 +643,7 @@ declare
   v_ativo   boolean := false;
   v_dono    boolean := false;
   v_auto    boolean;
+  v_perfil  uuid;
   v_ve_area boolean := false;
   v_area    uuid;
   v_gestor  uuid;
@@ -665,7 +707,7 @@ begin
 
   select count(*) into n from perfis where org_id = v_org;
 
-  insert into perfis (id, org_id, nome, email, cor, papel, area_id, gestor_id, ve_area, ativo)
+  insert into perfis (user_id, org_id, nome, email, cor, papel, area_id, gestor_id, ve_area, ativo)
   values (
     new.id, v_org,
     coalesce(
@@ -677,13 +719,18 @@ begin
     paleta[(n % 8) + 1],
     v_papel, v_area, v_gestor, v_ve_area, v_ativo
   )
-  on conflict (id) do nothing;
+  on conflict (user_id, org_id) do nothing
+  returning id into v_perfil;
 
-  if v_dono then
-    update organizacoes set dono_id = new.id where id = v_org;
+  if v_dono and v_perfil is not null then
+    update organizacoes set dono_id = v_perfil where id = v_org;
+  end if;
+  if v_perfil is not null then
+    insert into sessoes (user_id, perfil_id) values (new.id, v_perfil)
+    on conflict (user_id) do update set perfil_id = excluded.perfil_id;
   end if;
   if cv.id is not null then
-    update convites set usado_em = now(), usado_por = new.id where id = cv.id;
+    update convites set usado_em = now(), usado_por = v_perfil where id = cv.id;
   end if;
   return new;
 end $$;
@@ -698,9 +745,11 @@ create trigger ao_criar_usuario
 create or replace function public.proteger_perfil()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  -- A organização de uma pessoa nunca muda. Mudar seria mover alguém, com tudo
-  -- que ela enxerga, para dentro de outra empresa cliente.
+  -- A organização e o login de um perfil nunca mudam. Mudar a organização seria
+  -- mover alguém, com tudo que enxerga, para dentro de outra empresa cliente;
+  -- mudar o login seria entregar o perfil para outra pessoa.
   new.org_id := old.org_id;
+  new.user_id := old.user_id;
 
   if not eh_admin() then
     new.ativo := old.ativo;
@@ -752,12 +801,16 @@ alter table public.dependencias  enable row level security;
 
 -- perfis
 drop policy if exists perfis_sel on public.perfis;
-create policy perfis_sel on public.perfis for select
-  using (minha(org_id) and (id = auth.uid() or ativo() or eh_admin()));
+create policy perfis_sel on public.perfis for select using (
+  -- Os meus perfis, em qualquer espaço: é o que alimenta o seletor de espaço.
+  user_id = auth.uid()
+  -- E as pessoas do espaço em uso, pelas regras de sempre.
+  or (minha(org_id) and (ativo() or eh_admin()))
+);
 
 drop policy if exists perfis_upd_proprio on public.perfis;
 create policy perfis_upd_proprio on public.perfis for update
-  using (minha(org_id) and (id = auth.uid())) with check (minha(org_id) and (id = auth.uid()));
+  using (minha(org_id) and (id = meu_perfil())) with check (minha(org_id) and (id = meu_perfil()));
 
 drop policy if exists perfis_upd_admin on public.perfis;
 create policy perfis_upd_admin on public.perfis for update
@@ -765,7 +818,7 @@ create policy perfis_upd_admin on public.perfis for update
 
 drop policy if exists perfis_del_admin on public.perfis;
 create policy perfis_del_admin on public.perfis for delete
-  using (minha(org_id) and (eh_admin() and id <> auth.uid()));
+  using (minha(org_id) and (eh_admin() and id <> meu_perfil()));
 
 -- A organização: cada pessoa lê a dela e nenhuma outra. Só admin muda.
 drop policy if exists org_sel on public.organizacoes;
@@ -809,7 +862,7 @@ create policy fluxos_sel on public.fluxos for select
 
 drop policy if exists fluxos_ins on public.fluxos;
 create policy fluxos_ins on public.fluxos for insert
-  with check (minha(org_id) and (ativo() and autor_id = auth.uid()));
+  with check (minha(org_id) and (ativo() and autor_id = meu_perfil()));
 
 drop policy if exists fluxos_upd on public.fluxos;
 create policy fluxos_upd on public.fluxos for update
@@ -817,7 +870,7 @@ create policy fluxos_upd on public.fluxos for update
 
 drop policy if exists fluxos_del on public.fluxos;
 create policy fluxos_del on public.fluxos for delete
-  using (minha(org_id) and (ativo() and (autor_id = auth.uid() or dono_id = auth.uid() or eh_admin())));
+  using (minha(org_id) and (ativo() and (autor_id = meu_perfil() or dono_id = meu_perfil() or eh_admin())));
 
 -- etapas: seguem a visibilidade do fluxo
 drop policy if exists etapas_sel on public.etapas;
@@ -837,20 +890,20 @@ create policy etapas_del on public.etapas for delete using (minha(org_id) and (a
 -- que é dela, e o de quem está abaixo dela
 drop policy if exists itens_sel on public.itens;
 create policy itens_sel on public.itens for select
-  using (minha(org_id) and (ativo() and ve_fluxo(fluxo_id) and (not priv or autor_id = auth.uid()) and ve_item(id)));
+  using (minha(org_id) and (ativo() and ve_fluxo(fluxo_id) and (not priv or autor_id = meu_perfil()) and ve_item(id)));
 
 drop policy if exists itens_ins on public.itens;
 create policy itens_ins on public.itens for insert
-  with check (minha(org_id) and (ativo() and ve_fluxo(fluxo_id) and autor_id = auth.uid()));
+  with check (minha(org_id) and (ativo() and ve_fluxo(fluxo_id) and autor_id = meu_perfil()));
 
 drop policy if exists itens_upd on public.itens;
 create policy itens_upd on public.itens for update
-  using (minha(org_id) and (ativo() and ve_fluxo(fluxo_id) and (not priv or autor_id = auth.uid())))
-  with check (minha(org_id) and (ativo() and ve_fluxo(fluxo_id) and (not priv or autor_id = auth.uid())));
+  using (minha(org_id) and (ativo() and ve_fluxo(fluxo_id) and (not priv or autor_id = meu_perfil())))
+  with check (minha(org_id) and (ativo() and ve_fluxo(fluxo_id) and (not priv or autor_id = meu_perfil())));
 
 drop policy if exists itens_del on public.itens;
 create policy itens_del on public.itens for delete
-  using (minha(org_id) and (ativo() and ve_fluxo(fluxo_id) and (not priv or autor_id = auth.uid())));
+  using (minha(org_id) and (ativo() and ve_fluxo(fluxo_id) and (not priv or autor_id = meu_perfil())));
 
 -- dependências: seguem a visibilidade das duas pontas
 drop policy if exists dep_sel on public.dependencias;
@@ -869,12 +922,12 @@ create policy dep_del on public.dependencias for delete
 -- o trigger resolve o convite dela por dentro, com direitos de definidor.
 drop policy if exists convites_sel on public.convites;
 create policy convites_sel on public.convites for select
-  using (minha(org_id) and (eh_admin() or exists (select 1 from perfis p where p.id = auth.uid() and p.papel = 'gestor')));
+  using (minha(org_id) and (eh_admin() or exists (select 1 from perfis p where p.id = meu_perfil() and p.papel = 'gestor')));
 
 drop policy if exists convites_esc on public.convites;
 create policy convites_esc on public.convites for all
-  using (minha(org_id) and (eh_admin() or exists (select 1 from perfis p where p.id = auth.uid() and p.papel = 'gestor')))
-  with check (minha(org_id) and (eh_admin() or exists (select 1 from perfis p where p.id = auth.uid() and p.papel = 'gestor')));
+  using (minha(org_id) and (eh_admin() or exists (select 1 from perfis p where p.id = meu_perfil() and p.papel = 'gestor')))
+  with check (minha(org_id) and (eh_admin() or exists (select 1 from perfis p where p.id = meu_perfil() and p.papel = 'gestor')));
 
 -- processos: todos os liberados leem, para poder criar esteira a partir deles.
 -- Desenhar processo é decisão de quem manda, então escrever é de admin e gestor.
@@ -883,24 +936,24 @@ create policy proc_sel on public.processos for select using (minha(org_id) and (
 
 drop policy if exists proc_esc on public.processos;
 create policy proc_esc on public.processos for all
-  using (minha(org_id) and (eh_admin() or exists (select 1 from perfis p where p.id = auth.uid() and p.papel = 'gestor')))
-  with check (minha(org_id) and (eh_admin() or exists (select 1 from perfis p where p.id = auth.uid() and p.papel = 'gestor')));
+  using (minha(org_id) and (eh_admin() or exists (select 1 from perfis p where p.id = meu_perfil() and p.papel = 'gestor')))
+  with check (minha(org_id) and (eh_admin() or exists (select 1 from perfis p where p.id = meu_perfil() and p.papel = 'gestor')));
 
 drop policy if exists pe_sel on public.processo_etapas;
 create policy pe_sel on public.processo_etapas for select using (minha(org_id) and (ativo()));
 
 drop policy if exists pe_esc on public.processo_etapas;
 create policy pe_esc on public.processo_etapas for all
-  using (minha(org_id) and (eh_admin() or exists (select 1 from perfis p where p.id = auth.uid() and p.papel = 'gestor')))
-  with check (minha(org_id) and (eh_admin() or exists (select 1 from perfis p where p.id = auth.uid() and p.papel = 'gestor')));
+  using (minha(org_id) and (eh_admin() or exists (select 1 from perfis p where p.id = meu_perfil() and p.papel = 'gestor')))
+  with check (minha(org_id) and (eh_admin() or exists (select 1 from perfis p where p.id = meu_perfil() and p.papel = 'gestor')));
 
 drop policy if exists pi_sel on public.processo_itens;
 create policy pi_sel on public.processo_itens for select using (minha(org_id) and (ativo()));
 
 drop policy if exists pi_esc on public.processo_itens;
 create policy pi_esc on public.processo_itens for all
-  using (minha(org_id) and (eh_admin() or exists (select 1 from perfis p where p.id = auth.uid() and p.papel = 'gestor')))
-  with check (minha(org_id) and (eh_admin() or exists (select 1 from perfis p where p.id = auth.uid() and p.papel = 'gestor')));
+  using (minha(org_id) and (eh_admin() or exists (select 1 from perfis p where p.id = meu_perfil() and p.papel = 'gestor')))
+  with check (minha(org_id) and (eh_admin() or exists (select 1 from perfis p where p.id = meu_perfil() and p.papel = 'gestor')));
 
 -- agenda: o conteúdo é de quem organiza, de quem foi convidado, e de todos
 -- quando o compromisso foi marcado como visível
@@ -908,57 +961,57 @@ drop policy if exists comp_sel on public.compromissos;
 create policy comp_sel on public.compromissos for select using (minha(org_id) and (
   ativo() and (
     visivel
-    or dono_id = auth.uid()
-    or exists (select 1 from convidados cv where cv.compromisso_id = id and cv.perfil_id = auth.uid())
+    or dono_id = meu_perfil()
+    or exists (select 1 from convidados cv where cv.compromisso_id = id and cv.perfil_id = meu_perfil())
   )
 ));
 
 drop policy if exists comp_ins on public.compromissos;
 create policy comp_ins on public.compromissos for insert
-  with check (minha(org_id) and (ativo() and dono_id = auth.uid()));
+  with check (minha(org_id) and (ativo() and dono_id = meu_perfil()));
 
 drop policy if exists comp_upd on public.compromissos;
 create policy comp_upd on public.compromissos for update
-  using (minha(org_id) and (ativo() and (dono_id = auth.uid() or eh_admin())))
-  with check (minha(org_id) and (ativo() and (dono_id = auth.uid() or eh_admin())));
+  using (minha(org_id) and (ativo() and (dono_id = meu_perfil() or eh_admin())))
+  with check (minha(org_id) and (ativo() and (dono_id = meu_perfil() or eh_admin())));
 
 drop policy if exists comp_del on public.compromissos;
 create policy comp_del on public.compromissos for delete
-  using (minha(org_id) and (ativo() and (dono_id = auth.uid() or eh_admin())));
+  using (minha(org_id) and (ativo() and (dono_id = meu_perfil() or eh_admin())));
 
 drop policy if exists conv_sel on public.convidados;
 create policy conv_sel on public.convidados for select using (minha(org_id) and (
   ativo() and exists (
     select 1 from compromissos c
     where c.id = compromisso_id
-      and (c.visivel or c.dono_id = auth.uid() or perfil_id = auth.uid())
+      and (c.visivel or c.dono_id = meu_perfil() or perfil_id = meu_perfil())
   )
 ));
 
 drop policy if exists conv_ins on public.convidados;
 create policy conv_ins on public.convidados for insert with check (minha(org_id) and (
-  ativo() and exists (select 1 from compromissos c where c.id = compromisso_id and c.dono_id = auth.uid())
+  ativo() and exists (select 1 from compromissos c where c.id = compromisso_id and c.dono_id = meu_perfil())
 ));
 
 drop policy if exists conv_del on public.convidados;
 create policy conv_del on public.convidados for delete using (minha(org_id) and (
-  ativo() and exists (select 1 from compromissos c where c.id = compromisso_id and c.dono_id = auth.uid())
+  ativo() and exists (select 1 from compromissos c where c.id = compromisso_id and c.dono_id = meu_perfil())
 ));
 
 -- agenda externa: o endereço do calendário é só de quem o cadastrou
 drop policy if exists age_todo on public.agendas_externas;
 create policy age_todo on public.agendas_externas for all
-  using (minha(org_id) and (perfil_id = auth.uid())) with check (minha(org_id) and (perfil_id = auth.uid()));
+  using (minha(org_id) and (perfil_id = meu_perfil())) with check (minha(org_id) and (perfil_id = meu_perfil()));
 
 -- a ocupação que veio de fora é pública para a equipe, e só o dono a atualiza
 drop policy if exists oce_sel on public.ocupacao_externa;
 create policy oce_sel on public.ocupacao_externa for select using (minha(org_id) and (ativo()));
 
 drop policy if exists oce_ins on public.ocupacao_externa;
-create policy oce_ins on public.ocupacao_externa for insert with check (minha(org_id) and (perfil_id = auth.uid()));
+create policy oce_ins on public.ocupacao_externa for insert with check (minha(org_id) and (perfil_id = meu_perfil()));
 
 drop policy if exists oce_del on public.ocupacao_externa;
-create policy oce_del on public.ocupacao_externa for delete using (minha(org_id) and (perfil_id = auth.uid()));
+create policy oce_del on public.ocupacao_externa for delete using (minha(org_id) and (perfil_id = meu_perfil()));
 
 -- convidados de uma esteira: quem enxerga a esteira enxerga a lista
 drop policy if exists fp_sel on public.fluxo_pessoas;
@@ -977,7 +1030,7 @@ create policy atividades_sel on public.atividades for select using (minha(org_id
 
 drop policy if exists atividades_ins on public.atividades;
 create policy atividades_ins on public.atividades for insert
-  with check (minha(org_id) and (ativo() and ve_fluxo(fluxo_id) and quem_id = auth.uid()));
+  with check (minha(org_id) and (ativo() and ve_fluxo(fluxo_id) and quem_id = meu_perfil()));
 
 -- Prazo é compromisso com quem espera: o executor mexe no texto da tarefa dele,
 -- mas a data só muda por quem responde pelo processo.
@@ -1042,7 +1095,7 @@ create trigger ao_registrar_atividade
 create or replace function public.salvar_fluxo(p_fluxo jsonb, p_etapas jsonb)
 returns uuid language plpgsql security definer set search_path = public as $$
 declare
-  uid   uuid := auth.uid();
+  uid   uuid := meu_perfil();
   v_id  uuid := nullif(p_fluxo->>'id', '')::uuid;
   e     jsonb;
   k     int := 0;
@@ -1131,7 +1184,7 @@ declare
   eids  uuid[] := '{}';
   iids  uuid[] := '{}';
 begin
-  if not (eh_admin() or exists (select 1 from perfis p where p.id = auth.uid() and p.papel = 'gestor')) then
+  if not (eh_admin() or exists (select 1 from perfis p where p.id = meu_perfil() and p.papel = 'gestor')) then
     raise exception 'Desenhar processo é decisão de quem responde pela operação.';
   end if;
   if jsonb_array_length(p_etapas) < 1 then
@@ -1210,7 +1263,7 @@ create or replace function public.criar_do_processo(
 )
 returns uuid language plpgsql security definer set search_path = public as $$
 declare
-  uid   uuid := auth.uid();
+  uid   uuid := meu_perfil();
   v_id  uuid;
   pr    processos%rowtype;
   et    processo_etapas%rowtype;
@@ -1269,7 +1322,7 @@ end $$;
 create or replace function public.aprovar_etapa(p_fluxo uuid, p_periodo text default null)
 returns text language plpgsql security definer set search_path = public as $$
 declare
-  uid     uuid := auth.uid();
+  uid     uuid := meu_perfil();
   f       fluxos%rowtype;
   e       etapas%rowtype;
   n       int;
@@ -1375,7 +1428,7 @@ end $$;
 create or replace function public.sou_membro(c uuid)
 returns boolean language sql stable security definer set search_path = public as $$
   select exists (
-    select 1 from canal_membros m where m.canal_id = c and m.perfil_id = auth.uid()
+    select 1 from canal_membros m where m.canal_id = c and m.perfil_id = meu_perfil()
       and minha(m.org_id)
   );
 $$;
@@ -1385,7 +1438,7 @@ $$;
 -- duas perguntas também são feitas por fora, em security definer.
 create or replace function public.dono_canal(c uuid)
 returns boolean language sql stable security definer set search_path = public as $$
-  select exists (select 1 from canais k where k.id = c and k.criado_por = auth.uid() and minha(k.org_id));
+  select exists (select 1 from canais k where k.id = c and k.criado_por = meu_perfil() and minha(k.org_id));
 $$;
 
 create or replace function public.canal_aberto(c uuid)
@@ -1419,16 +1472,16 @@ create policy canais_sel on public.canais for select using (minha(org_id) and (v
 
 drop policy if exists canais_ins on public.canais;
 create policy canais_ins on public.canais for insert
-  with check (minha(org_id) and (ativo() and criado_por = auth.uid()));
+  with check (minha(org_id) and (ativo() and criado_por = meu_perfil()));
 
 drop policy if exists canais_upd on public.canais;
 create policy canais_upd on public.canais for update
-  using (minha(org_id) and (criado_por = auth.uid() or (eh_admin() and tipo = 'aberto')))
-  with check (minha(org_id) and (criado_por = auth.uid() or (eh_admin() and tipo = 'aberto')));
+  using (minha(org_id) and (criado_por = meu_perfil() or (eh_admin() and tipo = 'aberto')))
+  with check (minha(org_id) and (criado_por = meu_perfil() or (eh_admin() and tipo = 'aberto')));
 
 drop policy if exists canais_del on public.canais;
 create policy canais_del on public.canais for delete
-  using (minha(org_id) and (criado_por = auth.uid() or (eh_admin() and tipo = 'aberto')));
+  using (minha(org_id) and (criado_por = meu_perfil() or (eh_admin() and tipo = 'aberto')));
 
 -- canal_membros
 drop policy if exists cm_sel on public.canal_membros;
@@ -1439,7 +1492,7 @@ create policy cm_sel on public.canal_membros for select using (minha(org_id) and
 drop policy if exists cm_ins on public.canal_membros;
 create policy cm_ins on public.canal_membros for insert with check (minha(org_id) and (
   ativo() and (
-    (perfil_id = auth.uid() and canal_aberto(canal_id))
+    (perfil_id = meu_perfil() and canal_aberto(canal_id))
     or sou_membro(canal_id)
     or dono_canal(canal_id)
   )
@@ -1447,11 +1500,11 @@ create policy cm_ins on public.canal_membros for insert with check (minha(org_id
 
 drop policy if exists cm_upd on public.canal_membros;
 create policy cm_upd on public.canal_membros for update
-  using (minha(org_id) and (perfil_id = auth.uid())) with check (minha(org_id) and (perfil_id = auth.uid()));
+  using (minha(org_id) and (perfil_id = meu_perfil())) with check (minha(org_id) and (perfil_id = meu_perfil()));
 
 drop policy if exists cm_del on public.canal_membros;
 create policy cm_del on public.canal_membros for delete using (minha(org_id) and (
-  perfil_id = auth.uid() or dono_canal(canal_id)
+  perfil_id = meu_perfil() or dono_canal(canal_id)
 ));
 
 -- mensagens
@@ -1460,16 +1513,16 @@ create policy msg_sel on public.mensagens for select using (minha(org_id) and (v
 
 drop policy if exists msg_ins on public.mensagens;
 create policy msg_ins on public.mensagens for insert
-  with check (minha(org_id) and (ve_canal(canal_id) and autor_id = auth.uid()));
+  with check (minha(org_id) and (ve_canal(canal_id) and autor_id = meu_perfil()));
 
 -- Editar e apagar é só de quem escreveu. Chefe apagar mensagem dos outros
 -- transformaria o registro da conversa em algo que ninguém confia.
 drop policy if exists msg_upd on public.mensagens;
 create policy msg_upd on public.mensagens for update
-  using (minha(org_id) and (autor_id = auth.uid())) with check (minha(org_id) and (autor_id = auth.uid()));
+  using (minha(org_id) and (autor_id = meu_perfil())) with check (minha(org_id) and (autor_id = meu_perfil()));
 
 drop policy if exists msg_del on public.mensagens;
-create policy msg_del on public.mensagens for delete using (minha(org_id) and (autor_id = auth.uid()));
+create policy msg_del on public.mensagens for delete using (minha(org_id) and (autor_id = meu_perfil()));
 
 -- sugestões: a proposta é só um bilhete. O que ela muda passa pelas regras
 -- normais do app, então aceitar um prazo sem poder mexer em prazo não funciona.
@@ -1596,4 +1649,114 @@ begin
     raise exception E'A parede entre organizações tem % furo(s), e este arquivo não sobe assim:\n  %', n, lista;
   end if;
   raise notice 'Vistoria da parede: nenhum furo.';
+end $$;
+
+-- --------------------------------------------------------------------------
+-- 12. Espaços: um login, vários Tracks
+--
+--     A mesma pessoa pode ter o Track dela e o da empresa onde trabalha. São
+--     perfis diferentes do mesmo login, e trocar de espaço é trocar de perfil.
+--     Nada atravessa: cada espaço continua sendo uma organização, com a parede
+--     inteira da seção 11 valendo entre eles.
+-- --------------------------------------------------------------------------
+
+alter table public.sessoes enable row level security;
+
+drop policy if exists sessoes_sel on public.sessoes;
+create policy sessoes_sel on public.sessoes for select using (user_id = auth.uid());
+
+drop policy if exists sessoes_esc on public.sessoes;
+create policy sessoes_esc on public.sessoes for all
+  using (user_id = auth.uid())
+  with check (
+    user_id = auth.uid()
+    -- Só dá para escolher um perfil que é seu. Sem isto, bastaria chutar o id
+    -- de um perfil alheio para entrar no espaço de outra empresa.
+    and exists (select 1 from perfis p where p.id = perfil_id and p.user_id = auth.uid())
+  );
+
+create index if not exists sessoes_perfil_idx on public.sessoes (perfil_id);
+
+-- Os espaços a que este login pertence, para o seletor no alto da lateral.
+create or replace function public.meus_espacos()
+returns table (perfil_id uuid, org_id uuid, nome text, tipo text, papel text, ativo boolean, atual boolean)
+language sql stable security definer set search_path = public as $$
+  select p.id, o.id, o.nome, o.tipo, p.papel, p.ativo, p.id = meu_perfil()
+  from perfis p join organizacoes o on o.id = p.org_id
+  where p.user_id = auth.uid()
+  order by o.tipo desc, o.nome;
+$$;
+
+-- Trocar de espaço. Recusa o perfil que não é seu, e é a única porta para isso.
+create or replace function public.trocar_espaco(p_perfil uuid)
+returns uuid language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from perfis p where p.id = p_perfil and p.user_id = auth.uid()) then
+    raise exception 'Este espaço não é seu.';
+  end if;
+  insert into sessoes (user_id, perfil_id) values (auth.uid(), p_perfil)
+  on conflict (user_id) do update set perfil_id = excluded.perfil_id, trocado_em = now();
+  return p_perfil;
+end $$;
+
+do $$
+begin
+  begin
+    execute 'alter publication supabase_realtime add table public.sessoes';
+  exception when duplicate_object then null;
+  end;
+end $$;
+
+-- Abrir mais um espaço sem sair da conta: o Track pessoal de quem já usa o da
+-- empresa, ou o contrário. Nasce vazio, e quem abre é o dono.
+create or replace function public.abrir_espaco(p_nome text, p_tipo text default 'pessoal')
+returns uuid language plpgsql security definer set search_path = public as $$
+declare v_org uuid; v_perfil uuid; u uuid := auth.uid(); v_email text; v_nome text;
+begin
+  if u is null then raise exception 'Entre na sua conta primeiro.'; end if;
+  if btrim(coalesce(p_nome, '')) = '' then raise exception 'Dê um nome ao espaço.'; end if;
+  if p_tipo not in ('pessoal','equipe') then raise exception 'Tipo de espaço inválido.'; end if;
+
+  select email, nome into v_email, v_nome from perfis
+  where user_id = u order by criado_em, id limit 1;
+
+  insert into organizacoes (nome, tipo) values (btrim(p_nome), p_tipo) returning id into v_org;
+  insert into perfis (user_id, org_id, nome, email, papel, ve_area, ativo)
+  values (u, v_org, coalesce(v_nome, split_part(coalesce(v_email,''), '@', 1)),
+          coalesce(v_email, ''), 'admin', true, true)
+  returning id into v_perfil;
+  update organizacoes set dono_id = v_perfil where id = v_org;
+
+  insert into sessoes (user_id, perfil_id) values (u, v_perfil)
+  on conflict (user_id) do update set perfil_id = excluded.perfil_id, trocado_em = now();
+  return v_perfil;
+end $$;
+
+-- Entrar em mais um espaço com um código de convite, já logado.
+create or replace function public.entrar_com_convite(p_codigo text)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare cv convites%rowtype; v_perfil uuid; u uuid := auth.uid(); v_email text; v_nome text;
+begin
+  if u is null then raise exception 'Entre na sua conta primeiro.'; end if;
+  select * into cv from convites
+  where usado_em is null and (vence_em is null or vence_em > now())
+    and codigo = upper(btrim(coalesce(p_codigo, '')));
+  if cv.id is null then raise exception 'Código inválido ou vencido.'; end if;
+  if exists (select 1 from perfis where user_id = u and org_id = cv.org_id) then
+    raise exception 'Você já faz parte deste espaço.';
+  end if;
+
+  select email, nome into v_email, v_nome from perfis
+  where user_id = u order by criado_em, id limit 1;
+
+  insert into perfis (user_id, org_id, nome, email, papel, area_id, gestor_id, ve_area, ativo)
+  values (u, cv.org_id, coalesce(nullif(btrim(cv.nome),''), v_nome), coalesce(v_email,''),
+          coalesce(cv.papel,'colaborador'), cv.area_id, cv.gestor_id,
+          coalesce(cv.ve_area,false), true)
+  returning id into v_perfil;
+
+  update convites set usado_em = now(), usado_por = v_perfil where id = cv.id;
+  insert into sessoes (user_id, perfil_id) values (u, v_perfil)
+  on conflict (user_id) do update set perfil_id = excluded.perfil_id, trocado_em = now();
+  return v_perfil;
 end $$;

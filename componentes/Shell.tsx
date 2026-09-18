@@ -44,8 +44,13 @@ function Ponto({ st }: { st: string }) {
   )
 }
 
+/**
+ * Onde você está: a organização em cima, e, quando ela separa por empresa, a
+ * empresa em foco embaixo. É daqui que se troca de lugar.
+ */
 function SeletorEmpresa() {
-  const { eu, empresas, empresaAtiva, focarEmpresa, empresaDe, todosFluxos, org } = useDados()
+  const { eu, org, pessoal, empresas, empresaAtiva, focarEmpresa, empresaDe, todosFluxos,
+    espacos, trocarEspaco, abrirEspaco } = useDados()
   const { abrir } = useModais()
   const [aberto, setAberto] = useState(false)
   const caixa = useRef<HTMLDivElement>(null)
@@ -60,46 +65,87 @@ function SeletorEmpresa() {
 
   const atual = empresaDe(empresaAtiva)
   const conta = (id: string) => todosFluxos.filter((f) => f.empresa_id === id && !f.concluido).length
+  const iniciais = (org.nome || '?').trim().split(/\s+/).slice(0, 2)
+    .map((w) => w[0]).join('').toUpperCase()
+
+  const linhaDeBaixo = pessoal
+    ? 'Espaço pessoal'
+    : org.multi
+      ? (atual ? atual.nome : `Todas as ${org.rotulo_plural.toLowerCase()}`)
+      : `${eu.papel === 'admin' ? 'Administrador' : eu.papel === 'gestor' ? 'Gestor' : 'Colaborador'}`
 
   return (
     <div className="emp" ref={caixa}>
       <button className="emp-btn" onClick={() => setAberto((a) => !a)} aria-expanded={aberto}>
-        {atual ? (
-          <span className="sigla" style={{ background: `color-mix(in srgb, ${atual.cor} 20%, transparent)`, color: atual.cor }}>
-            {atual.sigla}
-          </span>
-        ) : (
-          <span className="sigla" style={{ background: 'var(--sunken)', color: 'var(--tx-3)' }}><Ic.team /></span>
-        )}
-        <span className="nm">{atual ? atual.nome : `Todas as ${org.rotulo_plural.toLowerCase()}`}</span>
+        <span className="sigla" style={{ background: 'var(--sunken)', color: 'var(--tx-2)' }}>
+          {pessoal ? <Ic.eu /> : iniciais}
+        </span>
+        <span className="nm">
+          <b>{pessoal ? 'Pessoal' : org.nome}</b>
+          <small>{linhaDeBaixo}</small>
+        </span>
         <span className="chev"><Ic.chev /></span>
       </button>
+
       {aberto && (
         <div className="emp-menu">
-          <button className={!empresaAtiva ? 'on' : ''} onClick={() => { focarEmpresa(null); setAberto(false) }}>
-            <span className="sigla" style={{ background: 'var(--sunken)', color: 'var(--tx-3)' }}><Ic.team /></span>
-            Todas as {org.rotulo_plural.toLowerCase()}
-          </button>
-          {empresas.map((e) => (
-            <button key={e.id} className={empresaAtiva === e.id ? 'on' : ''}
-              onClick={() => { focarEmpresa(e.id); setAberto(false) }}>
-              <span className="sigla" style={{ background: `color-mix(in srgb, ${e.cor} 20%, transparent)`, color: e.cor }}>
-                {e.sigla}
+          <div className="emp-rot">Seus espaços</div>
+          {(espacos.length ? espacos : [{
+            perfil_id: eu.id, org_id: org.id, nome: org.nome,
+            tipo: org.tipo, papel: eu.papel, ativo: eu.ativo, atual: true,
+          }]).map((x) => (
+            <button key={x.perfil_id} className={x.atual ? 'on' : ''}
+              onClick={() => { if (!x.atual) void trocarEspaco(x.perfil_id); setAberto(false) }}>
+              <span className="sigla" style={{ background: 'var(--sunken)', color: 'var(--tx-2)' }}>
+                {x.tipo === 'pessoal'
+                  ? <Ic.eu />
+                  : (x.nome || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
               </span>
-              <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.nome}</span>
-              <span className="ct num" style={{ color: 'var(--tx-3)', fontSize: 11 }}>{conta(e.id)}</span>
+              <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {x.nome}
+              </span>
+              {x.atual && <Ic.check />}
             </button>
           ))}
-          <div className="sep" />
-          {eu.papel === 'admin' && (
-            <button onClick={() => { setAberto(false); abrir({ tipo: 'empresa' }) }}>
+          {/* Abrir o Track pessoal de quem só tem o da empresa, e o contrário. */}
+          {!espacos.some((x) => x.tipo === 'pessoal') && (
+            <button onClick={() => { setAberto(false); void abrirEspaco('Meu Track', 'pessoal') }}>
               <span className="sigla" style={{ background: 'transparent', color: 'var(--tx-3)' }}><Ic.plus /></span>
-              Nova {org.rotulo.toLowerCase()}
+              Abrir um espaço pessoal
             </button>
           )}
+
+          {org.multi && !!empresas.length && (
+            <>
+              <div className="sep" />
+              <div className="emp-rot">{org.rotulo_plural}</div>
+              <button className={!empresaAtiva ? 'on' : ''} onClick={() => { focarEmpresa(null); setAberto(false) }}>
+                <span className="sigla" style={{ background: 'var(--sunken)', color: 'var(--tx-3)' }}><Ic.team /></span>
+                Todas as {org.rotulo_plural.toLowerCase()}
+              </button>
+              {empresas.map((e) => (
+                <button key={e.id} className={empresaAtiva === e.id ? 'on' : ''}
+                  onClick={() => { focarEmpresa(e.id); setAberto(false) }}>
+                  <span className="sigla" style={{ background: `color-mix(in srgb, ${e.cor} 20%, transparent)`, color: e.cor }}>
+                    {e.sigla}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.nome}</span>
+                  <span className="ct num" style={{ color: 'var(--tx-3)', fontSize: 11 }}>{conta(e.id)}</span>
+                </button>
+              ))}
+              {eu.papel === 'admin' && (
+                <button onClick={() => { setAberto(false); abrir({ tipo: 'empresa' }) }}>
+                  <span className="sigla" style={{ background: 'transparent', color: 'var(--tx-3)' }}><Ic.plus /></span>
+                  Nova {org.rotulo.toLowerCase()}
+                </button>
+              )}
+            </>
+          )}
+
+          <div className="sep" />
           <Link href="/ajustes" onClick={() => setAberto(false)}>
             <span className="sigla" style={{ background: 'transparent', color: 'var(--tx-3)' }}><Ic.ajustes /></span>
-            Gerenciar {org.rotulo_plural.toLowerCase()}
+            Ajustes do espaço
           </Link>
         </div>
       )}
@@ -143,15 +189,14 @@ export function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="shell">
       <nav className="side" aria-label="Navegação">
+        {/* Só a marca no alto, como em app. O nome do espaço mora no seletor
+            logo abaixo, que é onde se troca de lugar. */}
         <div className="ws">
           <span className="logo"><Ic.logo /></span>
-          <div>
-            <b>{org.nome}</b>
-            <span>Track</span>
-          </div>
+          <b className="marca">Track.</b>
         </div>
 
-        {org.multi && <SeletorEmpresa />}
+        <SeletorEmpresa />
 
         <div className="side-rolagem">
           <NavItem href="/" icone={<Ic.painel />} rotulo="Painel" ativo={caminho === '/'}

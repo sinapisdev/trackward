@@ -8,6 +8,9 @@ import { semente, type Base, type Linha } from './semente'
 // misturar as duas empresas de mentira, e o que estava lá antes é ignorado.
 const CHAVE_BASE = 'track.local.base'
 const CHAVE_EU = 'track.local.eu'
+// O login é uma coisa, o perfil em uso é outra: o mesmo login pode ter o Track
+// pessoal e o da empresa. Espelha a tabela sessoes do banco.
+const CHAVE_USUARIO = 'track.local.user'
 const CHAVE_VERSAO = 'track.local.versao'
 /** Sobe quando o exemplo ganha tabelas novas. Ver completar(). */
 const VERSAO = 3
@@ -107,7 +110,22 @@ export function euLocal(): string | null {
 }
 
 export function definirEuLocal(id: string) {
-  try { localStorage.setItem(CHAVE_EU, id) } catch {}
+  try {
+    localStorage.setItem(CHAVE_EU, id)
+    const p = ler().perfis.find((x) => x.id === id)
+    if (p?.user_id) localStorage.setItem(CHAVE_USUARIO, String(p.user_id))
+  } catch {}
+}
+
+/** O login, que pode ter perfil em mais de um espaço. */
+export function usuarioLocal(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const u = localStorage.getItem(CHAVE_USUARIO)
+    if (u) return u
+    const eu = localStorage.getItem(CHAVE_EU)
+    return eu ? (ler().perfis.find((p) => p.id === eu)?.user_id as string) ?? eu : null
+  } catch { return null }
 }
 
 export function pessoasLocais(): Linha[] {
@@ -660,7 +678,7 @@ function cadastrarLocal(email: string, dados: Linha): { erro?: string } {
   const paleta = ['#C2703C','#7D8471','#A8763E','#6E7B8B','#96705B','#5F7A6A','#A5645C','#7A6E8F']
   const n = b.perfis.filter((x) => x.org_id === orgId).length
   b.perfis.push({
-    id, org_id: orgId, nome, email: e, cor: paleta[n % 8], papel,
+    id, user_id: id, org_id: orgId, nome, email: e, cor: paleta[n % 8], papel,
     area_id: area, gestor_id: gestor, ve_area: papel !== 'colaborador',
     ativo, criado_em: agora(),
   })
@@ -670,6 +688,56 @@ function cadastrarLocal(email: string, dados: Linha): { erro?: string } {
   definirEuLocal(id)
   gravar()
   return {}
+}
+
+/** Espelha meus_espacos() no banco. */
+function espacosLocais(): Linha[] {
+  const b = ler()
+  const u = usuarioLocal()
+  const eu = euLocal()
+  return b.perfis
+    .filter((p) => p.user_id === u)
+    .map((p) => {
+      const o = b.organizacoes.find((x) => x.id === p.org_id)
+      return {
+        perfil_id: p.id, org_id: p.org_id, nome: o?.nome ?? 'Espaço',
+        tipo: o?.tipo ?? 'equipe', papel: p.papel, ativo: p.ativo, atual: p.id === eu,
+      }
+    })
+    .sort((a, x) => String(x.tipo).localeCompare(String(a.tipo)) || String(a.nome).localeCompare(String(x.nome), 'pt-BR'))
+}
+
+function trocarEspacoLocal(perfilId: string): string {
+  const p = ler().perfis.find((x) => x.id === perfilId && x.user_id === usuarioLocal())
+  if (!p) throw new Error('Este espaço não é seu.')
+  definirEuLocal(perfilId)
+  ouvintes.forEach((f) => f())
+  return perfilId
+}
+
+function abrirEspacoLocal(nome: string, tipo: string): string {
+  const b = ler()
+  const u = usuarioLocal()
+  if (!u) throw new Error('Entre na sua conta primeiro.')
+  if (!nome.trim()) throw new Error('Dê um nome ao espaço.')
+  const meu = b.perfis.find((x) => x.user_id === u)
+  const orgId = uid('org')
+  b.organizacoes.push({
+    id: orgId, nome: nome.trim(), tipo, dominio: null, entrada_por_dominio: false,
+    dono_id: null, multi: false, rotulo: 'Empresa', rotulo_plural: 'Empresas',
+    ia_ativa: true, ia_modo: 'sugerir', criado_em: agora(),
+  })
+  const pid = uid('u')
+  b.perfis.push({
+    id: pid, user_id: u, org_id: orgId, nome: meu?.nome ?? 'Você', email: meu?.email ?? '',
+    cor: meu?.cor ?? '#6E7B8B', papel: 'admin', area_id: null, gestor_id: null,
+    ve_area: true, ativo: true, criado_em: agora(),
+  })
+  const o = b.organizacoes.find((x) => x.id === orgId)
+  if (o) o.dono_id = pid
+  definirEuLocal(pid)
+  gravar()
+  return pid
 }
 
 // ------------------------------------------------------------------ cliente
@@ -714,6 +782,16 @@ function montarCliente() {
               (args.p_pessoas as Record<string, string>) || {},
               (args.p_inicio as string) || hojeIso(),
             ),
+            error: null,
+          }
+        }
+        if (nome === 'meus_espacos') return { data: espacosLocais(), error: null }
+        if (nome === 'trocar_espaco') {
+          return { data: trocarEspacoLocal(args.p_perfil as string), error: null }
+        }
+        if (nome === 'abrir_espaco') {
+          return {
+            data: abrirEspacoLocal(String(args.p_nome || ''), String(args.p_tipo || 'pessoal')),
             error: null,
           }
         }

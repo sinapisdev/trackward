@@ -8,7 +8,7 @@ import { hojeIso } from '@/lib/datas'
 import { proxPeriodo } from '@/lib/modelos'
 import type { RascunhoEtapa } from '@/lib/modelos'
 import { etapaAtual } from '@/lib/regras'
-import type { AgendaExterna, Atividade, Canal, Compromisso, Organizacao, Convite, Empresa, Etapa, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta } from '@/lib/tipos'
+import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta } from '@/lib/tipos'
 import type { Contexto as ContextoLeitura, Proposta } from '@/lib/leitor'
 import type { Alvo } from '@/lib/tipos'
 import { iso } from '@/lib/datas'
@@ -28,6 +28,10 @@ type Contexto = {
    * sempre "você", e campo cuja resposta é sempre a mesma só atrapalha.
    */
   pessoal: boolean
+  /** Os espaços a que o meu login pertence, para o seletor no alto da lateral. */
+  espacos: Espaco[]
+  trocarEspaco: (perfilId: string) => Promise<void>
+  abrirEspaco: (nome: string, tipo: 'pessoal' | 'equipe') => Promise<void>
   /** Fluxos da empresa em foco. Sem empresa escolhida, são todos. */
   fluxos: Fluxo[]
   /** Todos, ignorando o filtro de empresa. Serve para contar no seletor. */
@@ -115,7 +119,7 @@ export function useDados() {
 }
 
 const SEM_PERFIL: Perfil = {
-  id: '', nome: 'Sem responsável', email: '', cor: '#8A909C', papel: 'colaborador',
+  id: '', user_id: '', nome: 'Sem responsável', email: '', cor: '#8A909C', papel: 'colaborador',
   area_id: null, gestor_id: null, ve_area: false, ativo: false, criado_em: '',
 }
 const SEM_AREA: Area = { id: '', nome: 'Sem área', cor: '#8A909C', ordem: 999, responsavel_id: null }
@@ -144,6 +148,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [canais, setCanais] = useState<Canal[]>([])
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [sugestoes, setSugestoes] = useState<Sugestao[]>([])
+  const [espacos, setEspacos] = useState<Espaco[]>([])
   const [carregando, setCarregando] = useState(true)
   const [aviso, setAviso] = useState<Aviso | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -173,7 +178,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   /** Recolhe tudo que a pessoa pode ver e monta a árvore de fluxos. */
   const carregar = useCallback(async () => {
-    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg] = await Promise.all([
+    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp] = await Promise.all([
       sb.from('perfis').select('*').order('nome'),
       sb.from('areas').select('*').order('ordem'),
       sb.from('fluxos').select('*').order('criado_em'),
@@ -198,6 +203,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       sb.from('canal_membros').select('*'),
       sb.from('mensagens').select('*').order('criado_em'),
       sb.from('sugestoes').select('*').order('criado_em', { ascending: false }),
+      sb.rpc('meus_espacos'),
     ])
 
     const listaPerfis = (p.data || []) as Perfil[]
@@ -329,6 +335,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       })),
     )
     setConvites((cvt.data || []) as Convite[])
+    setEspacos((esp.data || []) as Espaco[])
 
     // Canal: a lista de membros vem junto, e com ela a minha marca de leitura.
     const membrosDo = new Map<string, string[]>()
@@ -576,6 +583,19 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     toast('Excluído.')
     recarregar()
   }, [sb, empresaAtiva, focarEmpresa, falhou, toast, recarregar])
+
+  /** Trocar de espaço recarrega o app inteiro: é outro lugar, com outros dados. */
+  const trocarEspaco: Contexto['trocarEspaco'] = useCallback(async (perfilId) => {
+    const { error } = await sb.rpc('trocar_espaco', { p_perfil: perfilId })
+    if (error) return falhou(error, 'Não foi possível trocar de espaço.')
+    location.reload()
+  }, [sb, falhou])
+
+  const abrirEspaco: Contexto['abrirEspaco'] = useCallback(async (nome, tipo) => {
+    const { error } = await sb.rpc('abrir_espaco', { p_nome: nome, p_tipo: tipo })
+    if (error) return falhou(error, 'Não foi possível abrir o espaço.')
+    location.reload()
+  }, [sb, falhou])
 
   const salvarOrg: Contexto['salvarOrg'] = useCallback(async (d) => {
     const { error } = await sb.from('organizacoes').update(d).eq('id', org.id)
@@ -1007,6 +1027,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     canais, mensagens, sugestoes, mensagensDe, sugestoesDe, naoLidas,
     enviar, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
     lerConversa, aceitarSugestao, recusarSugestao,
+    espacos, trocarEspaco, abrirEspaco,
   }
 
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>
