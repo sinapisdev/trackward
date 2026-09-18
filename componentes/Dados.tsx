@@ -397,7 +397,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     const corpo = { nome: d.nome, cor: d.cor, responsavel_id: d.responsavel_id ?? null }
     if (d.id) {
       const { error } = await sb.from('areas').update(corpo).eq('id', d.id)
-      if (error) { falhou(error, 'Não foi possível salvar o area.'); return null }
+      if (error) { falhou(error, 'Não foi possível salvar a área.'); return null }
       toast('Área salva.')
       recarregar()
       return { ...areaDe(d.id), ...corpo }
@@ -415,7 +415,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   const excluirArea: Contexto['excluirArea'] = useCallback(async (id) => {
     const { error } = await sb.from('areas').delete().eq('id', id)
-    if (error) return falhou(error, 'Não foi possível excluir o area.')
+    if (error) return falhou(error, 'Não foi possível excluir a área.')
     toast('Area excluído.')
     recarregar()
   }, [sb, falhou, toast, recarregar])

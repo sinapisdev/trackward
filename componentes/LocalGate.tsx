@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Dados } from './Dados'
 import { Modais } from './Modais'
@@ -51,9 +52,15 @@ export function LocalGate({ children }: { children: ReactNode }) {
               </button>
             ))}
           </div>
-          <p className="hint" style={{ marginTop: 16 }}>
-            Nada sai deste navegador. Para começar de novo com os dados originais, use
-            Equipe, Modo demonstração.
+          <div className="sep-ou"><span>ou</span></div>
+
+          <Link className="btn" href="/entrar" style={{ width: '100%', justifyContent: 'center' }}>
+            <Ic.plus />Criar uma conta do zero
+          </Link>
+          <p className="hint" style={{ marginTop: 10 }}>
+            Abre uma empresa nova, vazia, do jeito que um cliente seu vai ver no primeiro dia.
+            Nada sai deste navegador. Para voltar ao exemplo original, use Equipe, Modo
+            demonstração.
           </p>
         </div>
       </div>

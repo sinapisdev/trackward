@@ -81,11 +81,11 @@ export function Painel() {
       {vazio ? (
         <div className="card">
           <div className="onb">
-            <h3>{areas.length ? 'Crie o primeiro projeto ou rotina' : 'Comece criando um area'}</h3>
+            <h3>{areas.length ? 'Crie o primeiro projeto ou rotina' : 'Comece criando uma área'}</h3>
             <p>
               {areas.length
                 ? 'Projetos têm início, checkpoints e fim. Rotinas se repetem a cada período e guardam o histórico de cada volta.'
-                : 'Áreas são as frentes que já funcionam na empresa: Financeiro, Engenharia, Comercial. Cada uma tem as rotinas que se repetem.'}
+                : 'Áreas são as frentes que já funcionam na empresa: Financeiro, Comercial, Operações, Pessoas. Cada uma guarda as rotinas que se repetem.'}
             </p>
             {areas.length ? (
               <div className="row-inline">
@@ -97,7 +97,7 @@ export function Painel() {
                 </button>
               </div>
             ) : eu.papel === 'admin' ? (
-              <button className="btn pri" onClick={() => abrir({ tipo: 'area' })}><Ic.plus />Novo area</button>
+              <button className="btn pri" onClick={() => abrir({ tipo: 'area' })}><Ic.plus />Nova área</button>
             ) : (
               <p className="hint">Peça a um administrador para criar os areas da empresa.</p>
             )}

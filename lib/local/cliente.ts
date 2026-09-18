@@ -58,12 +58,31 @@ function ler(): Base {
     nasceuAgora = true
   }
   for (const k of Object.keys(VAZIA)) if (!base[k]) base[k] = []
+  etiquetar(base)
   if (nasceuAgora) {
     try { localStorage.setItem(CHAVE_VERSAO, String(VERSAO)) } catch {}
   } else if (completar(base)) {
     gravar()
   }
   return base
+}
+
+/**
+ * Carimba a organização de exemplo em tudo que veio da semente sem ela. Fazer
+ * isso aqui, de uma vez, evita repetir org_id em trezentas linhas de exemplo.
+ */
+function etiquetar(b: Base) {
+  for (const [tabela, linhas] of Object.entries(b)) {
+    if (tabela === 'organizacoes') continue
+    for (const l of linhas) if (l.org_id == null) l.org_id = 'org1'
+  }
+}
+
+/** A organização de quem está usando o app agora. Espelha minha_org() no banco. */
+function minhaOrg(): string | null {
+  const eu = euLocal()
+  if (!eu) return null
+  return (ler().perfis.find((p) => p.id === eu)?.org_id as string) ?? null
 }
 
 function gravar() {
@@ -151,8 +170,13 @@ function canaisAbertos(eu: string | null) {
   return new Set(ler().canais.filter((c) => podeVerCanal(c, eu)).map((c) => c.id))
 }
 
-function visiveis(tabela: string, linhas: Linha[]): Linha[] {
+function visiveis(tabela: string, todas: Linha[]): Linha[] {
   const eu = euLocal()
+  // A parede entre organizações vem antes de qualquer outra regra, como no banco.
+  const org = minhaOrg()
+  const linhas = tabela === 'organizacoes'
+    ? todas.filter((o) => o.id === org)
+    : todas.filter((l) => l.org_id === org)
   if (tabela === 'fluxos') return linhas.filter((f) => podeVerFluxo(f, eu))
   if (tabela === 'fluxo_pessoas') {
     const b = ler()
@@ -240,6 +264,8 @@ class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
 
     if (this.modo === 'insert') {
       const linha: Linha = { id: uid('x'), criado_em: agora(), ...this.corpo }
+      // A etiqueta é do servidor, nunca do que veio na requisição.
+      if (this.tabela !== 'organizacoes') linha.org_id = minhaOrg() ?? linha.org_id
       lista.push(linha)
       // Mesmo gatilho do banco: quem escreve num canal passa a ser membro dele,
       // e a marca de leitura nasce junto.
@@ -304,7 +330,7 @@ class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
       }
       if (this.tabela === 'areas') {
         const comFluxo = b.fluxos.some((f) => fora.includes(f.area_id))
-        if (comFluxo) return { data: null as T, error: { message: 'Este area tem projetos ou rotinas dentro. Mova ou exclua antes.' } }
+        if (comFluxo) return { data: null as T, error: { message: 'Esta área tem projetos ou rotinas dentro. Mova ou exclua antes.' } }
       }
       gravar()
       return { data: null as T, error: null }
@@ -569,6 +595,83 @@ function criarDoProcesso(
   return id
 }
 
+
+/**
+ * Cadastro no modo demonstração.
+ *
+ * Espelha os quatro caminhos de novo_usuario() no banco, para dar para conferir
+ * a primeira impressão do produto (a empresa nova nascendo vazia) sem depender
+ * de Supabase nenhum. A senha não é verificada: aqui não existe segurança, e
+ * dizer o contrário seria mentira. Segurança de verdade é a do banco.
+ */
+function cadastrarLocal(email: string, dados: Linha): { erro?: string } {
+  const b = ler()
+  const e = email.trim().toLowerCase()
+  if (!e) return { erro: 'Informe um e-mail.' }
+  if (b.perfis.some((p) => String(p.email).toLowerCase() === e)) {
+    return { erro: 'Este e-mail já tem cadastro. Use "entrar".' }
+  }
+
+  const nome = String(dados.nome || '').trim() || e.split('@')[0]
+  const codigo = String(dados.convite || '').trim().toUpperCase()
+  const dominio = e.split('@')[1] || ''
+  const pessoal = dados.tipo === 'pessoal'
+  const publico = ['gmail.com','hotmail.com','outlook.com','yahoo.com','yahoo.com.br',
+    'icloud.com','bol.com.br','uol.com.br','terra.com.br','live.com'].includes(dominio)
+  const guardar = pessoal || publico ? null : dominio
+
+  let orgId: string | null = null
+  let papel = 'colaborador'
+  let ativo = false
+  let area: string | null = null
+  let gestor: string | null = null
+
+  const cv = codigo
+    ? b.convites.find((c) => String(c.codigo).toUpperCase() === codigo && !c.usado_em)
+    : b.convites.find((c) => String(c.email).toLowerCase() === e && !c.usado_em)
+
+  if (cv) {
+    orgId = (cv.org_id as string) || 'org1'
+    papel = (cv.papel as string) || 'colaborador'
+    area = (cv.area_id as string) || null
+    gestor = (cv.gestor_id as string) || null
+    ativo = true
+    cv.usado_em = agora()
+  } else {
+    const daCasa = guardar ? b.organizacoes.find((o) => o.dominio === guardar) : null
+    if (daCasa) {
+      orgId = daCasa.id as string
+      ativo = !!daCasa.entrada_por_dominio
+    } else {
+      orgId = uid('org')
+      b.organizacoes.push({
+        id: orgId, nome: String(dados.organizacao || nome).trim(),
+        tipo: pessoal ? 'pessoal' : 'equipe', dominio: guardar,
+        entrada_por_dominio: false, dono_id: null,
+        multi: false, rotulo: 'Empresa', rotulo_plural: 'Empresas',
+        ia_ativa: true, ia_modo: 'sugerir', criado_em: agora(),
+      })
+      papel = 'admin'
+      ativo = true
+    }
+  }
+
+  const id = uid('u')
+  const paleta = ['#C2703C','#7D8471','#A8763E','#6E7B8B','#96705B','#5F7A6A','#A5645C','#7A6E8F']
+  const n = b.perfis.filter((x) => x.org_id === orgId).length
+  b.perfis.push({
+    id, org_id: orgId, nome, email: e, cor: paleta[n % 8], papel,
+    area_id: area, gestor_id: gestor, ve_area: papel !== 'colaborador',
+    ativo, criado_em: agora(),
+  })
+  const org = b.organizacoes.find((o) => o.id === orgId)
+  if (org && !org.dono_id && papel === 'admin') org.dono_id = id
+
+  definirEuLocal(id)
+  gravar()
+  return {}
+}
+
 // ------------------------------------------------------------------ cliente
 
 const SO_REAL = 'Isto funciona quando o app estiver ligado ao Supabase. No modo demonstração, escolha quem você é na tela inicial.'
@@ -647,8 +750,20 @@ function montarCliente() {
         try { localStorage.removeItem(CHAVE_EU) } catch {}
         return { error: null }
       },
-      async signInWithPassword(_dados?: unknown) { return { data: null, error: { message: SO_REAL } } },
-      async signUp(_dados?: unknown) { return { data: { session: null }, error: { message: SO_REAL } } },
+      async signInWithPassword(dados?: { email?: string; password?: string }) {
+        const e = String(dados?.email || '').trim().toLowerCase()
+        const p = ler().perfis.find((x) => String(x.email).toLowerCase() === e)
+        if (!p) return { data: null, error: { message: 'E-mail sem cadastro por aqui. Crie a conta ou escolha uma pessoa de exemplo.' } }
+        definirEuLocal(p.id as string)
+        ouvintes.forEach((f) => f())
+        return { data: { user: { id: p.id } }, error: null }
+      },
+      async signUp(dados?: { email?: string; password?: string; options?: { data?: Linha } }) {
+        const r = cadastrarLocal(String(dados?.email || ''), dados?.options?.data || {})
+        if (r.erro) return { data: { session: null }, error: { message: r.erro } }
+        // Sessão preenchida: a tela entra direto, sem passo de confirmar e-mail.
+        return { data: { session: { ok: true } }, error: null }
+      },
       async updateUser(_dados?: unknown) { return { data: null, error: { message: SO_REAL } } },
       async resetPasswordForEmail(_email?: string, _opcoes?: unknown) { return { data: null, error: { message: SO_REAL } } },
     },

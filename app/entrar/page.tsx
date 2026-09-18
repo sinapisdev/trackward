@@ -1,14 +1,11 @@
-import { redirect } from 'next/navigation'
-import { MODO_LOCAL } from '@/lib/modo'
 import { FormEntrar } from '@/componentes/FormEntrar'
 
-export default async function Entrar({ searchParams }: {
-  searchParams: Promise<{ ver?: string }>
-}) {
-  const { ver } = await searchParams
-  // No modo demonstração não há login: quem escolhe a pessoa é a tela inicial.
-  // Com ?ver=1 a tela aparece assim mesmo, para dar para conferir o cadastro
-  // antes de ligar o banco de verdade.
-  if (MODO_LOCAL && ver !== '1') redirect('/')
+/**
+ * A tela de entrada vale nos dois modos. Ligada ao Supabase, ela cria a conta de
+ * verdade; no modo demonstração, cria a mesma coisa dentro do navegador, para
+ * dar para conferir a primeira impressão do produto (a empresa nova nascendo
+ * vazia) antes de ligar banco nenhum.
+ */
+export default function Entrar() {
   return <FormEntrar />
 }

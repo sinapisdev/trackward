@@ -45,7 +45,7 @@ export function TelaAreas() {
           <div className="onb">
             <h3>Comece criando uma área</h3>
             <p>
-              Áreas são as frentes que já funcionam na empresa: Financeiro, Engenharia, Comercial.
+              Áreas são as frentes que já funcionam na empresa: Financeiro, Comercial, Operações, Pessoas.
               Cada uma guarda as rotinas que se repetem a cada período.
             </p>
             {eu.papel === 'admin'

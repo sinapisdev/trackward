@@ -97,7 +97,7 @@ function MArea({ area, fechar }: { area?: Area; fechar: () => void }) {
   return (
     <div className="dlg" role="dialog" aria-modal="true" aria-labelledby="ms">
       <div className="dlg-h">
-        <h3 id="ms">{area ? 'Editar area' : 'Novo area'}</h3>
+        <h3 id="ms">{area ? 'Editar área' : 'Nova área'}</h3>
         <p>Áreas são as frentes que já funcionam e têm rotinas próprias.</p>
       </div>
       <div className="dlg-b">
