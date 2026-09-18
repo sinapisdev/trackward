@@ -138,11 +138,15 @@ export const Ic = {
         stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
   ),
+  /**
+   * Trilha: dois checkpoints fechados e o de agora ainda aberto. É o que o app
+   * faz, desenhado. O anel é a única peça que ganha cor, porque é a que pede ação.
+   */
   logo: () => (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <rect x="1.5" y="7" width="3.5" height="2.2" rx="1" fill="currentColor" />
-      <rect x="6.25" y="7" width="3.5" height="2.2" rx="1" fill="currentColor" />
-      <rect x="11" y="6" width="3.5" height="4.2" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+    <svg width="16" height="16" viewBox="0 0 32 32" fill="none">
+      <rect x="3" y="14" width="8" height="4" rx="2" fill="currentColor" />
+      <rect x="13" y="14" width="8" height="4" rx="2" fill="currentColor" />
+      <circle cx="26.5" cy="16" r="4" fill="none" stroke="currentColor" strokeWidth="3" />
     </svg>
   ),
   sol: () => (
@@ -154,6 +158,29 @@ export const Ic = {
   lua: () => (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
       <path d="M11.8 8.6A5.2 5.2 0 0 1 5.4 2.2a5.2 5.2 0 1 0 6.4 6.4Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+    </svg>
+  ),
+  chat: () => (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M13.5 9.5a1.5 1.5 0 0 1-1.5 1.5H5.5L3 13.2V4a1.5 1.5 0 0 1 1.5-1.5h7.5A1.5 1.5 0 0 1 13.5 4z"
+        strokeLinejoin="round" />
+    </svg>
+  ),
+  /** A leitura da conversa. Uma faísca, não um robô: o app não finge ser gente. */
+  faisca: () => (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <path d="M8 1.8 9.3 5.4 12.9 6.7 9.3 8 8 11.6 6.7 8 3.1 6.7 6.7 5.4z" strokeLinejoin="round" />
+      <path d="M12.4 10.6 13 12.2l1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z" strokeLinejoin="round" />
+    </svg>
+  ),
+  enviar: () => (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M2.4 8h11M9 3.6 13.4 8 9 12.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  volta: () => (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M13.6 8h-11M7 3.6 2.6 8 7 12.4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
   sair: () => (

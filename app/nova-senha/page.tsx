@@ -26,7 +26,7 @@ export default function NovaSenha() {
       <div className="auth-card">
         <div className="auth-logo">
           <span className="logo"><Ic.logo /></span>
-          <div><b>Esteira</b><span>Silvereng</span></div>
+          <div><b>Track</b><span>Projetos, rotinas e pessoas</span></div>
         </div>
         <h1>Escolher senha nova</h1>
         <p className="sub">Use pelo menos 6 caracteres.</p>

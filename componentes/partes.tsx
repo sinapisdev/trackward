@@ -65,7 +65,7 @@ export function LinhaPendencia({ p }: { p: Pendencia }) {
 
 /** Linha do radar: situação, nome, esteira em miniatura, motivo, prazo e dono. */
 export function LinhaRadar({ f }: { f: Fluxo }) {
-  const { areaDe, perfilDe, nomeDe, empresaDe, config, totalItens } = useDados()
+  const { areaDe, perfilDe, nomeDe, empresaDe, org, totalItens } = useDados()
   const st = status(f)
   const et = etapaAtual(f)
   const pp = proxPrazo(f)
@@ -87,7 +87,7 @@ export function LinhaRadar({ f }: { f: Fluxo }) {
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.nome}</span>
         </span>
         <span className="sub">
-          {config.multi && empresaDe(f.empresa_id) && (
+          {org.multi && empresaDe(f.empresa_id) && (
             <span className="emp-tag" style={{ color: empresaDe(f.empresa_id)!.cor }}>
               {empresaDe(f.empresa_id)!.sigla}
             </span>

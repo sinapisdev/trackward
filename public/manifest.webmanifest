@@ -1,7 +1,7 @@
 {
-  "name": "Esteira",
-  "short_name": "Esteira",
-  "description": "O andamento das áreas e dos projetos, com as tarefas de cada um.",
+  "name": "Track",
+  "short_name": "Track",
+  "description": "Cada projeto e cada rotina com checkpoints: o que precisa ser feito, quem responde e até quando.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -9,9 +9,28 @@
   "background_color": "#F7F7F5",
   "theme_color": "#111111",
   "icons": [
-    { "src": "/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
-    { "src": "/icone.svg", "sizes": "any", "type": "image/svg+xml" }
+    {
+      "src": "/icone-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icone-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icone-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icone.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
   ]
 }

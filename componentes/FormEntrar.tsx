@@ -73,7 +73,7 @@ function Formulario() {
       <div className="auth-card">
         <div className="auth-logo">
           <span className="logo"><Ic.logo /></span>
-          <div><b>Esteira</b><span>Silvereng</span></div>
+          <div><b>Track</b><span>Projetos, rotinas e pessoas</span></div>
         </div>
 
         <h1>

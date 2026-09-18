@@ -18,7 +18,7 @@ import { aplicarTema, temaAtual, TEMAS, type Tema } from '@/lib/tema'
  * Aparece só em tela estreita; no desktop quem manda é a lateral.
  */
 export function TabBar() {
-  const { eu, fluxos, areas, agenda, config, empresas, empresaAtiva, empresaDe, focarEmpresa } = useDados()
+  const { eu, fluxos, areas, agenda, org, empresas, empresaAtiva, focarEmpresa, canais, naoLidas } = useDados()
   const { abrir } = useModais()
   const caminho = usePathname()
   const [mais, setMais] = useState(false)
@@ -32,6 +32,7 @@ export function TabBar() {
   const hoje = agenda.filter(
     (c) => c.quando === hojeIso() && [c.dono_id, ...c.convidados].includes(eu.id),
   ).length
+  const porLer = canais.reduce((n, c) => n + naoLidas(c.id), 0)
 
   const sair = async () => {
     await supabase().auth.signOut()
@@ -42,7 +43,7 @@ export function TabBar() {
   const Aba = ({ href, icone, rotulo, conta, quente }: {
     href: string; icone: React.ReactNode; rotulo: string; conta?: number; quente?: boolean
   }) => (
-    <Link className={`aba ${caminho === href ? 'on' : ''}`} href={href}>
+    <Link className={`aba ${caminho === href || (href !== '/' && caminho.startsWith(href)) ? 'on' : ''}`} href={href}>
       <span className="ic">
         {icone}
         {!!conta && <i className={`selo ${quente ? 'hot' : ''}`}>{conta > 9 ? '9+' : conta}</i>}
@@ -56,7 +57,7 @@ export function TabBar() {
       <nav className="tabbar" aria-label="Navegação">
         <Aba href="/" icone={<Ic.painel />} rotulo="Painel" conta={problemas} quente />
         <Aba href="/minhas" icone={<Ic.inbox />} rotulo="Você" conta={minhas} />
-        <Aba href="/agenda" icone={<Ic.agenda />} rotulo="Agenda" conta={hoje} />
+        <Aba href="/chat" icone={<Ic.chat />} rotulo="Conversa" conta={porLer} quente />
         <Aba href="/projetos" icone={<Ic.proj />} rotulo="Projetos" />
         <button className={`aba ${mais ? 'on' : ''}`} onClick={() => setMais((v) => !v)}>
           <span className="ic"><Ic.mais /></span>
@@ -78,9 +79,9 @@ export function TabBar() {
               {MODO_LOCAL ? <Ic.team /> : <Ic.sair />}
             </button>
 
-            {config.multi && !!empresas.length && (
+            {org.multi && !!empresas.length && (
               <>
-                <div className="folha-rot">{config.rotulo_plural}</div>
+                <div className="folha-rot">{org.rotulo_plural}</div>
                 <div className="folha-chips">
                   <button className={`tpl ${!empresaAtiva ? 'on' : ''}`} onClick={() => focarEmpresa(null)}>
                     Todas
@@ -103,6 +104,10 @@ export function TabBar() {
             {!areas.length && <div className="folha-item" style={{ color: 'var(--tx-3)' }}>Nenhuma área ainda</div>}
 
             <div className="folha-rot">Mais</div>
+            <Link className="folha-item" href="/agenda">
+              <Ic.agenda />Agenda
+              {!!hoje && <span className="ct num" style={{ marginLeft: 'auto' }}>{hoje} hoje</span>}
+            </Link>
             <Link className="folha-item" href="/areas"><Ic.painel />Todas as áreas</Link>
             <Link className="folha-item" href="/processos"><Ic.processo />Processos</Link>
             <Link className="folha-item" href="/equipe"><Ic.team />Equipe</Link>
@@ -120,12 +125,14 @@ export function TabBar() {
         </div>
       )}
 
-      {/* Ação principal flutuante, como em app de celular */}
-      {!mais && (
+      {/* Ação principal flutuante, como em app de celular. Dentro de uma conversa
+          ela sai, senão ficaria em cima do campo de escrever. */}
+      {!mais && !caminho.startsWith('/chat/') && (
         <button className="fab" aria-label="Criar"
-          onClick={() => abrir(caminho === '/agenda'
-            ? { tipo: 'compromisso', quando: hojeIso() }
-            : { tipo: 'fluxo', tipoFluxo: 'esteira' })}>
+          onClick={() => abrir(
+            caminho === '/chat' ? { tipo: 'canal' }
+              : caminho === '/agenda' ? { tipo: 'compromisso', quando: hojeIso() }
+                : { tipo: 'fluxo', tipoFluxo: 'esteira' })}>
           <Ic.plus />
         </button>
       )}

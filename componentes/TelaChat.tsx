@@ -1,0 +1,457 @@
+'use client'
+
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useDados } from './Dados'
+import { useModais } from './Modais'
+import { Carregando } from './Shell'
+import { Ic } from './Icones'
+import { Av } from './atomos'
+import { curta, hojeIso, isoDe } from '@/lib/datas'
+import type { Canal, Mensagem, Sugestao, TipoProposta } from '@/lib/tipos'
+
+const ROTULO: Record<TipoProposta, string> = {
+  tarefa: 'Tarefa nova',
+  prazo: 'Prazo',
+  concluir: 'Ficou pronto',
+  decisao: 'Decisão',
+  trava: 'Travou',
+}
+
+const hora = (ts: string) =>
+  new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+
+/** O dia da conversa, do jeito que se fala. */
+function diaDe(iso: string) {
+  const h = hojeIso()
+  if (iso === h) return 'Hoje'
+  const ontem = new Date(new Date(h + 'T12:00:00').getTime() - 864e5).toISOString().slice(0, 10)
+  if (iso === ontem) return 'Ontem'
+  return curta(iso)
+}
+
+const marca = (c: Canal) =>
+  c.tipo === 'fechado' ? <Ic.lock /> : c.tipo === 'direto' ? <Ic.team /> : <b className="cerquilha">#</b>
+
+// ------------------------------------------------------------------ lista
+
+function Lista({ atual }: { atual?: string }) {
+  const { canais, mensagens, naoLidas, sugestoesDe, todosFluxos, eu, perfilDe } = useDados()
+  const { abrir } = useModais()
+
+  /** A hora da última mensagem de cada canal, numa passada só. */
+  const ultima = useMemo(() => {
+    const mapa = new Map<string, number>()
+    for (const m of mensagens) {
+      const q = Date.parse(m.criado_em)
+      if (q > (mapa.get(m.canal_id) ?? 0)) mapa.set(m.canal_id, q)
+    }
+    return mapa
+  }, [mensagens])
+
+  const grupos = useMemo(() => {
+    const quando = (id: string) => ultima.get(id) ?? 0
+    const ordenar = (lista: Canal[]) => [...lista].sort((a, b) => quando(b.id) - quando(a.id))
+    return [
+      { rotulo: 'Canais', itens: ordenar(canais.filter((c) => c.tipo !== 'direto' && !c.fluxo_id)) },
+      { rotulo: 'Projetos', itens: ordenar(canais.filter((c) => c.tipo !== 'direto' && c.fluxo_id)) },
+      { rotulo: 'Conversas', itens: ordenar(canais.filter((c) => c.tipo === 'direto')) },
+    ].filter((g) => g.itens.length)
+  }, [canais, ultima])
+
+  const nomeDoCanal = (c: Canal) => {
+    if (c.tipo !== 'direto') return c.nome
+    const outro = c.membros.find((m) => m !== eu.id)
+    return outro ? perfilDe(outro).nome : c.nome
+  }
+
+  return (
+    <aside className="chat-lista">
+      <div className="chat-lista-topo">
+        <b>Conversa</b>
+        <button className="iconbtn" title="Novo canal" aria-label="Novo canal"
+          onClick={() => abrir({ tipo: 'canal' })}><Ic.plus /></button>
+      </div>
+
+      <div className="chat-rolagem">
+        {grupos.map((g) => (
+          <div key={g.rotulo}>
+            <div className="chat-grupo">{g.rotulo}</div>
+            {g.itens.map((c) => {
+              const novas = naoLidas(c.id)
+              const propostas = sugestoesDe(c.id).filter((s) => s.estado === 'aberta').length
+              const f = c.fluxo_id ? todosFluxos.find((x) => x.id === c.fluxo_id) : null
+              return (
+                <Link key={c.id} href={`/chat/${c.id}`}
+                  className={`chat-item ${atual === c.id ? 'on' : ''} ${novas ? 'novo' : ''}`}>
+                  <span className="mk">{marca(c)}</span>
+                  <span className="nm">{nomeDoCanal(c)}</span>
+                  {!!propostas && <span className="pastilha" title="Propostas da leitura"><Ic.faisca /></span>}
+                  {!!novas && <span className="ct num hot">{novas > 9 ? '9+' : novas}</span>}
+                  {f?.concluido && <span className="due">fim</span>}
+                </Link>
+              )
+            })}
+          </div>
+        ))}
+        {!canais.length && (
+          <div className="mode" style={{ padding: '10px 12px' }}>
+            Nenhum canal ainda. Crie o primeiro no botão acima.
+          </div>
+        )}
+      </div>
+    </aside>
+  )
+}
+
+// -------------------------------------------------------------- sugestões
+
+function CartaoSugestao({ s }: { s: Sugestao }) {
+  const { todosFluxos, perfis, aceitarSugestao, recusarSugestao, nomeDe } = useDados()
+  const [fluxoId, setFluxoId] = useState(s.dados.fluxo_id || '')
+  const [respId, setRespId] = useState(s.dados.resp_id || '')
+  const [prazo, setPrazo] = useState(s.dados.prazo || '')
+  const [ocupado, setOcupado] = useState(false)
+
+  const editavel = s.tipo === 'tarefa'
+  const abertos = todosFluxos.filter((f) => !f.concluido)
+
+  const aceitar = async () => {
+    setOcupado(true)
+    await aceitarSugestao(s, editavel
+      ? { fluxo_id: fluxoId || null, resp_id: respId || null, prazo: prazo || null }
+      : undefined)
+    setOcupado(false)
+  }
+
+  return (
+    <div className="sug">
+      <div className="sug-h">
+        <span className={`sug-tag ${s.tipo}`}>{ROTULO[s.tipo]}</span>
+        <span className="sug-txt">{s.texto}</span>
+      </div>
+
+      {!!s.motivo && <div className="sug-pq">{s.motivo}</div>}
+
+      {editavel && (
+        <div className="sug-campos">
+          <label>
+            <span>Onde</span>
+            <select value={fluxoId} onChange={(e) => setFluxoId(e.target.value)}>
+              <option value="">Escolha o projeto</option>
+              {abertos.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Quem</span>
+            <select value={respId} onChange={(e) => setRespId(e.target.value)}>
+              <option value="">Sem responsável</option>
+              {perfis.filter((p) => p.ativo).map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Até</span>
+            <input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} />
+          </label>
+        </div>
+      )}
+
+      {s.tipo === 'prazo' && s.dados.prazo && (
+        <div className="sug-campos">
+          <label>
+            <span>Novo prazo</span>
+            <input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} />
+          </label>
+        </div>
+      )}
+
+      <div className="sug-f">
+        <button className="btn ghost" onClick={() => void recusarSugestao(s)}>Dispensar</button>
+        <button className="btn pri" disabled={ocupado || (editavel && !fluxoId)} onClick={() => void aceitar()}>
+          <Ic.check />{s.tipo === 'concluir' ? 'Marcar feita' : s.tipo === 'decisao' ? 'Registrar' : 'Aceitar'}
+        </button>
+      </div>
+
+      {s.estado !== 'aberta' && (
+        <div className="sug-pq">
+          {s.estado === 'aceita' ? 'Aceita' : 'Dispensada'} por {nomeDe(s.decidido_por)}.
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ------------------------------------------------------------- composição
+
+function Campo({ canalId }: { canalId: string }) {
+  const { enviar, perfis, eu } = useDados()
+  const [texto, setTexto] = useState('')
+  const [mencao, setMencao] = useState<string | null>(null)
+  const area = useRef<HTMLTextAreaElement>(null)
+
+  const candidatos = useMemo(() => {
+    if (mencao === null) return []
+    const t = mencao.toLowerCase()
+    return perfis
+      .filter((p) => p.ativo && p.id !== eu.id && p.nome.toLowerCase().includes(t))
+      .slice(0, 5)
+  }, [mencao, perfis, eu.id])
+
+  /** Cresce com o texto, até um teto, como em app de conversa. */
+  const ajustar = () => {
+    const el = area.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 160) + 'px'
+  }
+
+  const mudar = (v: string) => {
+    setTexto(v)
+    const antes = v.slice(0, area.current?.selectionStart ?? v.length)
+    const m = antes.match(/@([\p{L}]*)$/u)
+    setMencao(m ? m[1] : null)
+    requestAnimationFrame(ajustar)
+  }
+
+  const inserir = (nome: string) => {
+    const primeiro = nome.split(' ')[0]
+    const antes = area.current?.value ?? texto
+    const depois = antes.replace(/@([\p{L}]*)$/u, `@${primeiro} `)
+    setTexto(depois)
+    // Escrever direto no campo também: quem continua digitando enquanto o React
+    // ainda não pintou a troca acabaria apagando o nome recém escolhido.
+    if (area.current) {
+      area.current.value = depois
+      area.current.selectionStart = area.current.selectionEnd = depois.length
+    }
+    setMencao(null)
+    area.current?.focus()
+  }
+
+  const mandar = async () => {
+    const v = texto.trim()
+    if (!v) return
+    setTexto('')
+    setMencao(null)
+    if (area.current) area.current.style.height = 'auto'
+    await enviar(canalId, v)
+  }
+
+  return (
+    <div className="chat-campo">
+      {!!candidatos.length && (
+        <div className="mencoes">
+          {candidatos.map((p) => (
+            <button key={p.id} onClick={() => inserir(p.nome)}>
+              <Av p={p} tam="sm" />{p.nome}
+            </button>
+          ))}
+        </div>
+      )}
+      <textarea
+        ref={area}
+        value={texto}
+        rows={1}
+        placeholder="Escreva uma mensagem"
+        aria-label="Mensagem"
+        onChange={(e) => mudar(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            if (candidatos.length && mencao !== null) inserir(candidatos[0].nome)
+            else void mandar()
+          }
+          if (e.key === 'Escape') setMencao(null)
+        }}
+      />
+      <button className="btn pri" onClick={() => void mandar()} disabled={!texto.trim()} aria-label="Enviar">
+        <Ic.enviar />
+      </button>
+    </div>
+  )
+}
+
+// -------------------------------------------------------------- conversa
+
+function Conversa({ canal }: { canal: Canal }) {
+  const {
+    eu, perfis, perfilDe, nomeDe, todosFluxos, areaDe, org,
+    mensagensDe, sugestoesDe, marcarLido, lerConversa, apagarMensagem, excluirCanal,
+  } = useDados()
+  const { abrir } = useModais()
+  const router = useRouter()
+  const [lendo, setLendo] = useState(false)
+  const [verFechadas, setVerFechadas] = useState(false)
+  const rolo = useRef<HTMLDivElement>(null)
+
+  const msgs = useMemo(() => mensagensDe(canal.id), [mensagensDe, canal.id])
+  const sugs = useMemo(() => sugestoesDe(canal.id), [sugestoesDe, canal.id])
+  const abertas = sugs.filter((s) => s.estado === 'aberta')
+  const fechadas = sugs.filter((s) => s.estado !== 'aberta')
+
+  const canalId = canal.id
+  useEffect(() => { void marcarLido(canalId) }, [canalId, msgs.length, marcarLido])
+
+  useEffect(() => {
+    const el = rolo.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [canalId, msgs.length, abertas.length])
+
+  const fluxo = canal.fluxo_id ? todosFluxos.find((f) => f.id === canal.fluxo_id) : null
+
+  const ler = async () => {
+    setLendo(true)
+    const r = await lerConversa(canal.id)
+    setLendo(false)
+    if (!r) return
+  }
+
+  const nome = canal.tipo === 'direto'
+    ? perfilDe(canal.membros.find((m) => m !== eu.id) || null).nome
+    : canal.nome
+
+  // Uma linha por autor, como em app de conversa: o cabeçalho só volta quando
+  // muda quem fala ou passam alguns minutos.
+  const linhas: { m: Mensagem; junto: boolean; dia: string | null }[] = []
+  let anterior: Mensagem | null = null
+  for (const m of msgs) {
+    const dia = isoDe(m.criado_em)
+    const diaAntes = anterior ? isoDe(anterior.criado_em) : null
+    const junto = !!anterior && !m.sistema && !anterior.sistema
+      && anterior.autor_id === m.autor_id && dia === diaAntes
+      && Date.parse(m.criado_em) - Date.parse(anterior.criado_em) < 6 * 60000
+    linhas.push({ m, junto, dia: dia === diaAntes ? null : dia })
+    anterior = m
+  }
+
+  return (
+    <section className="chat-conversa">
+      <header className="chat-topo">
+        <Link className="iconbtn so-celular" href="/chat" aria-label="Voltar"><Ic.volta /></Link>
+        <span className="mk">{marca(canal)}</span>
+        <div className="chat-titulo">
+          <b>{nome}</b>
+          <span>
+            {fluxo
+              ? <Link href={`/fluxo/${fluxo.id}`}>{fluxo.nome}</Link>
+              : canal.area_id ? areaDe(canal.area_id).nome : canal.descricao || `${canal.membros.length || perfis.length} pessoas`}
+          </span>
+        </div>
+        <div className="chat-acoes">
+          {org.ia_ativa && (
+            <button className="btn" onClick={() => void ler()} disabled={lendo}>
+              <Ic.faisca />{lendo ? 'Lendo' : 'Ler a conversa'}
+            </button>
+          )}
+          {canal.criado_por === eu.id && (
+            <>
+              <button className="iconbtn" title="Editar canal" aria-label="Editar canal"
+                onClick={() => abrir({ tipo: 'canal', canal })}><Ic.edit /></button>
+              <button className="iconbtn" title="Excluir canal" aria-label="Excluir canal"
+                onClick={() => abrir({
+                  tipo: 'excluir',
+                  titulo: `Excluir ${canal.nome}?`,
+                  texto: 'A conversa inteira e as propostas que saíram dela vão junto. Não dá para desfazer.',
+                  acao: async () => { await excluirCanal(canal.id); router.push('/chat') },
+                })}><Ic.x /></button>
+            </>
+          )}
+        </div>
+      </header>
+
+      <div className="chat-rolo" ref={rolo}>
+        {!msgs.length && (
+          <div className="chat-vazio">
+            <h3>{canal.tipo === 'direto' ? `Converse com ${nome}` : `Começo de #${canal.nome}`}</h3>
+            <p>
+              {canal.descricao || 'Escreva a primeira mensagem.'}
+              {org.ia_ativa && ' Depois, a leitura da conversa transforma o que ficou combinado em tarefa.'}
+            </p>
+          </div>
+        )}
+
+        {linhas.map(({ m, junto, dia }) => (
+          <div key={m.id}>
+            {dia && <div className="chat-dia"><span>{diaDe(dia)}</span></div>}
+            {m.sistema ? (
+              <div className="chat-sis">
+                <Ic.faisca />
+                <span>{nomeDe(m.autor_id)} {m.texto}</span>
+                <i>{hora(m.criado_em)}</i>
+              </div>
+            ) : (
+              <div className={`msg ${junto ? 'junto' : ''}`}>
+                <span className="msg-av">
+                  {junto ? <i className="msg-hora">{hora(m.criado_em)}</i> : <Av p={perfilDe(m.autor_id)} />}
+                </span>
+                <div className="msg-corpo">
+                  {!junto && (
+                    <div className="msg-h">
+                      <b>{nomeDe(m.autor_id)}</b>
+                      <i>{hora(m.criado_em)}</i>
+                      {m.autor_id === eu.id && (
+                        <button className="msg-del" aria-label="Apagar mensagem"
+                          onClick={() => void apagarMensagem(m)}><Ic.x /></button>
+                      )}
+                    </div>
+                  )}
+                  <p>{m.texto}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {(!!abertas.length || !!fechadas.length) && (
+        <div className="chat-sugs">
+          <div className="chat-sugs-h">
+            <Ic.faisca />
+            <b>{abertas.length ? `${abertas.length} ${abertas.length === 1 ? 'proposta' : 'propostas'} da conversa` : 'Nada em aberto'}</b>
+            {!!fechadas.length && (
+              <button className="btn ghost" onClick={() => setVerFechadas((v) => !v)}>
+                {verFechadas ? 'Esconder' : `Ver ${fechadas.length} já decidida${fechadas.length === 1 ? '' : 's'}`}
+              </button>
+            )}
+          </div>
+          {abertas.map((s) => <CartaoSugestao key={s.id} s={s} />)}
+          {verFechadas && fechadas.map((s) => <CartaoSugestao key={s.id} s={s} />)}
+        </div>
+      )}
+
+      <Campo canalId={canal.id} />
+    </section>
+  )
+}
+
+// ------------------------------------------------------------------ tela
+
+export function TelaChat({ id }: { id?: string }) {
+  const { canais, carregando } = useDados()
+  const { abrir } = useModais()
+
+  if (carregando) return <Carregando />
+
+  const canal = id ? canais.find((c) => c.id === id) : null
+
+  return (
+    <div className="chat" data-aberto={canal ? 'sim' : 'nao'}>
+      <Lista atual={canal?.id} />
+      {canal ? <Conversa canal={canal} /> : (
+        <section className="chat-conversa">
+          <div className="chat-vazio">
+            <h3>Escolha uma conversa</h3>
+            <p>
+              Canais reúnem a equipe por assunto, por área e por projeto. O que ficar
+              combinado aqui dentro vira tarefa na esteira, sem ninguém precisar copiar nada.
+            </p>
+            <button className="btn pri" onClick={() => abrir({ tipo: 'canal' })}>
+              <Ic.plus />Novo canal
+            </button>
+          </div>
+        </section>
+      )}
+    </div>
+  )
+}

@@ -106,13 +106,37 @@ export type Empresa = {
   ordem: number
 }
 
-/** Preferências da organização inteira, não de uma pessoa. */
-export type Config = {
+/**
+ * A empresa (ou a pessoa) que usa o Track. Uma linha por cliente, e é o id dela
+ * que aparece em todas as outras tabelas, como a etiqueta que diz de quem é o dado.
+ */
+export type Organizacao = {
   id: string
-  organizacao: string
+  nome: string
+  /**
+   * pessoal: uma pessoa só. Equipe, convite, responsável e aprovador somem da tela.
+   * equipe:  várias pessoas, com hierarquia e distribuição de tarefa.
+   */
+  tipo: 'pessoal' | 'equipe'
+  /** Domínio de e-mail da empresa, para quem tem e-mail da casa cair aqui. */
+  dominio: string | null
+  /** Quem tem e-mail do domínio entra liberado, sem esperar um sim. */
+  entrada_por_dominio: boolean
+  /** Quem abriu a conta. Não pode ser desativado nem rebaixado. */
+  dono_id: string | null
+  /** Separa áreas e projetos por empresa, unidade ou centro de custo. */
   multi: boolean
   rotulo: string
   rotulo_plural: string
+  /** A leitura das conversas está ligada. */
+  ia_ativa: boolean
+  /**
+   * sugerir: a leitura propõe e alguém aceita com um toque.
+   * aplicar: tarefa nova e tarefa concluída entram sozinhas. Prazo nunca entra
+   *          sozinho, porque prazo é compromisso com quem espera.
+   */
+  ia_modo: 'sugerir' | 'aplicar'
+  criado_em: string
 }
 
 export type Item = {
@@ -232,3 +256,71 @@ export type AgendaExterna = {
 export type Pendencia =
   | { tipo: 'item'; fluxo: Fluxo; etapa: Etapa; item: Item; prazo: string | null }
   | { tipo: 'aprov'; fluxo: Fluxo; etapa: Etapa; item: null; prazo: string | null }
+
+// --------------------------------------------------------------- conversa
+
+/**
+ * Canal de conversa.
+ *  - aberto:  toda a equipe entra. Amarrado a um projeto, quem vê o projeto vê o canal.
+ *  - fechado: só quem foi posto dentro. Nem o administrador lê de fora.
+ *  - direto:  conversa entre duas pessoas.
+ */
+export type TipoCanal = 'aberto' | 'fechado' | 'direto'
+
+export type Canal = {
+  id: string
+  nome: string
+  descricao: string
+  tipo: TipoCanal
+  /** Canal da área: nasce junto com a frente e acompanha as rotinas dela. */
+  area_id: string | null
+  /** Canal do projeto: quem enxerga a esteira enxerga a conversa. */
+  fluxo_id: string | null
+  empresa_id: string | null
+  criado_por: string | null
+  criado_em: string
+  arquivado: boolean
+  membros: string[]
+  /** Quando eu li este canal pela última vez, para contar o que chegou depois. */
+  lido_em: string | null
+}
+
+export type Mensagem = {
+  id: string
+  canal_id: string
+  autor_id: string | null
+  texto: string
+  /** Resposta a outra mensagem, para a conversa não se perder. */
+  responde_a: string | null
+  /** Escrita pelo próprio sistema, quando uma sugestão vira tarefa. */
+  sistema: boolean
+  criado_em: string
+  editado_em: string | null
+}
+
+export type TipoProposta = 'tarefa' | 'prazo' | 'concluir' | 'decisao' | 'trava'
+
+/** O que a leitura da conversa propõe. Nada acontece antes de alguém aceitar. */
+export type Alvo = {
+  fluxo_id?: string | null
+  etapa_id?: string | null
+  item_id?: string | null
+  resp_id?: string | null
+  prazo?: string | null
+}
+
+export type Sugestao = {
+  id: string
+  canal_id: string
+  mensagem_id: string | null
+  tipo: TipoProposta
+  /** O que será feito, em uma linha. */
+  texto: string
+  /** O trecho da conversa que deu origem, para ninguém aceitar no escuro. */
+  motivo: string
+  dados: Alvo
+  estado: 'aberta' | 'aceita' | 'recusada'
+  criado_em: string
+  decidido_por: string | null
+  decidido_em: string | null
+}

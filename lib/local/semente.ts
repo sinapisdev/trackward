@@ -43,7 +43,16 @@ export type Base = Record<string, Linha[]>
 
 /**
  * Empresa de exemplo com quatro pessoas, para dar para testar o filtro por pessoa,
- * as pendências de cada um e as aprovações de quem não é você.
+/**
+ * Empresa de exemplo, de propósito **sem setor**.
+ *
+ * Financeiro, Comercial, Operações e Pessoas existem em qualquer negócio, de
+ * escritório de advocacia a transportadora. Quem abre o Track pela primeira vez
+ * precisa se reconhecer na tela em três segundos, e um exemplo cheio de jargão de
+ * um ramo só diz, sem querer, "este produto não é para você".
+ *
+ * Quatro pessoas, para dar para testar o filtro por pessoa, as pendências de cada
+ * um, as aprovações que não são suas e os itens privados.
  */
 export function semente(): Base {
   const criado = new Date().toISOString()
@@ -51,36 +60,38 @@ export function semente(): Base {
     id: string, nome: string, cor: string,
     papel = 'colaborador', area: string | null = null, gestor: string | null = null,
   ) => ({
-    id, nome, email: `${id}@silvereng.com.br`, cor, papel,
+    id, nome, email: `${id}@meridiano.com.br`, cor, papel,
     area_id: area, gestor_id: gestor, ve_area: papel !== 'colaborador',
-    ativo: true, criado_em: criado,
+    ativo: true, criado_em: criado, org_id: 'org1',
   })
 
-  // Leo no topo; Ana responde a ele e cuida do Financeiro; Carlos da Engenharia,
+  // Leo no topo; Ana responde a ele e cuida do Financeiro; Carlos das Operações,
   // com a Marina abaixo. É essa árvore que decide quem enxerga o trabalho de quem.
   const perfis = [
     p('leo', 'Leo', '#6E7B8B', 'admin', null, null),
     p('ana', 'Ana', '#5F7A6A', 'gestor', 'fin', 'leo'),
-    p('carlos', 'Carlos', '#C2703C', 'gestor', 'eng', 'leo'),
-    p('marina', 'Marina', '#A5645C', 'colaborador', 'eng', 'carlos'),
+    p('carlos', 'Carlos', '#C2703C', 'gestor', 'ope', 'leo'),
+    p('marina', 'Marina', '#A5645C', 'colaborador', 'cml', 'carlos'),
   ]
 
-  const config = [{
-    id: '1', organizacao: 'Grupo Silvereng', multi: true,
-    rotulo: 'Empresa', rotulo_plural: 'Empresas',
+  const organizacoes = [{
+    id: 'org1', nome: 'Grupo Meridiano', tipo: 'equipe',
+    dominio: 'meridiano.com.br', entrada_por_dominio: false, dono_id: 'leo',
+    multi: true, rotulo: 'Empresa', rotulo_plural: 'Empresas',
+    ia_ativa: true, ia_modo: 'sugerir', criado_em: criado,
   }]
 
   const empresas = [
-    { id: 'slv', nome: 'Silvereng', sigla: 'SLV', cor: '#6E7B8B', ordem: 0 },
-    { id: 'smn', nome: 'Simoneto', sigla: 'SMN', cor: '#5F7A6A', ordem: 1 },
-    { id: 'avl', nome: 'AVLE', sigla: 'AVL', cor: '#C2703C', ordem: 2 },
+    { id: 'mer', nome: 'Meridiano', sigla: 'MER', cor: '#6E7B8B', ordem: 0 },
+    { id: 'nor', nome: 'Meridiano Norte', sigla: 'NOR', cor: '#5F7A6A', ordem: 1 },
+    { id: 'dig', nome: 'Meridiano Digital', sigla: 'DIG', cor: '#C2703C', ordem: 2 },
   ]
 
   const areas = [
     { id: 'fin', nome: 'Financeiro', cor: '#5F7A6A', ordem: 0, responsavel_id: 'ana', criado_em: criado },
-    { id: 'eng', nome: 'Engenharia', cor: '#C2703C', ordem: 1, responsavel_id: 'carlos', criado_em: criado },
-    { id: 'inc', nome: 'Incorporação', cor: '#6E7B8B', ordem: 2, responsavel_id: 'leo', criado_em: criado },
-    { id: 'cml', nome: 'Comercial', cor: '#A5645C', ordem: 3, responsavel_id: 'marina', criado_em: criado },
+    { id: 'ope', nome: 'Operações', cor: '#C2703C', ordem: 1, responsavel_id: 'carlos', criado_em: criado },
+    { id: 'cml', nome: 'Comercial', cor: '#A5645C', ordem: 2, responsavel_id: 'marina', criado_em: criado },
+    { id: 'pes', nome: 'Pessoas', cor: '#6E7B8B', ordem: 3, responsavel_id: 'leo', criado_em: criado },
   ]
 
   const fluxos: Linha[] = []
@@ -103,7 +114,7 @@ export function semente(): Base {
     extra: Partial<Linha> = {},
   ) => {
     fluxos.push({
-      id, tipo, nome, area_id: area, empresa_id: (extra.empresa_id as string) || 'slv',
+      id, tipo, nome, area_id: area, empresa_id: (extra.empresa_id as string) || 'mer',
       dono_id: dono, autor_id: dono,
       visib: 'equipe', freq: null, periodo: null, atual, concluido: false,
       travado_motivo: null, travado_desde: null, criado_em: criado, ...extra,
@@ -124,12 +135,12 @@ export function semente(): Base {
 
   // ------------------------------------------------------------- Financeiro
   fluxo('f-fech', 'ciclo', 'Fechamento mensal', 'fin', 'ana', 1, [
-    ['Lançamentos', 'Despesas e receitas do mês lançadas', 'ana', d(-3), [
-      ['Lançar notas das obras', 'ana', d(-4), true],
+    ['Lançamentos', 'Receitas e despesas do mês lançadas', 'ana', d(-3), [
+      ['Lançar notas de serviço', 'ana', d(-4), true],
       ['Lançar folha', 'ana', d(-3), true],
     ]],
     ['Conciliação', 'Saldo do sistema igual ao extrato', 'ana', d(1), [
-      ['Conferir extrato da conta das obras', 'ana', d(0), false],
+      ['Conferir extrato da conta principal', 'ana', d(0), false],
       ['Conciliar cartão corporativo', 'carlos', d(1), false],
     ]],
     ['Relatórios', 'DRE e fluxo de caixa emitidos', 'leo', d(6), []],
@@ -142,12 +153,12 @@ export function semente(): Base {
   )
 
   fluxo('f-pagar', 'ciclo', 'Contas a pagar', 'fin', 'ana', 0, [
-    ['Recebimento', 'Boletos conferidos com pedidos', 'ana', d(-1), [
+    ['Recebimento', 'Boletos conferidos com os pedidos', 'ana', d(-1), [
       ['Separar boletos da semana', 'ana', d(-1), false],
       ['Conferir com os pedidos de compra', 'carlos', d(-2), false],
     ]],
     ['Aprovação', 'Pagamentos aprovados', 'leo', d(1), [
-      ['Aprovar pagamento dos blocos da Dona Kika', 'ana', d(1), false, false, 'paga-blocos'],
+      ['Aprovar pagamento do fornecedor de TI', 'ana', d(1), false, false, 'paga-ti'],
     ]],
     ['Pagamento', 'Pagamentos agendados e comprovados', 'ana', d(3), []],
   ], { freq: 'semanal', periodo: semana() })
@@ -157,108 +168,82 @@ export function semente(): Base {
     { id: 'h6', fluxo_id: 'f-pagar', periodo: semana(-7), situacao: 'ok', criado_em: criado },
   )
 
-  fluxo('f-fech-smn', 'ciclo', 'Fechamento mensal', 'fin', 'carlos', 0, [
-    ['Lançamentos', 'Despesas e receitas do mês lançadas', 'carlos', d(2), [
+  fluxo('f-fech-nor', 'ciclo', 'Fechamento mensal', 'fin', 'carlos', 0, [
+    ['Lançamentos', 'Receitas e despesas do mês lançadas', 'carlos', d(2), [
       ['Lançar notas do mês', 'carlos', d(2), false],
     ]],
     ['Conciliação', 'Saldo do sistema igual ao extrato', 'carlos', d(5), []],
     ['Relatórios', 'DRE e fluxo de caixa emitidos', 'leo', d(8), []],
     ['Fechamento', 'Competência travada', 'leo', d(10), []],
-  ], { empresa_id: 'smn', freq: 'mensal', periodo: mes() })
+  ], { empresa_id: 'nor', freq: 'mensal', periodo: mes() })
 
-  fluxo('f-sist', 'esteira', 'Implantação do sistema financeiro', 'fin', 'leo', 2, [
+  fluxo('f-erp', 'esteira', 'Implantação do ERP', 'fin', 'ana', 2, [
     ['Diagnóstico', 'Processos atuais mapeados', 'leo', d(-40), []],
     ['Escolha', 'Ferramenta contratada', 'leo', d(-20), []],
-    ['Configuração', 'Sistema configurado e testado com dados reais', 'leo', d(16), [
-      ['Plano de contas', 'ana', d(-8), true],
-      ['Cadastro de fornecedores', 'ana', d(2), false, false, 'cad-forn'],
-      ['Teste com o mês passado', 'carlos', d(12), false, false, 'teste-mes'],
+    ['Migração', 'Dados migrados e conferidos', 'ana', d(4), [
+      ['Migrar o plano de contas', 'ana', d(-2), false, false, 'plano-contas'],
+      ['Homologar a integração bancária', 'carlos', d(3), false, false, 'integra-banco'],
+      ['Treinar o time financeiro', 'marina', d(4), false],
     ]],
-    ['Migração', 'Dados importados e conferidos', 'ana', d(30), []],
-    ['Treinamento', 'Equipe operando sem apoio', 'leo', d(44), []],
-    ['Go-live', 'Sistema antigo desligado', 'leo', d(58), []],
+    ['Virada', 'Sistema antigo desligado', 'leo', d(20), []],
   ])
 
-  // ------------------------------------------------------------- Engenharia
-  fluxo('f-kika', 'esteira', 'Ed. Dona Kika, obra', 'eng', 'carlos', 2, [
-    ['Fundação', 'Fundação executada e laudada', 'carlos', d(-180), []],
-    ['Estrutura', 'Estrutura concluída e liberada', 'carlos', d(-60), []],
-    ['Alvenaria', 'Vedações concluídas', 'carlos', d(21), [
-      ['Alvenaria do 3º pavimento', 'carlos', d(5), false, false, 'alvenaria-3'],
-      ['Contramarcos', 'carlos', d(14), false],
-      ['Conferir medição do pedreiro', 'marina', d(3), false],
+  fluxo('f-forn', 'esteira', 'Renegociação com fornecedores', 'fin', 'ana', 1, [
+    ['Levantamento', 'Contratos e valores na mão', 'ana', d(-6), []],
+    ['Negociação', 'Propostas recebidas e comparadas', 'ana', d(2), [
+      ['Pedir proposta aos três maiores', 'ana', d(-1), true],
+      ['Montar o comparativo', 'marina', d(2), false],
+      ['Conversar com o fornecedor de TI sobre o reajuste', 'leo', d(1), false, true],
     ]],
-    ['Instalações', 'Instalações testadas', 'carlos', d(80), []],
-    ['Acabamento', 'Unidades prontas para vistoria', 'carlos', d(140), []],
-    ['Entrega', 'Habite-se emitido e chaves entregues', 'leo', d(200), []],
+    ['Assinatura', 'Novos contratos assinados', 'leo', d(25), []],
   ])
 
-  fluxo('f-medicao', 'ciclo', 'Medição de obra', 'eng', 'carlos', 0, [
-    ['Campo', 'Serviços executados levantados', 'carlos', d(2), [
-      ['Levantar serviços da quinzena', 'carlos', d(2), false],
+  // -------------------------------------------------------------- Operações
+  fluxo('f-indic', 'ciclo', 'Indicadores da operação', 'ope', 'carlos', 1, [
+    ['Coleta', 'Números do período reunidos', 'carlos', d(-2), [
+      ['Puxar os números dos sistemas', 'marina', d(-2), true],
     ]],
-    ['Planilha', 'Medição consolidada', 'marina', d(5), []],
-    ['Aprovação', 'Medição aprovada para pagamento', 'leo', d(7), []],
+    ['Análise', 'Comparativo com o período anterior pronto', 'carlos', d(1), [
+      ['Comparar com a quinzena anterior', 'marina', d(1), false],
+      ['Escrever as três conclusões', 'carlos', d(1), false],
+    ]],
+    ['Divulgação', 'Painel enviado à liderança', 'leo', d(2), []],
   ], { freq: 'quinzenal', periodo: quinzena() })
 
-  // ----------------------------------------------------------- Incorporação
-  fluxo('f-hosp', 'esteira', 'Hospital Popular', 'inc', 'leo', 3, [
-    ['Terreno', 'Condições de aquisição definidas', 'leo', d(-150), []],
-    ['Viabilidade', 'Estudo aprovado pelos sócios', 'leo', d(-100), []],
-    ['Projetos', 'Projetos legais completos', 'marina', d(-40), []],
-    ['Aprovações', 'Alvará emitido', 'leo', d(25), [
-      ['Protocolo na prefeitura', 'marina', d(-5), true],
-      ['Anuência do corpo de bombeiros', 'marina', d(10), false],
+  fluxo('f-norte', 'esteira', 'Abertura da unidade Norte', 'ope', 'carlos', 1, [
+    ['Viabilidade', 'Ponto e custos aprovados', 'leo', d(-30), []],
+    ['Preparação', 'Espaço pronto para operar', 'carlos', d(-2), [
+      ['Fechar contrato do imóvel', 'carlos', d(-10), true],
+      ['Contratar internet e telefonia', 'marina', d(-3), false],
+      ['Instalar o ponto eletrônico', 'carlos', d(-2), false],
     ]],
-    ['Lançamento', 'Vendas abertas', 'leo', d(90), []],
-    ['Obra', 'Obra concluída', 'carlos', d(400), []],
-    ['Entrega', 'Habite-se e chaves entregues', 'leo', d(500), []],
-  ], { empresa_id: 'smn', travado_motivo: 'Aguardando retorno da Associação', travado_desde: d(-12) })
+    ['Equipe', 'Time contratado e treinado', 'leo', d(20), []],
+    ['Abertura', 'Unidade operando', 'leo', d(35), []],
+  ], {
+    empresa_id: 'nor',
+    travado_motivo: 'Aguardando a liberação do alvará de funcionamento',
+    travado_desde: d(-12),
+  })
 
-  fluxo('f-vilarita', 'esteira', 'Terreno Vila Rita', 'inc', 'leo', 1, [
-    ['Terreno', 'Condições de aquisição definidas', 'leo', d(-10), []],
-    ['Viabilidade', 'Estudo aprovado pelos sócios', 'leo', d(2), [
-      ['Levantamento planialtimétrico', 'marina', d(-2), false],
-      ['Estudo de massa', 'marina', d(2), false],
-      ['Conversar com o proprietário sobre o preço', 'leo', d(1), false, true],
+  fluxo('f-lgpd', 'esteira', 'Adequação à LGPD', 'ope', 'carlos', 1, [
+    ['Mapeamento', 'Dados pessoais mapeados', 'carlos', d(-15), []],
+    ['Ajustes', 'Sistemas e contratos ajustados', 'carlos', d(5), [
+      ['Revisar os contratos com fornecedores', 'ana', d(3), false],
+      ['Definir prazo de guarda de cada base', 'carlos', d(5), false],
+      ['Nomear o encarregado', 'leo', d(2), false],
     ]],
-    ['Projetos', 'Projetos legais completos', 'marina', d(60), []],
-    ['Aprovações', 'Alvará emitido', 'leo', d(120), []],
-  ], { empresa_id: 'smn' })
-
-  fluxo('f-acacias', 'esteira', 'Permuta Rua das Acácias', 'inc', 'leo', 1, [
-    ['Terreno', 'Condições de aquisição definidas', 'leo', d(-25), []],
-    ['Viabilidade', 'Estudo aprovado pelos sócios', 'leo', d(4), [
-      ['Levantar matrícula e certidões', 'marina', d(-6), true],
-      ['Estudo de massa e VGV', 'marina', d(-1), true],
-      ['Simular a permuta com o proprietário', 'ana', d(-1), true],
-    ]],
-    ['Projetos', 'Projetos legais completos', 'marina', d(70), []],
-    ['Aprovações', 'Alvará emitido', 'leo', d(130), []],
-  ], { empresa_id: 'smn' })
+    ['Treinamento', 'Time treinado', 'leo', d(30), []],
+  ])
 
   // -------------------------------------------------------------- Comercial
-  fluxo('f-avle', 'esteira', 'AVLE', 'cml', 'leo', 1, [
-    ['Conceito', 'Proposta de valor definida', 'leo', d(-30), []],
-    ['Modelo de negócio', 'Modelo validado financeira e juridicamente', 'leo', d(12), [
-      ['Planilha de projeção', 'ana', d(4), false],
-      ['Conversar com o contador sobre o enquadramento', 'leo', d(6), false, true],
+  fluxo('f-vendas', 'ciclo', 'Relatório de vendas', 'cml', 'marina', 1, [
+    ['Coleta', 'Números da semana reunidos', 'marina', d(-1), [
+      ['Puxar o fechamento do CRM', 'marina', d(-1), true],
     ]],
-    ['Marca', 'Identidade aprovada', 'marina', d(45), []],
-    ['Piloto', 'Primeiros clientes atendidos', 'marina', d(90), []],
-    ['Lançamento', 'Operação aberta ao público', 'leo', d(120), []],
-  ], { empresa_id: 'avl' })
-
-  fluxo('f-vendas', 'ciclo', 'Relatório de vendas', 'cml', 'marina', 2, [
-    ['Coleta', 'Números do CRM exportados', 'marina', d(1), [
-      ['Exportar o funil da semana', 'marina', d(1), true],
+    ['Análise', 'Comparativo com a semana anterior pronto', 'marina', d(0), [
+      ['Comparar com a semana anterior', 'marina', d(0), false],
     ]],
-    ['Análise', 'Comparativo com a semana anterior pronto', 'marina', d(2), [
-      ['Montar o comparativo', 'marina', d(2), true],
-    ]],
-    ['Envio', 'Relatório enviado aos sócios', 'marina', d(3), [
-      ['Enviar para os sócios', 'marina', d(3), true],
-    ]],
+    ['Envio', 'Relatório enviado à liderança', 'leo', d(1), []],
   ], { freq: 'semanal', periodo: semana() })
   historico.push(
     { id: 'h7', fluxo_id: 'f-vendas', periodo: semana(-28), situacao: 'ok', criado_em: criado },
@@ -267,18 +252,41 @@ export function semente(): Base {
     { id: 'h10', fluxo_id: 'f-vendas', periodo: semana(-7), situacao: 'ok', criado_em: criado },
   )
 
-  // Uma trava dentro da mesma esteira e outra atravessando áreas: a obra do Carlos
-  // não anda enquanto a Ana não liberar o pagamento, que vive na esteira do Financeiro.
+  fluxo('f-site', 'esteira', 'Novo site e catálogo', 'cml', 'marina', 1, [
+    ['Conteúdo', 'Textos e fotos prontos', 'marina', d(-4), []],
+    ['Construção', 'Site navegável em ambiente de teste', 'marina', d(3), [
+      ['Revisar os textos de cada página', 'marina', d(1), false],
+      ['Subir o catálogo completo', 'marina', d(3), false, false, 'sobe-catalogo'],
+      ['Testar o formulário de contato', 'carlos', d(3), false],
+    ]],
+    ['Publicação', 'Site no ar com domínio próprio', 'leo', d(12), []],
+  ], { empresa_id: 'dig' })
+
+  // ----------------------------------------------------------------- Pessoas
+  fluxo('f-gerente', 'esteira', 'Contratação do gerente comercial', 'pes', 'leo', 1, [
+    ['Descrição da vaga', 'Perfil e faixa salarial definidos', 'leo', d(-18), []],
+    ['Triagem', 'Finalistas escolhidos', 'leo', d(1), [
+      ['Publicar a vaga nos canais', 'marina', d(-8), true],
+      ['Entrevistar os cinco primeiros', 'leo', d(0), false],
+      ['Conversar com o candidato interno sobre a expectativa', 'leo', d(1), false, true],
+    ]],
+    ['Proposta', 'Proposta aceita', 'leo', d(14), []],
+    ['Integração', 'Pessoa integrada ao time', 'ana', d(40), []],
+  ])
+
+  // Uma trava dentro da mesma esteira e outra atravessando áreas: o catálogo do
+  // site não sobe enquanto o pagamento do fornecedor de TI não sair, e esse
+  // pagamento vive na esteira do Financeiro.
   const dependencias = [
-    { id: 'dep1', item_id: chaves['teste-mes'], depende_de: chaves['cad-forn'] },
-    { id: 'dep2', item_id: chaves['alvenaria-3'], depende_de: chaves['paga-blocos'] },
+    { id: 'dep1', item_id: chaves['integra-banco'], depende_de: chaves['plano-contas'] },
+    { id: 'dep2', item_id: chaves['sobe-catalogo'], depende_de: chaves['paga-ti'] },
   ].filter((x) => x.item_id && x.depende_de)
 
   // ------------------------------------------------------- processos
   // O trilho que a empresa desenha uma vez. As tarefas apontam para a ÁREA que
-  // responde por elas, então a esteira nasce distribuída. Repare na Incorporação:
-  // o checkpoint de Viabilidade tem uma tarefa que cai no Financeiro, e o de
-  // Lançamento cai no Comercial. É o handoff entre áreas saindo do papel.
+  // responde por elas, então a esteira nasce distribuída. Repare na Contratação:
+  // a triagem é de Pessoas, a proposta passa pelo Financeiro e a integração volta
+  // para a área de destino. É o handoff entre áreas saindo do papel.
   const processos: Linha[] = []
   const processo_etapas: Linha[] = []
   const processo_itens: Linha[] = []
@@ -306,154 +314,148 @@ export function semente(): Base {
     })
   }
 
-  processo('p-incorp', 'Incorporação', 'esteira', 'inc',
-    'Do terreno à entrega das chaves. Passa pelo Financeiro na viabilidade e pelo Comercial no lançamento.', [
-    ['Terreno', 'Condições de aquisição definidas', 'inc', 15, [
-      ['Levantar matrícula e certidões', 'inc', 7],
-      ['Negociar condições com o proprietário', 'inc', 12],
+  processo('p-contrat', 'Contratação', 'esteira', 'pes',
+    'Da abertura da vaga à integração. Passa pelo Financeiro na proposta.', [
+    ['Vaga', 'Perfil e faixa salarial definidos', 'pes', 3, [
+      ['Escrever a descrição da vaga', 'pes', 2],
+      ['Validar a faixa salarial', 'fin', 3],
     ]],
-    ['Viabilidade', 'Estudo aprovado pelos sócios', 'inc', 45, [
-      ['Estudo de massa e VGV', 'inc', 25],
-      ['Validar números com o Financeiro', 'fin', 35],
+    ['Divulgação', 'Vaga publicada', 'pes', 6, [
+      ['Publicar nos canais', 'pes', 5],
     ]],
-    ['Projetos', 'Projetos legais completos', 'eng', 120, [
-      ['Contratar arquitetura', 'eng', 60],
-      ['Compatibilizar projetos', 'eng', 110],
+    ['Triagem', 'Finalistas escolhidos', 'pes', 20, [
+      ['Triar currículos', 'pes', 12],
+      ['Entrevistar finalistas', 'pes', 19],
     ]],
-    ['Aprovações', 'Alvará emitido', 'inc', 200, [
-      ['Protocolo na prefeitura', 'inc', 150],
-      ['Anuência do corpo de bombeiros', 'inc', 190],
+    ['Proposta', 'Proposta aceita', 'pes', 27, [
+      ['Montar a proposta', 'fin', 24],
+      ['Apresentar ao candidato', 'pes', 26],
     ]],
-    ['Lançamento', 'Vendas abertas', 'cml', 240, [
-      ['Tabela de vendas', 'cml', 220],
-      ['Material de divulgação', 'cml', 230],
+    ['Integração', 'Pessoa integrada ao time', 'pes', 45, [
+      ['Preparar acessos e equipamento', 'ope', 30],
+      ['Plano dos primeiros 30 dias', 'pes', 35],
     ]],
-    ['Obra', 'Obra concluída', 'eng', 600, []],
-    ['Entrega', 'Habite-se e chaves entregues', 'inc', 660, [
-      ['Vistoria das unidades', 'eng', 640],
-      ['Entrega das chaves', 'inc', 655],
-    ]],
-  ])
-
-  processo('p-obra', 'Obra', 'esteira', 'eng',
-    'Da fundação à entrega. O habite-se volta para a Incorporação no fim.', [
-    ['Fundação', 'Fundação executada e laudada', 'eng', 60, [
-      ['Sondagem e projeto de fundação', 'eng', 20],
-      ['Execução e laudo', 'eng', 55],
-    ]],
-    ['Estrutura', 'Estrutura concluída e liberada', 'eng', 180, [
-      ['Concretagem dos pavimentos', 'eng', 170],
-    ]],
-    ['Alvenaria', 'Vedações concluídas', 'eng', 240, [
-      ['Alvenaria dos pavimentos', 'eng', 230],
-      ['Contramarcos', 'eng', 238],
-    ]],
-    ['Instalações', 'Instalações testadas', 'eng', 300, [
-      ['Hidráulica e elétrica', 'eng', 290],
-      ['Testes de pressão', 'eng', 298],
-    ]],
-    ['Acabamento', 'Unidades prontas para vistoria', 'eng', 380, []],
-    ['Entrega', 'Habite-se emitido e chaves entregues', 'inc', 420, [
-      ['Solicitar habite-se', 'inc', 405],
-    ]],
-  ])
-
-  processo('p-implant', 'Implantação de sistema', 'esteira', null,
-    'Trocar um sistema sem parar a operação.', [
-    ['Diagnóstico', 'Processos atuais mapeados', null, 14, [
-      ['Mapear o processo atual', null, 10],
-    ]],
-    ['Escolha', 'Ferramenta contratada', null, 28, [
-      ['Comparar opções', null, 22],
-    ]],
-    ['Configuração', 'Configurado e testado com dados reais', null, 56, [
-      ['Plano de contas', 'fin', 40],
-      ['Cadastros básicos', 'fin', 50],
-    ]],
-    ['Migração', 'Dados importados e conferidos', null, 70, [
-      ['Importar e conferir', 'fin', 66],
-    ]],
-    ['Treinamento', 'Equipe operando sem apoio', null, 84, []],
-    ['Go-live', 'Sistema antigo desligado', null, 98, []],
-  ])
-
-  processo('p-negocio', 'Novo negócio', 'esteira', null,
-    'Tirar um negócio do conceito ao primeiro cliente.', [
-    ['Conceito', 'Proposta de valor definida', null, 30, [
-      ['Escrever a proposta de valor', null, 20],
-    ]],
-    ['Modelo de negócio', 'Modelo validado financeira e juridicamente', null, 60, [
-      ['Projeção financeira', 'fin', 45],
-      ['Enquadramento jurídico e tributário', 'fin', 55],
-    ]],
-    ['Marca', 'Identidade aprovada', 'cml', 90, [
-      ['Identidade visual', 'cml', 85],
-    ]],
-    ['Piloto', 'Primeiros clientes atendidos', 'cml', 150, []],
-    ['Lançamento', 'Operação aberta ao público', 'cml', 180, []],
   ])
 
   processo('p-fech', 'Fechamento mensal', 'ciclo', 'fin',
-    'A volta que fecha a competência todo mês.', [
-    ['Lançamentos', 'Despesas e receitas do mês lançadas', 'fin', 8, [
-      ['Lançar despesas', 'fin', 5],
-      ['Lançar receitas', 'fin', 6],
+    'O mês que se repete. Serve para qualquer empresa do grupo.', [
+    ['Lançamentos', 'Receitas e despesas do mês lançadas', 'fin', 3, [
+      ['Lançar notas de serviço', 'fin', 2],
+      ['Lançar folha', 'fin', 3],
     ]],
-    ['Conciliação', 'Saldo do sistema igual ao extrato', 'fin', 12, [
-      ['Conferir extratos', 'fin', 11],
+    ['Conciliação', 'Saldo do sistema igual ao extrato', 'fin', 6, [
+      ['Conferir extratos', 'fin', 5],
+      ['Conciliar cartões', 'fin', 6],
     ]],
-    ['Relatórios', 'DRE e fluxo de caixa emitidos', 'fin', 18, [
-      ['Emitir DRE', 'fin', 16],
+    ['Relatórios', 'DRE e fluxo de caixa emitidos', 'fin', 9, [
+      ['Emitir DRE', 'fin', 8],
     ]],
-    ['Fechamento', 'Competência travada', 'fin', 20, []],
+    ['Fechamento', 'Competência travada', 'fin', 11, []],
   ])
 
-  processo('p-pagar', 'Contas a pagar', 'ciclo', 'fin',
-    'A rotina semanal de pagamentos, com aprovação antes do desembolso.', [
-    ['Recebimento', 'Boletos conferidos com pedidos', 'fin', 2, [
-      ['Separar boletos da semana', 'fin', 1],
-      ['Conferir com os pedidos de compra', 'fin', 2],
+  processo('p-unidade', 'Abertura de unidade', 'esteira', 'ope',
+    'De ponto novo a unidade operando. Passa por Financeiro, Pessoas e Comercial.', [
+    ['Viabilidade', 'Ponto e custos aprovados', 'ope', 20, [
+      ['Levantar custos de instalação', 'fin', 12],
+      ['Visitar e comparar os pontos', 'ope', 18],
     ]],
-    ['Aprovação', 'Pagamentos aprovados', 'fin', 4, [
-      ['Aprovar a lista de pagamentos', 'fin', 3],
+    ['Contrato', 'Imóvel contratado', 'fin', 35, [
+      ['Revisar o contrato de locação', 'fin', 30],
     ]],
-    ['Pagamento', 'Pagamentos agendados e comprovados', 'fin', 6, [
-      ['Agendar e guardar comprovantes', 'fin', 5],
+    ['Preparação', 'Espaço pronto para operar', 'ope', 70, [
+      ['Contratar internet e telefonia', 'ope', 55],
+      ['Instalar sistemas e equipamentos', 'ope', 65],
     ]],
-  ])
-
-  processo('p-medicao', 'Medição de obra', 'ciclo', 'eng',
-    'A medição da quinzena, que termina liberando o pagamento no Financeiro.', [
-    ['Campo', 'Serviços executados levantados', 'eng', 3, [
-      ['Levantar serviços executados', 'eng', 2],
+    ['Equipe', 'Time contratado e treinado', 'pes', 90, [
+      ['Contratar o time', 'pes', 80],
+      ['Treinar no processo da casa', 'ope', 88],
     ]],
-    ['Planilha', 'Medição consolidada', 'eng', 5, [
-      ['Consolidar a planilha', 'eng', 4],
-    ]],
-    ['Aprovação', 'Medição aprovada para pagamento', 'eng', 7, [
-      ['Conferir e liberar o pagamento', 'fin', 6],
+    ['Abertura', 'Unidade operando', 'ope', 100, [
+      ['Divulgar a abertura', 'cml', 95],
     ]],
   ])
 
+  processo('p-lanc', 'Lançamento de produto', 'esteira', 'cml',
+    'Da ideia validada ao produto na rua.', [
+    ['Definição', 'Escopo e preço definidos', 'cml', 10, [
+      ['Pesquisar o que o mercado cobra', 'cml', 6],
+      ['Fechar a estrutura de preço', 'fin', 9],
+    ]],
+    ['Preparação', 'Material e operação prontos', 'cml', 30, [
+      ['Produzir o material de divulgação', 'cml', 22],
+      ['Preparar a operação para atender', 'ope', 28],
+    ]],
+    ['Lançamento', 'Produto disponível', 'cml', 40, [
+      ['Treinar o time de vendas', 'cml', 36],
+    ]],
+    ['Acompanhamento', 'Primeiro mês avaliado', 'cml', 70, []],
+  ])
+
+  processo('p-forn', 'Homologação de fornecedor', 'esteira', 'fin',
+    'Entrada de fornecedor novo, com o crivo do Financeiro e das Operações.', [
+    ['Cadastro', 'Documentação recebida', 'fin', 3, [
+      ['Pedir documentos e certidões', 'fin', 2],
+    ]],
+    ['Análise', 'Fornecedor aprovado', 'fin', 10, [
+      ['Conferir certidões e idoneidade', 'fin', 6],
+      ['Avaliar capacidade de atender', 'ope', 9],
+    ]],
+    ['Contrato', 'Contrato assinado', 'fin', 18, [
+      ['Negociar prazo e condições', 'fin', 14],
+    ]],
+  ])
+
+  processo('p-cliente', 'Entrada de cliente novo', 'esteira', 'cml',
+    'Do contrato assinado ao cliente rodando sozinho.', [
+    ['Contrato', 'Contrato assinado', 'cml', 2, [
+      ['Enviar proposta e contrato', 'cml', 1],
+    ]],
+    ['Cadastro', 'Cliente cadastrado nos sistemas', 'fin', 5, [
+      ['Cadastrar no financeiro', 'fin', 4],
+      ['Abrir os acessos', 'ope', 5],
+    ]],
+    ['Implantação', 'Cliente operando', 'ope', 25, [
+      ['Reunião de início', 'cml', 8],
+      ['Treinar o time do cliente', 'ope', 20],
+    ]],
+    ['Acompanhamento', 'Primeiros 60 dias avaliados', 'cml', 60, []],
+  ])
+
+  processo('p-projeto', 'Projeto interno', 'esteira', null,
+    'Trilho genérico, para quando o projeto não se encaixa em nenhum outro.', [
+    ['Definição', 'Objetivo e entrega combinados', null, 5, [
+      ['Escrever o que precisa estar pronto no fim', null, 3],
+    ]],
+    ['Planejamento', 'Tarefas e prazos distribuídos', null, 12, [
+      ['Quebrar em tarefas', null, 8],
+      ['Definir responsáveis e prazos', null, 11],
+    ]],
+    ['Execução', 'Entrega feita', null, 45, []],
+    ['Encerramento', 'Aprendizados registrados', null, 55, [
+      ['Escrever o que funcionou e o que não', null, 52],
+    ]],
+  ])
+
+  // --------------------------------------------------------------- agenda
   const compromissos = [
-    { id: 'c1', titulo: 'Reunião de obra na Dona Kika', quando: du(0), inicio: '09:00', fim: '10:30',
-      local: 'Canteiro', nota: 'Levantar a alvenaria do 3º pavimento', dono_id: 'carlos',
-      bloqueia: true, visivel: true, fluxo_id: 'f-kika', criado_em: criado },
-    { id: 'c2', titulo: 'Médico', quando: du(0), inicio: '15:00', fim: '16:30',
-      local: '', nota: '', dono_id: 'leo',
+    { id: 'c1', titulo: 'Reunião de liderança', quando: du(1), inicio: '09:00', fim: '10:30',
+      local: 'Sala 2', nota: 'Pauta: fechamento e unidade Norte', dono_id: 'carlos',
+      bloqueia: true, visivel: true, fluxo_id: 'f-indic', criado_em: criado },
+    { id: 'c2', titulo: 'Consulta', quando: du(1), inicio: '14:00', fim: '15:00',
+      local: '', nota: '', dono_id: 'ana',
       bloqueia: true, visivel: false, fluxo_id: null, criado_em: criado },
-    { id: 'c3', titulo: 'Fechamento com a contabilidade', quando: du(1), inicio: '14:00', fim: '15:00',
-      local: 'Escritório', nota: '', dono_id: 'ana',
-      bloqueia: true, visivel: true, fluxo_id: 'f-fech', criado_em: criado },
-    { id: 'c4', titulo: 'Visita do cliente ao Hospital Popular', quando: du(2), inicio: '10:00', fim: '11:00',
-      local: 'Terreno', nota: 'Confirmar com a Associação antes', dono_id: 'leo',
-      bloqueia: true, visivel: true, fluxo_id: 'f-hosp', criado_em: criado },
-    { id: 'c5', titulo: 'Feriado municipal', quando: du(5), inicio: null, fim: null,
+    { id: 'c3', titulo: 'Treinamento do ERP', quando: du(2), inicio: '10:00', fim: '12:00',
+      local: 'Sala 1', nota: '', dono_id: 'marina',
+      bloqueia: true, visivel: true, fluxo_id: 'f-erp', criado_em: criado },
+    { id: 'c4', titulo: 'Fechamento do mês', quando: du(4), inicio: null, fim: null,
+      local: '', nota: 'Dia inteiro dedicado', dono_id: 'ana',
+      bloqueia: false, visivel: true, fluxo_id: 'f-fech', criado_em: criado },
+    { id: 'c5', titulo: 'Almoço com o candidato', quando: du(2), inicio: '12:30', fim: '14:00',
       local: '', nota: '', dono_id: 'leo',
       bloqueia: false, visivel: true, fluxo_id: null, criado_em: criado },
-    { id: 'c6', titulo: 'Conselho do Grupo', quando: du(3), inicio: '08:30', fim: '11:00',
-      local: 'Sala de reunião', nota: 'Pauta: viabilidade da Vila Rita', dono_id: 'leo',
-      bloqueia: true, visivel: true, fluxo_id: 'f-vilarita', criado_em: criado },
+    { id: 'c6', titulo: 'Conselho do grupo', quando: du(3), inicio: '08:30', fim: '11:00',
+      local: 'Sala de reunião', nota: 'Pauta: abertura da unidade Norte', dono_id: 'leo',
+      bloqueia: true, visivel: true, fluxo_id: 'f-norte', criado_em: criado },
   ]
 
   // O Carlos usa a agenda do Google dele. Chegam só os intervalos, e a equipe
@@ -472,20 +474,98 @@ export function semente(): Base {
   const convidados = [
     { id: 'v1', compromisso_id: 'c1', perfil_id: 'marina' },
     { id: 'v2', compromisso_id: 'c1', perfil_id: 'leo' },
-    { id: 'v3', compromisso_id: 'c3', perfil_id: 'leo' },
+    { id: 'v3', compromisso_id: 'c3', perfil_id: 'ana' },
     { id: 'v4', compromisso_id: 'c6', perfil_id: 'ana' },
     { id: 'v5', compromisso_id: 'c6', perfil_id: 'carlos' },
   ]
 
+  // ------------------------------------------------------------------ conversa
+  // Minutos atrás, para a conversa parecer viva ao abrir.
+  const min = (n: number) => new Date(Date.now() - n * 60000).toISOString()
+
+  const canais: Linha[] = [
+    { id: 'k-geral', nome: 'geral', descricao: 'Tudo que é de todo mundo', tipo: 'aberto',
+      area_id: null, fluxo_id: null, empresa_id: null, criado_por: 'leo', criado_em: criado, arquivado: false },
+    { id: 'k-fin', nome: 'financeiro', descricao: 'Rotinas e fechamento', tipo: 'aberto',
+      area_id: 'fin', fluxo_id: null, empresa_id: null, criado_por: 'ana', criado_em: criado, arquivado: false },
+    { id: 'k-ope', nome: 'operacoes', descricao: 'O dia a dia da operação', tipo: 'aberto',
+      area_id: 'ope', fluxo_id: null, empresa_id: null, criado_por: 'carlos', criado_em: criado, arquivado: false },
+    { id: 'k-erp', nome: 'implantacao-erp', descricao: 'Migração e virada do sistema', tipo: 'aberto',
+      area_id: 'fin', fluxo_id: 'f-erp', empresa_id: 'mer', criado_por: 'ana', criado_em: criado, arquivado: false },
+    // Canal fechado: só quem está na lista de membros abre, inclusive o administrador.
+    { id: 'k-dir', nome: 'diretoria', descricao: 'Assuntos de sócio', tipo: 'fechado',
+      area_id: null, fluxo_id: null, empresa_id: null, criado_por: 'leo', criado_em: criado, arquivado: false },
+    { id: 'k-leo-carlos', nome: 'Carlos', descricao: '', tipo: 'direto',
+      area_id: null, fluxo_id: null, empresa_id: null, criado_por: 'leo', criado_em: criado, arquivado: false },
+  ]
+
+  const canal_membros: Linha[] = [
+    { canal_id: 'k-dir', perfil_id: 'leo', lido_em: min(200) },
+    { canal_id: 'k-dir', perfil_id: 'ana', lido_em: min(200) },
+    { canal_id: 'k-leo-carlos', perfil_id: 'leo', lido_em: min(90) },
+    { canal_id: 'k-leo-carlos', perfil_id: 'carlos', lido_em: min(60) },
+    { canal_id: 'k-erp', perfil_id: 'leo', lido_em: min(300) },
+    { canal_id: 'k-geral', perfil_id: 'leo', lido_em: min(15) },
+  ]
+
+  let nm = 0
+  const msg = (canal: string, autor: string, texto: string, minutos: number): Linha => ({
+    id: `msg${nm++}`, canal_id: canal, autor_id: autor, texto,
+    responde_a: null, sistema: false, criado_em: min(minutos), editado_em: null,
+  })
+
+  const mensagens: Linha[] = [
+    msg('k-geral', 'leo', 'Bom dia. Lembrando que o conselho ficou para quinta, 8h30.', 320),
+    msg('k-geral', 'ana', 'Anotado. Levo o fluxo de caixa consolidado das três empresas.', 300),
+    msg('k-geral', 'marina', 'Bom dia a todos!', 290),
+
+    msg('k-fin', 'ana', 'O extrato da conta principal já bateu, faltam só as conciliações do cartão.', 180),
+    msg('k-fin', 'carlos', 'Vou conciliar o cartão corporativo até segunda, pedi a segunda via de duas notas.', 170),
+    msg('k-fin', 'ana', 'Ficou definido então que a partir deste mês o cartão entra no fechamento junto com as notas de serviço.', 160),
+
+    msg('k-ope', 'carlos', 'Estamos travados esperando o alvará de funcionamento da unidade Norte, sem retorno há duas semanas.', 240),
+    msg('k-ope', 'marina', 'Quer que eu ligue na prefeitura amanhã de manhã?', 235),
+    msg('k-ope', 'carlos', 'Quero sim, obrigado.', 230),
+
+    // É esta conversa que a leitura transforma em trabalho, no botão do topo.
+    msg('k-erp', 'carlos', 'O plano de contas já está migrado, subi a planilha final ontem.', 140),
+    msg('k-erp', 'ana', 'Vi aqui. Precisamos revisar as permissões de acesso antes de abrir para o time todo.', 120),
+    msg('k-erp', 'leo', 'Concordo. @Marina, você consegue montar o roteiro de treinamento até quinta?', 95),
+    msg('k-erp', 'marina', 'Consigo, deixa comigo.', 92),
+    msg('k-erp', 'carlos', 'A homologação da integração bancária vai ter que ficar para dia 10, o banco não liberou o ambiente de testes.', 70),
+    msg('k-erp', 'leo', 'Ficou decidido que a virada é no primeiro dia útil do mês, não no meio.', 40),
+
+    msg('k-dir', 'leo', 'A unidade Norte pode consumir mais caixa que o previsto. Vale conversarmos antes do conselho.', 200),
+    msg('k-dir', 'ana', 'Concordo. Preparo um cenário de caixa até quarta.', 190),
+
+    msg('k-leo-carlos', 'carlos', 'Leo, o comparativo da quinzena fecha sexta. Consigo te mandar na quinta à noite.', 70),
+    msg('k-leo-carlos', 'leo', 'Perfeito, obrigado.', 60),
+  ]
+
+  // Duas propostas já abertas, para a leitura da conversa aparecer de cara.
+  const sugestoes: Linha[] = [
+    { id: 'sg1', canal_id: 'k-ope', mensagem_id: 'msg7', tipo: 'tarefa',
+      texto: 'Ligar na prefeitura sobre o alvará da unidade Norte',
+      motivo: 'Marina: Quer que eu ligue na prefeitura amanhã de manhã?',
+      dados: { fluxo_id: 'f-norte', resp_id: 'marina', prazo: d(1) },
+      estado: 'aberta', criado_em: min(228), decidido_por: null, decidido_em: null },
+    { id: 'sg2', canal_id: 'k-fin', mensagem_id: 'msg5', tipo: 'decisao',
+      texto: 'A partir deste mês o cartão corporativo entra no fechamento junto com as notas de serviço',
+      motivo: 'Ana: Ficou definido então que a partir deste mês o cartão entra no fechamento junto com as notas de serviço.',
+      dados: { fluxo_id: 'f-fech' },
+      estado: 'aberta', criado_em: min(158), decidido_por: null, decidido_em: null },
+  ]
+
   atividades.push(
-    { id: 'a1', fluxo_id: 'f-sist', quem_id: 'ana', texto: 'concluiu Plano de contas', criado_em: new Date(Date.now() - 864e5 * 8).toISOString() },
-    { id: 'a2', fluxo_id: 'f-sist', quem_id: 'leo', texto: 'aprovou a saída de Escolha', criado_em: new Date(Date.now() - 864e5 * 20).toISOString() },
-    { id: 'a3', fluxo_id: 'f-hosp', quem_id: 'leo', texto: 'travou: Aguardando retorno da Associação', criado_em: new Date(Date.now() - 864e5 * 12).toISOString() },
-    { id: 'a4', fluxo_id: 'f-kika', quem_id: 'carlos', texto: 'aprovou a saída de Estrutura', criado_em: new Date(Date.now() - 864e5 * 60).toISOString() },
+    { id: 'a1', fluxo_id: 'f-erp', quem_id: 'ana', texto: 'concluiu Escolha da ferramenta', criado_em: new Date(Date.now() - 864e5 * 8).toISOString() },
+    { id: 'a2', fluxo_id: 'f-erp', quem_id: 'leo', texto: 'aprovou a saída de Escolha', criado_em: new Date(Date.now() - 864e5 * 20).toISOString() },
+    { id: 'a3', fluxo_id: 'f-norte', quem_id: 'carlos', texto: 'travou: Aguardando a liberação do alvará de funcionamento', criado_em: new Date(Date.now() - 864e5 * 12).toISOString() },
+    { id: 'a4', fluxo_id: 'f-gerente', quem_id: 'marina', texto: 'concluiu Publicar a vaga nos canais', criado_em: new Date(Date.now() - 864e5 * 8).toISOString() },
   )
 
-  return { config, empresas, perfis, areas, fluxos, etapas, itens, dependencias,
+  return { organizacoes, empresas, perfis, areas, fluxos, etapas, itens, dependencias,
     processos, processo_etapas, processo_itens,
+    canais, canal_membros, mensagens, sugestoes,
     compromissos, convidados, agendas_externas, ocupacao_externa, fluxo_pessoas: [], convites: [],
     historico, atividades }
 }

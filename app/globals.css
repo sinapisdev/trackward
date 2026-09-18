@@ -851,3 +851,136 @@ h1{font-weight:600;letter-spacing:-.032em}
   .pi>.iconbtn{grid-column:3;grid-row:1}
   .salvar-barra{bottom:calc(88px + env(safe-area-inset-bottom,0px));flex-wrap:wrap}
 }
+
+/* ==========================================================================
+   Conversa
+   A mesma língua do resto: neutros, hierarquia por peso e espaço. O único
+   ponto de cor é a faísca da leitura, porque ela pede uma decisão de alguém.
+   ========================================================================== */
+
+/* A conversa ocupa a tela inteira, sem a margem das outras páginas. */
+.conteudo:has(.chat){padding:0}
+.wrap:has(.chat){max-width:none}
+
+.chat{display:grid;grid-template-columns:240px minmax(0,1fr);height:calc(100dvh - 52px);min-height:440px}
+.so-celular{display:none!important}
+
+.chat-lista{border-right:1px solid var(--line);background:var(--sunken);display:flex;
+  flex-direction:column;min-height:0}
+.chat-lista-topo{display:flex;align-items:center;justify-content:space-between;padding:14px 12px 8px;flex:none}
+.chat-lista-topo b{font-size:13px;font-weight:600;letter-spacing:-.015em}
+.chat-rolagem{flex:1;overflow-y:auto;padding:0 8px 14px;min-height:0}
+.chat-grupo{font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--tx-3);padding:13px 8px 5px}
+.chat-item{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:var(--r-sm);
+  color:var(--tx-2);min-height:31px;transition:var(--t)}
+.chat-item:hover{background:var(--hover);color:var(--tx)}
+.chat-item.on{background:var(--panel);color:var(--tx);box-shadow:var(--sombra),0 0 0 1px var(--line)}
+.chat-item.novo .nm{font-weight:600;color:var(--tx)}
+.chat-item .mk{width:15px;display:grid;place-items:center;color:var(--tx-3);flex:none}
+.chat-item .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
+.chat-item .due{font-size:10.5px}
+.cerquilha{font-weight:600;font-size:14.5px;line-height:1}
+.pastilha{color:var(--warn-forte);display:grid;place-items:center;flex:none}
+
+.chat-conversa{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg)}
+.chat-topo{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);flex:none}
+.chat-topo .mk{color:var(--tx-3);display:grid;place-items:center;flex:none}
+.chat-titulo{min-width:0;flex:1}
+.chat-titulo b{display:block;font-size:14px;font-weight:600;letter-spacing:-.02em;line-height:1.3}
+.chat-titulo span{display:block;font-size:11.5px;color:var(--tx-3);line-height:1.3;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-titulo a{transition:var(--t)} .chat-titulo a:hover{color:var(--tx-2)}
+.chat-acoes{display:flex;align-items:center;gap:6px;flex:none}
+
+/* A conversa nunca some: em tela baixa quem encolhe é o painel de propostas,
+   que tem rolagem própria. */
+.chat-rolo{flex:1 1 auto;overflow-y:auto;padding:14px 0 12px;min-height:96px;overscroll-behavior:contain}
+.chat-dia{display:flex;align-items:center;gap:12px;margin:16px 16px 12px;color:var(--tx-3);font-size:10.5px;
+  font-weight:600;letter-spacing:.05em;text-transform:uppercase}
+.chat-dia::before,.chat-dia::after{content:'';height:1px;background:var(--line);flex:1}
+.chat-dia span{flex:none}
+
+.msg{display:grid;grid-template-columns:28px minmax(0,1fr);gap:11px;padding:5px 16px;align-items:start}
+.msg:hover{background:var(--hover)}
+.msg.junto{padding-top:1px;padding-bottom:1px}
+.msg-av{display:grid;place-items:center;padding-top:2px;height:20px}
+.msg-hora{font-size:10px;color:transparent;font-style:normal;font-variant-numeric:tabular-nums;transition:var(--t)}
+.msg.junto:hover .msg-hora{color:var(--tx-3)}
+.msg-h{display:flex;align-items:baseline;gap:8px;margin-bottom:1px}
+.msg-h b{font-size:12.5px;font-weight:600;letter-spacing:-.012em}
+.msg-h i{font-size:10.5px;color:var(--tx-3);font-style:normal;font-variant-numeric:tabular-nums}
+.msg-del{opacity:0;color:var(--tx-3);margin-left:auto;transition:var(--t);display:grid;place-items:center}
+.msg:hover .msg-del{opacity:1}
+.msg-del:hover{color:var(--late)}
+.msg-corpo{min-width:0}
+.msg-corpo p{margin:0;font-size:13.5px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* O que o próprio sistema anotou, quando uma proposta virou trabalho. */
+.chat-sis{display:flex;align-items:center;gap:8px;padding:7px 16px;color:var(--tx-3);font-size:12px}
+.chat-sis svg{color:var(--warn-forte);flex:none}
+.chat-sis span{min-width:0;overflow-wrap:anywhere}
+.chat-sis i{font-style:normal;font-size:10.5px;margin-left:auto;flex:none}
+
+.chat-vazio{margin:auto;padding:44px 24px;text-align:center;max-width:430px}
+.chat-vazio h3{margin:0 0 8px;font-size:17px;font-weight:700;letter-spacing:-.028em}
+.chat-vazio p{margin:0 0 16px;color:var(--tx-3);font-size:13px;line-height:1.6}
+
+/* ------------------------------------------------------- propostas da leitura */
+.chat-sugs{flex:0 1 auto;min-height:0;border-top:1px solid var(--line);background:var(--panel);
+  max-height:46vh;overflow-y:auto;overscroll-behavior:contain;padding-bottom:7px}
+.chat-sugs-h{display:flex;align-items:center;gap:8px;padding:11px 16px 5px;font-size:12px;
+  position:sticky;top:0;background:var(--panel);z-index:1}
+.chat-sugs-h svg{color:var(--warn-forte);flex:none}
+.chat-sugs-h b{font-weight:600}
+.chat-sugs-h .btn{margin-left:auto;padding:3px 9px;font-size:11.5px}
+
+.sug{margin:7px 13px;padding:12px 13px;border-radius:var(--r);background:var(--bg);box-shadow:0 0 0 1px var(--line)}
+.sug-h{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.sug-tag{font-size:9.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:3px 7px;
+  border-radius:5px;background:var(--sunken);color:var(--tx-2);flex:none}
+.sug-tag.tarefa{background:var(--warn-soft);color:var(--warn)}
+.sug-tag.prazo,.sug-tag.trava{background:var(--late-soft);color:var(--late)}
+.sug-txt{font-size:13px;font-weight:500;min-width:0;line-height:1.45}
+.sug-pq{margin-top:7px;font-size:11.5px;color:var(--tx-3);line-height:1.5;padding-left:10px;
+  border-left:2px solid var(--line-2)}
+.sug-campos{display:flex;flex-wrap:wrap;gap:9px;margin-top:11px}
+.sug-campos label{display:flex;flex-direction:column;gap:3px;font-size:10.5px;color:var(--tx-3);font-weight:600;
+  letter-spacing:.03em;text-transform:uppercase}
+.sug-campos select,.sug-campos input{border:0;background:var(--panel);box-shadow:0 0 0 1px var(--line-2);
+  border-radius:7px;padding:5px 8px;font-size:12px;max-width:200px;color:var(--tx)}
+.sug-campos select:focus,.sug-campos input:focus{outline:none;box-shadow:0 0 0 1.5px var(--ac)}
+.sug-f{display:flex;justify-content:flex-end;gap:7px;margin-top:12px}
+
+/* ------------------------------------------------------------------ escrever */
+.chat-campo{flex:none;position:relative;display:flex;align-items:flex-end;gap:8px;
+  padding:12px 16px 14px;border-top:1px solid var(--line);background:var(--panel)}
+.chat-campo textarea{flex:1;resize:none;border:0;background:var(--bg);box-shadow:0 0 0 1px var(--line-2);
+  border-radius:var(--r);padding:9px 12px;font-size:13.5px;line-height:1.5;max-height:160px;
+  min-height:38px;font-family:inherit;color:var(--tx)}
+.chat-campo textarea::placeholder{color:var(--tx-3)}
+.chat-campo textarea:focus{outline:none;box-shadow:0 0 0 1.5px var(--ac)}
+.chat-campo .btn.pri{height:38px;padding-inline:14px;flex:none}
+.mencoes{position:absolute;bottom:calc(100% + 6px);left:16px;background:var(--alto);border-radius:var(--r);
+  box-shadow:var(--pop);padding:4px;min-width:210px;z-index:5}
+.mencoes button{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border-radius:6px;
+  font-size:12.5px;text-align:left;color:var(--tx-2);transition:var(--t)}
+.mencoes button:hover{background:var(--hover);color:var(--tx)}
+
+@media (max-width:840px){
+  .chat{grid-template-columns:1fr;height:calc(100dvh - 56px);min-height:0}
+  .chat[data-aberto="sim"] .chat-lista{display:none}
+  .chat[data-aberto="nao"] .chat-conversa{display:none}
+  .chat-lista{border-right:0}
+  /* No celular a trilha do topo já diz "Conversa", e o botão de criar vira o
+     botão flutuante, igual ao resto do app. */
+  .chat-lista-topo{display:none}
+  .chat-rolagem{padding:6px 8px calc(84px + env(safe-area-inset-bottom,0px))}
+  .so-celular{display:grid!important}
+  .chat-topo{padding:9px 12px}
+  .msg{padding-inline:13px}
+  .chat-campo{padding:10px 12px calc(12px + 56px + env(safe-area-inset-bottom,0px))}
+  .chat-sugs{max-height:54vh}
+  .sug-campos select,.sug-campos input{max-width:none;flex:1}
+  .sug-campos label{flex:1;min-width:130px}
+}

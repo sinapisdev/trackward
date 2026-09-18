@@ -3,27 +3,66 @@
 import { dias, hojeIso, soma } from '@/lib/datas'
 import { semente, type Base, type Linha } from './semente'
 
-const CHAVE_BASE = 'esteira.local.base'
-const CHAVE_EU = 'esteira.local.eu'
-const VAZIA: Base = { config: [], empresas: [], perfis: [], areas: [], fluxos: [], etapas: [], itens: [],
+// Chaves novas de propósito: o exemplo antigo era de uma construtora, e o Track
+// não é de setor nenhum. Trocar a chave faz o exemplo novo nascer limpo, sem
+// misturar as duas empresas de mentira, e o que estava lá antes é ignorado.
+const CHAVE_BASE = 'track.local.base'
+const CHAVE_EU = 'track.local.eu'
+const CHAVE_VERSAO = 'track.local.versao'
+/** Sobe quando o exemplo ganha tabelas novas. Ver completar(). */
+const VERSAO = 3
+const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], fluxos: [], etapas: [], itens: [],
   dependencias: [], processos: [], processo_etapas: [], processo_itens: [], fluxo_pessoas: [],
   convites: [],
+  canais: [], canal_membros: [], mensagens: [], sugestoes: [],
   compromissos: [], convidados: [], agendas_externas: [], ocupacao_externa: [],
   historico: [], atividades: [] }
 
 let base: Base | null = null
 const ouvintes = new Set<() => void>()
 
+/**
+ * Quem já usava o app tem uma base guardada no navegador de uma versão anterior,
+ * sem as tabelas que vieram depois. Em vez de jogar o trabalho da pessoa fora,
+ * trazemos do exemplo só o que está faltando, e o que ela criou continua lá.
+ */
+function completar(atual: Base) {
+  let versao = 0
+  try { versao = Number(localStorage.getItem(CHAVE_VERSAO)) || 0 } catch {}
+  if (versao >= VERSAO) return false
+
+  const nova = semente()
+  // A conversa chegou na versão 2. Só entra em quem ainda não tem nenhuma.
+  for (const t of ['canais', 'canal_membros', 'mensagens', 'sugestoes']) {
+    if (!atual[t]?.length) atual[t] = nova[t]
+  }
+  const cfg = atual.organizacoes?.[0]
+  if (cfg) {
+    if (cfg.ia_ativa === undefined) cfg.ia_ativa = true
+    if (cfg.ia_modo === undefined) cfg.ia_modo = 'sugerir'
+  }
+  try { localStorage.setItem(CHAVE_VERSAO, String(VERSAO)) } catch {}
+  return true
+}
+
 function ler(): Base {
   if (base) return base
   if (typeof window === 'undefined') return VAZIA
+  let nasceuAgora = false
   try {
     const cru = localStorage.getItem(CHAVE_BASE)
-    base = cru ? (JSON.parse(cru) as Base) : semente()
+    if (cru) base = JSON.parse(cru) as Base
+    else { base = semente(); nasceuAgora = true }
   } catch {
     base = semente()
+    nasceuAgora = true
   }
   for (const k of Object.keys(VAZIA)) if (!base[k]) base[k] = []
+  if (nasceuAgora) {
+    try { localStorage.setItem(CHAVE_VERSAO, String(VERSAO)) } catch {}
+  } else if (completar(base)) {
+    gravar()
+  }
   return base
 }
 
@@ -58,6 +97,7 @@ export function pessoasLocais(): Linha[] {
 
 export function reiniciarLocal() {
   base = semente()
+  try { localStorage.setItem(CHAVE_VERSAO, String(VERSAO)) } catch {}
   gravar()
 }
 
@@ -92,6 +132,25 @@ function podeVerFluxo(f: Linha, eu: string | null): boolean {
   return true
 }
 
+/**
+ * Mesma regra de ve_canal no banco: canal aberto é de todos, e quando está preso
+ * a um projeto vale quem enxerga o projeto. Fechado e direto são só de quem está
+ * dentro, inclusive para o administrador.
+ */
+function podeVerCanal(c: Linha, eu: string | null): boolean {
+  const b = ler()
+  const dentro = b.canal_membros.some((m) => m.canal_id === c.id && m.perfil_id === eu)
+  if (dentro) return true
+  if (c.tipo !== 'aberto') return false
+  if (!c.fluxo_id) return true
+  const f = b.fluxos.find((x) => x.id === c.fluxo_id)
+  return !!f && podeVerFluxo(f, eu)
+}
+
+function canaisAbertos(eu: string | null) {
+  return new Set(ler().canais.filter((c) => podeVerCanal(c, eu)).map((c) => c.id))
+}
+
 function visiveis(tabela: string, linhas: Linha[]): Linha[] {
   const eu = euLocal()
   if (tabela === 'fluxos') return linhas.filter((f) => podeVerFluxo(f, eu))
@@ -120,7 +179,12 @@ function visiveis(tabela: string, linhas: Linha[]): Linha[] {
     )
     return linhas.filter((v) => ok.has(v.compromisso_id) || v.perfil_id === eu)
   }
-  if (tabela === 'convites') return linhas
+  if (tabela === 'canais') return linhas.filter((c) => podeVerCanal(c, eu))
+  if (tabela === 'mensagens' || tabela === 'sugestoes' || tabela === 'canal_membros') {
+    const ok = canaisAbertos(eu)
+    return linhas.filter((x) => ok.has(x.canal_id))
+  }
+  if (tabela === 'organizacoes' || tabela === 'convites') return linhas
   if (tabela === 'processos' || tabela === 'processo_etapas' || tabela === 'processo_itens') return linhas
   if (tabela === 'agendas_externas') return linhas.filter((a) => a.perfil_id === eu)
   if (tabela === 'ocupacao_externa') return linhas
@@ -135,12 +199,17 @@ function visiveis(tabela: string, linhas: Linha[]): Linha[] {
 
 export type Resp<T> = { data: T; error: { message: string } | null }
 
-type Modo = 'select' | 'insert' | 'update' | 'delete'
+type Modo = 'select' | 'insert' | 'update' | 'delete' | 'upsert'
+
+/** Colunas que identificam a linha quando a tabela não se guia pelo id. */
+const CHAVE: Record<string, string[]> = { canal_membros: ['canal_id', 'perfil_id'] }
 
 class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
   private filtros: [string, unknown][] = []
+  private dentro: [string, Set<unknown>][] = []
   private ordens: [string, boolean][] = []
   private unico: 'single' | 'maybe' | null = null
+  private teto = 0
 
   constructor(private tabela: string, private modo: Modo, private corpo?: Linha) {}
 
@@ -149,6 +218,8 @@ class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
   maybeSingle() { this.unico = 'maybe'; return this }
   eq(col: string, val: unknown) { this.filtros.push([col, val]); return this }
   is(col: string, val: unknown) { this.filtros.push([col, val]); return this }
+  in(col: string, vals: unknown[]) { this.dentro.push([col, new Set(vals)]); return this }
+  limit(n: number) { this.teto = n; return this }
   order(col: string, o?: { ascending?: boolean }) {
     this.ordens.push([col, o?.ascending !== false])
     return this
@@ -157,7 +228,10 @@ class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
   private casa(l: Linha) {
     // Procurar por nulo também encontra a coluna que nunca foi preenchida,
     // que é como o banco enxerga as duas situações.
-    return this.filtros.every(([c, v]) => (v === null ? l[c] == null : l[c] === v))
+    return (
+      this.filtros.every(([c, v]) => (v === null ? l[c] == null : l[c] === v)) &&
+      this.dentro.every(([c, v]) => v.has(l[c]))
+    )
   }
 
   private executar(): Resp<T> {
@@ -167,8 +241,25 @@ class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
     if (this.modo === 'insert') {
       const linha: Linha = { id: uid('x'), criado_em: agora(), ...this.corpo }
       lista.push(linha)
+      // Mesmo gatilho do banco: quem escreve num canal passa a ser membro dele,
+      // e a marca de leitura nasce junto.
+      if (this.tabela === 'mensagens' && linha.autor_id) {
+        const m = b.canal_membros.find(
+          (x) => x.canal_id === linha.canal_id && x.perfil_id === linha.autor_id,
+        )
+        if (m) m.lido_em = agora()
+        else b.canal_membros.push({ canal_id: linha.canal_id, perfil_id: linha.autor_id, lido_em: agora() })
+      }
       gravar()
       return { data: (this.unico ? linha : [linha]) as T, error: null }
+    }
+    if (this.modo === 'upsert') {
+      const chaves = CHAVE[this.tabela] || ['id']
+      const atual = lista.find((l) => chaves.every((c) => l[c] === this.corpo![c]))
+      if (atual) Object.assign(atual, this.corpo)
+      else lista.push({ criado_em: agora(), ...(chaves.includes('id') ? { id: uid('x') } : {}), ...this.corpo })
+      gravar()
+      return { data: null as T, error: null }
     }
     if (this.modo === 'update') {
       lista.filter((l) => this.casa(l)).forEach((l) => Object.assign(l, this.corpo))
@@ -205,6 +296,12 @@ class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
         const ids = new Set(fora)
         b.processo_itens = b.processo_itens.filter((x) => !ids.has(x.etapa_id))
       }
+      if (this.tabela === 'canais') {
+        const ids = new Set(fora)
+        for (const t of ['canal_membros', 'mensagens', 'sugestoes']) {
+          b[t] = b[t].filter((x) => !ids.has(x.canal_id))
+        }
+      }
       if (this.tabela === 'areas') {
         const comFluxo = b.fluxos.some((f) => fora.includes(f.area_id))
         if (comFluxo) return { data: null as T, error: { message: 'Este area tem projetos ou rotinas dentro. Mova ou exclua antes.' } }
@@ -226,6 +323,7 @@ class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
         return asc ? r : -r
       })
     }
+    if (this.teto) saida = saida.slice(0, this.teto)
     if (this.unico) return { data: (saida[0] ?? null) as T, error: null }
     return { data: saida as T, error: null }
   }
@@ -489,6 +587,7 @@ function montarCliente() {
       return {
         select: (colunas?: string) => new Consulta(tabela, 'select').select(colunas),
         insert: (corpo: Linha) => new Consulta(tabela, 'insert', corpo),
+        upsert: (corpo: Linha, _op?: unknown) => new Consulta(tabela, 'upsert', corpo),
         update: (corpo: Linha) => new Consulta(tabela, 'update', corpo),
         delete: () => new Consulta(tabela, 'delete'),
       }

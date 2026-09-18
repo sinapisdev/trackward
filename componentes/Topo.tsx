@@ -10,7 +10,7 @@ import { progresso, status } from '@/lib/regras'
 
 /** Barra fina de contexto: onde você está, e uma busca que alcança tudo. */
 export function Topo() {
-  const { fluxos, areas, areaDe, empresaDe, config, processos } = useDados()
+  const { fluxos, areas, areaDe, empresaDe, org, processos, canais, eu, perfilDe } = useDados()
   const caminho = usePathname()
   const [termo, setTermo] = useState('')
   const [aberto, setAberto] = useState(false)
@@ -50,6 +50,15 @@ export function Topo() {
     if (caminho === '/') return [{ nome: 'Painel' }]
     if (caminho === '/minhas') return [{ nome: 'Aguardando você' }]
     if (caminho === '/agenda') return [{ nome: 'Agenda' }]
+    if (caminho === '/chat') return [{ nome: 'Conversa' }]
+    if (caminho.startsWith('/chat/')) {
+      const c = canais.find((x) => x.id === caminho.split('/')[2])
+      if (!c) return [{ nome: 'Conversa', href: '/chat' }]
+      const nome = c.tipo === 'direto'
+        ? perfilDe(c.membros.find((m) => m !== eu.id) || null).nome
+        : `#${c.nome}`
+      return [{ nome: 'Conversa', href: '/chat' }, { nome }]
+    }
     if (caminho === '/projetos') return [{ nome: 'Projetos' }]
     if (caminho === '/areas') return [{ nome: 'Áreas' }]
     if (caminho === '/equipe') return [{ nome: 'Equipe' }]
@@ -71,8 +80,8 @@ export function Topo() {
         ? [{ nome: areaDe(f.area_id).nome, href: `/area/${f.area_id}` }, { nome: f.nome }]
         : [{ nome: 'Projetos', href: '/projetos' }, { nome: f.nome }]
     }
-    return [{ nome: 'Esteira' }]
-  }, [caminho, areas, fluxos, areaDe, processos])
+    return [{ nome: 'Track' }]
+  }, [caminho, areas, fluxos, areaDe, processos, canais, eu.id, perfilDe])
 
   return (
     <header className="topo">
@@ -105,7 +114,7 @@ export function Topo() {
           {aberto && termo.trim() && (
             <div className="achados">
               {achados.length ? achados.map((f) => {
-                const emp = config.multi ? empresaDe(f.empresa_id) : null
+                const emp = org.multi ? empresaDe(f.empresa_id) : null
                 return (
                   <Link key={f.id} href={`/fluxo/${f.id}`} onClick={() => setAberto(false)}>
                     <IconeStatus st={status(f)} p={progresso(f)} />

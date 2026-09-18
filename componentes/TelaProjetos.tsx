@@ -17,7 +17,7 @@ type Corte = 'situacao' | 'empresa' | 'area'
  * das que já têm área às que ainda são só um negócio novo.
  */
 export function TelaProjetos() {
-  const { fluxos, areas, areaDe, empresas, config, empresaAtiva, carregando } = useDados()
+  const { fluxos, areas, areaDe, empresas, org, empresaAtiva, carregando } = useDados()
   const { abrir } = useModais()
   const [pessoa, setPessoa] = useState<string | null>(null)
   const [corte, setCorte] = useState<Corte>('situacao')
@@ -33,7 +33,7 @@ export function TelaProjetos() {
     .map((a) => ({ area: a, itens: lista.filter((f) => (f.area_id || '') === a.id) }))
     .filter((x) => x.itens.length)
 
-  const separaEmpresa = config.multi && !empresaAtiva && empresas.length > 1
+  const separaEmpresa = org.multi && !empresaAtiva && empresas.length > 1
   const efetivo: Corte = corte === 'empresa' && !separaEmpresa ? 'situacao' : corte
 
   /** Blocos de um corte que não é por situação: cada grupo é ordenado por urgência. */
@@ -44,7 +44,7 @@ export function TelaProjetos() {
             id: e.id, nome: e.nome, cor: e.cor, sigla: e.sigla,
             itens: lista.filter((f) => f.empresa_id === e.id).sort(porUrgencia),
           })),
-          { id: 'sem', nome: `Sem ${config.rotulo.toLowerCase()}`, itens: lista.filter((f) => !f.empresa_id).sort(porUrgencia) },
+          { id: 'sem', nome: `Sem ${org.rotulo.toLowerCase()}`, itens: lista.filter((f) => !f.empresa_id).sort(porUrgencia) },
         ].filter((b) => b.itens.length)
       : efetivo === 'area'
         ? porArea.map(({ area, itens }) => ({
@@ -96,7 +96,7 @@ export function TelaProjetos() {
                 <button className={efetivo === 'situacao' ? 'on' : ''} onClick={() => setCorte('situacao')}>Situação</button>
                 {separaEmpresa && (
                   <button className={efetivo === 'empresa' ? 'on' : ''} onClick={() => setCorte('empresa')}>
-                    {config.rotulo}
+                    {org.rotulo}
                   </button>
                 )}
                 <button className={efetivo === 'area' ? 'on' : ''} onClick={() => setCorte('area')}>Área</button>

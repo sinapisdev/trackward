@@ -181,6 +181,59 @@ nunca devolve conteúdo.
 A atualização é manual, pelo botão "Atualizar agora". Deixar isso automático depende de
 uma tarefa periódica no servidor, que faz sentido montar depois de publicar.
 
+## Conversa
+
+Canais, como em qualquer chat de trabalho, com uma diferença: o que a equipe combina
+aqui dentro vira trabalho na esteira, sem ninguém copiar nada para lugar nenhum.
+
+Três tipos de canal:
+
+| Tipo | Quem lê |
+|---|---|
+| **Aberto** | toda a equipe. Preso a um projeto, vale quem enxerga o projeto |
+| **Fechado** | só quem está dentro. Nem o administrador lê de fora, de propósito |
+| **Direto** | as duas pessoas da conversa |
+
+Um canal fechado que o chefe lê não é um canal fechado, então o banco não abre exceção
+para ninguém. Quem está fora não vê o canal, não vê as mensagens e não chega nelas nem
+pela API.
+
+### Da conversa para a esteira
+
+No alto de cada canal existe o botão **Ler a conversa**. Ele lê as últimas mensagens e
+devolve o que virou trabalho, em cinco tipos:
+
+- **tarefa**: alguém se comprometeu, pediu a alguém, ou a equipe reconheceu que falta fazer
+- **ficou pronto**: alguém disse que uma tarefa que já existe foi entregue
+- **prazo**: a conversa mudou a data de uma tarefa que já existe
+- **decisão**: ficou definido alguma coisa que precisa entrar no registro da esteira
+- **travou**: a frente parou esperando alguém de fora
+
+Cada proposta vem com **o trecho da conversa que deu origem**, para ninguém aceitar no
+escuro, e com os campos abertos para ajuste: para qual projeto vai, de quem é e até quando.
+Um toque em Aceitar cria a tarefa no checkpoint da vez, e a conversa registra o que saiu
+dela.
+
+Nada acontece sozinho até você mandar. Em **Ajustes > Leitura da conversa** dá para trocar
+para **Aplicar sozinho**: aí tarefa nova, tarefa concluída e decisão entram direto. Prazo e
+trava continuam pedindo licença mesmo nesse modo, porque prazo é compromisso com quem
+espera e trava para a frente inteira.
+
+Aceitar uma proposta passa pelas mesmas regras do resto do app. Quem não pode mexer em
+prazo não passa a poder porque a sugestão veio da leitura.
+
+### Quem lê
+
+A leitura roda no servidor, em `/api/leitor`, e funciona em duas camadas:
+
+- **com uma chave da Anthropic** em `ANTHROPIC_API_KEY`, quem lê é o modelo, que entende
+  contexto, ironia e a frase que se espalha por três mensagens;
+- **sem chave**, ou se a chamada falhar, valem as regras de português de `lib/leitor.ts`,
+  que reconhecem compromisso, pedido, entrega, decisão e data.
+
+As duas devolvem o mesmo formato, então o app nunca fica sem ler a conversa. A chave, se
+existir, mora só no servidor: o navegador manda a conversa e recebe propostas de volta.
+
 ## Dependências entre tarefas
 
 Uma tarefa pode apontar de quais outras ela depende, **inclusive de outra esteira e de
@@ -289,12 +342,14 @@ invertida, em preto quente) e Automático. O botão no rodapé da lateral percor
 
 ```
 app/
-  (app)/          telas de dentro: painel, minhas pendências, projetos, área, fluxo, equipe
+  (app)/          telas de dentro: painel, pendências, conversa, projetos, área, fluxo, equipe
+  api/leitor/     transforma conversa em propostas, com modelo ou com regras
   entrar/         login, criar conta, recuperar senha
   auth/confirmar/ recebe o link enviado por e-mail
 componentes/
   Dados.tsx       carrega tudo, escuta o tempo real e concentra as ações
-  Modais.tsx      novo area, nova esteira, item, travar, excluir
+  Modais.tsx      novo area, nova esteira, item, travar, canal, excluir
+  TelaChat.tsx    canais, mensagens e as propostas que saem da conversa
   Shell.tsx       navegação lateral e avisos
   Painel.tsx  Minhas.tsx  TelaArea.tsx  TelaFluxo.tsx  Equipe.tsx
 lib/
@@ -305,6 +360,7 @@ lib/
   tema.ts         os temas
   agenda.ts       horários, conflitos e as grades de semana e mês
   acesso.ts       quem vê o quê e quem pode mudar o quê
+  leitor.ts       lê a conversa e separa o que virou trabalho
   local/          a empresa de exemplo e o banco de mentira do navegador
 supabase/
   schema.sql      tabelas, RLS e as duas funções de servidor

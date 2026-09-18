@@ -10,10 +10,10 @@ const sans = Plus_Jakarta_Sans({
 })
 
 export const metadata: Metadata = {
-  title: 'Esteira Silvereng',
-  description: 'As áreas e os projetos da Silvereng como esteiras com checkpoints: o que precisa ser feito e o que já foi feito.',
+  title: 'Track',
+  description: 'Cada projeto e cada rotina da empresa como uma esteira com checkpoints: o que precisa ser feito, quem responde e até quando.',
   manifest: '/manifest.webmanifest',
-  appleWebApp: { capable: true, title: 'Esteira', statusBarStyle: 'default' },
+  appleWebApp: { capable: true, title: 'Track', statusBarStyle: 'default' },
   icons: {
     icon: [{ url: '/icone-192.png', sizes: '192x192', type: 'image/png' }],
     apple: [{ url: '/apple-icon.png', sizes: '180x180', type: 'image/png' }],

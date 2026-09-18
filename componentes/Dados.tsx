@@ -8,9 +8,11 @@ import { hojeIso } from '@/lib/datas'
 import { proxPeriodo } from '@/lib/modelos'
 import type { RascunhoEtapa } from '@/lib/modelos'
 import { etapaAtual } from '@/lib/regras'
-import type { AgendaExterna, Atividade, Compromisso, Config, Convite, Empresa, Etapa, Fluxo, Item, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Volta } from '@/lib/tipos'
+import type { AgendaExterna, Atividade, Canal, Compromisso, Organizacao, Convite, Empresa, Etapa, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta } from '@/lib/tipos'
+import type { Contexto as ContextoLeitura, Proposta } from '@/lib/leitor'
+import type { Alvo } from '@/lib/tipos'
 import { iso } from '@/lib/datas'
-import { itensVisiveis, veFluxo } from '@/lib/acesso'
+import { itensVisiveis, podeMexerNoPrazo, veFluxo } from '@/lib/acesso'
 
 type Aviso = { texto: string; erro: boolean; id: number }
 
@@ -19,7 +21,7 @@ type Contexto = {
   perfis: Perfil[]
   areas: Area[]
   empresas: Empresa[]
-  config: Config
+  org: Organizacao
   /** Fluxos da empresa em foco. Sem empresa escolhida, são todos. */
   fluxos: Fluxo[]
   /** Todos, ignorando o filtro de empresa. Serve para contar no seletor. */
@@ -58,7 +60,7 @@ type Contexto = {
   salvarPerfil: (id: string, d: Partial<Perfil>) => Promise<void>
   salvarEmpresa: (d: { id?: string; nome: string; sigla: string; cor: string }) => Promise<void>
   excluirEmpresa: (id: string) => Promise<void>
-  salvarConfig: (d: Partial<Config>) => Promise<void>
+  salvarOrg: (d: Partial<Organizacao>) => Promise<void>
   salvarCompromisso: (d: Partial<Compromisso> & { convidados: string[] }) => Promise<void>
   excluirCompromisso: (id: string) => Promise<void>
   ligarAgendaExterna: (url: string) => Promise<{ blocos: number } | null>
@@ -74,6 +76,28 @@ type Contexto = {
   criarDoProcesso: (
     processoId: string, dados: Record<string, unknown>, pessoas: Record<string, string>, inicio: string,
   ) => Promise<string | null>
+
+  // ------------------------------------------------------------- conversa
+  /** Os canais que você enxerga, com o mais movimentado no topo. */
+  canais: Canal[]
+  mensagens: Mensagem[]
+  sugestoes: Sugestao[]
+  mensagensDe: (canalId: string) => Mensagem[]
+  sugestoesDe: (canalId: string) => Sugestao[]
+  /** Quantas mensagens chegaram depois da última vez que você abriu o canal. */
+  naoLidas: (canalId: string) => number
+  enviar: (canalId: string, texto: string, respondeA?: string | null) => Promise<void>
+  apagarMensagem: (m: Mensagem) => Promise<void>
+  marcarLido: (canalId: string) => Promise<void>
+  salvarCanal: (d: {
+    id?: string; nome: string; descricao: string; tipo: TipoCanal
+    area_id: string | null; fluxo_id: string | null; membros: string[]
+  }) => Promise<string | null>
+  excluirCanal: (id: string) => Promise<void>
+  /** Lê a conversa e guarda o que ela produziu, sem aplicar nada ainda. */
+  lerConversa: (canalId: string) => Promise<{ achou: number; motor: string } | null>
+  aceitarSugestao: (s: Sugestao, ajuste?: Alvo) => Promise<void>
+  recusarSugestao: (s: Sugestao) => Promise<void>
 }
 
 const Ctx = createContext<Contexto | null>(null)
@@ -89,10 +113,12 @@ const SEM_PERFIL: Perfil = {
   area_id: null, gestor_id: null, ve_area: false, ativo: false, criado_em: '',
 }
 const SEM_AREA: Area = { id: '', nome: 'Sem área', cor: '#8A909C', ordem: 999, responsavel_id: null }
-const CONFIG_PADRAO: Config = {
-  id: '1', organizacao: 'Esteira', multi: false, rotulo: 'Empresa', rotulo_plural: 'Empresas',
+const ORG_PADRAO: Organizacao = {
+  id: '', nome: 'Track', tipo: 'equipe', dominio: null, entrada_por_dominio: false,
+  dono_id: null, multi: false, rotulo: 'Empresa', rotulo_plural: 'Empresas',
+  ia_ativa: true, ia_modo: 'sugerir', criado_em: '',
 }
-const CHAVE_EMPRESA = 'esteira.empresa'
+const CHAVE_EMPRESA = 'track.empresa'
 
 export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNode }) {
   const sb = supabase()
@@ -100,7 +126,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [perfis, setPerfis] = useState<Perfil[]>([perfil])
   const [areas, setAreas] = useState<Area[]>([])
   const [empresas, setEmpresas] = useState<Empresa[]>([])
-  const [config, setConfig] = useState<Config>(CONFIG_PADRAO)
+  const [org, setOrg] = useState<Organizacao>(ORG_PADRAO)
   const [todosFluxos, setFluxos] = useState<Fluxo[]>([])
   const [empresaAtiva, setEmpresaAtiva] = useState<string | null>(null)
   /** Quantas tarefas cada esteira tem ao todo, para avisar o que ficou de fora. */
@@ -109,6 +135,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [minhaAgendaExterna, setMinhaExterna] = useState<AgendaExterna | null>(null)
   const [processos, setProcessos] = useState<Processo[]>([])
   const [convites, setConvites] = useState<Convite[]>([])
+  const [canais, setCanais] = useState<Canal[]>([])
+  const [mensagens, setMensagens] = useState<Mensagem[]>([])
+  const [sugestoes, setSugestoes] = useState<Sugestao[]>([])
   const [carregando, setCarregando] = useState(true)
   const [aviso, setAviso] = useState<Aviso | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -138,7 +167,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   /** Recolhe tudo que a pessoa pode ver e monta a árvore de fluxos. */
   const carregar = useCallback(async () => {
-    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt] = await Promise.all([
+    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg] = await Promise.all([
       sb.from('perfis').select('*').order('nome'),
       sb.from('areas').select('*').order('ordem'),
       sb.from('fluxos').select('*').order('criado_em'),
@@ -147,7 +176,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       sb.from('historico').select('*').order('criado_em'),
       sb.from('atividades').select('*').order('criado_em', { ascending: false }),
       sb.from('empresas').select('*').order('ordem'),
-      sb.from('config').select('*'),
+      sb.from('organizacoes').select('*'),
       sb.from('dependencias').select('*'),
       sb.from('compromissos').select('*').order('quando'),
       sb.from('convidados').select('*'),
@@ -159,6 +188,10 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       sb.from('processo_itens').select('*').order('ordem'),
       sb.from('fluxo_pessoas').select('*'),
       sb.from('convites').select('*').is('usado_em', null).order('criado_em', { ascending: false }),
+      sb.from('canais').select('*').order('nome'),
+      sb.from('canal_membros').select('*'),
+      sb.from('mensagens').select('*').order('criado_em'),
+      sb.from('sugestoes').select('*').order('criado_em', { ascending: false }),
     ])
 
     const listaPerfis = (p.data || []) as Perfil[]
@@ -167,8 +200,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     if (meu) setEu(meu)
     setAreas((s.data || []) as Area[])
     setEmpresas((em.data || []) as Empresa[])
-    const cfg = ((cf.data || []) as Config[])[0]
-    setConfig(cfg ? { ...CONFIG_PADRAO, ...cfg } : CONFIG_PADRAO)
+    const cfg = ((cf.data || []) as Organizacao[])[0]
+    setOrg(cfg ? { ...ORG_PADRAO, ...cfg } : ORG_PADRAO)
 
     const travas = new Map<string, string[]>()
     for (const d of (dp.data || []) as { item_id: string; depende_de: string }[]) {
@@ -290,6 +323,26 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       })),
     )
     setConvites((cvt.data || []) as Convite[])
+
+    // Canal: a lista de membros vem junto, e com ela a minha marca de leitura.
+    const membrosDo = new Map<string, string[]>()
+    const meuLido = new Map<string, string | null>()
+    for (const x of (km.data || []) as { canal_id: string; perfil_id: string; lido_em: string | null }[]) {
+      const lista = membrosDo.get(x.canal_id)
+      if (lista) lista.push(x.perfil_id)
+      else membrosDo.set(x.canal_id, [x.perfil_id])
+      if (x.perfil_id === perfil.id) meuLido.set(x.canal_id, x.lido_em)
+    }
+    setCanais(((kn.data || []) as Omit<Canal, 'membros' | 'lido_em'>[]).map((k) => ({
+      ...k,
+      membros: membrosDo.get(k.id) || [],
+      lido_em: meuLido.get(k.id) ?? null,
+    })))
+    setMensagens((ms.data || []) as Mensagem[])
+    setSugestoes(((sg.data || []) as Sugestao[]).map((x) => ({
+      ...x,
+      dados: (typeof x.dados === 'string' ? JSON.parse(x.dados) : x.dados) || {},
+    })))
     setTotais(new Map(montados.map((fl) => [fl.id, fl.etapas.reduce((n, et) => n + et.itens.length, 0)])))
     setCarregando(false)
   }, [sb, perfil.id])
@@ -311,8 +364,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   /** O filtro de empresa é global: escolhida uma, o app inteiro fala só dela. */
   const fluxos = useMemo(
-    () => (!config.multi || !empresaAtiva ? todosFluxos : todosFluxos.filter((f) => f.empresa_id === empresaAtiva)),
-    [todosFluxos, empresaAtiva, config.multi],
+    () => (!org.multi || !empresaAtiva ? todosFluxos : todosFluxos.filter((f) => f.empresa_id === empresaAtiva)),
+    [todosFluxos, empresaAtiva, org.multi],
   )
   const totalItens = useCallback((id: string) => totais.get(id) ?? 0, [totais])
   const indiceEmpresas = useMemo(() => new Map(empresas.map((e) => [e.id, e])), [empresas])
@@ -518,13 +571,13 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     recarregar()
   }, [sb, empresaAtiva, focarEmpresa, falhou, toast, recarregar])
 
-  const salvarConfig: Contexto['salvarConfig'] = useCallback(async (d) => {
-    const { error } = await sb.from('config').update(d).eq('id', '1')
+  const salvarOrg: Contexto['salvarOrg'] = useCallback(async (d) => {
+    const { error } = await sb.from('organizacoes').update(d).eq('id', org.id)
     if (error) return falhou(error, 'Não foi possível salvar.')
-    setConfig((c) => ({ ...c, ...d }))
+    setOrg((c) => ({ ...c, ...d }))
     toast('Salvo.')
     recarregar()
-  }, [sb, falhou, toast, recarregar])
+  }, [sb, org.id, falhou, toast, recarregar])
 
   const salvarCompromisso: Contexto['salvarCompromisso'] = useCallback(async (d) => {
     const corpo = {
@@ -696,16 +749,258 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     recarregar()
   }, [sb, falhou, toast, recarregar])
 
+  // -------------------------------------------------------------- conversa
+
+  const mensagensDe = useCallback(
+    (canalId: string) => mensagens.filter((m) => m.canal_id === canalId),
+    [mensagens],
+  )
+  const sugestoesDe = useCallback(
+    (canalId: string) => sugestoes.filter((s) => s.canal_id === canalId),
+    [sugestoes],
+  )
+
+  /**
+   * O que chegou em cada canal depois da última vez que abri, sem contar o que eu
+   * mesmo escrevi. Numa passada só: a lateral, as abas e a lista de canais pedem
+   * esta conta o tempo todo, e varrer as mensagens uma vez por canal não escala.
+   */
+  const porLer = useMemo(() => {
+    const marca = new Map(canais.map((c) => [c.id, c.lido_em ? Date.parse(c.lido_em) : 0]))
+    const conta = new Map<string, number>()
+    for (const m of mensagens) {
+      if (m.autor_id === eu.id) continue
+      const limite = marca.get(m.canal_id)
+      if (limite === undefined) continue
+      if (Date.parse(m.criado_em) > limite) conta.set(m.canal_id, (conta.get(m.canal_id) ?? 0) + 1)
+    }
+    return conta
+  }, [canais, mensagens, eu.id])
+
+  const naoLidas = useCallback((canalId: string) => porLer.get(canalId) ?? 0, [porLer])
+
+  const marcarLido: Contexto['marcarLido'] = useCallback(async (canalId) => {
+    await sb.from('canal_membros')
+      .upsert({ canal_id: canalId, perfil_id: eu.id, lido_em: new Date().toISOString() },
+        { onConflict: 'canal_id,perfil_id' })
+    setCanais((atual) => atual.map(
+      (c) => (c.id === canalId ? { ...c, lido_em: new Date().toISOString() } : c),
+    ))
+  }, [sb, eu.id])
+
+  const enviar: Contexto['enviar'] = useCallback(async (canalId, texto, respondeA = null) => {
+    const limpo = texto.trim()
+    if (!limpo) return
+    const { error } = await sb.from('mensagens').insert({
+      canal_id: canalId, autor_id: eu.id, texto: limpo, responde_a: respondeA, sistema: false,
+    })
+    if (error) return falhou(error, 'Não foi possível enviar.')
+    recarregar()
+  }, [sb, eu.id, falhou, recarregar])
+
+  const apagarMensagem: Contexto['apagarMensagem'] = useCallback(async (m) => {
+    const { error } = await sb.from('mensagens').delete().eq('id', m.id)
+    if (error) return falhou(error, 'Só quem escreveu pode apagar.')
+    recarregar()
+  }, [sb, falhou, recarregar])
+
+  const salvarCanal: Contexto['salvarCanal'] = useCallback(async (d) => {
+    const corpo = {
+      nome: d.nome.trim(), descricao: d.descricao.trim(), tipo: d.tipo,
+      area_id: d.area_id, fluxo_id: d.fluxo_id,
+      empresa_id: org.multi ? empresaAtiva : null,
+    }
+    let id = d.id
+    if (id) {
+      const { error } = await sb.from('canais').update(corpo).eq('id', id)
+      if (error) { falhou(error, 'Não foi possível salvar o canal.'); return null }
+    } else {
+      const { data, error } = await sb.from('canais')
+        .insert({ ...corpo, criado_por: eu.id }).select().single()
+      if (error) { falhou(error, 'Não foi possível criar o canal.'); return null }
+      id = (data as Canal).id
+    }
+    // Quem cria entra junto, senão criaria um canal fechado que nem ele abre.
+    const querem = new Set([...d.membros, eu.id])
+    const agora = new Date().toISOString()
+    for (const perfil_id of querem) {
+      await sb.from('canal_membros').upsert(
+        { canal_id: id, perfil_id, lido_em: perfil_id === eu.id ? agora : null },
+        { onConflict: 'canal_id,perfil_id' },
+      )
+    }
+    if (d.id) {
+      const antes = canais.find((c) => c.id === d.id)?.membros || []
+      for (const fora of antes.filter((x) => !querem.has(x))) {
+        await sb.from('canal_membros').delete().eq('canal_id', id).eq('perfil_id', fora)
+      }
+    }
+    toast(d.id ? 'Canal salvo.' : 'Canal criado.')
+    recarregar()
+    return id ?? null
+  }, [sb, eu.id, canais, org.multi, empresaAtiva, falhou, toast, recarregar])
+
+  const excluirCanal: Contexto['excluirCanal'] = useCallback(async (id) => {
+    const { error } = await sb.from('canais').delete().eq('id', id)
+    if (error) return falhou(error, 'Só quem criou o canal pode excluí-lo.')
+    toast('Canal excluído.')
+    recarregar()
+  }, [sb, falhou, toast, recarregar])
+
+  /** Todas as tarefas que enxergo, para casar uma sugestão com o item dela. */
+  const itemPorId = useCallback((id?: string | null) => {
+    if (!id) return null
+    for (const f of todosFluxos) {
+      for (const et of f.etapas) {
+        const achado = et.itens.find((i) => i.id === id)
+        if (achado) return { fluxo: f, etapa: et, item: achado }
+      }
+    }
+    return null
+  }, [todosFluxos])
+
+  const aceitarSugestao: Contexto['aceitarSugestao'] = useCallback(async (sug, ajuste) => {
+    const dados: Alvo = { ...sug.dados, ...ajuste }
+    const fluxo = todosFluxos.find((x) => x.id === dados.fluxo_id) || null
+    let contou = ''
+
+    if (sug.tipo === 'tarefa') {
+      if (!fluxo) return toast('Escolha para qual projeto esta tarefa vai.', true)
+      const et = fluxo.etapas.find((e) => e.id === dados.etapa_id)
+        || fluxo.etapas[fluxo.atual] || fluxo.etapas[0]
+      if (!et) return toast('Este projeto ainda não tem checkpoint.', true)
+      const id = await adicionarItem(et, {
+        texto: sug.texto, resp_id: dados.resp_id ?? null, prazo: dados.prazo || '', priv: false,
+      })
+      if (!id) return
+      contou = `criou a tarefa "${sug.texto}" em ${fluxo.nome}`
+    } else if (sug.tipo === 'concluir') {
+      const achado = itemPorId(dados.item_id)
+      if (!achado) return toast('A tarefa não existe mais.', true)
+      if (!achado.item.feito) await alternarItem(achado.item)
+      contou = `marcou "${achado.item.texto}" como feita`
+    } else if (sug.tipo === 'prazo') {
+      const achado = itemPorId(dados.item_id)
+      if (!achado) return toast('A tarefa não existe mais.', true)
+      if (!podeMexerNoPrazo(eu, achado.fluxo, perfis)) {
+        return toast('Prazo é decisão de quem manda no processo.', true)
+      }
+      await editarItem(achado.item, {
+        texto: achado.item.texto, resp_id: achado.item.resp_id,
+        prazo: dados.prazo || '', priv: achado.item.priv,
+      })
+      contou = `mudou o prazo de "${achado.item.texto}"`
+    } else if (sug.tipo === 'trava') {
+      if (!fluxo) return toast('Esta proposta não aponta para um projeto.', true)
+      await travar(fluxo, sug.texto.replace(/^Travar [^:]+:\s*/, ''))
+      contou = `travou ${fluxo.nome}`
+    } else if (sug.tipo === 'decisao') {
+      if (fluxo) await logar(fluxo.id, `registrou da conversa: ${sug.texto}`)
+      contou = fluxo ? `registrou a decisão em ${fluxo.nome}` : 'registrou a decisão'
+    }
+
+    await sb.from('sugestoes').update({
+      estado: 'aceita', decidido_por: eu.id, decidido_em: new Date().toISOString(),
+    }).eq('id', sug.id)
+    // A conversa fica sabendo do que saiu dela, senão o trabalho some do contexto.
+    if (contou) {
+      await sb.from('mensagens').insert({
+        canal_id: sug.canal_id, autor_id: eu.id, texto: contou, sistema: true, responde_a: null,
+      })
+    }
+    recarregar()
+  }, [sb, eu, perfis, todosFluxos, itemPorId, adicionarItem, alternarItem, editarItem, travar, logar, toast, recarregar])
+
+  const recusarSugestao: Contexto['recusarSugestao'] = useCallback(async (sug) => {
+    await sb.from('sugestoes').update({
+      estado: 'recusada', decidido_por: eu.id, decidido_em: new Date().toISOString(),
+    }).eq('id', sug.id)
+    recarregar()
+  }, [sb, eu.id, recarregar])
+
+  /**
+   * Manda a conversa para a leitura e guarda o que ela produziu.
+   * Nada aqui encosta no trabalho de ninguém: o que volta são propostas, e é
+   * alguém quem aceita. Com o modo "aplicar" ligado em Ajustes, tarefa nova e
+   * tarefa concluída entram sozinhas; prazo e trava continuam pedindo licença.
+   */
+  const lerConversa: Contexto['lerConversa'] = useCallback(async (canalId) => {
+    const canal = canais.find((c) => c.id === canalId)
+    if (!canal) return null
+    const doCanal = mensagens.filter((m) => m.canal_id === canalId && !m.sistema)
+    if (!doCanal.length) { toast('Ainda não há conversa para ler.'); return null }
+
+    const f = canal.fluxo_id ? todosFluxos.find((x) => x.id === canal.fluxo_id) : null
+    const corpo: ContextoLeitura = {
+      hoje: hojeIso(),
+      mensagens: doCanal.slice(-40).map((m) => ({
+        id: m.id, autor_id: m.autor_id, autor: nomeDe(m.autor_id), texto: m.texto,
+      })),
+      pessoas: perfis.filter((p) => p.ativo).map((p) => ({ id: p.id, nome: p.nome })),
+      fluxo: f ? {
+        id: f.id, nome: f.nome, etapa_id: f.etapas[f.atual]?.id ?? null,
+        itens: f.etapas.flatMap((e) => e.itens.map((i) => ({
+          id: i.id, texto: i.texto, resp_id: i.resp_id, feito: i.feito, prazo: i.prazo, etapa_id: e.id,
+        }))),
+      } : null,
+    }
+
+    let propostas: Proposta[] = []
+    let motor = 'regras'
+    try {
+      const r = await fetch('/api/leitor', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo),
+      })
+      const volta = await r.json() as { propostas?: Proposta[]; motor?: string }
+      propostas = volta.propostas || []
+      motor = volta.motor || 'regras'
+    } catch {
+      toast('Não consegui ler a conversa agora.', true)
+      return null
+    }
+
+    // O que já foi proposto antes não volta, nem o que alguém já recusou.
+    const jaVistas = sugestoesDe(canalId)
+    const novas = propostas.filter(
+      (p) => !jaVistas.some((v) => v.texto.trim().toLowerCase() === p.texto.trim().toLowerCase()),
+    )
+
+    const gravadas: Sugestao[] = []
+    for (const p of novas) {
+      const { data } = await sb.from('sugestoes').insert({
+        canal_id: canalId, mensagem_id: p.mensagem_id, tipo: p.tipo,
+        texto: p.texto, motivo: p.motivo, dados: p.dados, estado: 'aberta',
+      }).select().single()
+      if (data) gravadas.push({ ...(data as Sugestao), dados: p.dados })
+    }
+
+    if (org.ia_modo === 'aplicar') {
+      for (const g of gravadas) {
+        // Prazo e trava nunca entram sozinhos: um mexe em compromisso com quem
+        // espera, o outro para a frente inteira.
+        if (g.tipo === 'prazo' || g.tipo === 'trava') continue
+        if (g.tipo === 'tarefa' && !g.dados.fluxo_id) continue
+        await aceitarSugestao(g)
+      }
+    }
+
+    recarregar()
+    return { achou: novas.length, motor }
+  }, [sb, canais, mensagens, perfis, todosFluxos, nomeDe, sugestoesDe, org.ia_modo, aceitarSugestao, toast, recarregar])
+
   const valor: Contexto = {
-    eu, perfis, areas, empresas, config, fluxos, todosFluxos, totalItens, agenda, minhaAgendaExterna, processos, convites,
+    eu, perfis, areas, empresas, org, fluxos, todosFluxos, totalItens, agenda, minhaAgendaExterna, processos, convites,
     empresaAtiva, focarEmpresa, empresaDe, carregando,
     perfilDe, nomeDe, areaDe, aviso, toast,
     salvarArea, excluirArea, salvarFluxo, excluirFluxo,
     travar, destravar, adicionarItem, editarItem, definirTravas, excluirItem, alternarItem, aprovar,
-    salvarPerfil, salvarEmpresa, excluirEmpresa, salvarConfig,
+    salvarPerfil, salvarEmpresa, excluirEmpresa, salvarOrg,
     salvarCompromisso, excluirCompromisso, ligarAgendaExterna, desligarAgendaExterna,
     salvarProcesso, excluirProcesso, duplicarProcesso, criarDoProcesso,
     criarConvite, excluirConvite,
+    canais, mensagens, sugestoes, mensagensDe, sugestoesDe, naoLidas,
+    enviar, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
+    lerConversa, aceitarSugestao, recusarSugestao,
   }
 
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>

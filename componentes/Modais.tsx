@@ -10,7 +10,7 @@ import { dias, hojeIso } from '@/lib/datas'
 import { podeMexerNoPrazo } from '@/lib/acesso'
 import { faixa, minutos, ocupados } from '@/lib/agenda'
 import { esqueletoEmBranco, periodoAtual, type RascunhoEtapa } from '@/lib/modelos'
-import type { Compromisso, Empresa, Etapa, Fluxo, Freq, Item, Area, Tipo, Visibilidade } from '@/lib/tipos'
+import type { Canal, Compromisso, Empresa, Etapa, Fluxo, Freq, Item, Area, Tipo, TipoCanal, Visibilidade } from '@/lib/tipos'
 
 const CORES = ['#C2703C', '#7D8471', '#A8763E', '#6E7B8B', '#96705B', '#5F7A6A', '#A5645C', '#7A6E8F']
 
@@ -21,6 +21,7 @@ export type Pedido =
   | { tipo: 'item'; etapa: Etapa; item?: Item }
   | { tipo: 'travar'; fluxo: Fluxo }
   | { tipo: 'compromisso'; compromisso?: Compromisso; quando?: string; inicio?: string }
+  | { tipo: 'canal'; canal?: Canal }
   | { tipo: 'excluir'; titulo: string; texto: string; acao: () => void | Promise<void> }
 
 const Ctx = createContext<{ abrir: (p: Pedido) => void; fechar: () => void } | null>(null)
@@ -54,6 +55,7 @@ export function Modais({ children }: { children: ReactNode }) {
           {pedido.tipo === 'item' && <MItem etapa={pedido.etapa} item={pedido.item} fechar={fechar} />}
           {pedido.tipo === 'travar' && <MTravar fluxo={pedido.fluxo} fechar={fechar} />}
           {pedido.tipo === 'compromisso' && <MCompromisso pedido={pedido} fechar={fechar} />}
+          {pedido.tipo === 'canal' && <MCanal canal={pedido.canal} fechar={fechar} />}
           {pedido.tipo === 'excluir' && <MExcluir pedido={pedido} fechar={fechar} />}
         </div>
       )}
@@ -137,7 +139,7 @@ function MArea({ area, fechar }: { area?: Area; fechar: () => void }) {
 // ---------------------------------------------------------------- empresa
 
 function MEmpresa({ empresa, fechar }: { empresa?: Empresa; fechar: () => void }) {
-  const { salvarEmpresa, config } = useDados()
+  const { salvarEmpresa, org } = useDados()
   const [nome, setNome] = useState(empresa?.nome || '')
   const [sigla, setSigla] = useState(empresa?.sigla || '')
   const [cor, setCor] = useState(empresa?.cor || CORES[0])
@@ -153,7 +155,7 @@ function MEmpresa({ empresa, fechar }: { empresa?: Empresa; fechar: () => void }
   return (
     <div className="dlg" role="dialog" aria-modal="true" aria-labelledby="mе">
       <div className="dlg-h">
-        <h3 id="mе">{empresa ? `Editar ${config.rotulo.toLowerCase()}` : `Nova ${config.rotulo.toLowerCase()}`}</h3>
+        <h3 id="mе">{empresa ? `Editar ${org.rotulo.toLowerCase()}` : `Nova ${org.rotulo.toLowerCase()}`}</h3>
         <p>Cada rotina e cada projeto pode pertencer a uma, e o seletor da lateral foca o app nela.</p>
       </div>
       <div className="dlg-b">
@@ -189,7 +191,7 @@ function MEmpresa({ empresa, fechar }: { empresa?: Empresa; fechar: () => void }
 // ------------------------------------------------------------------ fluxo
 
 function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>; fechar: () => void }) {
-  const { eu, perfis, areas, areaDe, nomeDe, empresas, config, empresaAtiva, processos,
+  const { eu, perfis, areas, areaDe, nomeDe, empresas, org, empresaAtiva, processos,
     salvarFluxo, criarDoProcesso, toast } = useDados()
   const router = useRouter()
   const edicao = pedido.fluxo
@@ -342,11 +344,11 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
               {areas.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
             </select>
           </div>
-          {config.multi && (
+          {org.multi && (
             <div className="fld">
-              <label htmlFor="f-emp">{config.rotulo}</label>
+              <label htmlFor="f-emp">{org.rotulo}</label>
               <select className="inp" id="f-emp" value={empresaId} onChange={(e) => setEmpresaId(e.target.value)}>
-                <option value="">Sem {config.rotulo.toLowerCase()}</option>
+                <option value="">Sem {org.rotulo.toLowerCase()}</option>
                 {empresas.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
               </select>
             </div>
@@ -914,6 +916,119 @@ function MCompromisso({ pedido, fechar }: {
 }
 
 // ---------------------------------------------------------------- excluir
+
+
+// ------------------------------------------------------------------ canal
+
+/**
+ * Um canal nasce de três escolhas: como se chama, quem entra e a que projeto
+ * ele se refere. A terceira é a que faz a conversa virar trabalho, porque é ela
+ * que diz em qual esteira a leitura vai pôr o que ficou combinado.
+ */
+function MCanal({ canal, fechar }: { canal?: Canal; fechar: () => void }) {
+  const { perfis, areas, todosFluxos, eu, salvarCanal } = useDados()
+  const router = useRouter()
+  const [nome, setNome] = useState(canal?.nome || '')
+  const [descricao, setDescricao] = useState(canal?.descricao || '')
+  const [tipo, setTipo] = useState<TipoCanal>(canal?.tipo || 'aberto')
+  const [areaId, setAreaId] = useState(canal?.area_id || '')
+  const [fluxoId, setFluxoId] = useState(canal?.fluxo_id || '')
+  const [membros, setMembros] = useState<string[]>(canal?.membros.filter((m) => m !== eu.id) || [])
+
+  const marcar = (id: string) =>
+    setMembros((m) => (m.includes(id) ? m.filter((x) => x !== id) : [...m, id]))
+
+  const salvar = async () => {
+    if (!nome.trim()) return
+    const id = await salvarCanal({
+      id: canal?.id,
+      nome: nome.trim().replace(/^#/, ''),
+      descricao, tipo,
+      area_id: areaId || null,
+      fluxo_id: fluxoId || null,
+      membros: tipo === 'aberto' ? [] : membros,
+    })
+    fechar()
+    if (id && !canal) router.push(`/chat/${id}`)
+  }
+
+  const abertos = todosFluxos.filter((f) => !f.concluido)
+
+  return (
+    <div className="dlg" role="dialog" aria-modal="true" aria-labelledby="mc">
+      <div className="dlg-h">
+        <h3 id="mc">{canal ? 'Editar canal' : 'Novo canal'}</h3>
+        <p>Um assunto, uma área ou um projeto. A conversa fica junto do trabalho.</p>
+      </div>
+      <div className="dlg-b">
+        <div className="fld">
+          <label htmlFor="c-nome">Nome</label>
+          <input className="inp" id="c-nome" value={nome} autoFocus placeholder="Ex.: obra-jardim-europa"
+            onChange={(e) => setNome(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void salvar() }} />
+        </div>
+
+        <div className="fld">
+          <label htmlFor="c-desc">Do que se trata</label>
+          <input className="inp" id="c-desc" value={descricao} placeholder="Uma linha, para quem chegar depois"
+            onChange={(e) => setDescricao(e.target.value)} />
+        </div>
+
+        <div className="fld">
+          <span className="lbl">Quem entra</span>
+          <div className="seg">
+            <button className={tipo === 'aberto' ? 'on' : ''} onClick={() => setTipo('aberto')}>
+              Toda a equipe
+            </button>
+            <button className={tipo === 'fechado' ? 'on' : ''} onClick={() => setTipo('fechado')}>
+              Só quem eu escolher
+            </button>
+          </div>
+          <p className="hint">
+            {tipo === 'aberto'
+              ? 'Qualquer pessoa da equipe abre e lê. Preso a um projeto, vale quem enxerga o projeto.'
+              : 'Fechado de verdade: quem está fora não lê nem o nome das mensagens, nem o administrador.'}
+          </p>
+        </div>
+
+        {tipo === 'fechado' && (
+          <div className="fld">
+            <span className="lbl">Pessoas</span>
+            <div className="plist">
+              {perfis.filter((p) => p.ativo && p.id !== eu.id).map((p) => (
+                <button key={p.id} className={`pch ${membros.includes(p.id) ? 'on' : ''}`}
+                  onClick={() => marcar(p.id)}>
+                  <Av p={p} tam="sm" />{p.nome}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="fld">
+          <label htmlFor="c-fluxo">Projeto ou rotina</label>
+          <select className="inp" id="c-fluxo" value={fluxoId} onChange={(e) => setFluxoId(e.target.value)}>
+            <option value="">Nenhum, é um canal de assunto</option>
+            {abertos.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+          </select>
+          <p className="hint">
+            Amarrado a uma esteira, o que a conversa combinar entra nela: tarefa nova vai
+            para o checkpoint da vez, e a leitura já sabe quais tarefas existem.
+          </p>
+        </div>
+
+        <div className="fld">
+          <label htmlFor="c-area">Área</label>
+          <select className="inp" id="c-area" value={areaId} onChange={(e) => setAreaId(e.target.value)}>
+            <option value="">Nenhuma</option>
+            {areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+          </select>
+        </div>
+      </div>
+      <Rodape fechar={fechar} rotulo={canal ? 'Salvar' : 'Criar canal'} acao={() => void salvar()} />
+    </div>
+  )
+}
 
 function MExcluir({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'excluir' }>; fechar: () => void }) {
   return (

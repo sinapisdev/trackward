@@ -36,7 +36,7 @@ export function Equipe() {
     <>
       <div className="hdr">
         <div>
-          <div className="eyebrow">Quem tem acesso à Esteira</div>
+          <div className="eyebrow">Quem tem acesso ao Track</div>
           <h1>Equipe</h1>
           <p className="lede">
             {MODO_LOCAL
@@ -172,7 +172,7 @@ export function Equipe() {
                     <span className="acoes" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                       <code className="codigo">{c.codigo}</code>
                       <button className="btn" onClick={() => {
-                        const texto = `${c.nome}, seu acesso à Esteira está pronto.\n\n`
+                        const texto = `${c.nome}, seu acesso ao Track está pronto.\n\n`
                           + `Entre em ${location.origin}/entrar, escolha Criar conta e use:\n`
                           + `E-mail: ${c.email}\nCódigo do convite: ${c.codigo}`
                         navigator.clipboard?.writeText(texto).then(

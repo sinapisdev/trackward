@@ -45,7 +45,7 @@ function Ponto({ st }: { st: string }) {
 }
 
 function SeletorEmpresa() {
-  const { eu, empresas, empresaAtiva, focarEmpresa, empresaDe, todosFluxos, config } = useDados()
+  const { eu, empresas, empresaAtiva, focarEmpresa, empresaDe, todosFluxos, org } = useDados()
   const { abrir } = useModais()
   const [aberto, setAberto] = useState(false)
   const caixa = useRef<HTMLDivElement>(null)
@@ -71,14 +71,14 @@ function SeletorEmpresa() {
         ) : (
           <span className="sigla" style={{ background: 'var(--sunken)', color: 'var(--tx-3)' }}><Ic.team /></span>
         )}
-        <span className="nm">{atual ? atual.nome : `Todas as ${config.rotulo_plural.toLowerCase()}`}</span>
+        <span className="nm">{atual ? atual.nome : `Todas as ${org.rotulo_plural.toLowerCase()}`}</span>
         <span className="chev"><Ic.chev /></span>
       </button>
       {aberto && (
         <div className="emp-menu">
           <button className={!empresaAtiva ? 'on' : ''} onClick={() => { focarEmpresa(null); setAberto(false) }}>
             <span className="sigla" style={{ background: 'var(--sunken)', color: 'var(--tx-3)' }}><Ic.team /></span>
-            Todas as {config.rotulo_plural.toLowerCase()}
+            Todas as {org.rotulo_plural.toLowerCase()}
           </button>
           {empresas.map((e) => (
             <button key={e.id} className={empresaAtiva === e.id ? 'on' : ''}
@@ -94,12 +94,12 @@ function SeletorEmpresa() {
           {eu.papel === 'admin' && (
             <button onClick={() => { setAberto(false); abrir({ tipo: 'empresa' }) }}>
               <span className="sigla" style={{ background: 'transparent', color: 'var(--tx-3)' }}><Ic.plus /></span>
-              Nova {config.rotulo.toLowerCase()}
+              Nova {org.rotulo.toLowerCase()}
             </button>
           )}
           <Link href="/ajustes" onClick={() => setAberto(false)}>
             <span className="sigla" style={{ background: 'transparent', color: 'var(--tx-3)' }}><Ic.ajustes /></span>
-            Gerenciar {config.rotulo_plural.toLowerCase()}
+            Gerenciar {org.rotulo_plural.toLowerCase()}
           </Link>
         </div>
       )}
@@ -110,7 +110,7 @@ function SeletorEmpresa() {
 const LIMITE_LATERAL = 8
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { eu, fluxos, areas, config, agenda, processos, aviso, carregando } = useDados()
+  const { eu, fluxos, areas, org, agenda, processos, canais, naoLidas, aviso, carregando } = useDados()
   const { abrir } = useModais()
   const caminho = usePathname()
   const router = useRouter()
@@ -133,6 +133,7 @@ export function Shell({ children }: { children: ReactNode }) {
   }
 
   const minhas = pendencias(fluxos, eu.id).length
+  const porLer = canais.reduce((n, c) => n + naoLidas(c.id), 0)
   const hojeNaAgenda = agenda.filter(
     (c) => c.quando === hojeIso() && [c.dono_id, ...c.convidados].includes(eu.id),
   ).length
@@ -145,18 +146,20 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="ws">
           <span className="logo"><Ic.logo /></span>
           <div>
-            <b>{config.organizacao}</b>
-            <span>Esteira</span>
+            <b>{org.nome}</b>
+            <span>Track</span>
           </div>
         </div>
 
-        {config.multi && <SeletorEmpresa />}
+        {org.multi && <SeletorEmpresa />}
 
         <div className="side-rolagem">
           <NavItem href="/" icone={<Ic.painel />} rotulo="Painel" ativo={caminho === '/'}
             conta={comProblema(fluxos)} quente />
           <NavItem href="/minhas" icone={<Ic.inbox />} rotulo="Aguardando você"
             ativo={caminho === '/minhas'} conta={minhas} />
+          <NavItem href="/chat" icone={<Ic.chat />} rotulo="Conversa"
+            ativo={caminho.startsWith('/chat')} conta={porLer} quente />
           <NavItem href="/agenda" icone={<Ic.agenda />} rotulo="Agenda" ativo={caminho === '/agenda'}
             conta={hojeNaAgenda} />
 

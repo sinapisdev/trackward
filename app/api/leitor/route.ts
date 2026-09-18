@@ -1,0 +1,176 @@
+import { NextResponse } from 'next/server'
+import { porRegras, podar, type Contexto, type Proposta } from '@/lib/leitor'
+import type { TipoProposta } from '@/lib/tipos'
+
+/**
+ * Leitura da conversa.
+ *
+ * Com ANTHROPIC_API_KEY no ambiente, quem lê é o modelo, que entende contexto,
+ * ironia e a frase que se espalha por três mensagens. Sem chave, ou se a chamada
+ * falhar, as regras de lib/leitor.ts assumem. O app nunca fica sem ler.
+ *
+ * A chave mora só no servidor. O navegador manda a conversa para cá e recebe
+ * propostas de volta, nunca o contrário.
+ */
+
+export const runtime = 'nodejs'
+export const maxDuration = 30
+
+const MODELO = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5'
+const TIPOS: TipoProposta[] = ['tarefa', 'prazo', 'concluir', 'decisao', 'trava']
+
+const FERRAMENTA = {
+  name: 'registrar',
+  description: 'Registra o que a conversa produziu de trabalho concreto.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      propostas: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            tipo: { type: 'string', enum: TIPOS },
+            texto: { type: 'string', description: 'A tarefa ou a decisão, em uma linha, começando por verbo no infinitivo quando for tarefa.' },
+            motivo: { type: 'string', description: 'O trecho exato da conversa que deu origem, copiado.' },
+            mensagem_id: { type: ['string', 'null'], description: 'O id da mensagem de onde saiu.' },
+            item_id: { type: ['string', 'null'], description: 'Só para tipo concluir ou prazo: o id da tarefa existente.' },
+            resp_id: { type: ['string', 'null'], description: 'O id da pessoa responsável, quando a conversa deixa claro.' },
+            prazo: { type: ['string', 'null'], description: 'Data no formato AAAA-MM-DD, só quando a conversa disser.' },
+          },
+          required: ['tipo', 'texto', 'motivo'],
+        },
+      },
+    },
+    required: ['propostas'],
+  },
+}
+
+function instrucoes(ctx: Contexto) {
+  const pessoas = ctx.pessoas.map((p) => `${p.nome} (id ${p.id})`).join(', ')
+  const itens = (ctx.fluxo?.itens || [])
+    .map((i) => `- ${i.texto} (id ${i.id}, ${i.feito ? 'feita' : 'aberta'}${i.prazo ? `, prazo ${i.prazo}` : ''})`)
+    .join('\n')
+
+  return `Você lê a conversa de uma equipe e separa o que virou trabalho do que foi só conversa.
+
+Hoje é ${ctx.hoje}.
+Pessoas: ${pessoas}.
+${ctx.fluxo ? `A conversa é do projeto "${ctx.fluxo.nome}".\nTarefas que já existem nele:\n${itens || '(nenhuma)'}` : 'A conversa não está presa a um projeto.'}
+
+Cinco tipos:
+- tarefa: alguém se comprometeu, pediu a alguém, ou a equipe reconheceu que algo precisa ser feito.
+- concluir: alguém disse que uma tarefa que já existe ficou pronta. Use item_id.
+- prazo: a conversa mudou o prazo de uma tarefa que já existe. Use item_id e prazo.
+- decisao: a equipe decidiu alguma coisa que precisa ficar registrada.
+- trava: a frente parou esperando alguém de fora.
+
+Regras:
+- Só registre o que a conversa disser de fato. Nada de deduzir trabalho que ninguém pediu.
+- Cumprimento, piada, combinação de almoço e pergunta sem resposta não são tarefa.
+- Se uma tarefa igual já existe na lista acima, não crie outra.
+- resp_id só quando a conversa deixar claro de quem é. Na dúvida, deixe nulo.
+- prazo só quando a conversa disser a data. Nunca invente um prazo.
+- Escreva em português do Brasil, sem travessão.
+- Nada a registrar é uma resposta boa: devolva a lista vazia.`
+}
+
+function conversa(ctx: Contexto) {
+  return ctx.mensagens.map((m) => `[${m.id}] ${m.autor}: ${m.texto}`).join('\n')
+}
+
+type Cru = {
+  tipo?: string; texto?: string; motivo?: string
+  mensagem_id?: string | null; item_id?: string | null
+  resp_id?: string | null; prazo?: string | null
+}
+
+/** O que volta do modelo é texto, não verdade: cada campo é conferido aqui. */
+function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
+  const pessoas = new Set(ctx.pessoas.map((p) => p.id))
+  const itens = new Map((ctx.fluxo?.itens || []).map((i) => [i.id, i]))
+  const msgs = new Set(ctx.mensagens.map((m) => m.id))
+  const saida: Proposta[] = []
+
+  for (const c of cru) {
+    const tipo = TIPOS.find((t) => t === c.tipo)
+    const texto = String(c.texto || '').trim()
+    if (!tipo || !texto) continue
+
+    const item = c.item_id && itens.get(c.item_id)
+    if ((tipo === 'concluir' || tipo === 'prazo') && !item) continue
+
+    const prazo = /^\d{4}-\d{2}-\d{2}$/.test(String(c.prazo)) ? String(c.prazo) : null
+    if (tipo === 'prazo' && !prazo) continue
+
+    saida.push({
+      tipo,
+      texto: texto.slice(0, 220),
+      motivo: String(c.motivo || '').trim().slice(0, 400),
+      mensagem_id: c.mensagem_id && msgs.has(c.mensagem_id) ? c.mensagem_id : null,
+      dados: {
+        fluxo_id: ctx.fluxo?.id ?? null,
+        etapa_id: item ? item.etapa_id : ctx.fluxo?.etapa_id ?? null,
+        item_id: item ? item.id : null,
+        resp_id: c.resp_id && pessoas.has(c.resp_id) ? c.resp_id : null,
+        prazo,
+      },
+    })
+  }
+  return podar(saida)
+}
+
+async function porModelo(ctx: Contexto, chave: string): Promise<Proposta[] | null> {
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': chave,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: MODELO,
+      max_tokens: 2000,
+      system: instrucoes(ctx),
+      tools: [FERRAMENTA],
+      tool_choice: { type: 'tool', name: 'registrar' },
+      messages: [{ role: 'user', content: conversa(ctx) }],
+    }),
+  })
+  if (!r.ok) return null
+
+  const corpo = await r.json() as { content?: { type: string; name?: string; input?: { propostas?: Cru[] } }[] }
+  const uso = corpo.content?.find((b) => b.type === 'tool_use' && b.name === 'registrar')
+  if (!uso?.input?.propostas) return null
+  return conferir(uso.input.propostas, ctx)
+}
+
+export async function POST(req: Request) {
+  let ctx: Contexto
+  try {
+    ctx = await req.json() as Contexto
+  } catch {
+    return NextResponse.json({ erro: 'Corpo inválido.' }, { status: 400 })
+  }
+  if (!Array.isArray(ctx?.mensagens) || !ctx.mensagens.length) {
+    return NextResponse.json({ propostas: [], motor: 'regras' })
+  }
+
+  // A conversa inteira não cabe nem é necessária: o que ficou combinado está
+  // nas últimas trocas, não no que se falou há três semanas.
+  ctx.mensagens = ctx.mensagens.slice(-40)
+  ctx.pessoas = (ctx.pessoas || []).slice(0, 60)
+
+  const chave = process.env.ANTHROPIC_API_KEY
+  if (chave) {
+    try {
+      const propostas = await porModelo(ctx, chave)
+      if (propostas) return NextResponse.json({ propostas, motor: 'ia' })
+    } catch {
+      // Cai nas regras logo abaixo, de propósito: um modelo fora do ar não pode
+      // deixar o app sem ler a conversa.
+    }
+  }
+
+  return NextResponse.json({ propostas: porRegras(ctx), motor: 'regras' })
+}

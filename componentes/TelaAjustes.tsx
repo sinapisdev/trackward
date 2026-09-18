@@ -11,21 +11,21 @@ import { reiniciarLocal } from '@/lib/local/cliente'
 import { aplicarTema, temaAtual, TEMAS, type Tema } from '@/lib/tema'
 
 export function TelaAjustes() {
-  const { eu, config, empresas, todosFluxos, carregando, salvarConfig, excluirEmpresa,
+  const { eu, org, empresas, todosFluxos, carregando, salvarOrg, excluirEmpresa,
     minhaAgendaExterna, agenda, ligarAgendaExterna, desligarAgendaExterna } = useDados()
   const { abrir } = useModais()
   const [tema, setTema] = useState<Tema>('escuro')
-  const [org, setOrg] = useState(config.organizacao)
-  const [rotulo, setRotulo] = useState(config.rotulo)
-  const [rotuloP, setRotuloP] = useState(config.rotulo_plural)
+  const [nomeOrg, setNomeOrg] = useState(org.nome)
+  const [rotulo, setRotulo] = useState(org.rotulo)
+  const [rotuloP, setRotuloP] = useState(org.rotulo_plural)
   const [urlAgenda, setUrlAgenda] = useState('')
   const [lendo, setLendo] = useState(false)
   const [comoFazer, setComoFazer] = useState(false)
 
   useEffect(() => { setTema(temaAtual()) }, [])
   useEffect(() => {
-    setOrg(config.organizacao); setRotulo(config.rotulo); setRotuloP(config.rotulo_plural)
-  }, [config])
+    setNomeOrg(org.nome); setRotulo(org.rotulo); setRotuloP(org.rotulo_plural)
+  }, [org])
 
   if (carregando) return <Carregando />
   const admin = eu.papel === 'admin'
@@ -47,14 +47,59 @@ export function TelaAjustes() {
               <div className="fld">
                 <label htmlFor="org">Nome</label>
                 <div className="row-inline">
-                  <input className="inp" id="org" value={org} onChange={(e) => setOrg(e.target.value)} />
-                  <button className="btn" disabled={!org.trim() || org === config.organizacao}
-                    onClick={() => void salvarConfig({ organizacao: org.trim() })}>Salvar</button>
+                  <input className="inp" id="org" value={nomeOrg} onChange={(e) => setNomeOrg(e.target.value)} />
+                  <button className="btn" disabled={!nomeOrg.trim() || nomeOrg === org.nome}
+                    onClick={() => void salvarOrg({ nome: nomeOrg.trim() })}>Salvar</button>
                 </div>
               </div>
             </div>
           </div>
         )}
+
+        <div className="blk">
+          <div className="bh">
+            <h2>Leitura da conversa</h2>
+            <span className="c">o que a equipe combina no chat vira trabalho na esteira</span>
+          </div>
+          <div className="card" style={{ padding: 15 }}>
+            <div className="fld">
+              <span className="lbl">Ler o que se conversa nos canais</span>
+              <div className="seg" style={{ alignSelf: 'flex-start' }}>
+                <button className={org.ia_ativa ? 'on' : ''} disabled={!admin}
+                  onClick={() => void salvarOrg({ ia_ativa: true })}>Ligada</button>
+                <button className={!org.ia_ativa ? 'on' : ''} disabled={!admin}
+                  onClick={() => void salvarOrg({ ia_ativa: false })}>Desligada</button>
+              </div>
+              <p className="hint">
+                Desligada, o chat continua funcionando normalmente. Só some o botão que
+                transforma a conversa em tarefa.
+              </p>
+            </div>
+
+            {org.ia_ativa && (
+              <div className="fld" style={{ marginTop: 15 }}>
+                <span className="lbl">O que fazer com o que a leitura encontra</span>
+                <div className="seg" style={{ alignSelf: 'flex-start' }}>
+                  <button className={org.ia_modo === 'sugerir' ? 'on' : ''} disabled={!admin}
+                    onClick={() => void salvarOrg({ ia_modo: 'sugerir' })}>Propor</button>
+                  <button className={org.ia_modo === 'aplicar' ? 'on' : ''} disabled={!admin}
+                    onClick={() => void salvarOrg({ ia_modo: 'aplicar' })}>Aplicar sozinho</button>
+                </div>
+                <p className="hint">
+                  {org.ia_modo === 'sugerir'
+                    ? 'A leitura mostra o que encontrou, com o trecho da conversa que deu origem, e alguém aceita com um toque.'
+                    : 'Tarefa nova, tarefa concluída e decisão entram sozinhas. Prazo e trava continuam pedindo licença, porque prazo é compromisso com quem espera e trava para a frente inteira.'}
+                </p>
+              </div>
+            )}
+
+            <p className="hint" style={{ marginTop: 15 }}>
+              A leitura roda no servidor. Com uma chave da Anthropic configurada, quem lê é o
+              modelo, que entende contexto e a frase que se espalha por três mensagens. Sem
+              chave, valem as regras de português embutidas no app, e nada deixa de funcionar.
+            </p>
+          </div>
+        </div>
 
         <div className="blk">
           <div className="bh">
@@ -65,19 +110,19 @@ export function TelaAjustes() {
             <div className="fld">
               <span className="lbl">Este app atende</span>
               <div className="seg" style={{ alignSelf: 'flex-start' }}>
-                <button className={!config.multi ? 'on' : ''} disabled={!admin}
-                  onClick={() => void salvarConfig({ multi: false })}>Um negócio só</button>
-                <button className={config.multi ? 'on' : ''} disabled={!admin}
-                  onClick={() => void salvarConfig({ multi: true })}>Vários negócios</button>
+                <button className={!org.multi ? 'on' : ''} disabled={!admin}
+                  onClick={() => void salvarOrg({ multi: false })}>Um negócio só</button>
+                <button className={org.multi ? 'on' : ''} disabled={!admin}
+                  onClick={() => void salvarOrg({ multi: true })}>Vários negócios</button>
               </div>
               <p className="hint">
-                {config.multi
-                  ? `Cada rotina e cada projeto pertence a uma ${config.rotulo.toLowerCase()}, e o seletor no alto da lateral foca o app inteiro em uma delas por vez.`
+                {org.multi
+                  ? `Cada rotina e cada projeto pertence a uma ${org.rotulo.toLowerCase()}, e o seletor no alto da lateral foca o app inteiro em uma delas por vez.`
                   : 'A interface fica sem nenhuma menção a empresas. Ligue isto se você toca mais de um negócio e quer ver um de cada vez.'}
               </p>
             </div>
 
-            {config.multi && admin && (
+            {org.multi && admin && (
               <>
                 <div className="fgrid" style={{ marginTop: 16 }}>
                   <div className="fld">
@@ -91,8 +136,8 @@ export function TelaAjustes() {
                       <input className="inp" id="rotp" value={rotuloP} placeholder="Empresas"
                         onChange={(e) => setRotuloP(e.target.value)} />
                       <button className="btn"
-                        disabled={!rotulo.trim() || !rotuloP.trim() || (rotulo === config.rotulo && rotuloP === config.rotulo_plural)}
-                        onClick={() => void salvarConfig({ rotulo: rotulo.trim(), rotulo_plural: rotuloP.trim() })}>
+                        disabled={!rotulo.trim() || !rotuloP.trim() || (rotulo === org.rotulo && rotuloP === org.rotulo_plural)}
+                        onClick={() => void salvarOrg({ rotulo: rotulo.trim(), rotulo_plural: rotuloP.trim() })}>
                         Salvar
                       </button>
                     </div>
@@ -106,14 +151,14 @@ export function TelaAjustes() {
           </div>
         </div>
 
-        {config.multi && (
+        {org.multi && (
           <div className="blk">
             <div className="bh">
-              <h2>{config.rotulo_plural}</h2>
+              <h2>{org.rotulo_plural}</h2>
               <span className="c num">{empresas.length}</span>
               {admin && (
                 <button className="btn" style={{ marginLeft: 'auto' }} onClick={() => abrir({ tipo: 'empresa' })}>
-                  <Ic.plus />Nova {config.rotulo.toLowerCase()}
+                  <Ic.plus />Nova {org.rotulo.toLowerCase()}
                 </button>
               )}
             </div>
@@ -138,7 +183,7 @@ export function TelaAjustes() {
                             tipo: 'excluir',
                             titulo: `Excluir ${e.nome}?`,
                             texto: n
-                              ? `Esta ${config.rotulo.toLowerCase()} tem ${n} ${n === 1 ? 'registro ligado' : 'registros ligados'}. Eles continuam existindo, apenas ficam sem ${config.rotulo.toLowerCase()}.`
+                              ? `Esta ${org.rotulo.toLowerCase()} tem ${n} ${n === 1 ? 'registro ligado' : 'registros ligados'}. Eles continuam existindo, apenas ficam sem ${org.rotulo.toLowerCase()}.`
                               : 'Nada está ligado a ela.',
                             acao: () => excluirEmpresa(e.id),
                           })}><Ic.x /></button>
@@ -148,10 +193,10 @@ export function TelaAjustes() {
                 )
               }) : (
                 <div className="empty">
-                  Nenhuma {config.rotulo.toLowerCase()} cadastrada.
+                  Nenhuma {org.rotulo.toLowerCase()} cadastrada.
                   {admin && (
                     <button className="btn ghost" onClick={() => abrir({ tipo: 'empresa' })}>
-                      <Ic.plus />Nova {config.rotulo.toLowerCase()}
+                      <Ic.plus />Nova {org.rotulo.toLowerCase()}
                     </button>
                   )}
                 </div>

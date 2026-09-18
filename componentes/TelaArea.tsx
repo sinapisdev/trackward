@@ -15,7 +15,7 @@ import type { Empresa, Fluxo } from '@/lib/tipos'
  * Projetos moram na tela Projetos, mesmo quando pertencem a esta área.
  */
 export function TelaArea({ id }: { id: string }) {
-  const { eu, fluxos, areas, empresas, config, empresaAtiva, processos, carregando, excluirArea } = useDados()
+  const { eu, fluxos, areas, empresas, org, empresaAtiva, processos, carregando, excluirArea } = useDados()
   const { abrir } = useModais()
   const [pessoa, setPessoa] = useState<string | null>(null)
 
@@ -42,7 +42,7 @@ export function TelaArea({ id }: { id: string }) {
   const vazia = !fluxos.some((f) => f.area_id === a.id)
 
   /** Com vários negócios em foco, cada um ganha o próprio bloco de rotinas. */
-  const separar = config.multi && !empresaAtiva && empresas.length > 1
+  const separar = org.multi && !empresaAtiva && empresas.length > 1
   const blocos: { empresa: Empresa | null; itens: Fluxo[] }[] = separar
     ? [
         ...empresas.map((e) => ({ empresa: e, itens: rotinas.filter((f) => f.empresa_id === e.id) })),
@@ -65,7 +65,7 @@ export function TelaArea({ id }: { id: string }) {
           <p className="lede">
             {rotinas.length
               ? <>{rotinas.length} {rotinas.length === 1 ? 'rotina em ciclo' : 'rotinas em ciclo'}
-                  {separar && blocos.length > 1 && ` em ${blocos.length} ${config.rotulo_plural.toLowerCase()}`}
+                  {separar && blocos.length > 1 && ` em ${blocos.length} ${org.rotulo_plural.toLowerCase()}`}
                   {!!problemas && <>, <b className="l">{problemas} com problema</b></>}.</>
               : 'Nenhuma rotina configurada ainda.'}
           </p>
@@ -98,7 +98,7 @@ export function TelaArea({ id }: { id: string }) {
                     <h2>{b.empresa.nome}</h2>
                   </>
                 ) : separar ? (
-                  <h2>Sem {config.rotulo.toLowerCase()}</h2>
+                  <h2>Sem {org.rotulo.toLowerCase()}</h2>
                 ) : (
                   <>
                     <Ic.ciclo />

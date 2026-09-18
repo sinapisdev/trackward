@@ -17,11 +17,11 @@ export function Espera({ nome, email }: { nome?: string; email: string }) {
       <div className="card">
         <div className="auth-logo">
           <span className="logo"><Ic.logo /></span>
-          <div><b>Esteira</b><span>Silvereng</span></div>
+          <div><b>Track</b><span>Projetos, rotinas e pessoas</span></div>
         </div>
         <h1>Cadastro recebido{nome ? `, ${nome.split(' ')[0]}` : ''}</h1>
         <p>
-          Sua conta ({email}) já existe, mas ainda precisa ser liberada por um administrador da Silvereng.
+          Sua conta ({email}) já existe, mas ainda precisa ser liberada por um administrador da sua empresa.
           Assim que isso acontecer, é só atualizar esta página para entrar.
         </p>
         <div className="row-inline">
