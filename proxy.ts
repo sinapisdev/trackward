@@ -51,6 +51,7 @@ export async function proxy(req: NextRequest) {
   return res
 }
 
-export const org = {
+// `config` é nome exigido pelo Next para o filtro de rotas. Não renomear.
+export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icone.svg|.*\\.(?:png|jpg|svg)$).*)'],
 }

@@ -191,7 +191,7 @@ function MEmpresa({ empresa, fechar }: { empresa?: Empresa; fechar: () => void }
 // ------------------------------------------------------------------ fluxo
 
 function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>; fechar: () => void }) {
-  const { eu, perfis, areas, areaDe, nomeDe, empresas, org, empresaAtiva, processos,
+  const { eu, perfis, areas, areaDe, nomeDe, empresas, org, pessoal, empresaAtiva, processos,
     salvarFluxo, criarDoProcesso, toast } = useDados()
   const router = useRouter()
   const edicao = pedido.fluxo
@@ -373,6 +373,7 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
               </div>
             </>
           )}
+          {!pessoal && (
           <div className="fld full">
             <span className="lbl">Quem vê</span>
             {souAutor ? (
@@ -418,6 +419,7 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
               </p>
             )}
           </div>
+          )}
           {!edicao && (
             <div className="fld full">
               <span className="lbl">Começar de um processo</span>
@@ -542,7 +544,7 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
 // ------------------------------------------------------------------- item
 
 function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () => void }) {
-  const { eu, perfis, fluxos, areaDe, adicionarItem, editarItem, definirTravas } = useDados()
+  const { eu, perfis, fluxos, areaDe, pessoal, adicionarItem, editarItem, definirTravas } = useDados()
   const ativos = perfis.filter((p) => p.ativo)
   const fluxo = fluxos.find((f) => f.id === etapa.fluxo_id)
   const mandaNoPrazo = !!fluxo && podeMexerNoPrazo(eu, fluxo, perfis)
@@ -604,16 +606,19 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
             onKeyDown={(e) => { if (e.key === 'Enter') void salvar() }} />
         </div>
         <div className="fgrid">
-          <div className="fld">
-            <label htmlFor="i-r">Responsável</label>
-            <select className="inp" id="i-r" value={resp || ''} onChange={(e) => setResp(e.target.value)}>
-              {ativos.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nome}{p.area_id ? ` (${areaDe(p.area_id).nome})` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Numa conta de uma pessoa só, a resposta é sempre você. */}
+          {!pessoal && (
+            <div className="fld">
+              <label htmlFor="i-r">Responsável</label>
+              <select className="inp" id="i-r" value={resp || ''} onChange={(e) => setResp(e.target.value)}>
+                {ativos.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nome}{p.area_id ? ` (${areaDe(p.area_id).nome})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="fld">
             <label htmlFor="i-p">Prazo</label>
             <input className="inp" type="date" id="i-p" value={prazo} disabled={!mandaNoPrazo}

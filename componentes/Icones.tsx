@@ -139,14 +139,18 @@ export const Ic = {
     </svg>
   ),
   /**
-   * Trilha: dois checkpoints fechados e o de agora ainda aberto. É o que o app
-   * faz, desenhado. O anel é a única peça que ganha cor, porque é a que pede ação.
+   * Trilha: dois checkpoints fechados e o de agora ainda aberto.
+   *
+   * Os traços seguem a cor do texto, então ficam pretos no tema claro e brancos
+   * no escuro sozinhos. O anel é a única peça com cor própria, porque é a que
+   * representa o que ainda pede ação. Sem fundo e sem moldura: o logo oficial,
+   * com o quadrado preto, mora só no ícone do aplicativo.
    */
   logo: () => (
-    <svg width="16" height="16" viewBox="0 0 32 32" fill="none">
-      <rect x="3" y="14" width="8" height="4" rx="2" fill="currentColor" />
-      <rect x="13" y="14" width="8" height="4" rx="2" fill="currentColor" />
-      <circle cx="26.5" cy="16" r="4" fill="none" stroke="currentColor" strokeWidth="3" />
+    <svg width="38" height="11" viewBox="0 0 32 9" fill="none" aria-hidden="true">
+      <rect x="0.5" y="2.5" width="8" height="4" rx="2" fill="currentColor" />
+      <rect x="11" y="2.5" width="8" height="4" rx="2" fill="currentColor" />
+      <circle cx="27" cy="4.5" r="3.3" fill="none" stroke="var(--warn-forte)" strokeWidth="2.6" />
     </svg>
   ),
   sol: () => (

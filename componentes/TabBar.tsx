@@ -18,7 +18,7 @@ import { aplicarTema, temaAtual, TEMAS, type Tema } from '@/lib/tema'
  * Aparece só em tela estreita; no desktop quem manda é a lateral.
  */
 export function TabBar() {
-  const { eu, fluxos, areas, agenda, org, empresas, empresaAtiva, focarEmpresa, canais, naoLidas } = useDados()
+  const { eu, fluxos, areas, agenda, org, empresas, empresaAtiva, focarEmpresa, canais, naoLidas, pessoal } = useDados()
   const { abrir } = useModais()
   const caminho = usePathname()
   const [mais, setMais] = useState(false)
@@ -110,7 +110,7 @@ export function TabBar() {
             </Link>
             <Link className="folha-item" href="/areas"><Ic.painel />Todas as áreas</Link>
             <Link className="folha-item" href="/processos"><Ic.processo />Processos</Link>
-            <Link className="folha-item" href="/equipe"><Ic.team />Equipe</Link>
+            {!pessoal && <Link className="folha-item" href="/equipe"><Ic.team />Equipe</Link>}
             <Link className="folha-item" href="/ajustes"><Ic.ajustes />Ajustes</Link>
             <button className="folha-item" onClick={() => {
               const k = TEMAS.findIndex((t) => t.id === tema)

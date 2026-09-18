@@ -596,6 +596,7 @@ declare
   v_nome    text := nullif(btrim(new.raw_user_meta_data->>'organizacao'), '');
   v_codigo  text := upper(btrim(coalesce(new.raw_user_meta_data->>'convite', '')));
   v_dominio text := lower(split_part(new.email, '@', 2));
+  v_tipo    text := case when new.raw_user_meta_data->>'tipo' = 'pessoal' then 'pessoal' else 'equipe' end;
   v_guardar text;
   v_papel   text := 'colaborador';
   v_ativo   boolean := false;
@@ -607,7 +608,13 @@ declare
   n int;
   paleta text[] := array['#C2703C','#7D8471','#A8763E','#6E7B8B','#96705B','#5F7A6A','#A5645C','#7A6E8F'];
 begin
-  v_guardar := case when dominio_publico(v_dominio) then null else v_dominio end;
+  -- Conta pessoal nunca reserva o domínio da empresa. Se reservasse, o colega
+  -- que se cadastrasse depois cairia dentro do espaço pessoal de quem chegou
+  -- primeiro, o que é exatamente o contrário do que ele pediu.
+  v_guardar := case
+    when v_tipo = 'pessoal' or dominio_publico(v_dominio) then null
+    else v_dominio
+  end;
 
   select * into cv from convites
   where usado_em is null
@@ -642,9 +649,10 @@ begin
       v_ativo := coalesce(v_auto, false);
     else
       -- 3. Empresa nova. Quem abre é a dona, e é o único jeito de virar dona.
-      insert into organizacoes (nome, dominio)
+      insert into organizacoes (nome, tipo, dominio)
       values (
         coalesce(v_nome, initcap(split_part(coalesce(v_guardar, split_part(new.email,'@',1)), '.', 1))),
+        v_tipo,
         v_guardar
       )
       returning id into v_org;

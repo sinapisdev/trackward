@@ -14,7 +14,7 @@ const CORES = ['#C2703C', '#7D8471', '#A8763E', '#6E7B8B', '#96705B', '#5F7A6A',
 
 export function Equipe() {
   const { eu, perfis, areas, areaDe, nomeDe, convites, carregando, salvarPerfil,
-    criarConvite, excluirConvite } = useDados()
+    criarConvite, excluirConvite, pessoal, salvarOrg } = useDados()
   const { abrir } = useModais()
   const [nome, setNome] = useState(eu.nome)
   const [abrindo, setAbrindo] = useState(false)
@@ -37,9 +37,11 @@ export function Equipe() {
       <div className="hdr">
         <div>
           <div className="eyebrow">Quem tem acesso ao Track</div>
-          <h1>Equipe</h1>
+          <h1>{pessoal ? 'Só você' : 'Equipe'}</h1>
           <p className="lede">
-            {MODO_LOCAL
+            {pessoal
+              ? 'Você está usando o Track sozinho. Traga alguém quando fizer sentido: nada recomeça, tudo que você já tem continua onde está.'
+              : MODO_LOCAL
               ? 'Pessoas de exemplo. Com o app ligado ao banco, cada uma cria a própria conta e você libera o acesso por aqui.'
               : admin
                 ? 'Cada pessoa cria a própria conta e você libera o acesso aqui. Quem não está liberado não enxerga dado nenhum.'
@@ -49,6 +51,26 @@ export function Equipe() {
       </div>
 
       <div style={{ maxWidth: 760 }}>
+        {/* A virada de conta pessoal para conta de equipe é uma chave, não uma
+            migração: a organização já existe desde o primeiro dia, só tinha uma
+            pessoa dentro. */}
+        {pessoal && (
+          <div className="blk">
+            <div className="card">
+              <div className="onb">
+                <h3>Trabalhar junto com alguém</h3>
+                <p>
+                  Ao trazer a primeira pessoa, o Track passa a mostrar responsável por tarefa,
+                  aprovador de checkpoint e quem enxerga o quê. Suas áreas, seus projetos e suas
+                  rotinas continuam exatamente como estão.
+                </p>
+                <button className="btn pri" onClick={() => void salvarOrg({ tipo: 'equipe' })}>
+                  <Ic.team />Abrir para a equipe
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {admin && !!esperando.length && (
           <div className="blk">
             <div className="bh">

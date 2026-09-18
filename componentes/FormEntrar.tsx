@@ -5,7 +5,18 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/browser'
 import { Ic } from './Icones'
 
-type Modo = 'entrar' | 'criar' | 'esqueci'
+type Modo = 'entrar' | 'escolher' | 'criar' | 'esqueci'
+/** Os três jeitos de a conta nascer. Ver novo_usuario() em supabase/schema.sql. */
+type Jeito = 'pessoal' | 'equipe' | 'convite'
+
+const ESCOLHAS: { id: Jeito; titulo: string; texto: string }[] = [
+  { id: 'equipe', titulo: 'Para a minha equipe',
+    texto: 'Você abre o espaço da empresa e convida as pessoas por e-mail.' },
+  { id: 'pessoal', titulo: 'Só para mim',
+    texto: 'Suas áreas, seus projetos e suas rotinas. Dá para convidar alguém depois, sem recomeçar.' },
+  { id: 'convite', titulo: 'Tenho um convite',
+    texto: 'Alguém já abriu o espaço da empresa e te mandou um código.' },
+]
 
 function Formulario() {
   const router = useRouter()
@@ -15,6 +26,8 @@ function Formulario() {
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [convite, setConvite] = useState('')
+  const [jeito, setJeito] = useState<Jeito>('equipe')
+  const [empresa, setEmpresa] = useState('')
   const [erro, setErro] = useState('')
   const [ok, setOk] = useState('')
   const [indo, setIndo] = useState(false)
@@ -42,11 +55,21 @@ function Formulario() {
         return
       }
       if (modo === 'criar') {
-        if (!nome.trim()) { setErro('Diga seu nome para a equipe reconhecer você.'); return }
+        if (!nome.trim()) { setErro('Diga seu nome, é assim que as pessoas vão te reconhecer.'); return }
+        if (jeito === 'equipe' && !empresa.trim()) { setErro('Diga o nome da empresa.'); return }
+        if (jeito === 'convite' && !convite.trim()) { setErro('Cole o código que te mandaram.'); return }
         const { data, error } = await sb.auth.signUp({
           email: email.trim(),
           password: senha,
-          options: { data: { nome: nome.trim(), convite: convite.trim().toUpperCase() } },
+          options: {
+            data: {
+              nome: nome.trim(),
+              // Um campo por jeito. O banco decide o resto, e o papel nunca vem daqui.
+              ...(jeito === 'convite' ? { convite: convite.trim().toUpperCase() } : {}),
+              ...(jeito === 'equipe' ? { organizacao: empresa.trim() } : {}),
+              ...(jeito === 'pessoal' ? { organizacao: nome.trim(), tipo: 'pessoal' } : {}),
+            },
+          },
         })
         if (error) throw error
         if (!data.session) {
@@ -77,17 +100,34 @@ function Formulario() {
         </div>
 
         <h1>
-          {modo === 'entrar' ? 'Entrar' : modo === 'criar' ? 'Criar conta' : 'Recuperar senha'}
+          {modo === 'entrar' ? 'Entrar'
+            : modo === 'escolher' ? 'Criar conta'
+              : modo === 'criar' ? ESCOLHAS.find((x) => x.id === jeito)!.titulo
+                : 'Recuperar senha'}
         </h1>
         <p className="sub">
-          {modo === 'entrar' && 'O andamento das áreas e dos projetos da empresa, num lugar só.'}
-          {modo === 'criar' && 'Com o código do convite, você entra direto. Sem ele, um administrador precisa liberar.'}
+          {modo === 'entrar' && 'Cada projeto e cada rotina com checkpoints: o que precisa ser feito, quem responde e até quando.'}
+          {modo === 'escolher' && 'O Track serve para uma pessoa e para uma empresa inteira. Comece por onde fizer sentido hoje.'}
+          {modo === 'criar' && ESCOLHAS.find((x) => x.id === jeito)!.texto}
           {modo === 'esqueci' && 'Digite o e-mail da sua conta e enviamos um link para escolher uma senha nova.'}
         </p>
 
         {erro && <div className="erro"><Ic.x />{erro}</div>}
         {ok && <div className="ok-box"><Ic.check />{ok}</div>}
 
+        {modo === 'escolher' && (
+          <div className="escolhas">
+            {ESCOLHAS.map((x) => (
+              <button key={x.id} type="button" className="escolha"
+                onClick={() => { setJeito(x.id); setModo('criar'); setErro(''); setOk('') }}>
+                <b>{x.titulo}</b>
+                <span>{x.texto}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {modo !== 'escolher' && (
         <form onSubmit={enviar}>
           {modo === 'criar' && (
             <>
@@ -96,16 +136,29 @@ function Formulario() {
                 <input className="inp" id="a-nome" value={nome} autoFocus placeholder="Ex.: Leo"
                   onChange={(e) => setNome(e.target.value)} />
               </div>
-              <div className="fld">
-                <label htmlFor="a-convite">Código do convite</label>
-                <input className="inp" id="a-convite" value={convite} placeholder="Ex.: ENG7K2"
-                  autoCapitalize="characters" spellCheck={false}
-                  onChange={(e) => setConvite(e.target.value.toUpperCase())} />
-                <p className="hint">
-                  Quem administra o app te passou este código. Ele define o seu acesso e libera sua
-                  entrada na hora. Sem código, sua conta fica aguardando liberação.
-                </p>
-              </div>
+              {jeito === 'equipe' && (
+                <div className="fld">
+                  <label htmlFor="a-empresa">Nome da empresa</label>
+                  <input className="inp" id="a-empresa" value={empresa} placeholder="Ex.: Grupo Meridiano"
+                    onChange={(e) => setEmpresa(e.target.value)} />
+                  <p className="hint">
+                    É o nome que aparece no alto do app para todo mundo da sua equipe.
+                    Dá para trocar depois em Ajustes.
+                  </p>
+                </div>
+              )}
+              {jeito === 'convite' && (
+                <div className="fld">
+                  <label htmlFor="a-convite">Código do convite</label>
+                  <input className="inp" id="a-convite" value={convite} placeholder="Ex.: ENG7K2"
+                    autoCapitalize="characters" spellCheck={false}
+                    onChange={(e) => setConvite(e.target.value.toUpperCase())} />
+                  <p className="hint">
+                    Quem te convidou mandou este código. Ele já define a sua área, a quem você
+                    responde e libera a sua entrada na hora.
+                  </p>
+                </div>
+              )}
             </>
           )}
           <div className="fld">
@@ -125,13 +178,20 @@ function Formulario() {
             {indo ? 'Um instante…' : modo === 'entrar' ? 'Entrar' : modo === 'criar' ? 'Criar conta' : 'Enviar link'}
           </button>
         </form>
+        )}
 
         <div className="alt">
           {modo === 'entrar' && (
             <>
-              <button onClick={() => { setModo('criar'); setErro(''); setOk('') }}>Criar conta</button>
+              <button onClick={() => { setModo('escolher'); setErro(''); setOk('') }}>Criar conta</button>
               {' · '}
               <button onClick={() => { setModo('esqueci'); setErro(''); setOk('') }}>Esqueci minha senha</button>
+            </>
+          )}
+          {modo === 'criar' && (
+            <>
+              <button onClick={() => { setModo('escolher'); setErro(''); setOk('') }}>Trocar o jeito de entrar</button>
+              {' · '}
             </>
           )}
           {modo !== 'entrar' && (

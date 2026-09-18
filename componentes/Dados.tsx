@@ -22,6 +22,12 @@ type Contexto = {
   areas: Area[]
   empresas: Empresa[]
   org: Organizacao
+  /**
+   * Conta de uma pessoa só. Equipe, convite, responsável, aprovador e
+   * visibilidade somem da tela: com um usuário, a resposta de todos eles é
+   * sempre "você", e campo cuja resposta é sempre a mesma só atrapalha.
+   */
+  pessoal: boolean
   /** Fluxos da empresa em foco. Sem empresa escolhida, são todos. */
   fluxos: Fluxo[]
   /** Todos, ignorando o filtro de empresa. Serve para contar no seletor. */
@@ -989,7 +995,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   }, [sb, canais, mensagens, perfis, todosFluxos, nomeDe, sugestoesDe, org.ia_modo, aceitarSugestao, toast, recarregar])
 
   const valor: Contexto = {
-    eu, perfis, areas, empresas, org, fluxos, todosFluxos, totalItens, agenda, minhaAgendaExterna, processos, convites,
+    eu, perfis, areas, empresas, org, pessoal: org.tipo === 'pessoal', fluxos, todosFluxos, totalItens, agenda, minhaAgendaExterna, processos, convites,
     empresaAtiva, focarEmpresa, empresaDe, carregando,
     perfilDe, nomeDe, areaDe, aviso, toast,
     salvarArea, excluirArea, salvarFluxo, excluirFluxo,
