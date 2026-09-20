@@ -119,7 +119,6 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
 
   const naVez = limitar(Math.round(pos))
   const ativa = itens[naVez]
-  const pct = Math.round((ativa?.progresso ?? 0) * 100)
 
   // A geometria de cada pasta, em função da distância para a da vez. À direita
   // elas se comprimem, como folhas de um arquivo visto de viés; à esquerda
@@ -135,7 +134,7 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
     // Passo fixo no plano. A compressão de verdade vem da profundidade com a
     // perspectiva, que é o que faz o arquivo parecer fundo em vez de achatado.
     return {
-      x: 176 + (d - 1) * 76,
+      x: 202 + (d - 1) * 88,
       z: -26 - d * 25,
       ry: -20,
       o: Math.max(0.1, 1 - d * 0.072),
@@ -211,8 +210,19 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
                 onClick={() => (viva ? aoAbrir(p) : (aoTrocar(i), assentar(i)))}
               >
                 <span className="pasta-luz" aria-hidden="true" />
-                <span className="pasta-doc" aria-hidden="true">
-                  {[0, 1, 2, 3, 4, 5].map((k) => <i key={k} style={{ width: `${88 - (k % 3) * 22}%` }} />)}
+                {/* O miolo branco é o painel da pasta: é aqui que mora o que
+                    antes vivia numa ficha flutuante ao lado. */}
+                <span className="pasta-doc">
+                  <span className="doc-topo">
+                    <span className="doc-pct num">{Math.round(p.progresso * 100)}<i>%</i></span>
+                    {(p.atrasado || p.travado) && (
+                      <span className={`doc-selo ${p.atrasado ? 'tarde' : 'presa'}`}>
+                        {p.atrasado ? 'Atrasado' : 'Travado'}
+                      </span>
+                    )}
+                  </span>
+                  <span className="doc-sub">{p.sub}</span>
+                  <span className="doc-barra"><b style={{ width: `${Math.max(3, p.progresso * 100)}%` }} /></span>
                 </span>
                 <span className="pasta-pe">
                   <span className="pasta-n"><Ic.team />{p.contagem}</span>
@@ -227,27 +237,6 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
         </div>
 
       </div>
-
-      {ativa && (
-        <div className="ficha" aria-live="polite">
-          <div className="ficha-h">
-            <span>
-              <b>{ativa.nome}</b>
-              <small>{ativa.sub}</small>
-            </span>
-            <button className="ficha-ir" aria-label={`Abrir ${ativa.nome}`}
-              onClick={(e) => { e.stopPropagation(); aoAbrir(ativa) }}>
-              <Ic.seta />
-            </button>
-          </div>
-          <div className="ficha-num">
-            <span className="pct">{pct}<i>%</i></span>
-            <span className={`ficha-selo ${ativa.atrasado ? 'tarde' : ativa.travado ? 'presa' : ''}`}>
-            {ativa.atrasado ? 'Atrasado' : ativa.travado ? 'Travado' : `${ativa.contagem} em aberto`}
-            </span>
-          </div>
-        </div>
-      )}
 
       <div className="arquivo-pe">
         <button className="iconbtn" onClick={() => andar(-1)} disabled={naVez === 0} aria-label="Anterior">
