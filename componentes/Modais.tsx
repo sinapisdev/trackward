@@ -12,7 +12,7 @@ import { faixa, minutos, ocupados } from '@/lib/agenda'
 import { esqueletoEmBranco, periodoAtual, type RascunhoEtapa } from '@/lib/modelos'
 import type { Canal, Compromisso, Empresa, Etapa, Fluxo, Freq, Item, Area, Tipo, TipoCanal, Visibilidade } from '@/lib/tipos'
 
-const CORES = ['#C2703C', '#7D8471', '#A8763E', '#6E7B8B', '#96705B', '#5F7A6A', '#A5645C', '#7A6E8F']
+const CORES = ['#5E8C7B', '#6E82A0', '#8A7F9B', '#A0796E', '#7E9068', '#6D8FA0', '#9A7E8C', '#7C8B6E']
 
 export type Pedido =
   | { tipo: 'area'; area?: Area }

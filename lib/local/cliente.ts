@@ -675,7 +675,7 @@ function cadastrarLocal(email: string, dados: Linha): { erro?: string } {
   }
 
   const id = uid('u')
-  const paleta = ['#C2703C','#7D8471','#A8763E','#6E7B8B','#96705B','#5F7A6A','#A5645C','#7A6E8F']
+  const paleta = ['#5E8C7B','#6E82A0','#8A7F9B','#A0796E','#7E9068','#6D8FA0','#9A7E8C','#7C8B6E']
   const n = b.perfis.filter((x) => x.org_id === orgId).length
   b.perfis.push({
     id, user_id: id, org_id: orgId, nome, email: e, cor: paleta[n % 8], papel,

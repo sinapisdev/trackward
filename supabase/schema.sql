@@ -648,7 +648,7 @@ declare
   v_area    uuid;
   v_gestor  uuid;
   n int;
-  paleta text[] := array['#C2703C','#7D8471','#A8763E','#6E7B8B','#96705B','#5F7A6A','#A5645C','#7A6E8F'];
+  paleta text[] := array['#5E8C7B','#6E82A0','#8A7F9B','#A0796E','#7E9068','#6D8FA0','#9A7E8C','#7C8B6E'];
 begin
   -- Conta pessoal nunca reserva o domínio da empresa. Se reservasse, o colega
   -- que se cadastrasse depois cairia dentro do espaço pessoal de quem chegou

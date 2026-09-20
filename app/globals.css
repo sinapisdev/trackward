@@ -6,9 +6,11 @@
 
 /* --------------------------------------------------------------------------
    Temas.
-   Linguagem tomada da referência do Behance (projeto Harbor): fundo off-white
-   quente, preto como ação, cinza quente para o secundário e um único acento
-   laranja para o que pede atenção. O escuro é a mesma linguagem invertida.
+   Paleta tomada da referência do Behance (projeto ClauseOS): Blue Charcoal
+   #000B1A como chão, Harmony Green #68E78E como ação, e branco. Tipografia
+   Urbanist, a mesma de lá. O escuro é fiel à referência; o claro é a mesma
+   linguagem virada, com o verde escurecido para segurar contraste no papel.
+   Laranja e vermelho ficam reservados ao que pede atenção, nunca à decoração.
    -------------------------------------------------------------------------- */
 
 :root{
@@ -20,32 +22,32 @@
 
 /* ---------------------------------------------------------------- claro */
 :root,:root[data-tema="claro"]{
-  --bg:#F7F7F5; --panel:#FFFFFF; --alto:#FFFFFF; --sunken:#F1F1ED; --hover:#F4F4F0;
-  --line:#E7E7E1; --line-2:#D9D9D2; --line-3:#B9B9B1;
-  --tx:#111111; --tx-2:#6B6B67; --tx-3:#9B9B94;
-  --ac:#111111; --ac-2:#2E2E2C; --ac-tx:#FFFFFF; --ac-soft:#F1F1ED; --ac-linha:#DEDED7;
-  --ac-luz:rgba(17,17,17,.14);
+  --bg:#F6F7F8; --panel:#FFFFFF; --alto:#FFFFFF; --sunken:#EFF1F3; --hover:#F2F4F6;
+  --line:#E4E7EA; --line-2:#D4D9DE; --line-3:#B2BAC2;
+  --tx:#0B1420; --tx-2:#5C6873; --tx-3:#8F99A3;
+  --ac:#11794A; --ac-2:#0C6039; --ac-tx:#FFFFFF; --ac-soft:#E6F4EC; --ac-linha:#C9E6D7;
+  --ac-luz:rgba(17,121,74,.18);
   --late:#D2402F; --late-soft:#FBEDEA; --late-linha:#F2D3CC;
-  --warn:#C26A00; --warn-forte:#F98B05; --warn-soft:#FDF2E3; --warn-linha:#F4DFBF;
-  --scrim:rgba(17,17,17,.24);
+  --warn:#B96A00; --warn-forte:#E08600; --warn-soft:#FDF3E4; --warn-linha:#F3DEBE;
+  --scrim:rgba(11,20,32,.26);
   --brilho:transparent;
-  --sombra:0 1px 2px rgba(17,17,17,.045);
+  --sombra:0 1px 2px rgba(11,20,32,.05);
   --shadow:0 0 0 1px var(--line);
-  --pop:0 32px 80px -20px rgba(17,17,17,.24),0 0 0 1px var(--line);
+  --pop:0 32px 80px -20px rgba(11,20,32,.26),0 0 0 1px var(--line);
   color-scheme:light;
 }
 
 /* ---------------------------------------------------------------- escuro */
 :root[data-tema="escuro"]{
-  --bg:#0C0C0B; --panel:#151514; --alto:#1B1B19; --sunken:#111110; --hover:#1C1C1A;
-  --line:#242422; --line-2:#32322F; --line-3:#4A4A46;
-  --tx:#F7F7F5; --tx-2:#A2A29B; --tx-3:#6E6E68;
-  --ac:#F7F7F5; --ac-2:#FFFFFF; --ac-tx:#111111; --ac-soft:#1F1F1D; --ac-linha:#33332F;
-  --ac-luz:rgba(247,247,245,.14);
-  --late:#F0645A; --late-soft:#261512; --late-linha:#4A231D;
-  --warn:#F98B05; --warn-forte:#F98B05; --warn-soft:#291B0A; --warn-linha:#4C3411;
-  --scrim:rgba(6,6,5,.74);
-  --brilho:rgba(255,255,255,.018);
+  --bg:#070C15; --panel:#0D1420; --alto:#131C2A; --sunken:#0A1019; --hover:#141E2C;
+  --line:#1A2431; --line-2:#26323F; --line-3:#3B4756;
+  --tx:#EDF1F5; --tx-2:#93A1AE; --tx-3:#63707D;
+  --ac:#68E78E; --ac-2:#83EEA3; --ac-tx:#06121C; --ac-soft:#10251C; --ac-linha:#1E4130;
+  --ac-luz:rgba(104,231,142,.20);
+  --late:#F0645A; --late-soft:#26120F; --late-linha:#4A231D;
+  --warn:#F5A623; --warn-forte:#F5A623; --warn-soft:#2A1E0B; --warn-linha:#4A3712;
+  --scrim:rgba(3,7,13,.76);
+  --brilho:rgba(255,255,255,.016);
   --sombra:0 1px 2px rgba(0,0,0,.45);
   --shadow:0 0 0 1px var(--line);
   --pop:0 32px 80px -16px rgba(0,0,0,.86),0 0 0 1px var(--line-2);
@@ -54,17 +56,19 @@
 
 @media (prefers-color-scheme:dark){
   :root:not([data-tema]){
-    --bg:#0C0C0B; --panel:#151514; --alto:#1B1B19; --sunken:#111110; --hover:#1C1C1A;
-    --line:#242422; --line-2:#32322F; --line-3:#4A4A46;
-    --tx:#F7F7F5; --tx-2:#A2A29B; --tx-3:#6E6E68;
-    --ac:#F7F7F5; --ac-2:#FFFFFF; --ac-tx:#111111; --ac-soft:#1F1F1D; --ac-linha:#33332F;
-    --ac-luz:rgba(247,247,245,.14);
-    --late:#F0645A; --late-soft:#261512; --late-linha:#4A231D;
-    --warn:#F98B05; --warn-forte:#F98B05; --warn-soft:#291B0A; --warn-linha:#4C3411;
-    --scrim:rgba(6,6,5,.74); --brilho:rgba(255,255,255,.018);
-    --sombra:0 1px 2px rgba(0,0,0,.45);
-    --pop:0 32px 80px -16px rgba(0,0,0,.86),0 0 0 1px var(--line-2);
-    color-scheme:dark;
+  --bg:#070C15; --panel:#0D1420; --alto:#131C2A; --sunken:#0A1019; --hover:#141E2C;
+  --line:#1A2431; --line-2:#26323F; --line-3:#3B4756;
+  --tx:#EDF1F5; --tx-2:#93A1AE; --tx-3:#63707D;
+  --ac:#68E78E; --ac-2:#83EEA3; --ac-tx:#06121C; --ac-soft:#10251C; --ac-linha:#1E4130;
+  --ac-luz:rgba(104,231,142,.20);
+  --late:#F0645A; --late-soft:#26120F; --late-linha:#4A231D;
+  --warn:#F5A623; --warn-forte:#F5A623; --warn-soft:#2A1E0B; --warn-linha:#4A3712;
+  --scrim:rgba(3,7,13,.76);
+  --brilho:rgba(255,255,255,.016);
+  --sombra:0 1px 2px rgba(0,0,0,.45);
+  --shadow:0 0 0 1px var(--line);
+  --pop:0 32px 80px -16px rgba(0,0,0,.86),0 0 0 1px var(--line-2);
+  color-scheme:dark;
   }
 }
 

@@ -9,7 +9,7 @@ export const TEMAS: { id: Tema; nome: string; sobre: string; amostra: [string, s
     amostra: ['#151514', '#F98B05', '#9B9B94', '#FFFFFF'] },
 ]
 
-export const CHAVE_TEMA = 'esteira.tema'
+export const CHAVE_TEMA = 'track.tema'
 
 export function temaAtual(): Tema {
   if (typeof document === 'undefined') return 'escuro'

@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from 'next'
-import { Plus_Jakarta_Sans } from 'next/font/google'
+import { Urbanist } from 'next/font/google'
 import './globals.css'
 
-const sans = Plus_Jakarta_Sans({
+// Urbanist, a mesma da referência do ClauseOS: geométrica, sem serifa, e
+// desenhada para interface. Palavras do próprio projeto: passa confiança,
+// clareza e profissionalismo moderno.
+const sans = Urbanist({
   subsets: ['latin'],
   weight: ['300', '400', '500', '600', '700'],
   variable: '--fonte-sans',
@@ -25,13 +28,13 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#F7F7F5' },
-    { media: '(prefers-color-scheme: dark)', color: '#0C0C0B' },
+    { media: '(prefers-color-scheme: light)', color: '#F6F7F8' },
+    { media: '(prefers-color-scheme: dark)', color: '#070C15' },
   ],
 }
 
 /** Aplica o tema salvo antes da primeira pintura, para a tela não piscar. */
-const TEMA = `try{var t=localStorage.getItem('esteira.tema');if(t)document.documentElement.dataset.tema=t}catch(e){}`
+const TEMA = `try{var t=localStorage.getItem('track.tema');if(t)document.documentElement.dataset.tema=t}catch(e){}`
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
