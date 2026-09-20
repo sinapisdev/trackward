@@ -1018,80 +1018,61 @@ h1{font-weight:600;letter-spacing:-.032em}
 
 /* ==========================================================================
    O arquivo em perspectiva
-   As pastas de pé, em fila. Dois formatos, e o botão no pé troca entre eles:
-     de lado   cabe muita pasta, e o detalhe da que está na vez vem numa ficha
-     de frente cabe menos, e em troca toda pasta mostra o que tem dentro
-   Geometria toda em CSS 3D: sem biblioteca e sem canvas, então teclado, leitor
-   de tela e celular continuam alcançando tudo.
+   As pastas de pé, em fila, e a informação no miolo branco de cada uma: não
+   existe ficha ao lado, cada pasta se explica sozinha. O botão no pé troca
+   entre ver de lado (em leque, cabe muita) e de frente (cabe menos, cada uma
+   maior). Geometria toda em CSS 3D: sem biblioteca e sem canvas, então teclado,
+   leitor de tela e celular continuam alcançando tudo.
    ========================================================================== */
 
 .arquivo{position:relative;margin:0 0 26px}
-.arquivo-palco{position:relative;height:300px;perspective:1900px;perspective-origin:30% 50%;
+.arquivo-palco{position:relative;height:306px;perspective:1900px;
   cursor:grab;touch-action:pan-y;outline-offset:6px;overflow:hidden;
   border-radius:var(--r-lg);background:
     radial-gradient(110% 80% at 26% 46%, color-mix(in srgb,var(--ac) 12%, transparent), transparent 62%),
     var(--sunken)}
 .arquivo-palco.puxando{cursor:grabbing}
-/* O ponto de fuga acompanha a direção por um instante: é o que dá a sensação
-   de que a fila inteira girou, e não só de que os cartões trocaram de lugar. */
-.arquivo-palco{transition:perspective-origin 240ms cubic-bezier(.2,.9,.24,1.06)}
-.arquivo-fila{position:absolute;inset:0;transform-style:preserve-3d;
-  transition:transform 240ms cubic-bezier(.2,.9,.24,1.06)}
+.arquivo-fila{position:absolute;inset:0;transform-style:preserve-3d}
 
-.pasta{position:absolute;left:28%;top:50%;width:154px;height:214px;
+.pasta{position:absolute;left:28%;top:50%;width:162px;height:222px;
   transform-style:preserve-3d;transform-origin:50% 50%;
   border-radius:16px 16px 6px 6px;
   background:var(--vidro);border:1px solid var(--vidro-linha);
   backdrop-filter:blur(9px) saturate(1.2);-webkit-backdrop-filter:blur(9px) saturate(1.2);
   box-shadow:0 26px 50px -22px rgba(0,0,0,.8);
   display:flex;flex-direction:column;justify-content:flex-end;padding:13px;
-  /* curva com um leve passar do ponto no fim: é o que faz a rolagem parecer
-     que tem peso, em vez de deslizar em ritmo de elevador. */
-  transition:transform 230ms cubic-bezier(.2,.92,.24,1.1),opacity 170ms ease,
-    background 200ms ease,width 260ms ease,height 260ms ease;
+  transition:background 200ms ease,width 240ms ease,height 240ms ease;
   will-change:transform;cursor:pointer}
-@media (prefers-reduced-motion:reduce){
-  .pasta,.arquivo-fila,.arquivo-palco{transition:opacity 120ms linear}
-}
 
-/* o documento dentro da pasta, saindo um pouco por cima */
-.pasta-doc{position:absolute;left:16px;right:16px;top:-14px;height:132px;border-radius:7px;
-  background:color-mix(in srgb,var(--tx) 90%, transparent);
-  display:flex;flex-direction:column;gap:7px;padding:14px 12px;overflow:hidden;
-  box-shadow:0 10px 22px -12px rgba(0,0,0,.7);transition:height 380ms ease}
-.pasta-doc i{display:block;height:4px;border-radius:2px;
-  background:color-mix(in srgb,var(--bg) 26%, transparent)}
-
-/* o miolo branco carregando a informação, no modo de frente */
-.doc-dentro{display:flex;flex-direction:column;justify-content:space-between;height:100%;width:100%;
-  color:var(--bg)}
-.doc-topo{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
-.doc-pct{font-size:30px;font-weight:600;letter-spacing:-.05em;line-height:.92;color:#0A0A0A}
-.doc-pct i{font-size:14px;font-style:normal;opacity:.5;margin-left:1px}
-.doc-selo{font-size:9px;font-weight:700;letter-spacing:.04em;padding:3px 7px;border-radius:999px;
+/* o miolo branco, que sai um pouco por cima da pasta e carrega a informação */
+.pasta-doc{position:absolute;left:14px;right:14px;top:-13px;height:126px;border-radius:9px;
+  background:#FBFAF9;color:#0A0A0A;
+  display:flex;flex-direction:column;padding:12px 13px 11px;overflow:hidden;
+  box-shadow:0 12px 24px -12px rgba(0,0,0,.72);transition:height 240ms ease}
+.doc-topo{display:flex;align-items:flex-start;justify-content:space-between;gap:7px}
+.doc-pct{font-size:29px;font-weight:600;letter-spacing:-.05em;line-height:.9}
+.doc-pct i{font-size:13px;font-style:normal;opacity:.45;margin-left:1px}
+.doc-selo{font-size:8.5px;font-weight:700;letter-spacing:.04em;padding:3px 7px;border-radius:999px;
   background:#FBE7E4;color:#C33A2A;white-space:nowrap;margin-top:2px}
-.doc-selo.presa{background:#EDEDED;color:#6B6B6B}
+.doc-selo.presa{background:#ECECEC;color:#6B6B6B}
 .doc-sub{font-size:10.5px;color:#6B6B6B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   margin-top:auto}
-.doc-barra{display:block;height:3px;border-radius:2px;background:#E4E4E4;margin-top:7px;overflow:hidden}
+.doc-barra{display:block;height:3px;border-radius:2px;background:#E6E4E2;margin-top:7px;overflow:hidden}
 .doc-barra b{display:block;height:100%;border-radius:2px;background:var(--ac)}
 
 .pasta-luz{position:absolute;inset:0;border-radius:inherit;pointer-events:none;
   background:linear-gradient(158deg,rgba(255,255,255,.2),transparent 42%)}
 
-.pasta-info{position:relative;display:flex;flex-direction:column;gap:2px;color:var(--tx);
+.pasta-info{position:relative;display:flex;flex-direction:column;gap:3px;color:var(--tx);
   padding-right:9px}
-.pasta-pe{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:4px}
 .pasta-n{display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;
   font-variant-numeric:tabular-nums;opacity:.9}
-.pasta-pct{font-size:16px;font-weight:600;letter-spacing:-.03em;line-height:1}
-.pasta-pct i{font-size:10px;font-style:normal;opacity:.6;margin-left:1px}
 .pasta-nome{font-size:12.5px;font-weight:600;letter-spacing:-.01em;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.pasta-sub{font-size:10.5px;opacity:.62;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pasta-selo{align-self:flex-start;margin-top:6px;font-size:9.5px;font-weight:700;letter-spacing:.03em;
-  padding:3px 8px;border-radius:999px;background:var(--late-soft);color:var(--late)}
-.pasta-selo.presa{background:color-mix(in srgb,var(--tx) 12%, transparent);color:var(--tx-2)}
+/* Na pasta de trás o nome vive só na faixa que a próxima não cobre. Cortado é
+   melhor que empilhado: empilhado não se lê de jeito nenhum. */
+.arquivo[data-modo="lado"] .pasta:not(.viva) .pasta-nome{max-width:66px;font-size:11.5px;opacity:.84}
+.arquivo[data-modo="lado"] .pasta:not(.viva) .pasta-n{font-size:10.5px}
 
 /* a lombada: quanto a pasta já andou, lida de relance sem abrir */
 .pasta-lomba{position:absolute;right:7px;top:16px;bottom:16px;width:3px;border-radius:2px;
@@ -1102,68 +1083,30 @@ h1{font-weight:600;letter-spacing:-.032em}
   border-color:color-mix(in srgb,var(--ac) 60%, transparent);
   box-shadow:0 30px 70px -24px var(--ac-luz),0 0 0 1px color-mix(in srgb,var(--ac) 45%, transparent)}
 .pasta.viva .pasta-info{color:var(--ac-tx)}
-.pasta.viva .pasta-doc{background:color-mix(in srgb,#fff 94%, transparent)}
-.pasta.viva .pasta-doc i{background:color-mix(in srgb,var(--ac) 40%, transparent)}
+.pasta.viva .doc-barra b{background:var(--ac)}
 .pasta.viva .pasta-lomba{background:color-mix(in srgb,var(--ac-tx) 22%, transparent)}
 .pasta.viva .pasta-lomba b{background:var(--ac-tx);opacity:.9}
-.pasta.viva .pasta-selo{background:color-mix(in srgb,var(--ac-tx) 18%, transparent);color:var(--ac-tx)}
 .pasta.tarde:not(.viva) .pasta-lomba b{background:var(--late);opacity:1}
 .pasta.presa:not(.viva) .pasta-lomba b{background:var(--tx-3);opacity:1}
 
-/* longe: só volume e luz. Texto ali viraria ruído sobreposto. */
-.pasta.longe .pasta-info{opacity:0}
-.pasta.longe .pasta-doc i{opacity:.55}
+/* De lado, a pasta de trás mostra só a porcentagem: a etapa e o selo ficam
+   embaixo da pasta seguinte de qualquer jeito, e texto escondido pela metade
+   é pior que texto nenhum. */
+.arquivo[data-modo="lado"] .pasta:not(.viva) .doc-sub,
+.arquivo[data-modo="lado"] .pasta:not(.viva) .doc-selo,
+.arquivo[data-modo="lado"] .pasta:not(.viva) .doc-barra{display:none}
+.arquivo[data-modo="lado"] .pasta:not(.viva) .doc-pct{font-size:24px;opacity:.72}
 
-/* ---------------------------------------------------------------- de lado */
-/* A ficha carrega o detalhe, então a pasta guarda só o essencial, e o nome de
-   quem está atrás vive na faixa estreita que a próxima não cobre. Cortado é
-   melhor que empilhado: empilhado não se lê de jeito nenhum. */
-.arquivo[data-modo="diagonal"] .pasta-sub,
-.arquivo[data-modo="diagonal"] .pasta-selo,
-/* a ficha já diz a porcentagem: repetir na pasta é dizer duas vezes */
-.arquivo[data-modo="diagonal"] .pasta-pct{display:none}
-/* De perfil a perspectiva come metade da largura do texto, então ele precisa
-   nascer maior para sobreviver. Cortado é melhor que empilhado. */
-.arquivo[data-modo="diagonal"] .pasta-nome{font-size:15px;letter-spacing:-.02em}
-.arquivo[data-modo="diagonal"] .pasta-n{font-size:13px}
-.arquivo[data-modo="diagonal"] .pasta:not(.viva) .pasta-nome{max-width:62px;opacity:.86}
-.arquivo[data-modo="diagonal"] .pasta:not(.viva) .pasta-info{padding-right:0}
-.arquivo[data-modo="diagonal"] .pasta{width:168px;height:224px;left:24%}
-.arquivo[data-modo="diagonal"] .arquivo-palco{perspective:1500px;perspective-origin:26% 50%}
+/* longe: só volume e luz. Texto ali viraria ruído sobreposto. */
+.pasta.longe .pasta-info,.pasta.longe .doc-sub,.pasta.longe .doc-selo{opacity:0}
+.pasta.longe .doc-pct{opacity:.22}
 
 /* -------------------------------------------------------------- de frente */
-/* Sem ficha, cada pasta precisa caber o próprio texto: mais larga, documento
-   mais curto, e o pé com tudo que a ficha dizia. */
-.arquivo[data-modo="frente"]{--pasta-l:196px}
-.arquivo[data-modo="frente"] .arquivo-palco{perspective:2400px;perspective-origin:34% 50%}
-.arquivo[data-modo="frente"] .pasta{width:var(--pasta-l);height:236px;left:22%;border-radius:18px}
-.arquivo[data-modo="frente"] .pasta-doc{height:118px;top:-12px;left:16px;right:16px;padding:13px 14px}
+.arquivo[data-modo="frente"] .arquivo-palco{perspective:2400px}
+.arquivo[data-modo="frente"] .pasta{width:196px;height:238px;left:22%;border-radius:18px}
+.arquivo[data-modo="frente"] .pasta-doc{height:122px;left:16px;right:16px;padding:13px 14px 12px}
 .arquivo[data-modo="frente"] .pasta-nome{font-size:13.5px}
-.arquivo[data-modo="frente"] .pasta-pct{font-size:17px}
-
-/* a ficha que flutua sobre o arquivo, como na referência */
-.ficha{position:absolute;left:16px;top:26px;z-index:5;width:228px;padding:14px 15px 13px;
-  border-radius:17px;background:var(--vidro);border:1px solid var(--vidro-linha);
-  backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);
-  box-shadow:0 22px 50px -20px rgba(0,0,0,.7)}
-.ficha-h{display:flex;align-items:flex-start;gap:10px}
-.ficha-h span{flex:1;min-width:0}
-.ficha-h b{display:block;font-size:14px;font-weight:600;letter-spacing:-.02em;color:var(--tx);
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ficha-h small{display:block;font-size:11px;color:var(--tx-2);margin-top:1px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ficha-ir{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex:none;
-  color:var(--tx);background:color-mix(in srgb,var(--tx) 10%, transparent);transition:var(--t)}
-.ficha-ir:hover{background:var(--ac);color:var(--ac-tx)}
-.ficha-num{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:12px}
-.ficha-num .pct{font-size:36px;font-weight:600;letter-spacing:-.05em;line-height:1;color:var(--tx);
-  font-variant-numeric:tabular-nums}
-.ficha-num .pct i{font-size:17px;font-style:normal;color:var(--tx-2);margin-left:1px}
-.ficha-selo{font-size:10.5px;font-weight:600;letter-spacing:.02em;padding:4px 9px;border-radius:999px;
-  background:color-mix(in srgb,var(--tx) 10%, transparent);color:var(--tx-2);margin-bottom:4px;
-  white-space:nowrap}
-.ficha-selo.tarde{background:var(--late-soft);color:var(--late)}
-.ficha-selo.presa{background:color-mix(in srgb,var(--tx) 8%, transparent);color:var(--tx-3)}
+.arquivo[data-modo="frente"] .doc-pct{font-size:32px}
 
 .arquivo-pe{display:flex;align-items:center;gap:9px;padding:11px 3px 0;flex-wrap:wrap}
 .arquivo-conta{font-size:11.5px;color:var(--tx-3);min-width:48px;text-align:center}
@@ -1172,17 +1115,19 @@ h1{font-weight:600;letter-spacing:-.032em}
 .arquivo-dica{font-size:11.5px;color:var(--tx-3);margin-left:auto}
 .arquivo-pe .iconbtn:disabled{opacity:.3;cursor:not-allowed}
 
+@media (prefers-reduced-motion:reduce){
+  .pasta,.arquivo-fila,.arquivo-palco{transition:none}
+}
+
 @media (max-width:840px){
-  .arquivo-palco{height:252px;perspective:1300px;perspective-origin:30% 50%}
-  .pasta{width:120px;height:170px;left:44%}
-  .pasta-doc{height:110px;top:-12px}
-  .arquivo[data-modo="frente"] .arquivo-palco{perspective:1700px;perspective-origin:40% 50%}
-  .arquivo[data-modo="frente"] .pasta{width:172px;height:206px;left:34%}
-  .arquivo[data-modo="frente"] .pasta-doc{height:84px}
-  .ficha{left:11px;top:12px;width:168px;padding:11px 12px 10px}
-  .ficha-num{margin-top:9px}
-  .ficha-num .pct{font-size:26px}
-  .ficha-selo{font-size:9.5px;padding:3px 7px}
-  .ficha-h b{font-size:12.5px}
+  .arquivo-palco{height:262px;perspective:1300px}
+  .pasta{width:132px;height:184px;left:42%}
+  .pasta-doc{height:104px;top:-11px;padding:10px 11px 9px}
+  .doc-pct{font-size:23px}
+  .doc-sub{font-size:9.5px}
+  .arquivo[data-modo="frente"] .arquivo-palco{perspective:1700px}
+  .arquivo[data-modo="frente"] .pasta{width:172px;height:210px;left:34%}
+  .arquivo[data-modo="frente"] .pasta-doc{height:110px}
+  .arquivo[data-modo="frente"] .doc-pct{font-size:26px}
   .arquivo-dica{display:none}
 }
