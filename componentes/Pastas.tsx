@@ -6,27 +6,28 @@ import { Ic } from './Icones'
 export type Pasta = {
   id: string
   nome: string
-  /** Linha de baixo: período, etapa, o que situar sem abrir. */
+  /** Linha de baixo do cartão que flutua: período, área, o que fizer sentido. */
   sub: string
+  /** Quantas tarefas abertas. É o número que aparece no pé da pasta. */
   contagem: number
-  /** 0 a 1. Vira a porcentagem grande do miolo e a barra do pé. */
+  /** 0 a 1. Vira a porcentagem grande do cartão e a barra da lombada. */
   progresso: number
+  /** Atrasado pinta a lombada de vermelho, mesmo sem estar selecionada. */
   atrasado?: boolean
   travado?: boolean
 }
 
 /**
- *  lado:   as pastas de viés, em leque, como um arquivo visto de lado.
- *  frente: as pastas de frente, como cartas numa esteira.
+ * O arquivo em perspectiva.
  *
- * Nos dois, a informação mora no miolo branco da pasta. Não existe ficha ao
- * lado: cada pasta se explica sozinha.
+ * As pastas ficam de pé, em fila, vistas de lado, e você corre por elas com a
+ * roda do mouse, arrastando ou com as setas. A pasta da vez vem para a frente e
+ * acende em laranja; as outras continuam legíveis atrás, em vidro.
+ *
+ * É a peça da referência do ClauseOS, com o verde trocado por laranja. A
+ * geometria é toda CSS 3D: nada de biblioteca, nada de canvas, então o teclado,
+ * o leitor de tela e o celular continuam funcionando.
  */
-export type Modo = 'lado' | 'frente'
-
-const CHAVE_MODO = 'track.pastas.modo'
-const misturar = (a: number, b: number, t: number) => a + (b - a) * t
-
 export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
   itens: Pasta[]
   atual: number
@@ -35,10 +36,9 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
   rotulo: string
 }) {
   const palco = useRef<HTMLDivElement>(null)
-  const inicio = useRef<{ x: number; pos: number } | null>(null)
   const quadro = useRef<number | null>(null)
   const [arrastando, setArrastando] = useState(false)
-  const [modo, setModo] = useState<Modo>('lado')
+  const inicio = useRef<{ x: number; pos: number } | null>(null)
   /**
    * Onde a fila está agora, com casas decimais. É isso que deixa a pasta parar
    * no meio do caminho enquanto o dedo arrasta, em vez de pular de uma para a
@@ -47,19 +47,7 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
   const [pos, setPos] = useState(atual)
 
   const total = itens.length
-  const limitar = useCallback((n: number) => Math.max(0, Math.min(total - 1, n)), [total])
-
-  useEffect(() => {
-    try {
-      const m = localStorage.getItem(CHAVE_MODO)
-      if (m === 'frente' || m === 'lado') setModo(m)
-    } catch {}
-  }, [])
-
-  const trocarModo = (m: Modo) => {
-    setModo(m)
-    try { localStorage.setItem(CHAVE_MODO, m) } catch {}
-  }
+  const limitar = useCallback((i: number) => Math.max(0, Math.min(total - 1, i)), [total])
 
   /** Puxa a fila até o índice escolhido, com mola. Parado, não gasta quadro. */
   const assentar = useCallback((destino: number) => {
@@ -84,7 +72,8 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
   useEffect(() => () => { if (quadro.current) cancelAnimationFrame(quadro.current) }, [])
 
   // Roda e trackpad movem a fila em fração de pasta, sem esperar completar o
-  // passo. No trackpad isso é a diferença entre deslizar e clicar onze vezes.
+  // passo, e ela só encaixa quando a pessoa para. No trackpad isso é a
+  // diferença entre deslizar e clicar onze vezes.
   useEffect(() => {
     const el = palco.current
     if (!el) return
@@ -129,42 +118,47 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
   }
 
   const naVez = limitar(Math.round(pos))
-  const pct = (p: Pasta) => Math.round(p.progresso * 100)
+  const ativa = itens[naVez]
+  const pct = Math.round((ativa?.progresso ?? 0) * 100)
+
+  // A geometria de cada pasta, em função da distância para a da vez. À direita
+  // elas se comprimem, como folhas de um arquivo visto de viés; à esquerda
+  // empilham atrás, para a fila continuar existindo mesmo depois de passar.
+  const pose = useMemo(() => (d: number) => {
+    if (d === 0) return { x: 0, z: 60, ry: -20, o: 1, s: 1.04 }
+    if (d < 0) {
+      const k = Math.min(-d, 4)
+      return { x: -40 - k * 16, z: 20 - k * 28, ry: -20, o: Math.max(0.14, 0.46 - k * 0.1), s: 0.96 - k * 0.02 }
+    }
+    // Espaçamento que abre no começo e fecha no fim, como folhas de um arquivo
+    // visto de viés: as primeiras precisam ser legíveis, as últimas só sugeridas.
+    // Passo fixo no plano. A compressão de verdade vem da profundidade com a
+    // perspectiva, que é o que faz o arquivo parecer fundo em vez de achatado.
+    return {
+      x: 176 + (d - 1) * 76,
+      z: -26 - d * 25,
+      ry: -20,
+      o: Math.max(0.1, 1 - d * 0.072),
+      s: 1 - Math.min(0.22, d * 0.018),
+    }
+  }, [])
 
   /**
-   * O lugar de uma pasta a N pastas de distância, com N inteiro. Entre dois
-   * inteiros o valor é interpolado, e é por isso que a fila desliza em vez de
-   * saltar. A geometria é a mesma que já estava aprovada.
+   * Entre duas posições inteiras o valor é interpolado, e é por isso que a fila
+   * desliza em vez de saltar. As poses continuam exatamente as mesmas: o que
+   * mudou foi só o caminho entre elas.
    */
-  const pose = useMemo(() => (n: number) => {
-    if (modo === 'frente') {
-      if (n === 0) return { x: 0, z: 70, ry: -7, o: 1, s: 1.04 }
-      if (n < 0) {
-        const k = Math.min(-n, 4)
-        return { x: -66 - k * 30, z: 10 - k * 30, ry: -7, o: Math.max(0.1, 0.5 - k * 0.1), s: 0.95 - k * 0.02 }
-      }
-      return { x: 32 + n * 180, z: -24 - n * 20, ry: -7,
-        o: Math.max(0.12, 1 - n * 0.1), s: 1 - Math.min(0.18, n * 0.02) }
-    }
-    if (n === 0) return { x: 0, z: 60, ry: -20, o: 1, s: 1.04 }
-    if (n < 0) {
-      const k = Math.min(-n, 4)
-      return { x: -40 - k * 16, z: 20 - k * 28, ry: -20, o: Math.max(0.14, 0.5 - k * 0.1), s: 0.96 - k * 0.02 }
-    }
-    return { x: 100 + n * 76, z: -26 - n * 25, ry: -20,
-      o: Math.max(0.1, 1 - n * 0.072), s: 1 - Math.min(0.22, n * 0.018) }
-  }, [modo])
-
-  const lugar = useCallback((d: number) => {
+  const misturar = (a: number, b: number, t: number) => a + (b - a) * t
+  const lugar = (d: number) => {
     const a = Math.floor(d)
     const t = d - a
     const pa = pose(a)
     const pb = pose(a + 1)
     return {
-      x: misturar(pa.x, pb.x, t), z: misturar(pa.z, pb.z, t), ry: misturar(pa.ry, pb.ry, t),
+      x: misturar(pa.x, pb.x, t), z: misturar(pa.z, pb.z, t), ry: pa.ry,
       o: misturar(pa.o, pb.o, t), s: misturar(pa.s, pb.s, t),
     }
-  }, [pose])
+  }
 
   if (!total) return null
 
@@ -173,21 +167,21 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
   const inclina = Math.max(-1, Math.min(1, (pos - naVez) * 2))
 
   return (
-    <section className="arquivo" data-modo={modo} aria-roledescription="carrossel" aria-label={rotulo}>
+    <section className="arquivo" aria-roledescription="carrossel" aria-label={rotulo}>
       <div
         className={`arquivo-palco ${arrastando ? 'puxando' : ''}`}
         ref={palco}
         tabIndex={0}
         role="listbox"
         aria-label={rotulo}
-        aria-activedescendant={`pasta-${itens[naVez]?.id}`}
-        style={{ perspectiveOrigin: `${(modo === 'frente' ? 34 : 30) + inclina * 5}% 50%` }}
+        aria-activedescendant={`pasta-${ativa?.id}`}
+        style={{ perspectiveOrigin: `${30 + inclina * 5}% 50%` }}
         onKeyDown={(e) => {
           if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); andar(1) }
           if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); andar(-1) }
           if (e.key === 'Home') { e.preventDefault(); aoTrocar(0); assentar(0) }
           if (e.key === 'End') { e.preventDefault(); aoTrocar(total - 1); assentar(total - 1) }
-          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); aoAbrir(itens[naVez]) }
+          if ((e.key === 'Enter' || e.key === ' ') && ativa) { e.preventDefault(); aoAbrir(ativa) }
         }}
         onPointerDown={(e) => { (e.target as HTMLElement).setPointerCapture?.(e.pointerId); pegar(e.clientX) }}
         onPointerMove={(e) => { if (inicio.current) mover(e.clientX) }}
@@ -200,7 +194,7 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
             const g = lugar(d)
             const viva = i === naVez
             const dist = Math.round(d)
-            // Passando de quatro a pasta vira só volume: texto ali seria ruído.
+            // Passando de quatro, a pasta vira só volume: texto ali seria ruído.
             const longe = dist > 4 || dist < -1
             return (
               <article
@@ -212,28 +206,18 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
                 style={{
                   zIndex: 100 - Math.abs(dist),
                   opacity: g.o,
-                  transform: `translate3d(calc(-50% + ${g.x.toFixed(1)}px), -50%, ${g.z.toFixed(1)}px) rotateY(${g.ry.toFixed(2)}deg) scale(${g.s.toFixed(3)})`,
+                  transform: `translate3d(calc(-50% + ${g.x.toFixed(1)}px), -50%, ${g.z.toFixed(1)}px) rotateY(${g.ry}deg) scale(${g.s.toFixed(3)})`,
                 }}
                 onClick={() => (viva ? aoAbrir(p) : (aoTrocar(i), assentar(i)))}
               >
                 <span className="pasta-luz" aria-hidden="true" />
-                {/* O miolo branco é onde a informação mora. */}
-                <span className="pasta-doc">
-                  <span className="doc-topo">
-                    <span className="doc-pct num">{pct(p)}<i>%</i></span>
-                    {(p.atrasado || p.travado) && (
-                      <span className={`doc-selo ${p.atrasado ? 'tarde' : 'presa'}`}>
-                        {p.atrasado ? 'Atrasado' : 'Travado'}
-                      </span>
-                    )}
-                  </span>
-                  <span className="doc-sub">{p.sub}</span>
-                  <span className="doc-barra"><b style={{ width: `${Math.max(3, p.progresso * 100)}%` }} /></span>
+                <span className="pasta-doc" aria-hidden="true">
+                  {[0, 1, 2, 3, 4, 5].map((k) => <i key={k} style={{ width: `${88 - (k % 3) * 22}%` }} />)}
                 </span>
-                <span className="pasta-info">
+                <span className="pasta-pe">
                   <span className="pasta-n"><Ic.team />{p.contagem}</span>
-                  <span className="pasta-nome">{p.nome}</span>
                 </span>
+                <span className="pasta-nome" aria-hidden={longe}>{p.nome}</span>
                 <span className="pasta-lomba" aria-hidden="true">
                   <b style={{ height: `${Math.max(4, p.progresso * 100)}%` }} />
                 </span>
@@ -241,7 +225,29 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
             )
           })}
         </div>
+
       </div>
+
+      {ativa && (
+        <div className="ficha" aria-live="polite">
+          <div className="ficha-h">
+            <span>
+              <b>{ativa.nome}</b>
+              <small>{ativa.sub}</small>
+            </span>
+            <button className="ficha-ir" aria-label={`Abrir ${ativa.nome}`}
+              onClick={(e) => { e.stopPropagation(); aoAbrir(ativa) }}>
+              <Ic.seta />
+            </button>
+          </div>
+          <div className="ficha-num">
+            <span className="pct">{pct}<i>%</i></span>
+            <span className={`ficha-selo ${ativa.atrasado ? 'tarde' : ativa.travado ? 'presa' : ''}`}>
+            {ativa.atrasado ? 'Atrasado' : ativa.travado ? 'Travado' : `${ativa.contagem} em aberto`}
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="arquivo-pe">
         <button className="iconbtn" onClick={() => andar(-1)} disabled={naVez === 0} aria-label="Anterior">
@@ -251,12 +257,6 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
         <button className="iconbtn" onClick={() => andar(1)} disabled={naVez === total - 1} aria-label="Próxima">
           <Ic.seta />
         </button>
-
-        <div className="seg arquivo-modo" role="group" aria-label="Formato do arquivo">
-          <button className={modo === 'lado' ? 'on' : ''} onClick={() => trocarModo('lado')}>De lado</button>
-          <button className={modo === 'frente' ? 'on' : ''} onClick={() => trocarModo('frente')}>De frente</button>
-        </div>
-
         <span className="arquivo-dica">role de lado, arraste ou use as setas</span>
       </div>
     </section>
