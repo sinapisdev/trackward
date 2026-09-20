@@ -6,28 +6,28 @@ import { Ic } from './Icones'
 export type Pasta = {
   id: string
   nome: string
-  /** Linha de baixo do cartão que flutua: período, área, o que fizer sentido. */
+  /** Linha de baixo: período, etapa, o que situar sem abrir. */
   sub: string
-  /** Quantas tarefas abertas. É o número que aparece no pé da pasta. */
+  /** Quantas tarefas abertas. É o número no pé da pasta. */
   contagem: number
-  /** 0 a 1. Vira a porcentagem grande do cartão e a barra da lombada. */
+  /** 0 a 1. Vira a porcentagem e a altura da lombada. */
   progresso: number
-  /** Atrasado pinta a lombada de vermelho, mesmo sem estar selecionada. */
   atrasado?: boolean
   travado?: boolean
 }
 
 /**
- * O arquivo em perspectiva.
+ * Como as pastas ficam de pé no arquivo.
  *
- * As pastas ficam de pé, em fila, vistas de lado, e você corre por elas com a
- * roda do mouse, arrastando ou com as setas. A pasta da vez vem para a frente e
- * acende em laranja; as outras continuam legíveis atrás, em vidro.
- *
- * É a peça da referência do ClauseOS, com o verde trocado por laranja. A
- * geometria é toda CSS 3D: nada de biblioteca, nada de canvas, então o teclado,
- * o leitor de tela e o celular continuam funcionando.
+ *  diagonal: de viés, como um arquivo visto de lado. Cabe muita pasta na tela e
+ *            o detalhe da que está na vez aparece numa ficha flutuante.
+ *  frente:   de frente, como cartas numa esteira. Cabe menos, e em troca **toda**
+ *            pasta mostra o que tem dentro, não só a escolhida.
  */
+export type Modo = 'diagonal' | 'frente'
+
+const CHAVE_MODO = 'track.pastas.modo'
+
 export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
   itens: Pasta[]
   atual: number
@@ -37,16 +37,28 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
 }) {
   const palco = useRef<HTMLDivElement>(null)
   const acumulado = useRef(0)
-  const [arrastando, setArrastando] = useState(false)
   const inicio = useRef<{ x: number; i: number } | null>(null)
+  const [arrastando, setArrastando] = useState(false)
+  const [modo, setModo] = useState<Modo>('diagonal')
+
+  useEffect(() => {
+    try {
+      const m = localStorage.getItem(CHAVE_MODO)
+      if (m === 'frente' || m === 'diagonal') setModo(m)
+    } catch {}
+  }, [])
+
+  const trocarModo = (m: Modo) => {
+    setModo(m)
+    try { localStorage.setItem(CHAVE_MODO, m) } catch {}
+  }
 
   const total = itens.length
   const limitar = useCallback((i: number) => Math.max(0, Math.min(total - 1, i)), [total])
-
   const andar = useCallback((n: number) => aoTrocar(limitar(atual + n)), [atual, aoTrocar, limitar])
 
-  // Roda do mouse e gesto de duas dedos: os dois eixos servem, porque no
-  // trackpad a pessoa desliza de lado e no mouse ela gira para baixo.
+  // Roda e trackpad: os dois eixos servem, porque no trackpad a pessoa desliza
+  // de lado e no mouse ela gira para baixo.
   useEffect(() => {
     const el = palco.current
     if (!el) return
@@ -68,41 +80,37 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
   const pegar = (x: number) => { inicio.current = { x, i: atual }; setArrastando(true) }
   const mover = (x: number) => {
     if (!inicio.current) return
-    const passos = Math.round((inicio.current.x - x) / 46)
-    const alvo = limitar(inicio.current.i + passos)
+    const alvo = limitar(inicio.current.i + Math.round((inicio.current.x - x) / 46))
     if (alvo !== atual) aoTrocar(alvo)
   }
   const soltar = () => { inicio.current = null; setArrastando(false) }
 
   const ativa = itens[atual]
-  const pct = Math.round((ativa?.progresso ?? 0) * 100)
+  const pct = (p: Pasta) => Math.round(p.progresso * 100)
 
-  // A geometria de cada pasta, em função da distância para a da vez. À direita
-  // elas se comprimem, como folhas de um arquivo visto de viés; à esquerda
-  // empilham atrás, para a fila continuar existindo mesmo depois de passar.
+  /**
+   * O lugar de cada pasta, em função da distância para a da vez.
+   * Na diagonal elas se comprimem para caber muita; de frente elas precisam de
+   * largura, porque cada uma carrega o próprio texto.
+   */
   const lugar = useMemo(() => (d: number) => {
-    if (d === 0) return { x: 0, z: 60, ry: -20, o: 1, s: 1.04 }
+    const giro = modo === 'diagonal' ? -20 : -7
+    if (d === 0) return { x: 0, z: 60, ry: giro, o: 1, s: 1.04 }
     if (d < 0) {
       const k = Math.min(-d, 4)
-      return { x: -40 - k * 16, z: 20 - k * 28, ry: -20, o: Math.max(0.14, 0.46 - k * 0.1), s: 0.96 - k * 0.02 }
+      return modo === 'diagonal'
+        ? { x: -40 - k * 16, z: 20 - k * 28, ry: giro, o: Math.max(0.14, 0.46 - k * 0.1), s: 0.96 - k * 0.02 }
+        : { x: -66 - k * 30, z: 10 - k * 30, ry: giro, o: Math.max(0.1, 0.4 - k * 0.1), s: 0.95 - k * 0.02 }
     }
-    // Espaçamento que abre no começo e fecha no fim, como folhas de um arquivo
-    // visto de viés: as primeiras precisam ser legíveis, as últimas só sugeridas.
-    // Passo fixo no plano. A compressão de verdade vem da profundidade com a
-    // perspectiva, que é o que faz o arquivo parecer fundo em vez de achatado.
-    return {
-      x: 176 + (d - 1) * 76,
-      z: -26 - d * 25,
-      ry: -20,
-      o: Math.max(0.1, 1 - d * 0.072),
-      s: 1 - Math.min(0.22, d * 0.018),
-    }
-  }, [])
+    return modo === 'diagonal'
+      ? { x: 176 + (d - 1) * 76, z: -26 - d * 25, ry: giro, o: Math.max(0.1, 1 - d * 0.072), s: 1 - Math.min(0.22, d * 0.018) }
+      : { x: 212 + (d - 1) * 180, z: -24 - d * 20, ry: giro, o: Math.max(0.12, 1 - d * 0.1), s: 1 - Math.min(0.18, d * 0.02) }
+  }, [modo])
 
   if (!total) return null
 
   return (
-    <section className="arquivo" aria-roledescription="carrossel" aria-label={rotulo}>
+    <section className="arquivo" data-modo={modo} aria-roledescription="carrossel" aria-label={rotulo}>
       <div
         className={`arquivo-palco ${arrastando ? 'puxando' : ''}`}
         ref={palco}
@@ -127,8 +135,9 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
             const d = i - atual
             const g = lugar(d)
             const viva = d === 0
-            // Passando de quatro, a pasta vira só volume: texto ali seria ruído.
-            const longe = d > 4 || d < -1
+            // Passando de quatro na diagonal a pasta vira só volume: nome ali
+            // seria ruído empilhado. De frente cabe menos pasta, e todas falam.
+            const longe = modo === 'diagonal' ? (d > 4 || d < -1) : (d > 3 || d < -1)
             return (
               <article
                 key={p.id}
@@ -147,10 +156,19 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
                 <span className="pasta-doc" aria-hidden="true">
                   {[0, 1, 2, 3, 4, 5].map((k) => <i key={k} style={{ width: `${88 - (k % 3) * 22}%` }} />)}
                 </span>
-                <span className="pasta-pe">
-                  <span className="pasta-n"><Ic.team />{p.contagem}</span>
+                <span className="pasta-info">
+                  <span className="pasta-pe">
+                    <span className="pasta-n"><Ic.team />{p.contagem}</span>
+                    <span className="pasta-pct num">{pct(p)}<i>%</i></span>
+                  </span>
+                  <span className="pasta-nome">{p.nome}</span>
+                  <span className="pasta-sub">{p.sub}</span>
+                  {(p.atrasado || p.travado) && (
+                    <span className={`pasta-selo ${p.atrasado ? 'tarde' : 'presa'}`}>
+                      {p.atrasado ? 'Atrasado' : 'Travado'}
+                    </span>
+                  )}
                 </span>
-                <span className="pasta-nome" aria-hidden={longe}>{p.nome}</span>
                 <span className="pasta-lomba" aria-hidden="true">
                   <b style={{ height: `${Math.max(4, p.progresso * 100)}%` }} />
                 </span>
@@ -158,10 +176,10 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
             )
           })}
         </div>
-
       </div>
 
-      {ativa && (
+      {/* A ficha só existe na diagonal: de frente, cada pasta já se explica. */}
+      {modo === 'diagonal' && ativa && (
         <div className="ficha" aria-live="polite">
           <div className="ficha-h">
             <span>
@@ -174,9 +192,9 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
             </button>
           </div>
           <div className="ficha-num">
-            <span className="pct">{pct}<i>%</i></span>
+            <span className="pct">{pct(ativa)}<i>%</i></span>
             <span className={`ficha-selo ${ativa.atrasado ? 'tarde' : ativa.travado ? 'presa' : ''}`}>
-            {ativa.atrasado ? 'Atrasado' : ativa.travado ? 'Travado' : `${ativa.contagem} em aberto`}
+              {ativa.atrasado ? 'Atrasado' : ativa.travado ? 'Travado' : `${ativa.contagem} em aberto`}
             </span>
           </div>
         </div>
@@ -190,6 +208,16 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
         <button className="iconbtn" onClick={() => andar(1)} disabled={atual === total - 1} aria-label="Próxima">
           <Ic.seta />
         </button>
+
+        <div className="seg arquivo-modo" role="group" aria-label="Formato do arquivo">
+          <button className={modo === 'diagonal' ? 'on' : ''} onClick={() => trocarModo('diagonal')}>
+            De lado
+          </button>
+          <button className={modo === 'frente' ? 'on' : ''} onClick={() => trocarModo('frente')}>
+            De frente
+          </button>
+        </div>
+
         <span className="arquivo-dica">role de lado, arraste ou use as setas</span>
       </div>
     </section>
