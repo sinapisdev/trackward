@@ -20,25 +20,74 @@ export function Painel() {
   const [naVez, setNaVez] = useState(0)
 
   /**
-   * Uma pasta por frente aberta. A ordem é a da urgência: o que está atrasado
-   * vem primeiro, porque a primeira pasta é a que a pessoa vê sem rolar nada.
+   * As frentes da empresa em pastas: as áreas, que são cíclicas e não acabam, e
+   * os projetos, que têm começo e fim. Na ordem da urgência, porque a primeira
+   * pasta é a única que a pessoa vê sem rolar nada.
+   *
+   * O número grande do miolo muda conforme o que a pasta é. Num projeto é o
+   * quanto ele já andou; numa área é quantas tarefas estão abertas, porque área
+   * não tem linha de chegada e porcentagem ali não diria nada.
    */
   const pastas = useMemo<Pasta[]>(() => {
-    const abertos = fluxos.filter((f) => !f.concluido && envolve(f, pessoa))
     const peso = { late: 0, hold: 1, soon: 2, ok: 3, done: 4 } as Record<string, number>
-    return [...abertos]
-      .sort((a, b) => peso[status(a)] - peso[status(b)])
+    const gente = (fs: typeof fluxos) =>
+      new Set(fs.flatMap((f) => [
+        f.dono_id, ...f.etapas.map((e) => e.aprovador_id),
+        ...f.etapas.flatMap((e) => e.itens.map((i) => i.resp_id)),
+      ]).filter(Boolean) as string[]).size
+
+    const daArea = (id: string) => fluxos.filter(
+      (f) => f.area_id === id && f.tipo === 'ciclo' && !f.concluido && envolve(f, pessoa),
+    )
+
+    const deAreas: (Pasta & { ord: number })[] = areas.map((a) => {
+      const rotinas = daArea(a.id)
+      const abertas = rotinas.flatMap((f) => f.etapas.flatMap((e) => e.itens)).filter((i) => !i.feito).length
+      const tarde = rotinas.filter((f) => status(f) === 'late').length
+      const presas = rotinas.filter((f) => status(f) === 'hold').length
+      const medio = rotinas.length
+        ? rotinas.reduce((n, f) => n + progresso(f), 0) / rotinas.length
+        : 0
+      const pior = rotinas.length ? Math.min(...rotinas.map((f) => peso[status(f)])) : 3
+      return {
+        id: `a-${a.id}`,
+        href: `/area/${a.id}`,
+        rotulo: 'Área',
+        nome: a.nome,
+        numero: String(abertas),
+        numeroSub: abertas === 1 ? 'tarefa aberta' : 'tarefas abertas',
+        sub: rotinas.length
+          ? `${rotinas.length} ${rotinas.length === 1 ? 'rotina' : 'rotinas'}`
+            + (tarde ? `, ${tarde} atrasada${tarde > 1 ? 's' : ''}` : '')
+          : 'Sem rotinas ainda',
+        contagem: gente(rotinas),
+        progresso: medio,
+        atrasado: tarde > 0,
+        travado: !tarde && presas > 0,
+        ord: pior,
+      }
+    })
+
+    const deProjetos: (Pasta & { ord: number })[] = fluxos
+      .filter((f) => f.tipo === 'esteira' && !f.concluido && envolve(f, pessoa))
       .map((f) => ({
-        id: f.id,
+        id: `p-${f.id}`,
+        href: `/fluxo/${f.id}`,
+        rotulo: 'Projeto',
         nome: f.nome,
-        sub: [f.tipo === 'ciclo' ? f.periodo || 'Rotina' : 'Projeto', etapaAtual(f)?.nome]
-          .filter(Boolean).join(' · '),
-        contagem: f.etapas.flatMap((e) => e.itens).filter((i) => !i.feito).length,
+        numero: `${Math.round(progresso(f) * 100)}%`,
+        sub: etapaAtual(f)?.nome || 'Sem checkpoint',
+        contagem: gente([f]),
         progresso: progresso(f),
         atrasado: status(f) === 'late',
         travado: status(f) === 'hold',
+        ord: peso[status(f)],
       }))
-  }, [fluxos, pessoa])
+
+    return [...deAreas, ...deProjetos]
+      .sort((a, b) => a.ord - b.ord || a.nome.localeCompare(b.nome, 'pt-BR'))
+      .map(({ ord: _ord, ...resto }) => resto)
+  }, [fluxos, areas, pessoa])
 
   if (carregando) return <Carregando />
 
@@ -132,11 +181,11 @@ export function Painel() {
         <>
         {pastas.length > 1 && (
           <Pastas
-            rotulo="Projetos e rotinas em andamento"
+            rotulo="As frentes da empresa"
             itens={pastas}
             atual={Math.min(naVez, pastas.length - 1)}
             aoTrocar={setNaVez}
-            aoAbrir={(p) => router.push(`/fluxo/${p.id}`)}
+            aoAbrir={(p) => router.push(p.href)}
           />
         )}
         <div className="grid2">

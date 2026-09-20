@@ -5,12 +5,24 @@ import { Ic } from './Icones'
 
 export type Pasta = {
   id: string
+  /** Para onde o clique leva. */
+  href: string
+  /** Área ou Projeto: a pasta diz o que ela é antes de dizer quem é. */
+  rotulo: string
   nome: string
-  /** Linha de baixo do cartão que flutua: período, área, o que fizer sentido. */
+  /**
+   * O número grande do miolo, já com a unidade. Num projeto é o quanto andou;
+   * numa área é quantas tarefas estão abertas, porque área não tem linha de
+   * chegada e porcentagem ali não quer dizer nada.
+   */
+  numero: string
+  /** O que aquele número é, quando não for óbvio. */
+  numeroSub?: string
+  /** Linha de baixo do miolo: a etapa da vez, ou o resumo da área. */
   sub: string
-  /** Quantas tarefas abertas. É o número que aparece no pé da pasta. */
+  /** Quantas pessoas estão dentro. É o número no pé da pasta. */
   contagem: number
-  /** 0 a 1. Vira a porcentagem grande do cartão e a barra da lombada. */
+  /** 0 a 1. Enche a barra do miolo e a lombada. */
   progresso: number
   /** Atrasado pinta a lombada de vermelho, mesmo sem estar selecionada. */
   atrasado?: boolean
@@ -214,18 +226,20 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
                     antes vivia numa ficha flutuante ao lado. */}
                 <span className="pasta-doc">
                   <span className="doc-topo">
-                    <span className="doc-pct num">{Math.round(p.progresso * 100)}<i>%</i></span>
+                    <span className="doc-pct num">{p.numero}</span>
                     {(p.atrasado || p.travado) && (
                       <span className={`doc-selo ${p.atrasado ? 'tarde' : 'presa'}`}>
                         {p.atrasado ? 'Atrasado' : 'Travado'}
                       </span>
                     )}
                   </span>
+                  {p.numeroSub && <span className="doc-unid">{p.numeroSub}</span>}
                   <span className="doc-sub">{p.sub}</span>
                   <span className="doc-barra"><b style={{ width: `${Math.max(3, p.progresso * 100)}%` }} /></span>
                 </span>
                 <span className="pasta-pe">
                   <span className="pasta-n"><Ic.team />{p.contagem}</span>
+                  <span className="pasta-rot">{p.rotulo}</span>
                 </span>
                 <span className="pasta-nome" aria-hidden={longe}>{p.nome}</span>
                 <span className="pasta-lomba" aria-hidden="true">
