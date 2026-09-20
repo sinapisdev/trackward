@@ -68,10 +68,10 @@ export function semente(): Base {
   // Leo no topo; Ana responde a ele e cuida do Financeiro; Carlos das Operações,
   // com a Marina abaixo. É essa árvore que decide quem enxerga o trabalho de quem.
   const perfis = [
-    p('leo', 'Leo', '#6E82A0', 'admin', null, null),
-    p('ana', 'Ana', '#5E8C7B', 'gestor', 'fin', 'leo'),
-    p('carlos', 'Carlos', '#A0796E', 'gestor', 'ope', 'leo'),
-    p('marina', 'Marina', '#9A7E8C', 'colaborador', 'cml', 'carlos'),
+    p('leo', 'Leo', '#8A8A8A', 'admin', null, null),
+    p('ana', 'Ana', '#B0B0B0', 'gestor', 'fin', 'leo'),
+    p('carlos', 'Carlos', '#C9884A', 'gestor', 'ope', 'leo'),
+    p('marina', 'Marina', '#7A6A5E', 'colaborador', 'cml', 'carlos'),
   ]
 
   const organizacoes = [{
@@ -82,16 +82,16 @@ export function semente(): Base {
   }]
 
   const empresas = [
-    { id: 'mer', nome: 'Meridiano', sigla: 'MER', cor: '#6E82A0', ordem: 0 },
-    { id: 'nor', nome: 'Meridiano Norte', sigla: 'NOR', cor: '#5E8C7B', ordem: 1 },
-    { id: 'dig', nome: 'Meridiano Digital', sigla: 'DIG', cor: '#A0796E', ordem: 2 },
+    { id: 'mer', nome: 'Meridiano', sigla: 'MER', cor: '#8A8A8A', ordem: 0 },
+    { id: 'nor', nome: 'Meridiano Norte', sigla: 'NOR', cor: '#B0B0B0', ordem: 1 },
+    { id: 'dig', nome: 'Meridiano Digital', sigla: 'DIG', cor: '#C9884A', ordem: 2 },
   ]
 
   const areas = [
-    { id: 'fin', nome: 'Financeiro', cor: '#5E8C7B', ordem: 0, responsavel_id: 'ana', criado_em: criado },
-    { id: 'ope', nome: 'Operações', cor: '#A0796E', ordem: 1, responsavel_id: 'carlos', criado_em: criado },
-    { id: 'cml', nome: 'Comercial', cor: '#9A7E8C', ordem: 2, responsavel_id: 'marina', criado_em: criado },
-    { id: 'pes', nome: 'Pessoas', cor: '#6E82A0', ordem: 3, responsavel_id: 'leo', criado_em: criado },
+    { id: 'fin', nome: 'Financeiro', cor: '#B0B0B0', ordem: 0, responsavel_id: 'ana', criado_em: criado },
+    { id: 'ope', nome: 'Operações', cor: '#C9884A', ordem: 1, responsavel_id: 'carlos', criado_em: criado },
+    { id: 'cml', nome: 'Comercial', cor: '#7A6A5E', ordem: 2, responsavel_id: 'marina', criado_em: criado },
+    { id: 'pes', nome: 'Pessoas', cor: '#8A8A8A', ordem: 3, responsavel_id: 'leo', criado_em: criado },
   ]
 
   const fluxos: Linha[] = []

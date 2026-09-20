@@ -1,19 +1,44 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useDados } from './Dados'
 import { useModais } from './Modais'
 import { Carregando } from './Shell'
 import { Ic } from './Icones'
 import { FiltroPessoas, Grupos, Lateral, LinhaPendencia } from './partes'
+import { Pastas, type Pasta } from './Pastas'
 import { DSEM_LONGO, hoje, MES_LONGO } from '@/lib/datas'
-import { envolve, pendencias, status } from '@/lib/regras'
+import { etapaAtual, envolve, pendencias, progresso, status } from '@/lib/regras'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 export function Painel() {
   const { eu, fluxos, areas, carregando, nomeDe } = useDados()
   const { abrir } = useModais()
+  const router = useRouter()
   const [pessoa, setPessoa] = useState<string | null>(null)
+  const [naVez, setNaVez] = useState(0)
+
+  /**
+   * Uma pasta por frente aberta. A ordem é a da urgência: o que está atrasado
+   * vem primeiro, porque a primeira pasta é a que a pessoa vê sem rolar nada.
+   */
+  const pastas = useMemo<Pasta[]>(() => {
+    const abertos = fluxos.filter((f) => !f.concluido && envolve(f, pessoa))
+    const peso = { late: 0, hold: 1, soon: 2, ok: 3, done: 4 } as Record<string, number>
+    return [...abertos]
+      .sort((a, b) => peso[status(a)] - peso[status(b)])
+      .map((f) => ({
+        id: f.id,
+        nome: f.nome,
+        sub: [f.tipo === 'ciclo' ? f.periodo || 'Rotina' : 'Projeto', etapaAtual(f)?.nome]
+          .filter(Boolean).join(' · '),
+        contagem: f.etapas.flatMap((e) => e.itens).filter((i) => !i.feito).length,
+        progresso: progresso(f),
+        atrasado: status(f) === 'late',
+        travado: status(f) === 'hold',
+      }))
+  }, [fluxos, pessoa])
 
   if (carregando) return <Carregando />
 
@@ -104,6 +129,16 @@ export function Painel() {
           </div>
         </div>
       ) : (
+        <>
+        {pastas.length > 1 && (
+          <Pastas
+            rotulo="Projetos e rotinas em andamento"
+            itens={pastas}
+            atual={Math.min(naVez, pastas.length - 1)}
+            aoTrocar={setNaVez}
+            aoAbrir={(p) => router.push(`/fluxo/${p.id}`)}
+          />
+        )}
         <div className="grid2">
           <div>
             {!pessoa && !!minhas.length && (
@@ -130,6 +165,7 @@ export function Painel() {
           </div>
           <Lateral lista={lista} />
         </div>
+        </>
       )}
     </>
   )

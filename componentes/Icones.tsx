@@ -189,6 +189,11 @@ export const Ic = {
       <path d="M2.4 8h11M9 3.6 13.4 8 9 12.4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
+  seta: () => (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M2.4 8h11M9 3.6 13.4 8 9 12.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
   volta: () => (
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
       <path d="M13.6 8h-11M7 3.6 2.6 8 7 12.4" strokeLinecap="round" strokeLinejoin="round" />

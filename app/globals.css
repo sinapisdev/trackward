@@ -6,11 +6,12 @@
 
 /* --------------------------------------------------------------------------
    Temas.
-   Paleta tomada da referência do Behance (projeto ClauseOS): Blue Charcoal
-   #000B1A como chão, Harmony Green #68E78E como ação, e branco. Tipografia
-   Urbanist, a mesma de lá. O escuro é fiel à referência; o claro é a mesma
-   linguagem virada, com o verde escurecido para segurar contraste no papel.
-   Laranja e vermelho ficam reservados ao que pede atenção, nunca à decoração.
+   Três cores, e só três: PRETO, BRANCO e LARANJA. A estrutura vem da
+   referência do ClauseOS (Behance), com o verde dela trocado por laranja.
+   Preto de verdade, não preto azulado nem preto quente: o chão precisa sumir
+   para o vidro e o 3D aparecerem. Tipografia Urbanist, a mesma de lá.
+   Vermelho é a única exceção, e existe por uma razão só: atraso precisa
+   gritar diferente do que apenas pede atenção.
    -------------------------------------------------------------------------- */
 
 :root{
@@ -22,52 +23,60 @@
 
 /* ---------------------------------------------------------------- claro */
 :root,:root[data-tema="claro"]{
-  --bg:#F6F7F8; --panel:#FFFFFF; --alto:#FFFFFF; --sunken:#EFF1F3; --hover:#F2F4F6;
-  --line:#E4E7EA; --line-2:#D4D9DE; --line-3:#B2BAC2;
-  --tx:#0B1420; --tx-2:#5C6873; --tx-3:#8F99A3;
-  --ac:#11794A; --ac-2:#0C6039; --ac-tx:#FFFFFF; --ac-soft:#E6F4EC; --ac-linha:#C9E6D7;
-  --ac-luz:rgba(17,121,74,.18);
+  --bg:#FAFAFA; --panel:#FFFFFF; --alto:#FFFFFF; --sunken:#F2F2F2; --hover:#F5F5F5;
+  --line:#E6E6E6; --line-2:#D6D6D6; --line-3:#B4B4B4;
+  --tx:#0A0A0A; --tx-2:#5E5E5E; --tx-3:#919191;
+  --ac:#E8620A; --ac-2:#CE5605; --ac-tx:#FFFFFF; --ac-soft:#FDF0E6; --ac-linha:#F6D9C2;
+  --ac-luz:rgba(232,98,10,.2);
   --late:#D2402F; --late-soft:#FBEDEA; --late-linha:#F2D3CC;
-  --warn:#B96A00; --warn-forte:#E08600; --warn-soft:#FDF3E4; --warn-linha:#F3DEBE;
-  --scrim:rgba(11,20,32,.26);
+  --warn:#B45B09; --warn-forte:#E8620A; --warn-soft:#FDF3E9; --warn-linha:#F5DEC8;
+  --scrim:rgba(10,10,10,.3);
   --brilho:transparent;
-  --sombra:0 1px 2px rgba(11,20,32,.05);
+  --sombra:0 1px 2px rgba(10,10,10,.05);
   --shadow:0 0 0 1px var(--line);
-  --pop:0 32px 80px -20px rgba(11,20,32,.26),0 0 0 1px var(--line);
+  --pop:0 32px 80px -20px rgba(10,10,10,.26),0 0 0 1px var(--line);
+  --vidro:linear-gradient(150deg,rgba(255,255,255,.86),rgba(255,255,255,.62));
+  --vidro-linha:rgba(10,10,10,.1);
   color-scheme:light;
 }
 
 /* ---------------------------------------------------------------- escuro */
 :root[data-tema="escuro"]{
-  --bg:#070C15; --panel:#0D1420; --alto:#131C2A; --sunken:#0A1019; --hover:#141E2C;
-  --line:#1A2431; --line-2:#26323F; --line-3:#3B4756;
-  --tx:#EDF1F5; --tx-2:#93A1AE; --tx-3:#63707D;
-  --ac:#68E78E; --ac-2:#83EEA3; --ac-tx:#06121C; --ac-soft:#10251C; --ac-linha:#1E4130;
-  --ac-luz:rgba(104,231,142,.20);
-  --late:#F0645A; --late-soft:#26120F; --late-linha:#4A231D;
-  --warn:#F5A623; --warn-forte:#F5A623; --warn-soft:#2A1E0B; --warn-linha:#4A3712;
-  --scrim:rgba(3,7,13,.76);
-  --brilho:rgba(255,255,255,.016);
-  --sombra:0 1px 2px rgba(0,0,0,.45);
+  --bg:#080808; --panel:#101010; --alto:#171717; --sunken:#0C0C0C; --hover:#191919;
+  --line:#1F1F1F; --line-2:#2B2B2B; --line-3:#3E3E3E;
+  --tx:#FFFFFF; --tx-2:#9A9A9A; --tx-3:#646464;
+  --ac:#FF7A1A; --ac-2:#FF9042; --ac-tx:#0A0A0A; --ac-soft:#261304; --ac-linha:#48240A;
+  --ac-luz:rgba(255,122,26,.26);
+  --late:#FF4D3D; --late-soft:#280F0C; --late-linha:#4D1D18;
+  --warn:#FFA04D; --warn-forte:#FF7A1A; --warn-soft:#241606; --warn-linha:#452A0C;
+  --scrim:rgba(0,0,0,.8);
+  --brilho:rgba(255,255,255,.02);
+  --sombra:0 1px 2px rgba(0,0,0,.6);
   --shadow:0 0 0 1px var(--line);
-  --pop:0 32px 80px -16px rgba(0,0,0,.86),0 0 0 1px var(--line-2);
+  --pop:0 32px 80px -16px rgba(0,0,0,.9),0 0 0 1px var(--line-2);
+  /* vidro: a superfície da referência. Só em coisa que flutua sobre o conteúdo. */
+  --vidro:linear-gradient(150deg,rgba(255,255,255,.13),rgba(255,255,255,.04));
+  --vidro-linha:rgba(255,255,255,.17);
   color-scheme:dark;
 }
 
 @media (prefers-color-scheme:dark){
   :root:not([data-tema]){
-  --bg:#070C15; --panel:#0D1420; --alto:#131C2A; --sunken:#0A1019; --hover:#141E2C;
-  --line:#1A2431; --line-2:#26323F; --line-3:#3B4756;
-  --tx:#EDF1F5; --tx-2:#93A1AE; --tx-3:#63707D;
-  --ac:#68E78E; --ac-2:#83EEA3; --ac-tx:#06121C; --ac-soft:#10251C; --ac-linha:#1E4130;
-  --ac-luz:rgba(104,231,142,.20);
-  --late:#F0645A; --late-soft:#26120F; --late-linha:#4A231D;
-  --warn:#F5A623; --warn-forte:#F5A623; --warn-soft:#2A1E0B; --warn-linha:#4A3712;
-  --scrim:rgba(3,7,13,.76);
-  --brilho:rgba(255,255,255,.016);
-  --sombra:0 1px 2px rgba(0,0,0,.45);
+  --bg:#080808; --panel:#101010; --alto:#171717; --sunken:#0C0C0C; --hover:#191919;
+  --line:#1F1F1F; --line-2:#2B2B2B; --line-3:#3E3E3E;
+  --tx:#FFFFFF; --tx-2:#9A9A9A; --tx-3:#646464;
+  --ac:#FF7A1A; --ac-2:#FF9042; --ac-tx:#0A0A0A; --ac-soft:#261304; --ac-linha:#48240A;
+  --ac-luz:rgba(255,122,26,.26);
+  --late:#FF4D3D; --late-soft:#280F0C; --late-linha:#4D1D18;
+  --warn:#FFA04D; --warn-forte:#FF7A1A; --warn-soft:#241606; --warn-linha:#452A0C;
+  --scrim:rgba(0,0,0,.8);
+  --brilho:rgba(255,255,255,.02);
+  --sombra:0 1px 2px rgba(0,0,0,.6);
   --shadow:0 0 0 1px var(--line);
-  --pop:0 32px 80px -16px rgba(0,0,0,.86),0 0 0 1px var(--line-2);
+  --pop:0 32px 80px -16px rgba(0,0,0,.9),0 0 0 1px var(--line-2);
+  /* vidro: a superfície da referência. Só em coisa que flutua sobre o conteúdo. */
+  --vidro:linear-gradient(150deg,rgba(255,255,255,.13),rgba(255,255,255,.04));
+  --vidro-linha:rgba(255,255,255,.17);
   color-scheme:dark;
   }
 }
@@ -1006,3 +1015,112 @@ h1{font-weight:600;letter-spacing:-.032em}
   max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .emp-rot{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
   color:var(--tx-3);padding:7px 9px 4px}
+
+/* ==========================================================================
+   O arquivo em perspectiva
+   As pastas de pé, em fila, vistas de viés. Vidro para as que esperam, laranja
+   sólido para a da vez. Toda a geometria é CSS 3D: sem biblioteca, sem canvas,
+   então teclado e leitor de tela continuam alcançando tudo.
+   ========================================================================== */
+
+.arquivo{position:relative;margin:0 0 26px}
+.arquivo-palco{position:relative;height:300px;perspective:1900px;perspective-origin:30% 50%;
+  cursor:grab;touch-action:pan-y;outline-offset:6px;overflow:hidden;
+  border-radius:var(--r-lg);background:
+    radial-gradient(110% 80% at 26% 46%, color-mix(in srgb,var(--ac) 12%, transparent), transparent 62%),
+    var(--sunken)}
+.arquivo-palco.puxando{cursor:grabbing}
+.arquivo-fila{position:absolute;inset:0;transform-style:preserve-3d}
+
+.pasta{position:absolute;left:28%;top:50%;width:154px;height:214px;
+  transform-style:preserve-3d;transform-origin:50% 50%;
+  border-radius:16px 16px 6px 6px;
+  background:var(--vidro);border:1px solid var(--vidro-linha);
+  backdrop-filter:blur(9px) saturate(1.2);-webkit-backdrop-filter:blur(9px) saturate(1.2);
+  box-shadow:0 26px 50px -22px rgba(0,0,0,.8);
+  display:flex;flex-direction:column;justify-content:flex-end;padding:13px;
+  transition:transform 380ms cubic-bezier(.22,.7,.2,1),opacity 380ms ease,background 260ms ease;
+  will-change:transform;cursor:pointer}
+@media (prefers-reduced-motion:reduce){.pasta{transition:opacity 120ms linear}}
+
+/* o documento dentro da pasta, saindo um pouco por cima */
+.pasta-doc{position:absolute;left:16px;right:16px;top:-14px;height:132px;border-radius:7px;
+  background:color-mix(in srgb,var(--tx) 90%, transparent);
+  display:flex;flex-direction:column;gap:7px;padding:14px 12px;overflow:hidden;
+  box-shadow:0 10px 22px -12px rgba(0,0,0,.7)}
+.pasta-doc i{display:block;height:4px;border-radius:2px;
+  background:color-mix(in srgb,var(--bg) 26%, transparent)}
+
+.pasta-luz{position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(158deg,rgba(255,255,255,.2),transparent 42%)}
+
+.pasta-pe{position:relative;display:flex;align-items:center;justify-content:space-between;
+  color:var(--tx);margin-bottom:5px}
+.pasta-n{display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;
+  font-variant-numeric:tabular-nums;opacity:.9}
+.pasta-nome{position:relative;font-size:12.5px;font-weight:600;letter-spacing:-.01em;
+  color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+/* Na pasta que está atrás, o nome vive só na faixa que a próxima não cobre.
+   Cortado é melhor que empilhado: empilhado não se lê de jeito nenhum. */
+.pasta:not(.viva) .pasta-nome{max-width:64px;font-size:11.5px;opacity:.82}
+.pasta:not(.viva) .pasta-n{font-size:10.5px}
+
+/* a lombada: quanto a pasta já andou, lida de relance sem abrir */
+.pasta-lomba{position:absolute;right:7px;top:16px;bottom:16px;width:3px;border-radius:2px;
+  background:color-mix(in srgb,var(--tx) 16%, transparent);display:flex;align-items:flex-end}
+.pasta-lomba b{display:block;width:100%;border-radius:2px;background:var(--tx);opacity:.55}
+
+.pasta.viva{background:linear-gradient(158deg,var(--ac),color-mix(in srgb,var(--ac) 74%, #000));
+  border-color:color-mix(in srgb,var(--ac) 60%, transparent);
+  box-shadow:0 30px 70px -24px var(--ac-luz),0 0 0 1px color-mix(in srgb,var(--ac) 45%, transparent)}
+.pasta.viva .pasta-pe,.pasta.viva .pasta-nome{color:var(--ac-tx)}
+.pasta.viva .pasta-doc{background:color-mix(in srgb,#fff 94%, transparent)}
+.pasta.viva .pasta-doc i{background:color-mix(in srgb,var(--ac) 40%, transparent)}
+.pasta.viva .pasta-lomba{background:color-mix(in srgb,var(--ac-tx) 22%, transparent)}
+.pasta.viva .pasta-lomba b{background:var(--ac-tx);opacity:.9}
+/* longe: só volume e luz, sem texto. Texto ali viraria ruído sobreposto. */
+.pasta.longe .pasta-nome,.pasta.longe .pasta-pe{opacity:0}
+.pasta.longe .pasta-doc i{opacity:.55}
+.pasta.tarde:not(.viva) .pasta-lomba b{background:var(--late);opacity:1}
+.pasta.presa:not(.viva) .pasta-lomba b{background:var(--tx-3);opacity:1}
+
+/* a ficha que flutua sobre o arquivo, como na referência */
+.ficha{position:absolute;left:16px;top:26px;z-index:5;width:228px;padding:14px 15px 13px;
+  border-radius:17px;background:var(--vidro);border:1px solid var(--vidro-linha);
+  backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);
+  box-shadow:0 22px 50px -20px rgba(0,0,0,.7);pointer-events:auto}
+.ficha-h{display:flex;align-items:flex-start;gap:10px}
+.ficha-h span{flex:1;min-width:0}
+.ficha-h b{display:block;font-size:14px;font-weight:600;letter-spacing:-.02em;color:var(--tx);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ficha-h small{display:block;font-size:11px;color:var(--tx-2);margin-top:1px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ficha-ir{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex:none;
+  color:var(--tx);background:color-mix(in srgb,var(--tx) 10%, transparent);transition:var(--t)}
+.ficha-ir:hover{background:var(--ac);color:var(--ac-tx)}
+.ficha-num{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:12px}
+.ficha-num .pct{font-size:36px;font-weight:600;letter-spacing:-.05em;line-height:1;color:var(--tx);
+  font-variant-numeric:tabular-nums}
+.ficha-num .pct i{font-size:17px;font-style:normal;color:var(--tx-2);margin-left:1px}
+.ficha-selo{font-size:10.5px;font-weight:600;letter-spacing:.02em;padding:4px 9px;border-radius:999px;
+  background:color-mix(in srgb,var(--tx) 10%, transparent);color:var(--tx-2);margin-bottom:4px;
+  white-space:nowrap}
+.ficha-selo.tarde{background:var(--late-soft);color:var(--late)}
+.ficha-selo.presa{background:color-mix(in srgb,var(--tx) 8%, transparent);color:var(--tx-3)}
+
+.arquivo-pe{display:flex;align-items:center;gap:9px;padding:11px 3px 0}
+.arquivo-conta{font-size:11.5px;color:var(--tx-3);min-width:48px;text-align:center}
+.arquivo-dica{font-size:11.5px;color:var(--tx-3);margin-left:4px}
+.arquivo-pe .iconbtn:disabled{opacity:.3;cursor:not-allowed}
+
+@media (max-width:840px){
+  .arquivo-palco{height:252px;perspective:1300px;perspective-origin:30% 50%}
+  .pasta{width:120px;height:170px;left:44%}
+  .pasta-doc{height:110px;top:-12px}
+  .ficha{left:11px;top:12px;width:168px;padding:11px 12px 10px}
+  .ficha-num{margin-top:9px}
+  .ficha-num .pct{font-size:26px}
+  .ficha-selo{font-size:9.5px;padding:3px 7px}
+  .ficha-h b{font-size:12.5px}
+  .arquivo-dica{display:none}
+}
