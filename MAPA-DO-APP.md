@@ -34,6 +34,7 @@ Sete peças. Tudo no app é combinação delas.
 | **Checkpoint** | Posto de conferência dentro da trilha. | A cancela |
 | **Tarefa** | O que alguém faz dentro de um checkpoint. | O item da lista |
 | **Anexo** | A prova de que a tarefa saiu. Fica preso à tarefa. | O comprovante grampeado |
+| **Decisão** | O que o aprovador respondeu num checkpoint, e por quê. | O carimbo com a rubrica |
 
 ### Track: os dois tipos
 
@@ -76,6 +77,7 @@ virou departamento. Uma área sem rotina é uma frente recém criada.
 | **Conversa** | `/chat` | Chat por canais | Mensagens não lidas |
 | **Agenda** | `/agenda` | Compromissos e prazos | Quantos são hoje |
 | **Tracks** | `/tracks` | Todos os projetos e áreas | Quantas tracks existem |
+| **Desempenho** | `/desempenho` | Como a empresa está entregando | |
 | **Processos** | `/processos` | Os moldes reutilizáveis | Quantos moldes |
 
 No alto da lateral: a marca **Track.** e, abaixo, o **seletor de espaço** (a
@@ -251,6 +253,38 @@ devolver é justamente o caso em que está tudo marcado e o aprovador discorda.
 Tudo isso é validado no banco, na função `decidir_etapa`, não só na tela.
 
 No celular a tela sobe como folha, com as três saídas empilhadas.
+
+### 4.4c Desempenho (`/desempenho`)
+
+O Painel responde "o que precisa de mim agora". Esta tela responde outra pergunta,
+"como estamos indo", e por isso é outra tela. Períodos de 7, 30 ou 90 dias.
+
+**Quatro números**, cada um comparado ao período anterior:
+
+| Número | O que mede |
+|---|---|
+| **Entregues** | Quantas tarefas ficaram prontas no período |
+| **No prazo** | Das entregas com prazo, quantas saíram até a data combinada |
+| **Aprovado de primeira** | Dos checkpoints decididos, quantos passaram sem voltar para trás |
+| **Com prova** | Das entregas, quantas têm comprovante, contrato ou foto anexada |
+
+Abaixo: as **entregas ao longo do tempo**, em barras, com a parte fora do prazo em
+vermelho; **onde está preso**, com o checkpoint, há quantos dias, quem se aguarda e
+quantas tarefas faltam; a **saúde de cada área**; e a **carga de cada pessoa**, com o que
+está na mão dela, o que está atrasado e o que ela entregou.
+
+**Cada um mede o que enxerga.** O colaborador vê os próprios números, o gestor vê os do
+time dele, o administrador vê os da empresa. Isso não é uma regra escrita nesta tela: é
+consequência de os dados já chegarem filtrados pelo banco.
+
+**A regra que vale para a tela inteira: número que não dá para calcular não aparece.**
+Tarefa concluída antes de o app passar a guardar a hora da conclusão não entra em nenhuma
+conta de período, e o rodapé diz quantas ficaram de fora. Porcentagem sem base mostra um
+traço, não um zero, porque zero é uma afirmação e traço é a ausência dela.
+
+**Uma limitação honesta:** rotina apaga as próprias tarefas a cada volta, então o
+histórico de entregas dela não acumula, só o da volta corrente. Projeto acumula tudo. O
+que guarda o passado de uma rotina é o registro de voltas, em outra tela.
 
 ### 4.5 Área (`/area/[id]`)
 
@@ -573,22 +607,21 @@ A lista para o UX cobrir.
 
 ### Pedidos já feitos e ainda não construídos
 
-10. **Dashboard de produtividade e KPIs**
-11. **Trilha de checkpoint dentro da tarefa**, em versão futurista
-12. **Distribuição de tarefas com IA** (faz sentido agora que os processos existem e dão
+10. **Trilha de checkpoint dentro da tarefa**, em versão futurista
+11. **Distribuição de tarefas com IA** (faz sentido agora que os processos existem e dão
     de onde aprender)
-13. **Cascata de prazo nas dependências**: mexeu num, os que dependem andam junto
-14. **Modelos por setor** no primeiro cadastro
-15. **Integração com WhatsApp**, adiada de propósito em 21/09/2026. Entrada livre e
+12. **Cascata de prazo nas dependências**: mexeu num, os que dependem andam junto
+13. **Modelos por setor** no primeiro cadastro
+14. **Integração com WhatsApp**, adiada de propósito em 21/09/2026. Entrada livre e
     saída racionada é o desenho recomendado
-16. **As três telas de segurança**: log de acesso, exportar tudo, excluir organização.
+15. **As três telas de segurança**: log de acesso, exportar tudo, excluir organização.
     São o que um cliente grande pede antes de assinar
-17. **App nativo de celular**
+16. **App nativo de celular**
 
 ### Pendências fora do código
 
-18. Criar o projeto no Supabase (região São Paulo), rodar o `schema.sql`, desligar
+17. Criar o projeto no Supabase (região São Paulo), rodar o `schema.sql`, desligar
     "Confirm email" e trazer a Project URL e a anon key
-19. Criar as contas de GitHub e Vercel para publicar
-20. Configurar a `ANTHROPIC_API_KEY` para a leitura da conversa sair das regras e passar
+18. Criar as contas de GitHub e Vercel para publicar
+19. Configurar a `ANTHROPIC_API_KEY` para a leitura da conversa sair das regras e passar
     para o modelo
