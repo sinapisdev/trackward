@@ -290,7 +290,7 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
       if (!id) return
       toast(`${nome.trim()} criado a partir de ${processo.nome}.`)
       fechar()
-      router.push(`/fluxo/${id}`)
+      router.push(`/tracks/${id}`)
       return
     }
 
@@ -306,16 +306,16 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
       etapas,
     )
     if (!id) return
-    toast(edicao ? 'Alterações salvas.' : `${nome.trim()} criado. Agora adicione os itens de cada checkpoint.`)
+    toast(edicao ? 'Alterações salvas.' : `${nome.trim()} criado. Agora monte a trilha.`)
     fechar()
-    if (!edicao) router.push(`/fluxo/${id}`)
+    if (!edicao) router.push(`/tracks/${id}`)
   }
 
   return (
     <div className="dlg wide" role="dialog" aria-modal="true" aria-labelledby="mf">
       <div className="dlg-h">
         <h3 id="mf">{edicao ? 'Editar esteira' : ciclo ? 'Nova rotina' : 'Novo projeto'}</h3>
-        <p>{edicao ? 'Mudanças valem para todos que veem esta esteira.' : 'Os itens de cada checkpoint são adicionados depois, direto na esteira.'}</p>
+        <p>{edicao ? 'Mudanças valem para todos que veem esta esteira.' : 'Depois de criar, a trilha se monta no quadro, checkpoint por checkpoint.'}</p>
       </div>
       <div className="dlg-b">
         {!edicao && (

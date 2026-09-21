@@ -61,7 +61,11 @@ function ler(): Base {
     nasceuAgora = true
   }
   for (const k of Object.keys(VAZIA)) if (!base[k]) base[k] = []
-  etiquetar(base)
+  // O carimbo em bloco vale só para a semente e para bases antigas, de antes de
+  // a organização existir. Depois disso quem carimba é carimbar(), na gravação,
+  // com a organização de quem escreveu. Sem esse corte, a linha de uma conta
+  // nova acabaria reivindicada pela empresa de exemplo no próximo carregamento.
+  if (nasceuAgora || semNenhumaOrg(base)) etiquetar(base)
   if (nasceuAgora) {
     try { localStorage.setItem(CHAVE_VERSAO, String(VERSAO)) } catch {}
   } else if (completar(base)) {
@@ -74,6 +78,10 @@ function ler(): Base {
  * Carimba a organização de exemplo em tudo que veio da semente sem ela. Fazer
  * isso aqui, de uma vez, evita repetir org_id em trezentas linhas de exemplo.
  */
+const semNenhumaOrg = (b: Base) => !Object.entries(b).some(
+  ([tabela, linhas]) => tabela !== 'organizacoes' && linhas.some((l) => l.org_id != null),
+)
+
 function etiquetar(b: Base) {
   for (const [tabela, linhas] of Object.entries(b)) {
     if (tabela === 'organizacoes') continue
@@ -88,8 +96,30 @@ function minhaOrg(): string | null {
   return (ler().perfis.find((p) => p.id === eu)?.org_id as string) ?? null
 }
 
+/**
+ * O carimbo da organização, que no banco é o gatilho carimbar_org.
+ *
+ * Roda na gravação, e não só ao abrir o app: linha criada dentro de uma função
+ * (um checkpoint novo, por exemplo) nascia sem dono, e o filtro da organização
+ * a escondia até alguém recarregar a página. Escrevia certo e sumia da tela.
+ *
+ * perfis fica de fora de propósito, igual ao banco: o cadastro já escolheu a
+ * organização certa, e carimbar aqui jogaria a conta nova para dentro de quem
+ * estivesse logado no momento.
+ */
+function carimbar() {
+  if (!base) return
+  const org = minhaOrg()
+  if (!org) return
+  for (const [tabela, linhas] of Object.entries(base)) {
+    if (tabela === 'organizacoes' || tabela === 'perfis') continue
+    for (const l of linhas) if (l.org_id == null) l.org_id = org
+  }
+}
+
 function gravar() {
   if (!base || typeof window === 'undefined') return
+  carimbar()
   try { localStorage.setItem(CHAVE_BASE, JSON.stringify(base)) } catch {}
   ouvintes.forEach((f) => f())
 }

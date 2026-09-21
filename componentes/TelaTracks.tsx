@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useDados } from '@/componentes/Dados'
@@ -10,9 +10,10 @@ import { Trilho, type Faixa, type EstadoNo, type NoTrilho } from '@/componentes/
 import { Ic } from '@/componentes/Icones'
 import { Av, IconeStatus } from '@/componentes/atomos'
 import { classePrazo } from '@/componentes/partes'
-import { podeConcluir } from '@/lib/acesso'
+import { mandaNoProcesso, podeConcluir } from '@/lib/acesso'
 import { LBL, ORD, etapaAtual, progresso, status } from '@/lib/regras'
 import { curta, rel } from '@/lib/datas'
+import type { RascunhoEtapa } from '@/lib/modelos'
 import type { Area, Etapa, Fluxo } from '@/lib/tipos'
 
 /**
@@ -124,10 +125,109 @@ function Lista({ atual, aoNovo }: { atual?: string; aoNovo: (t: 'projeto' | 'are
 
 // -------------------------------------------------------------- inspetor
 
-function Inspetor({ f, et, fechar }: { f: Fluxo; et: Etapa; fechar: () => void }) {
+function Inspetor({ f, et, fechar, gravar, abrirEmEdicao }: {
+  f: Fluxo
+  et: Etapa
+  fechar: () => void
+  gravar: (etapas: RascunhoEtapa[]) => Promise<void>
+  abrirEmEdicao: boolean
+}) {
   const { nomeDe, perfilDe, perfis, eu, alternarItem } = useDados()
   const { abrir } = useModais()
   const feitas = et.itens.filter((i) => i.feito).length
+
+  // Quem executa não mexe em prazo nem em critério: quem responde pelo processo é
+  // que define a régua. Sem isso, a trava do app cairia na primeira discussão.
+  const mando = mandaNoProcesso(eu, f, perfis)
+  const [editando, setEditando] = useState(abrirEmEdicao)
+  const [nome, setNome] = useState(et.nome)
+  const [criterio, setCriterio] = useState(et.criterio)
+  const [aprov, setAprov] = useState(et.aprovador_id || '')
+  const [prazo, setPrazo] = useState(et.prazo || '')
+  const [salvando, setSalvando] = useState(false)
+
+  const lugar = f.etapas.findIndex((e) => e.id === et.id)
+  const rascunho = (): RascunhoEtapa[] => f.etapas.map((e) => ({
+    id: e.id, nome: e.nome, criterio: e.criterio, aprovador_id: e.aprovador_id, prazo: e.prazo || '',
+  }))
+
+  const salvar = async () => {
+    if (!nome.trim()) return
+    setSalvando(true)
+    const etapas = rascunho()
+    etapas[lugar] = { ...etapas[lugar], nome: nome.trim(), criterio: criterio.trim(), aprovador_id: aprov || null, prazo }
+    await gravar(etapas)
+    setSalvando(false)
+    setEditando(false)
+  }
+
+  const mover = async (d: number) => {
+    const etapas = rascunho()
+    const k = lugar + d
+    if (k < 0 || k >= etapas.length) return
+    ;[etapas[k], etapas[lugar]] = [etapas[lugar], etapas[k]]
+    await gravar(etapas)
+  }
+
+  const remover = () => abrir({
+    tipo: 'excluir',
+    titulo: `Apagar o checkpoint ${et.nome}?`,
+    texto: et.itens.length
+      ? `As ${et.itens.length} tarefas dele saem junto. Isto não volta.`
+      : 'Isto não volta.',
+    acao: async () => { await gravar(rascunho().filter((_, i) => i !== lugar)); fechar() },
+  })
+
+  if (editando) return (
+    <div className="tk-inspetor">
+      <div className="tk-insp-h">
+        <div>
+          <span className="rot">Checkpoint</span>
+          <input className="tk-in grande" value={nome} onChange={(e) => setNome(e.target.value)}
+            placeholder="Nome do checkpoint" aria-label="Nome do checkpoint" autoFocus />
+        </div>
+      </div>
+
+      <div className="tk-campos">
+        <label>
+          <span>Só passa quando</span>
+          <textarea className="tk-in" rows={2} value={criterio}
+            onChange={(e) => setCriterio(e.target.value)}
+            placeholder="O que precisa estar pronto para seguir" />
+        </label>
+        <label>
+          <span>Quem aprova</span>
+          <select className="tk-in" value={aprov} onChange={(e) => setAprov(e.target.value)}>
+            <option value="">Ninguém</option>
+            {perfis.filter((x) => x.ativo).map((x) => (
+              <option key={x.id} value={x.id}>{x.nome}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Prazo</span>
+          <input className="tk-in" type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} />
+        </label>
+      </div>
+
+      <div className="tk-ordem">
+        <button className="btn ghost" onClick={() => void mover(-1)} disabled={lugar <= 0}>
+          <Ic.volta />Antes
+        </button>
+        <button className="btn ghost" onClick={() => void mover(1)} disabled={lugar >= f.etapas.length - 1}>
+          Depois<Ic.seta />
+        </button>
+        <button className="btn ghost perigo" onClick={remover} aria-label="Apagar checkpoint"><Ic.x /></button>
+      </div>
+
+      <div className="tk-insp-pe">
+        <button className="btn pri" onClick={() => void salvar()} disabled={!nome.trim() || salvando}>
+          {salvando ? 'Salvando' : 'Salvar'}
+        </button>
+        <button className="btn ghost" onClick={() => setEditando(false)}>Cancelar</button>
+      </div>
+    </div>
+  )
 
   return (
     <div className="tk-inspetor">
@@ -136,6 +236,10 @@ function Inspetor({ f, et, fechar }: { f: Fluxo; et: Etapa; fechar: () => void }
           <span className="rot">Checkpoint</span>
           <b>{et.nome}</b>
         </div>
+        {mando && (
+          <button className="iconbtn" onClick={() => setEditando(true)}
+            aria-label="Editar checkpoint" title="Editar checkpoint"><Ic.edit /></button>
+        )}
         <button className="iconbtn" onClick={fechar} aria-label="Fechar"><Ic.x /></button>
       </div>
 
@@ -184,9 +288,40 @@ function Inspetor({ f, et, fechar }: { f: Fluxo; et: Etapa; fechar: () => void }
 // ----------------------------------------------------------------- palco
 
 function Palco({ alvo }: { alvo: { tipo: 'projeto'; f: Fluxo } | { tipo: 'area'; a: Area } }) {
-  const { todosFluxos, perfilDe, nomeDe, areaDe, empresaDe, org } = useDados()
+  const { todosFluxos, perfilDe, nomeDe, areaDe, empresaDe, org, eu, perfis, salvarFluxo } = useDados()
   const { abrir } = useModais()
   const [noEscolhido, setNoEscolhido] = useState<string | null>(null)
+  const [recemCriado, setRecemCriado] = useState(false)
+  const esperando = useRef(false)
+
+  /** Uma gravação só: o RPC recebe a esteira inteira com a fila nova de checkpoints. */
+  const gravar = async (f: Fluxo, etapas: RascunhoEtapa[]) => {
+    await salvarFluxo({
+      id: f.id, tipo: f.tipo, nome: f.nome, area_id: f.area_id, empresa_id: f.empresa_id,
+      dono_id: f.dono_id, visib: f.visib, pessoas: f.pessoas, freq: f.freq, periodo: f.periodo,
+    }, etapas)
+  }
+
+  const acrescentar = async (f: Fluxo) => {
+    esperando.current = true
+    await gravar(f, [
+      ...f.etapas.map((e) => ({
+        id: e.id, nome: e.nome, criterio: e.criterio, aprovador_id: e.aprovador_id, prazo: e.prazo || '',
+      })),
+      { id: null, nome: 'Novo checkpoint', criterio: '', aprovador_id: eu.id, prazo: '' },
+    ])
+  }
+
+  // O id do checkpoint novo só existe depois que o banco responde. Quando ele
+  // chega, o painel abre nele já em edição, para ninguém ter que caçar o card.
+  const fluxoAtual = alvo.tipo === 'projeto' ? alvo.f : null
+  const ultimo = fluxoAtual?.etapas[fluxoAtual.etapas.length - 1]?.id
+  useEffect(() => {
+    if (!esperando.current || !ultimo) return
+    esperando.current = false
+    setNoEscolhido(ultimo)
+    setRecemCriado(true)
+  }, [ultimo])
 
   const rotinas = useMemo(
     () => alvo.tipo === 'area'
@@ -287,7 +422,7 @@ function Palco({ alvo }: { alvo: { tipo: 'projeto'; f: Fluxo } | { tipo: 'area';
           {alvo.tipo === 'projeto' ? (
             <>
               <button className="btn ghost" onClick={() => abrir({ tipo: 'fluxo', fluxo: alvo.f })}>
-                <Ic.edit />Editar trilha
+                <Ic.ajustes />Ajustes da track
               </button>
               <Link className="btn pri" href={`/fluxo/${alvo.f.id}`}>Abrir<Ic.seta /></Link>
             </>
@@ -317,13 +452,23 @@ function Palco({ alvo }: { alvo: { tipo: 'projeto'; f: Fluxo } | { tipo: 'area';
         <Trilho
           faixas={faixas}
           escolhido={noEscolhido}
-          aoEscolher={(id) => setNoEscolhido((v) => (v === id ? null : id))}
-          acao={alvo.tipo === 'projeto'
-            ? { rotulo: 'Etapa', aoClicar: () => abrir({ tipo: 'fluxo', fluxo: alvo.f }) }
+          aoEscolher={(id) => {
+            setRecemCriado(false)
+            setNoEscolhido((v) => (v === id ? null : id))
+          }}
+          acao={alvo.tipo === 'projeto' && mandaNoProcesso(eu, alvo.f, perfis)
+            ? { rotulo: 'Checkpoint', aoClicar: () => void acrescentar(alvo.f) }
             : undefined}
         />
         {achado && (
-          <Inspetor f={achado.f} et={achado.et} fechar={() => setNoEscolhido(null)} />
+          <Inspetor
+            key={achado.et.id}
+            f={achado.f}
+            et={achado.et}
+            fechar={() => { setNoEscolhido(null); setRecemCriado(false) }}
+            gravar={(etapas) => gravar(achado.f, etapas)}
+            abrirEmEdicao={recemCriado}
+          />
         )}
       </div>
     </section>

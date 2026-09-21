@@ -1327,3 +1327,16 @@ h1{font-weight:600;letter-spacing:-.032em}
 }
 .tk-tarefa button.mk{transition:var(--t)}
 .tk-tarefa button.mk:hover .oco{box-shadow:0 0 0 1.5px var(--ac)}
+.tk-in{width:100%;border:0;background:var(--bg);box-shadow:0 0 0 1px var(--line-2);
+  border-radius:var(--r-sm);padding:7px 9px;font-size:12.5px;font-family:inherit;color:var(--tx)}
+.tk-in:focus{outline:none;box-shadow:0 0 0 1.5px var(--ac)}
+.tk-in.grande{font-size:14.5px;font-weight:700;letter-spacing:-.024em;padding:5px 8px}
+textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
+.tk-campos{display:flex;flex-direction:column;gap:10px;padding:2px 14px 12px}
+.tk-campos label{display:block}
+.tk-campos label > span{display:block;font-size:10px;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--tx-3);margin-bottom:4px}
+.tk-ordem{display:flex;gap:6px;padding:0 14px 12px;margin-top:auto}
+.tk-ordem .btn{flex:1;justify-content:center}
+.tk-ordem .btn.perigo{flex:none}
+.tk-ordem .btn.perigo:hover{color:var(--late)}
