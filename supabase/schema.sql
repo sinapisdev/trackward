@@ -365,6 +365,49 @@ create index if not exists canais_fluxo_idx on public.canais (fluxo_id);
 create index if not exists canais_area_idx  on public.canais (area_id);
 
 -- --------------------------------------------------------------------------
+-- 1e. A prova do que foi feito, e a decisão de quem aprova
+--
+--     O anexo é a prova: o comprovante, o contrato assinado, a foto. Fica preso
+--     à TAREFA, porque é a tarefa que alguém entrega. O arquivo em si mora no
+--     Storage; aqui fica o endereço dele e quem o pôs ali.
+--
+--     A decisão é o que o aprovador respondeu no checkpoint. Guardar numa tabela,
+--     e não só no texto da linha do tempo, é o que permite mostrar depois
+--     "aprovado com ressalva: faltou o aceite" sem ninguém ter que ler frase.
+-- --------------------------------------------------------------------------
+
+create table if not exists public.anexos (
+  id        uuid primary key default gen_random_uuid(),
+  item_id   uuid not null references public.itens on delete cascade,
+  fluxo_id  uuid not null references public.fluxos on delete cascade,
+  nome      text not null,
+  tipo      text not null default '',
+  tamanho   bigint not null default 0,
+  -- Endereço dentro do balde 'anexos'. Começa pelo id da organização, que é o
+  -- que deixa a política do Storage barrar o arquivo de outra empresa.
+  caminho   text not null unique,
+  autor_id  uuid references public.perfis on delete set null,
+  criado_em timestamptz not null default now()
+);
+
+create table if not exists public.decisoes (
+  id        uuid primary key default gen_random_uuid(),
+  fluxo_id  uuid not null references public.fluxos on delete cascade,
+  etapa_id  uuid not null references public.etapas on delete cascade,
+  quem_id   uuid references public.perfis on delete set null,
+  -- aprovou: seguiu limpo. ressalva: seguiu, com pendência anotada.
+  -- devolveu: não seguiu, e as tarefas marcadas voltaram a ficar em aberto.
+  tipo      text not null check (tipo in ('aprovou','ressalva','devolveu')),
+  nota      text not null default '',
+  criado_em timestamptz not null default now()
+);
+
+create index if not exists anexos_item_idx  on public.anexos (item_id);
+create index if not exists anexos_fluxo_idx on public.anexos (fluxo_id);
+create index if not exists dec_etapa_idx    on public.decisoes (etapa_id, criado_em desc);
+create index if not exists dec_fluxo_idx    on public.decisoes (fluxo_id, criado_em desc);
+
+-- --------------------------------------------------------------------------
 -- 1d. A parede: a etiqueta da organização em todas as tabelas
 --
 --     Em vez de repetir a coluna em 22 definições de tabela, ela entra aqui de
@@ -382,7 +425,8 @@ begin
     'processos','processo_etapas','processo_itens',
     'fluxos','fluxo_pessoas','etapas','itens','dependencias','historico','atividades',
     'compromissos','convidados','agendas_externas','ocupacao_externa',
-    'canais','canal_membros','mensagens','sugestoes'
+    'canais','canal_membros','mensagens','sugestoes',
+    'anexos','decisoes'
   ] loop
     execute format(
       'alter table public.%I add column if not exists org_id uuid references public.organizacoes on delete cascade', t);
@@ -429,7 +473,8 @@ begin
     'processos','processo_etapas','processo_itens',
     'fluxos','fluxo_pessoas','etapas','itens','dependencias','historico','atividades',
     'compromissos','convidados','agendas_externas','ocupacao_externa',
-    'canais','canal_membros','mensagens','sugestoes'
+    'canais','canal_membros','mensagens','sugestoes',
+    'anexos','decisoes'
   ] loop
     execute format('drop trigger if exists ao_inserir_org on public.%I', t);
     execute format(
@@ -547,7 +592,14 @@ returns boolean language sql stable security definer set search_path = public as
       select 1 from dependencias d join itens meu on meu.id = d.item_id
       where d.depende_de = p_id and meu.resp_id in (select meu_alcance())
     )
-    or exists (select 1 from itens i where i.id = p_id and ve_area_de(i.fluxo_id)));
+    or exists (select 1 from itens i where i.id = p_id and ve_area_de(i.fluxo_id))
+    -- Quem aprova o checkpoint lê as tarefas dele. Não é exceção à regra, é a
+    -- definição de aprovar: ninguém dá aceite no que não pode ler. Tarefa
+    -- privada continua fora, porque isso é outra condição, em itens_sel.
+    or exists (
+      select 1 from itens i join etapas e on e.id = i.etapa_id
+      where i.id = p_id and e.aprovador_id = meu_perfil()
+    ));
 $$;
 
 -- Fluxo que a pessoa logada pode enxergar (privado só aparece para quem criou).
@@ -796,6 +848,8 @@ alter table public.convidados   enable row level security;
 alter table public.atividades enable row level security;
 -- Estas duas tinham política escrita e a RLS desligada, então a política não
 -- valia nada. Achado pela vistoria da seção 11, não por leitura minha.
+alter table public.anexos   enable row level security;
+alter table public.decisoes enable row level security;
 alter table public.fluxo_pessoas enable row level security;
 alter table public.dependencias  enable row level security;
 
@@ -904,6 +958,26 @@ create policy itens_upd on public.itens for update
 drop policy if exists itens_del on public.itens;
 create policy itens_del on public.itens for delete
   using (minha(org_id) and (ativo() and ve_fluxo(fluxo_id) and (not priv or autor_id = meu_perfil())));
+
+-- anexos: o arquivo se vê exatamente quando a tarefa dele se vê. Apagar é de
+-- quem pôs ali, ou de quem manda no processo, que responde pelo que fica.
+drop policy if exists anx_sel on public.anexos;
+create policy anx_sel on public.anexos for select
+  using (minha(org_id) and (ativo() and ve_item(item_id)));
+
+drop policy if exists anx_ins on public.anexos;
+create policy anx_ins on public.anexos for insert
+  with check (minha(org_id) and (ativo() and ve_item(item_id) and autor_id = meu_perfil()));
+
+drop policy if exists anx_del on public.anexos;
+create policy anx_del on public.anexos for delete
+  using (minha(org_id) and (ativo() and (autor_id = meu_perfil() or manda_no_processo(fluxo_id))));
+
+-- decisões: quem enxerga a esteira enxerga o que foi decidido nela. Escrever é
+-- só pela função decidir_etapa(), que confere se você é o aprovador da vez.
+drop policy if exists dec_sel on public.decisoes;
+create policy dec_sel on public.decisoes for select
+  using (minha(org_id) and (ativo() and ve_fluxo(fluxo_id)));
 
 -- dependências: seguem a visibilidade das duas pontas
 drop policy if exists dep_sel on public.dependencias;
@@ -1106,7 +1180,7 @@ begin
   if jsonb_array_length(p_etapas) < 1 then raise exception 'O fluxo precisa de pelo menos um checkpoint.'; end if;
 
   if v_id is null then
-    insert into fluxos (tipo, nome, area_id, empresa_id, dono_id, autor_id, visib, freq, periodo, atual)
+    insert into fluxos (tipo, nome, area_id, empresa_id, dono_id, autor_id, visib, freq, periodo)
     values (
       p_fluxo->>'tipo',
       btrim(p_fluxo->>'nome'),
@@ -1314,12 +1388,28 @@ begin
 end $$;
 
 -- --------------------------------------------------------------------------
--- 7. Aprovar a saída de um checkpoint
---    Só o aprovador do checkpoint consegue, e só com o checklist completo.
---    Na última etapa de uma rotina, fecha a volta e recomeça o ciclo.
+-- 7. Decidir a saída de um checkpoint
+--    Só o aprovador do checkpoint decide. Três desfechos:
+--
+--      aprovou   segue em frente, limpo
+--      ressalva  segue em frente com uma pendência anotada, que fica registrada
+--                e vira tarefa do checkpoint seguinte quando se pede prazo
+--      devolveu  não segue. As tarefas apontadas voltam a ficar em aberto e a
+--                esteira continua parada no mesmo checkpoint
+--
+--    Aprovar exige o checklist completo. Devolver não exige nada, porque devolver
+--    é justamente o caso em que está tudo marcado e o aprovador discorda.
+--    Na última etapa de uma rotina, aprovar fecha a volta e recomeça o ciclo.
 -- --------------------------------------------------------------------------
 
-create or replace function public.aprovar_etapa(p_fluxo uuid, p_periodo text default null)
+create or replace function public.decidir_etapa(
+  p_fluxo    uuid,
+  p_tipo     text,
+  p_nota     text default '',
+  p_reabrir  uuid[] default '{}',
+  p_periodo  text default null,
+  p_prazo    date default null
+)
 returns text language plpgsql security definer set search_path = public as $$
 declare
   uid     uuid := meu_perfil();
@@ -1339,7 +1429,24 @@ begin
 
   select * into e from etapas where fluxo_id = f.id and ordem = f.atual;
   if not found then raise exception 'Checkpoint não encontrado.'; end if;
-  if e.aprovador_id is distinct from uid then raise exception 'Somente o aprovador deste checkpoint pode aprovar a saída.'; end if;
+  if e.aprovador_id is distinct from uid then raise exception 'Somente o aprovador deste checkpoint pode decidir a saída.'; end if;
+  if p_tipo not in ('aprovou','ressalva','devolveu') then raise exception 'Decisão desconhecida.'; end if;
+  if p_tipo <> 'aprovou' and btrim(coalesce(p_nota, '')) = '' then
+    raise exception 'Escreva o motivo: quem recebe precisa saber o que fazer.';
+  end if;
+
+  -- Devolver para em cima do mesmo checkpoint e reabre o que o aprovador apontou.
+  if p_tipo = 'devolveu' then
+    update itens set feito = false
+    where etapa_id = e.id and id = any(coalesce(p_reabrir, '{}'::uuid[]));
+
+    insert into decisoes (fluxo_id, etapa_id, quem_id, tipo, nota)
+    values (f.id, e.id, uid, 'devolveu', btrim(p_nota));
+
+    insert into atividades (fluxo_id, quem_id, texto)
+    values (f.id, uid, 'devolveu ' || e.nome || ': ' || btrim(p_nota));
+    return 'devolveu';
+  end if;
 
   if exists (
     select 1 from itens i
@@ -1347,7 +1454,23 @@ begin
   ) then raise exception 'Ainda existem itens pendentes neste checkpoint.'; end if;
 
   select count(*) into n from etapas where fluxo_id = f.id;
-  insert into atividades (fluxo_id, quem_id, texto) values (f.id, uid, 'aprovou a saída de ' || e.nome);
+
+  insert into decisoes (fluxo_id, etapa_id, quem_id, tipo, nota)
+  values (f.id, e.id, uid, p_tipo, btrim(coalesce(p_nota, '')));
+
+  insert into atividades (fluxo_id, quem_id, texto)
+  values (f.id, uid, case when p_tipo = 'ressalva'
+    then 'aprovou ' || e.nome || ' com ressalva: ' || btrim(p_nota)
+    else 'aprovou a saída de ' || e.nome end);
+
+  -- A ressalva vira tarefa do checkpoint seguinte, senão ela morre na linha do
+  -- tempo e a pendência que justificou a ressalva não é cobrada de ninguém.
+  if p_tipo = 'ressalva' and f.atual < n - 1 then
+    insert into itens (etapa_id, fluxo_id, texto, resp_id, prazo, autor_id, ordem)
+    select et.id, f.id, 'Ressalva: ' || btrim(p_nota), f.dono_id, p_prazo, uid,
+           coalesce((select max(i.ordem) + 1 from itens i where i.etapa_id = et.id), 0)
+    from etapas et where et.fluxo_id = f.id and et.ordem = f.atual + 1;
+  end if;
 
   if f.atual < n - 1 then
     update fluxos set atual = f.atual + 1 where id = f.id;
@@ -1380,6 +1503,13 @@ begin
   return 'concluido';
 end $$;
 
+-- O nome antigo continua valendo: chamadas de fora e bancos já publicados não
+-- precisam saber que a aprovação virou decisão.
+create or replace function public.aprovar_etapa(p_fluxo uuid, p_periodo text default null)
+returns text language sql security definer set search_path = public as $$
+  select public.decidir_etapa(p_fluxo, 'aprovou', '', '{}'::uuid[], p_periodo, null);
+$$;
+
 -- --------------------------------------------------------------------------
 -- 8. Conserta bancos criados por uma versão anterior deste arquivo
 -- --------------------------------------------------------------------------
@@ -1410,7 +1540,9 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['perfis','areas','fluxos','etapas','itens','historico','atividades'] loop
+  foreach t in array array[
+    'perfis','areas','fluxos','etapas','itens','historico','atividades','anexos','decisoes'
+  ] loop
     begin
       execute format('alter publication supabase_realtime add table public.%I', t);
     exception when duplicate_object then null;
@@ -1568,6 +1700,72 @@ begin
 end $$;
 
 -- --------------------------------------------------------------------------
+-- 10b. Onde os anexos moram de verdade
+--
+--      A tabela anexos guarda o endereço. O arquivo em si fica no Storage, num
+--      balde fechado: nada é público, e cada leitura passa por uma URL assinada
+--      que vale poucos minutos.
+--
+--      A regra é a mesma do resto do app, dita de outro jeito: o arquivo se abre
+--      exatamente quando a tarefa dele se abre. Quem não pode ver a tarefa recebe
+--      404, mesmo sabendo o endereço exato.
+--
+--      O caminho começa pelo id da organização. É isso que deixa a política
+--      barrar, já no envio, quem tentar escrever na pasta de outra empresa.
+--
+--      Este bloco não roda num Postgres comum, porque lá não existe o esquema
+--      storage. Ele se pula sozinho, para o arquivo continuar podendo ser
+--      conferido numa máquina local antes de subir.
+-- --------------------------------------------------------------------------
+
+create or replace function public.posso_ver_anexo(p_caminho text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from anexos a
+    where a.caminho = p_caminho and minha(a.org_id) and ve_item(a.item_id)
+  );
+$$;
+
+create or replace function public.posso_apagar_anexo(p_caminho text)
+returns boolean language sql stable security definer set search_path = public as $$
+  -- Com linha: manda a regra da linha. Sem linha (arquivo órfão, de um envio que
+  -- falhou no meio), basta ser da sua organização, para dar para limpar.
+  select coalesce(
+    (select minha(a.org_id) and (a.autor_id = meu_perfil() or manda_no_processo(a.fluxo_id))
+       from anexos a where a.caminho = p_caminho),
+    split_part(p_caminho, '/', 1) = minha_org()::text
+  );
+$$;
+
+do $$
+begin
+  if to_regclass('storage.objects') is null then
+    raise notice 'Storage não existe neste banco. Políticas de anexo puladas.';
+    return;
+  end if;
+
+  insert into storage.buckets (id, name, public, file_size_limit)
+  values ('anexos', 'anexos', false, 10485760)
+  on conflict (id) do update set public = false, file_size_limit = 10485760;
+
+  execute 'drop policy if exists anexo_ler on storage.objects';
+  execute $p$create policy anexo_ler on storage.objects for select
+    using (bucket_id = 'anexos' and public.posso_ver_anexo(name))$p$;
+
+  execute 'drop policy if exists anexo_enviar on storage.objects';
+  execute $p$create policy anexo_enviar on storage.objects for insert
+    with check (
+      bucket_id = 'anexos'
+      and public.ativo()
+      and split_part(name, '/', 1) = public.minha_org()::text
+    )$p$;
+
+  execute 'drop policy if exists anexo_apagar on storage.objects';
+  execute $p$create policy anexo_apagar on storage.objects for delete
+    using (bucket_id = 'anexos' and public.ativo() and public.posso_apagar_anexo(name))$p$;
+end $$;
+
+-- --------------------------------------------------------------------------
 -- 11. Vistoria da parede
 --
 --     Uma parede entre empresas clientes só vale se for inteira. Basta uma
@@ -1588,7 +1786,8 @@ language sql stable set search_path = public as $$
       'processos','processo_etapas','processo_itens',
       'fluxos','fluxo_pessoas','etapas','itens','dependencias','historico','atividades',
       'compromissos','convidados','agendas_externas','ocupacao_externa',
-      'canais','canal_membros','mensagens','sugestoes'
+      'canais','canal_membros','mensagens','sugestoes',
+      'anexos','decisoes'
     ]) as t
   )
   -- 1. Tabela sem a etiqueta da organização

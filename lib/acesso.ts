@@ -54,9 +54,14 @@ export function itensVisiveis(
   const ids = alcance(eu, perfis)
   const meus = todosItens.filter((i) => meuItem(i, ids))
   const travas = new Set(meus.flatMap((i) => i.depende_de))
+  // Quem aprova um checkpoint lê as tarefas dele: ninguém dá aceite no escuro.
+  const paraAprovar = new Set(
+    fluxo.etapas.filter((e) => e.aprovador_id === eu.id).flatMap((e) => e.itens.map((i) => i.id)),
+  )
 
   return daEsteira.filter(
-    (i) => meuItem(i, ids) || travas.has(i.id) || (i.autor_id ? ids.has(i.autor_id) && i.priv : false),
+    (i) => meuItem(i, ids) || travas.has(i.id) || paraAprovar.has(i.id)
+      || (i.autor_id ? ids.has(i.autor_id) && i.priv : false),
   )
 }
 
