@@ -194,6 +194,29 @@ export const Ic = {
       <path d="M2.4 8h11M9 3.6 13.4 8 9 12.4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
+  raio: () => (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+      <path d="M9 1.6 3.6 9.2h3.2L7 14.4l5.4-7.6H9.2L9 1.6Z" stroke="currentColor"
+        strokeWidth="1.4" strokeLinejoin="round" />
+    </svg>
+  ),
+  lupa: () => (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <circle cx="7.2" cy="7.2" r="4.4" />
+      <path d="m10.6 10.6 2.6 2.6" strokeLinecap="round" />
+    </svg>
+  ),
+  menos: () => (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M3.4 8h9.2" strokeLinecap="round" />
+    </svg>
+  ),
+  caber: () => (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M2.6 6V3.4a.8.8 0 0 1 .8-.8H6M10 2.6h2.6a.8.8 0 0 1 .8.8V6M13.4 10v2.6a.8.8 0 0 1-.8.8H10M6 13.4H3.4a.8.8 0 0 1-.8-.8V10"
+        strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
   responder: () => (
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
       <path d="M6.4 3.6 2.6 7.2l3.8 3.6" strokeLinecap="round" strokeLinejoin="round" />

@@ -153,8 +153,6 @@ function SeletorEmpresa() {
   )
 }
 
-const LIMITE_LATERAL = 8
-
 export function Shell({ children }: { children: ReactNode }) {
   const { eu, fluxos, areas, org, agenda, processos, canais, naoLidas, aviso, carregando } = useDados()
   const { abrir } = useModais()
@@ -183,8 +181,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const hojeNaAgenda = agenda.filter(
     (c) => c.quando === hojeIso() && [c.dono_id, ...c.convidados].includes(eu.id),
   ).length
-  const projetos = fluxos.filter((f) => f.tipo === 'esteira' && !f.concluido).sort((a, b) => ORD[status(a)] - ORD[status(b)])
-  const visiveis = projetos.slice(0, LIMITE_LATERAL)
+  const tracks = fluxos.filter((f) => f.tipo === 'esteira' && !f.concluido).length + areas.length
 
   return (
     <div className="shell">
@@ -208,50 +205,8 @@ export function Shell({ children }: { children: ReactNode }) {
           <NavItem href="/agenda" icone={<Ic.agenda />} rotulo="Agenda" ativo={caminho === '/agenda'}
             conta={hojeNaAgenda} />
 
-          <div className="sh">
-            <Link href="/projetos">Projetos</Link>
-            <span className="mais">
-              <button className="iconbtn" aria-label="Novo projeto" title="Novo projeto"
-                onClick={() => abrir({ tipo: 'fluxo', tipoFluxo: 'esteira' })}><Ic.plus /></button>
-            </span>
-          </div>
-          {visiveis.map((f) => (
-            <NavItem key={f.id} sub href={`/fluxo/${f.id}`} ativo={caminho === `/fluxo/${f.id}`}
-              icone={<Ponto st={status(f)} />} rotulo={f.nome} />
-          ))}
-          {projetos.length > LIMITE_LATERAL && (
-            <Link className="nv sub" href="/projetos" style={{ color: 'var(--tx-3)' }}>
-              <span className="pdot" />
-              <span className="rot">Ver todos os {projetos.length}</span>
-            </Link>
-          )}
-          {!projetos.length && !carregando && (
-            <div className="mode" style={{ padding: '4px 10px' }}>Nenhum projeto em andamento.</div>
-          )}
-
-          <div className="sh">
-            <Link href="/areas">Áreas</Link>
-            <span className="mais">
-              {eu.papel === 'admin' && (
-                <button className="iconbtn" aria-label="Nova área" title="Nova área"
-                  onClick={() => abrir({ tipo: 'area' })}><Ic.plus /></button>
-              )}
-            </span>
-          </div>
-          {areas.map((a) => {
-            const rotinas = fluxos.filter((f) => f.area_id === a.id && f.tipo === 'ciclo')
-            const n = comProblema(rotinas)
-            return (
-              <NavItem key={a.id} sub href={`/area/${a.id}`} ativo={caminho.startsWith(`/area/${a.id}`)}
-                icone={<span className="pdot"><span className="sdot" style={{ background: a.cor }} /></span>}
-                rotulo={a.nome} conta={n || undefined} quente={n > 0} />
-            )
-          })}
-          {!areas.length && !carregando && (
-            <div className="mode" style={{ padding: '4px 10px' }}>
-              {eu.papel === 'admin' ? 'Crie a primeira área acima.' : 'Nenhuma área ainda.'}
-            </div>
-          )}
+          <NavItem href="/tracks" icone={<Ic.proj />} rotulo="Tracks"
+            ativo={caminho.startsWith('/tracks')} conta={tracks} />
         </div>
 
         <div className="sh"><span>Configuração</span></div>

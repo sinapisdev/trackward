@@ -144,7 +144,7 @@ export function TelaFluxo({ id }: { id: string }) {
             tipo: 'excluir',
             titulo: `Excluir ${f.nome}?`,
             texto: 'A esteira, seus checkpoints, itens e histórico serão removidos para todos. Não dá para desfazer.',
-            acao: async () => { await excluirFluxo(f.id); router.push(f.tipo === 'ciclo' && f.area_id ? `/area/${f.area_id}` : '/projetos') },
+            acao: async () => { await excluirFluxo(f.id); router.push(f.tipo === 'ciclo' && f.area_id ? `/area/${f.area_id}` : '/tracks') },
           })}>
             <Ic.x />
           </button>}

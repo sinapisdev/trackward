@@ -58,7 +58,7 @@ export function TabBar() {
         <Aba href="/" icone={<Ic.painel />} rotulo="Painel" conta={problemas} quente />
         <Aba href="/minhas" icone={<Ic.inbox />} rotulo="Você" conta={minhas} />
         <Aba href="/chat" icone={<Ic.chat />} rotulo="Conversa" conta={porLer} quente />
-        <Aba href="/projetos" icone={<Ic.proj />} rotulo="Projetos" />
+        <Aba href="/tracks" icone={<Ic.proj />} rotulo="Tracks" />
         <button className={`aba ${mais ? 'on' : ''}`} onClick={() => setMais((v) => !v)}>
           <span className="ic"><Ic.mais /></span>
           <span>Mais</span>
@@ -108,7 +108,8 @@ export function TabBar() {
               <Ic.agenda />Agenda
               {!!hoje && <span className="ct num" style={{ marginLeft: 'auto' }}>{hoje} hoje</span>}
             </Link>
-            <Link className="folha-item" href="/areas"><Ic.painel />Todas as áreas</Link>
+            <Link className="folha-item" href="/projetos"><Ic.painel />Visão de projetos</Link>
+            <Link className="folha-item" href="/areas"><Ic.ciclo />Visão de áreas</Link>
             <Link className="folha-item" href="/processos"><Ic.processo />Processos</Link>
             {!pessoal && <Link className="folha-item" href="/equipe"><Ic.team />Equipe</Link>}
             <Link className="folha-item" href="/ajustes"><Ic.ajustes />Ajustes</Link>

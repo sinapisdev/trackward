@@ -59,8 +59,9 @@ export function Topo() {
         : `#${c.nome}`
       return [{ nome: 'Conversa', href: '/chat' }, { nome }]
     }
-    if (caminho === '/projetos') return [{ nome: 'Projetos' }]
-    if (caminho === '/areas') return [{ nome: 'Áreas' }]
+    if (caminho === '/tracks') return [{ nome: 'Tracks' }]
+    if (caminho === '/projetos') return [{ nome: 'Tracks', href: '/tracks' }, { nome: 'Projetos' }]
+    if (caminho === '/areas') return [{ nome: 'Tracks', href: '/tracks' }, { nome: 'Áreas' }]
     if (caminho === '/equipe') return [{ nome: 'Equipe' }]
     if (caminho === '/ajustes') return [{ nome: 'Ajustes' }]
     if (caminho === '/processos') return [{ nome: 'Processos' }]
@@ -71,14 +72,14 @@ export function Topo() {
     }
     if (caminho.startsWith('/area/')) {
       const a = areas.find((x) => x.id === caminho.split('/')[2])
-      return [{ nome: 'Áreas', href: '/areas' }, { nome: a?.nome || 'Área' }]
+      return [{ nome: 'Tracks', href: '/tracks' }, { nome: a?.nome || 'Área' }]
     }
     if (caminho.startsWith('/fluxo/')) {
       const f = fluxos.find((x) => x.id === caminho.split('/')[2])
       if (!f) return [{ nome: 'Fluxo' }]
       return f.tipo === 'ciclo' && f.area_id
         ? [{ nome: areaDe(f.area_id).nome, href: `/area/${f.area_id}` }, { nome: f.nome }]
-        : [{ nome: 'Projetos', href: '/projetos' }, { nome: f.nome }]
+        : [{ nome: 'Tracks', href: '/tracks' }, { nome: f.nome }]
     }
     return [{ nome: 'Track' }]
   }, [caminho, areas, fluxos, areaDe, processos, canais, eu.id, perfilDe])
