@@ -202,9 +202,15 @@ que é onde a trilha se desenha.
 
 A tela de trabalho, mais densa que o quadro.
 
-**Trilha vertical de checkpoints**: linha fina com uma bolinha por checkpoint, vazada
-no futuro, enchendo conforme o checklist do corrente anda, sólida depois de aprovada.
-Clicar numa bolinha abre aquele checkpoint.
+**O trilho**, no alto: uma linha contínua sobre vidro, com a parte andada acesa em laranja
+e com brilho, as estações em cima dela, e a da vez maior que as outras. O anel da estação
+corrente **enche conforme o checklist anda**, então dá para ver o progresso de dentro do
+checkpoint sem abrir o checkpoint. A estação que **já voltou atrás** leva uma marca
+vermelha. Com a track travada, o trilho inteiro fica vermelho. No fim do trilho, a
+bandeira da chegada, que acende quando a track termina.
+
+Clicar numa estação abre aquele checkpoint embaixo. O trilho rola de lado quando há
+muitos checkpoints, e abre já posicionado na estação da vez.
 
 Dentro do checkpoint aberto: o critério de saída, a lista de tarefas com caixa de
 marcar, responsável, prazo e ícone de cadeado quando é tarefa privada. Cada tarefa
@@ -607,21 +613,20 @@ A lista para o UX cobrir.
 
 ### Pedidos já feitos e ainda não construídos
 
-10. **Trilha de checkpoint dentro da tarefa**, em versão futurista
-11. **Distribuição de tarefas com IA** (faz sentido agora que os processos existem e dão
+10. **Distribuição de tarefas com IA** (faz sentido agora que os processos existem e dão
     de onde aprender)
-12. **Cascata de prazo nas dependências**: mexeu num, os que dependem andam junto
-13. **Modelos por setor** no primeiro cadastro
-14. **Integração com WhatsApp**, adiada de propósito em 21/09/2026. Entrada livre e
+11. **Cascata de prazo nas dependências**: mexeu num, os que dependem andam junto
+12. **Modelos por setor** no primeiro cadastro
+13. **Integração com WhatsApp**, adiada de propósito em 21/09/2026. Entrada livre e
     saída racionada é o desenho recomendado
-15. **As três telas de segurança**: log de acesso, exportar tudo, excluir organização.
+14. **As três telas de segurança**: log de acesso, exportar tudo, excluir organização.
     São o que um cliente grande pede antes de assinar
-16. **App nativo de celular**
+15. **App nativo de celular**
 
 ### Pendências fora do código
 
-17. Criar o projeto no Supabase (região São Paulo), rodar o `schema.sql`, desligar
+16. Criar o projeto no Supabase (região São Paulo), rodar o `schema.sql`, desligar
     "Confirm email" e trazer a Project URL e a anon key
-18. Criar as contas de GitHub e Vercel para publicar
-19. Configurar a `ANTHROPIC_API_KEY` para a leitura da conversa sair das regras e passar
+17. Criar as contas de GitHub e Vercel para publicar
+18. Configurar a `ANTHROPIC_API_KEY` para a leitura da conversa sair das regras e passar
     para o modelo
