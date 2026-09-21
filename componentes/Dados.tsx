@@ -9,6 +9,7 @@ import { proxPeriodo } from '@/lib/modelos'
 import type { RascunhoEtapa } from '@/lib/modelos'
 import { etapaAtual } from '@/lib/regras'
 import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta } from '@/lib/tipos'
+import { chama } from '@/lib/mencao'
 import type { Contexto as ContextoLeitura, Proposta } from '@/lib/leitor'
 import type { Alvo } from '@/lib/tipos'
 import { iso } from '@/lib/datas'
@@ -96,6 +97,8 @@ type Contexto = {
   sugestoesDe: (canalId: string) => Sugestao[]
   /** Quantas mensagens chegaram depois da última vez que você abriu o canal. */
   naoLidas: (canalId: string) => number
+  /** Quantas mensagens novas deste canal chamam você pelo nome. */
+  meChamaram: (canalId: string) => number
   enviar: (canalId: string, texto: string, respondeA?: string | null) => Promise<void>
   apagarMensagem: (m: Mensagem) => Promise<void>
   marcarLido: (canalId: string) => Promise<void>
@@ -794,16 +797,20 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const porLer = useMemo(() => {
     const marca = new Map(canais.map((c) => [c.id, c.lido_em ? Date.parse(c.lido_em) : 0]))
     const conta = new Map<string, number>()
+    const chamou = new Map<string, number>()
     for (const m of mensagens) {
       if (m.autor_id === eu.id) continue
       const limite = marca.get(m.canal_id)
       if (limite === undefined) continue
-      if (Date.parse(m.criado_em) > limite) conta.set(m.canal_id, (conta.get(m.canal_id) ?? 0) + 1)
+      if (Date.parse(m.criado_em) <= limite) continue
+      conta.set(m.canal_id, (conta.get(m.canal_id) ?? 0) + 1)
+      if (chama(m.texto, eu.nome)) chamou.set(m.canal_id, (chamou.get(m.canal_id) ?? 0) + 1)
     }
-    return conta
-  }, [canais, mensagens, eu.id])
+    return { conta, chamou }
+  }, [canais, mensagens, eu.id, eu.nome])
 
-  const naoLidas = useCallback((canalId: string) => porLer.get(canalId) ?? 0, [porLer])
+  const naoLidas = useCallback((canalId: string) => porLer.conta.get(canalId) ?? 0, [porLer])
+  const meChamaram = useCallback((canalId: string) => porLer.chamou.get(canalId) ?? 0, [porLer])
 
   const marcarLido: Contexto['marcarLido'] = useCallback(async (canalId) => {
     await sb.from('canal_membros')
@@ -1024,7 +1031,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     salvarCompromisso, excluirCompromisso, ligarAgendaExterna, desligarAgendaExterna,
     salvarProcesso, excluirProcesso, duplicarProcesso, criarDoProcesso,
     criarConvite, excluirConvite,
-    canais, mensagens, sugestoes, mensagensDe, sugestoesDe, naoLidas,
+    canais, mensagens, sugestoes, mensagensDe, sugestoesDe, naoLidas, meChamaram,
     enviar, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
     lerConversa, aceitarSugestao, recusarSugestao,
     espacos, trocarEspaco, abrirEspaco,

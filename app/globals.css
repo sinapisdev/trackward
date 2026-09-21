@@ -911,7 +911,8 @@ h1{font-weight:600;letter-spacing:-.032em}
 .chat-dia::before,.chat-dia::after{content:'';height:1px;background:var(--line);flex:1}
 .chat-dia span{flex:none}
 
-.msg{display:grid;grid-template-columns:28px minmax(0,1fr);gap:11px;padding:5px 16px;align-items:start}
+.msg{position:relative;display:grid;grid-template-columns:28px minmax(0,1fr);gap:11px;
+  padding:5px 16px;align-items:start}
 .msg:hover{background:var(--hover)}
 .msg.junto{padding-top:1px;padding-bottom:1px}
 .msg-av{display:grid;place-items:center;padding-top:2px;height:20px}
@@ -920,9 +921,29 @@ h1{font-weight:600;letter-spacing:-.032em}
 .msg-h{display:flex;align-items:baseline;gap:8px;margin-bottom:1px}
 .msg-h b{font-size:12.5px;font-weight:600;letter-spacing:-.012em}
 .msg-h i{font-size:10.5px;color:var(--tx-3);font-style:normal;font-variant-numeric:tabular-nums}
-.msg-del{opacity:0;color:var(--tx-3);margin-left:auto;transition:var(--t);display:grid;place-items:center}
-.msg:hover .msg-del{opacity:1}
-.msg-del:hover{color:var(--late)}
+
+/* Chamar pelo nome, citar e responder: o que impede a conversa de se perder. */
+.arroba{color:var(--ac);font-weight:600}
+.msg.chamou{background:color-mix(in srgb,var(--ac) 9%,transparent);box-shadow:inset 2px 0 0 var(--ac)}
+.msg.chamou:hover{background:color-mix(in srgb,var(--ac) 14%,transparent)}
+.chamada{flex:none;display:grid;place-items:center;width:16px;height:16px;border-radius:5px;
+  background:var(--ac);color:var(--ac-tx);font-size:11px;font-weight:700;line-height:1}
+.msg-acoes{position:absolute;top:-9px;right:12px;display:flex;gap:1px;padding:2px;opacity:0;
+  background:var(--alto);border-radius:8px;box-shadow:var(--pop);transition:var(--t)}
+.msg:hover .msg-acoes,.msg:focus-within .msg-acoes{opacity:1}
+.msg-acoes button{width:24px;height:24px;display:grid;place-items:center;border-radius:6px;
+  color:var(--tx-3);transition:var(--t)}
+.msg-acoes button:hover{background:var(--hover);color:var(--tx)}
+.msg-acoes button.del:hover{color:var(--late)}
+.msg-cit{display:flex;align-items:center;gap:6px;max-width:100%;margin-bottom:2px;padding:1px 0;
+  font-size:11.5px;color:var(--tx-3);text-align:left;transition:var(--t)}
+.msg-cit:hover:not(:disabled){color:var(--tx-2)}
+.msg-cit:disabled{font-style:italic}
+.msg-cit svg{flex:none;opacity:.7}
+.msg-cit b{font-weight:600;flex:none}
+.msg-cit span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+@keyframes pisca{from{background:color-mix(in srgb,var(--ac) 22%,transparent)}}
+.msg.pisca{animation:pisca 1.4s ease-out}
 .msg-corpo{min-width:0}
 .msg-corpo p{margin:0;font-size:13.5px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
 
@@ -963,15 +984,22 @@ h1{font-weight:600;letter-spacing:-.032em}
 .sug-f{display:flex;justify-content:flex-end;gap:7px;margin-top:12px}
 
 /* ------------------------------------------------------------------ escrever */
-.chat-campo{flex:none;position:relative;display:flex;align-items:flex-end;gap:8px;
+.chat-campo{flex:none;display:flex;flex-direction:column;gap:8px;
   padding:12px 16px 14px;border-top:1px solid var(--line);background:var(--panel)}
+.chat-campo-linha{position:relative;display:flex;align-items:flex-end;gap:8px}
+.chat-resp{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:var(--r-sm);
+  background:var(--bg);box-shadow:inset 2px 0 0 var(--ac);font-size:12px;color:var(--tx-3)}
+.chat-resp svg{flex:none;opacity:.7}
+.chat-resp b{font-weight:600;color:var(--tx-2)}
+.chat-resp span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-resp .iconbtn{flex:none}
 .chat-campo textarea{flex:1;resize:none;border:0;background:var(--bg);box-shadow:0 0 0 1px var(--line-2);
   border-radius:var(--r);padding:9px 12px;font-size:13.5px;line-height:1.5;max-height:160px;
   min-height:38px;font-family:inherit;color:var(--tx)}
 .chat-campo textarea::placeholder{color:var(--tx-3)}
 .chat-campo textarea:focus{outline:none;box-shadow:0 0 0 1.5px var(--ac)}
 .chat-campo .btn.pri{height:38px;padding-inline:14px;flex:none}
-.mencoes{position:absolute;bottom:calc(100% + 6px);left:16px;background:var(--alto);border-radius:var(--r);
+.mencoes{position:absolute;bottom:calc(100% + 6px);left:0;background:var(--alto);border-radius:var(--r);
   box-shadow:var(--pop);padding:4px;min-width:210px;z-index:5}
 .mencoes button{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border-radius:6px;
   font-size:12.5px;text-align:left;color:var(--tx-2);transition:var(--t)}

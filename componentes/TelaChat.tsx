@@ -10,6 +10,7 @@ import { Ic } from './Icones'
 import { Av } from './atomos'
 import { curta, hojeIso, isoDe } from '@/lib/datas'
 import type { Canal, Mensagem, Sugestao, TipoProposta } from '@/lib/tipos'
+import { chama, pedacos } from '@/lib/mencao'
 
 const ROTULO: Record<TipoProposta, string> = {
   tarefa: 'Tarefa nova',
@@ -37,7 +38,7 @@ const marca = (c: Canal) =>
 // ------------------------------------------------------------------ lista
 
 function Lista({ atual }: { atual?: string }) {
-  const { canais, mensagens, naoLidas, sugestoesDe, todosFluxos, eu, perfilDe } = useDados()
+  const { canais, mensagens, naoLidas, meChamaram, sugestoesDe, todosFluxos, eu, perfilDe } = useDados()
   const { abrir } = useModais()
 
   /** A hora da última mensagem de cada canal, numa passada só. */
@@ -80,6 +81,7 @@ function Lista({ atual }: { atual?: string }) {
             <div className="chat-grupo">{g.rotulo}</div>
             {g.itens.map((c) => {
               const novas = naoLidas(c.id)
+              const chamadas = meChamaram(c.id)
               const propostas = sugestoesDe(c.id).filter((s) => s.estado === 'aberta').length
               const f = c.fluxo_id ? todosFluxos.find((x) => x.id === c.fluxo_id) : null
               return (
@@ -88,6 +90,7 @@ function Lista({ atual }: { atual?: string }) {
                   <span className="mk">{marca(c)}</span>
                   <span className="nm">{nomeDoCanal(c)}</span>
                   {!!propostas && <span className="pastilha" title="Propostas da leitura"><Ic.faisca /></span>}
+                  {!!chamadas && <span className="chamada" title="Chamaram você aqui">@</span>}
                   {!!novas && <span className="ct num hot">{novas > 9 ? '9+' : novas}</span>}
                   {f?.concluido && <span className="due">fim</span>}
                 </Link>
@@ -184,8 +187,12 @@ function CartaoSugestao({ s }: { s: Sugestao }) {
 
 // ------------------------------------------------------------- composição
 
-function Campo({ canalId }: { canalId: string }) {
-  const { enviar, perfis, eu } = useDados()
+function Campo({ canalId, respondendo, fecharResposta }: {
+  canalId: string
+  respondendo: Mensagem | null
+  fecharResposta: () => void
+}) {
+  const { enviar, perfis, eu, nomeDe } = useDados()
   const [texto, setTexto] = useState('')
   const [mencao, setMencao] = useState<string | null>(null)
   const area = useRef<HTMLTextAreaElement>(null)
@@ -229,17 +236,32 @@ function Campo({ canalId }: { canalId: string }) {
     area.current?.focus()
   }
 
+  // Quem clica em responder espera o cursor já no campo, sem um segundo clique.
+  useEffect(() => { if (respondendo) area.current?.focus() }, [respondendo])
+
   const mandar = async () => {
     const v = texto.trim()
     if (!v) return
     setTexto('')
     setMencao(null)
     if (area.current) area.current.style.height = 'auto'
-    await enviar(canalId, v)
+    await enviar(canalId, v, respondendo?.id ?? null)
+    fecharResposta()
   }
 
   return (
     <div className="chat-campo">
+      {respondendo && (
+        <div className="chat-resp">
+          <Ic.responder />
+          <span>
+            Respondendo <b>{nomeDe(respondendo.autor_id)}</b>: {respondendo.texto}
+          </span>
+          <button className="iconbtn" aria-label="Cancelar resposta"
+            onClick={fecharResposta}><Ic.x /></button>
+        </div>
+      )}
+      <div className="chat-campo-linha">
       {!!candidatos.length && (
         <div className="mencoes">
           {candidatos.map((p) => (
@@ -262,12 +284,16 @@ function Campo({ canalId }: { canalId: string }) {
             if (candidatos.length && mencao !== null) inserir(candidatos[0].nome)
             else void mandar()
           }
-          if (e.key === 'Escape') setMencao(null)
+          if (e.key === 'Escape') {
+            if (mencao !== null) setMencao(null)
+            else if (respondendo) fecharResposta()
+          }
         }}
       />
       <button className="btn pri" onClick={() => void mandar()} disabled={!texto.trim()} aria-label="Enviar">
         <Ic.enviar />
       </button>
+      </div>
     </div>
   )
 }
@@ -283,15 +309,28 @@ function Conversa({ canal }: { canal: Canal }) {
   const router = useRouter()
   const [lendo, setLendo] = useState(false)
   const [verFechadas, setVerFechadas] = useState(false)
+  const [respondendo, setRespondendo] = useState<Mensagem | null>(null)
   const rolo = useRef<HTMLDivElement>(null)
 
   const msgs = useMemo(() => mensagensDe(canal.id), [mensagensDe, canal.id])
+  const porId = useMemo(() => new Map(msgs.map((m) => [m.id, m])), [msgs])
+  const nomes = useMemo(() => perfis.map((p) => p.nome), [perfis])
   const sugs = useMemo(() => sugestoesDe(canal.id), [sugestoesDe, canal.id])
   const abertas = sugs.filter((s) => s.estado === 'aberta')
   const fechadas = sugs.filter((s) => s.estado !== 'aberta')
 
   const canalId = canal.id
   useEffect(() => { void marcarLido(canalId) }, [canalId, msgs.length, marcarLido])
+  useEffect(() => { setRespondendo(null) }, [canalId])
+
+  /** Leva a tela até a mensagem citada e pisca, para não se perder no meio da conversa. */
+  const irPara = (id: string) => {
+    const el = rolo.current?.querySelector(`#msg-${CSS.escape(id)}`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.add('pisca')
+    setTimeout(() => el.classList.remove('pisca'), 1400)
+  }
 
   useEffect(() => {
     const el = rolo.current
@@ -371,7 +410,9 @@ function Conversa({ canal }: { canal: Canal }) {
           </div>
         )}
 
-        {linhas.map(({ m, junto, dia }) => (
+        {linhas.map(({ m, junto, dia }) => {
+          const citada = m.responde_a ? porId.get(m.responde_a) ?? null : undefined
+          return (
           <div key={m.id}>
             {dia && <div className="chat-dia"><span>{diaDe(dia)}</span></div>}
             {m.sistema ? (
@@ -381,7 +422,8 @@ function Conversa({ canal }: { canal: Canal }) {
                 <i>{hora(m.criado_em)}</i>
               </div>
             ) : (
-              <div className={`msg ${junto ? 'junto' : ''}`}>
+              <div id={`msg-${m.id}`}
+                className={`msg ${junto ? 'junto' : ''} ${chama(m.texto, eu.nome) ? 'chamou' : ''}`}>
                 <span className="msg-av">
                   {junto ? <i className="msg-hora">{hora(m.criado_em)}</i> : <Av p={perfilDe(m.autor_id)} />}
                 </span>
@@ -390,18 +432,38 @@ function Conversa({ canal }: { canal: Canal }) {
                     <div className="msg-h">
                       <b>{nomeDe(m.autor_id)}</b>
                       <i>{hora(m.criado_em)}</i>
-                      {m.autor_id === eu.id && (
-                        <button className="msg-del" aria-label="Apagar mensagem"
-                          onClick={() => void apagarMensagem(m)}><Ic.x /></button>
-                      )}
                     </div>
                   )}
-                  <p>{m.texto}</p>
+                  {citada !== undefined && (
+                    <button className="msg-cit" disabled={!citada}
+                      onClick={() => citada && irPara(citada.id)}>
+                      <Ic.responder />
+                      {citada
+                        ? <><b>{nomeDe(citada.autor_id)}</b><span>{citada.texto}</span></>
+                        : <span>mensagem apagada</span>}
+                    </button>
+                  )}
+                  <p>
+                    {pedacos(m.texto, nomes).map((d, i) => (
+                      d.chamada
+                        ? <b key={i} className="arroba">{d.texto}</b>
+                        : <span key={i}>{d.texto}</span>
+                    ))}
+                  </p>
                 </div>
+                <span className="msg-acoes">
+                  <button aria-label="Responder" title="Responder"
+                    onClick={() => setRespondendo(m)}><Ic.responder /></button>
+                  {m.autor_id === eu.id && (
+                    <button className="del" aria-label="Apagar mensagem" title="Apagar"
+                      onClick={() => void apagarMensagem(m)}><Ic.x /></button>
+                  )}
+                </span>
               </div>
             )}
           </div>
-        ))}
+          )
+        })}
       </div>
 
       {(!!abertas.length || !!fechadas.length) && (
@@ -420,7 +482,8 @@ function Conversa({ canal }: { canal: Canal }) {
         </div>
       )}
 
-      <Campo canalId={canal.id} />
+      <Campo canalId={canal.id} respondendo={respondendo}
+        fecharResposta={() => setRespondendo(null)} />
     </section>
   )
 }
