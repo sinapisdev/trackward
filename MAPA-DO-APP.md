@@ -33,6 +33,7 @@ Sete peças. Tudo no app é combinação delas.
 | **Track** | Uma trilha do começo ao fim. Projeto ou rotina. | A esteira |
 | **Checkpoint** | Posto de conferência dentro da trilha. | A cancela |
 | **Tarefa** | O que alguém faz dentro de um checkpoint. | O item da lista |
+| **Anexo** | A prova de que a tarefa saiu. Fica preso à tarefa. | O comprovante grampeado |
 
 ### Track: os dois tipos
 
@@ -207,16 +208,49 @@ Dentro do checkpoint aberto: o critério de saída, a lista de tarefas com caixa
 marcar, responsável, prazo e ícone de cadeado quando é tarefa privada. Cada tarefa
 pode ser editada, removida ou ter dependências definidas.
 
-**O botão de aprovar** muda de texto conforme o caso: "Aprovar saída", "Aprovar e
-fechar volta" (rotina) ou "Aprovar e concluir projeto" (último checkpoint). Fica
-desabilitado enquanto faltar tarefa, enquanto a track estiver travada, e para quem
-não é o aprovador daquele checkpoint.
+Embaixo de cada tarefa ficam os **anexos** dela: o comprovante, o contrato assinado, a
+foto. Arrastar um arquivo em cima funciona, e no celular o botão abre a câmera junto da
+galeria. Imagem grande encolhe sozinha antes de subir, para 2000px de lado, o que numa
+foto de celular corta 4 MB para uns 300 KB sem tirar a legibilidade. PDF e planilha
+passam intactos. O limite é 10 MB por arquivo. Só quem pode concluir a tarefa pode
+anexar nela; remover é de quem anexou ou de quem responde pelo processo.
+
+**O botão de decidir** abre a tela de decisão, descrita abaixo. Fica desabilitado
+enquanto a track estiver travada e para quem não é o aprovador daquele checkpoint.
 
 No alto: "Editar esteira", "Travar" ou "Destravar" e excluir.
 
 Abaixo: **Voltas anteriores** (histórico de rotina, cada volta marcada como em dia ou
 atrasada) e **Atividade** (linha do tempo do que aconteceu, podada em 40 registros por
 track).
+
+### 4.4b Decidir a saída de um checkpoint
+
+O momento de maior valor do app, e o único lugar onde alguém assina embaixo.
+
+A tela mostra, de cima para baixo: o **critério** que a equipe combinou para aquele
+checkpoint; um placar com quantas entregas saíram, **quantas têm prova anexada** e
+quantas ainda estão em aberto; e a lista das tarefas, cada uma com quem fez, o prazo, os
+anexos abertos ali mesmo, e um aviso em laranja quando a entrega veio **sem prova**.
+
+Se aquele checkpoint já foi devolvido ou ressalvado antes, o histórico aparece no fim,
+com quem decidiu, quando e por quê.
+
+**Três saídas, em vez de uma:**
+
+| Saída | O que acontece |
+|---|---|
+| **Aprovar** | Segue para o próximo checkpoint |
+| **Aprovar com ressalva** | Segue, e a pendência **vira tarefa do próximo checkpoint**, com prazo e dono |
+| **Devolver** | Não segue. As tarefas que o aprovador marcar **voltam a ficar em aberto** |
+
+Devolver e ressalvar **exigem motivo escrito**, porque "devolvido" sozinho não diz a
+ninguém o que fazer. Aprovar continua exigindo o checklist completo; devolver não, porque
+devolver é justamente o caso em que está tudo marcado e o aprovador discorda.
+
+Tudo isso é validado no banco, na função `decidir_etapa`, não só na tela.
+
+No celular a tela sobe como folha, com as três saídas empilhadas.
 
 ### 4.5 Área (`/area/[id]`)
 
@@ -377,6 +411,10 @@ concluído.
 A regra: **cada pessoa vê o que é dela e o que trava o que é dela.** Quem tem gente
 abaixo vê também o trabalho dessa gente, para poder cobrar.
 
+**Quem aprova um checkpoint lê as tarefas dele**, e os anexos delas. Não é exceção à
+regra: é a definição de aprovar, ninguém dá aceite no que não pode ler. Tarefa privada
+continua fora.
+
 Uma track aparece para você quando você (ou alguém abaixo de você):
 - é autor ou dono
 - aprova algum checkpoint
@@ -398,7 +436,9 @@ abrir.
 | Desenhar checkpoints, critério e **prazo** | Quem manda no processo |
 | Editar tarefa (texto, responsável, remover) | Quem manda no processo, o autor da tarefa, ou o responsável |
 | **Marcar como feito** | O responsável, seu gestor, ou quem manda no processo |
-| **Aprovar checkpoint** | Só o aprovador daquele checkpoint |
+| **Decidir o checkpoint** (aprovar, ressalvar, devolver) | Só o aprovador daquele checkpoint |
+| **Anexar prova numa tarefa** | Quem pode concluir a tarefa |
+| **Remover um anexo** | Quem anexou, ou quem manda no processo |
 | Convidar, liberar e definir papel | Admin |
 
 "Quem manda no processo" = admin, ou autor, ou dono da track, ou o gestor do dono.
@@ -460,7 +500,12 @@ O que já está construído, da forma que grandes empresas de tecnologia fazem:
 - **Tarefa privada** (`priv`) só aparece para o autor e para quem manda no processo
 - A **chave da IA mora só no servidor**. O navegador manda a conversa e recebe
   propostas, nunca o contrário
-- Aprovação de checkpoint é validada **no Postgres** (`aprovar_etapa`), não só na tela
+- Decisão de checkpoint é validada **no Postgres** (`decidir_etapa`), não só na tela
+- **O anexo se abre exatamente quando a tarefa dele se abre.** O balde de arquivos é
+  fechado, nada é público, e cada leitura passa por uma URL assinada que vale 5 minutos.
+  Quem não pode ver a tarefa recebe 404, mesmo sabendo o endereço exato. O caminho do
+  arquivo começa pelo id da organização, o que barra no envio quem tentar escrever na
+  pasta de outra empresa
 
 O schema é validado rodando num Postgres local antes de ir para produção. Hoje passam
 9 testes de privacidade de chat, 10 de multi-organização e 7 de multi-espaço.
@@ -513,39 +558,37 @@ A lista para o UX cobrir.
    o app fechado, ninguém fica sabendo. Caminhos: notificação do navegador (de graça,
    computador e Android; no iPhone só se a pessoa adicionar o Track à tela de início) e
    resumo por e-mail
-3. **Anexo e foto na tarefa** não existem
-4. **Busca dentro da conversa** não existe
-5. **Editar a própria mensagem** não existe (só apagar)
-6. **Reações** não existem
-7. **`@todos`** para chamar o canal inteiro não existe
-8. **O quadro não arrasta.** Mover checkpoint é por botão (antes, depois), não por
+3. **Busca dentro da conversa** não existe
+4. **Editar a própria mensagem** não existe (só apagar)
+5. **Reações** não existem
+6. **`@todos`** para chamar o canal inteiro não existe
+7. **O quadro não arrasta.** Mover checkpoint é por botão (antes, depois), não por
    arrastar o nó
-9. **Não há ramificação no quadro.** A trilha é uma linha reta: não existe o losango
+8. **Não há ramificação no quadro.** A trilha é uma linha reta: não existe o losango
    "deu certo? sim / não" com caminhos diferentes. Isso é mudança no modelo de dados,
    não só na tela
-10. **As telas `/projetos` e `/areas` ficaram órfãs.** Elas têm filtros por pessoa,
-    agrupamento por situação, área ou empresa, e uma agenda de 7 dias que a tela Tracks
-    não tem. Ou esses filtros entram no Tracks, ou as duas telas se aposentam
+9. **As telas `/projetos` e `/areas` ficaram órfãs.** Elas têm filtros por pessoa,
+   agrupamento por situação, área ou empresa, e uma agenda de 7 dias que a tela Tracks
+   não tem. Ou esses filtros entram no Tracks, ou as duas telas se aposentam
 
 ### Pedidos já feitos e ainda não construídos
 
-11. **Dashboard de produtividade e KPIs**
-12. **Trilha de checkpoint dentro da tarefa**, em versão futurista
-13. **Tela de decisão antes de aprovar** um checkpoint
-14. **Distribuição de tarefas com IA** (faz sentido agora que os processos existem e dão
+10. **Dashboard de produtividade e KPIs**
+11. **Trilha de checkpoint dentro da tarefa**, em versão futurista
+12. **Distribuição de tarefas com IA** (faz sentido agora que os processos existem e dão
     de onde aprender)
-15. **Cascata de prazo nas dependências**: mexeu num, os que dependem andam junto
-16. **Modelos por setor** no primeiro cadastro
-17. **Integração com WhatsApp**, adiada de propósito em 21/09/2026. Entrada livre e
+13. **Cascata de prazo nas dependências**: mexeu num, os que dependem andam junto
+14. **Modelos por setor** no primeiro cadastro
+15. **Integração com WhatsApp**, adiada de propósito em 21/09/2026. Entrada livre e
     saída racionada é o desenho recomendado
-18. **As três telas de segurança**: log de acesso, exportar tudo, excluir organização.
+16. **As três telas de segurança**: log de acesso, exportar tudo, excluir organização.
     São o que um cliente grande pede antes de assinar
-19. **App nativo de celular**
+17. **App nativo de celular**
 
 ### Pendências fora do código
 
-20. Criar o projeto no Supabase (região São Paulo), rodar o `schema.sql`, desligar
+18. Criar o projeto no Supabase (região São Paulo), rodar o `schema.sql`, desligar
     "Confirm email" e trazer a Project URL e a anon key
-21. Criar as contas de GitHub e Vercel para publicar
-22. Configurar a `ANTHROPIC_API_KEY` para a leitura da conversa sair das regras e passar
+19. Criar as contas de GitHub e Vercel para publicar
+20. Configurar a `ANTHROPIC_API_KEY` para a leitura da conversa sair das regras e passar
     para o modelo
