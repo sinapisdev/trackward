@@ -777,35 +777,90 @@ h1{font-weight:600;letter-spacing:-.032em}
    A do corrente vai enchendo conforme o checklist anda.
    ========================================================================== */
 
-.trilha-wrap{overflow-x:auto; margin:0 0 22px; padding:2px 2px 6px}
-.trilha{list-style:none; margin:0; padding:0; display:grid; grid-auto-flow:column;
-  grid-auto-columns:minmax(104px,1fr); min-width:max-content; width:100%}
-.etapa{position:relative; display:flex; flex-direction:column; align-items:center; gap:9px;
-  padding-top:2px; text-align:center}
+/* ----------------------------------------------------------------- trilho
+   O trilho da esteira dentro da track: uma linha contínua com a parte andada
+   acesa, as estações em cima dela, e a da vez maior que as outras. O anel da
+   estação corrente enche conforme o checklist anda.
+   -------------------------------------------------------------------------- */
 
-/* as barrinhas que ligam uma bolinha à próxima */
-.etapa::before,.etapa::after{content:""; position:absolute; top:9px; height:1.5px;
-  border-radius:1px; background:var(--line-2)}
-.etapa::before{left:0; right:calc(50% + 11px)}
-.etapa::after{left:calc(50% + 11px); right:0}
-.etapa:first-child::before,.etapa:last-child::after{display:none}
-.etapa.feita::before,.etapa.feita::after,.etapa.corrente::before{background:var(--tx-3)}
+.trilho-linha{position:relative;margin:0 0 24px;padding:16px 0 4px;border-radius:var(--r-lg);
+  background:var(--vidro);backdrop-filter:blur(10px) saturate(1.15);
+  box-shadow:inset 0 0 0 1px var(--vidro-linha)}
+.trilho-rolo{overflow-x:auto;overflow-y:hidden;padding:0 18px 12px;scrollbar-width:thin}
 
-.etapa .marca{width:16px; height:16px; display:grid; place-items:center; position:relative; z-index:1;
-  background:var(--bg); padding:0 4px; box-sizing:content-box}
-.etapa .rot{text-align:center; min-width:0; padding:0 6px; line-height:1.35; width:100%}
-.etapa .rot b{display:block; font-weight:500; font-size:12.5px; color:var(--tx-3); transition:var(--t);
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.etapa .rot small{display:block; font-size:11px; color:var(--tx-3); margin-top:1px;
-  font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.etapa.feita .rot b{color:var(--tx-2)}
-.etapa.corrente .rot b{color:var(--tx); font-weight:700}
-.etapa.sel .rot b{color:var(--tx)}
-.etapa .rot:hover b{color:var(--tx)}
-.etapa.sel::after,.etapa.sel::before{}
-.etapa.sel .rot::after{content:""; display:block; width:16px; height:2px; border-radius:2px;
-  background:var(--tx); margin:6px auto 0}
-.etapa .quando{display:none}
+.estacoes{list-style:none;margin:0;padding:0;position:relative;display:flex;
+  align-items:flex-start;min-width:max-content}
+
+/* o trilho por baixo: o sulco inteiro, e por cima a parte andada, acesa */
+.estacoes::before,.estacoes::after{content:'';position:absolute;top:13px;height:3px;
+  border-radius:2px;pointer-events:none}
+.estacoes::before{left:calc(50% / var(--n,4));right:calc(50% / var(--n,4));background:var(--line-2)}
+.estacoes::after{left:calc(50% / var(--n,4));
+  width:calc((100% - 100% / var(--n,4)) * var(--andado,0));
+  background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 55%,transparent),var(--ac));
+  box-shadow:0 0 14px -1px color-mix(in srgb,var(--ac) 70%,transparent);
+  transition:width .5s cubic-bezier(.22,1,.36,1)}
+.trilho-linha.travado .estacoes::after{background:var(--late);box-shadow:none}
+.trilho-linha.fim .estacoes::after{width:calc(100% - 100% / var(--n,4))}
+
+.est{flex:1;min-width:112px;display:flex;flex-direction:column;align-items:center;position:relative}
+.est > button,.est.chegada{display:flex;flex-direction:column;align-items:center;gap:8px;
+  width:100%;padding:0 6px;color:inherit;transition:var(--t)}
+.est-marca{position:relative;display:grid;place-items:center;width:30px;height:30px;
+  border-radius:50%;background:var(--bg);box-shadow:0 0 0 5px var(--bg)}
+
+/* aprovada: selo cheio */
+.est-ok{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;
+  background:var(--ac);color:var(--ac-tx)}
+.est-ok svg{width:13px;height:13px}
+
+/* da vez: anel que enche, com halo */
+.est-anel{width:30px;height:30px;overflow:visible}
+.trilho-vazio{fill:var(--panel);stroke:var(--line-2);stroke-width:2.4}
+.trilho-cheio{fill:none;stroke:var(--ac);stroke-width:2.6;stroke-linecap:round;
+  transition:stroke-dasharray .5s cubic-bezier(.22,1,.36,1)}
+.trilho-miolo{fill:var(--ac)}
+.trilho-linha.travado .trilho-cheio,.trilho-linha.travado .trilho-miolo{stroke:var(--late);fill:var(--late)}
+.est.vez .est-marca::after{content:'';position:absolute;inset:-6px;border-radius:50%;
+  background:radial-gradient(closest-side,color-mix(in srgb,var(--ac) 30%,transparent),transparent 72%);
+  animation:respira 2.8s ease-in-out infinite;pointer-events:none}
+.trilho-linha.travado .est.vez .est-marca::after{
+  background:radial-gradient(closest-side,color-mix(in srgb,var(--late) 30%,transparent),transparent 72%)}
+@keyframes respira{0%,100%{opacity:.55;transform:scale(.94)}50%{opacity:1;transform:scale(1.06)}}
+
+/* ainda não chegou */
+.est-oca{width:13px;height:13px;border-radius:50%;background:var(--panel);
+  box-shadow:0 0 0 2.2px var(--line-2)}
+
+/* já voltou atrás uma vez */
+.est-voltou{position:absolute;top:0;right:0;width:9px;height:9px;border-radius:50%;
+  background:var(--late);box-shadow:0 0 0 2.5px var(--bg)}
+
+.est-bandeira{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;
+  color:var(--tx-3);box-shadow:0 0 0 2px var(--line-2)}
+.est-bandeira svg{width:12px;height:12px}
+.est-bandeira.on{background:var(--ac);color:var(--ac-tx);box-shadow:none}
+
+.est-txt{text-align:center;min-width:0;width:100%;line-height:1.3}
+.est-txt b{display:block;font-size:12.5px;font-weight:500;color:var(--tx-3);transition:var(--t);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.012em}
+.est-txt small{display:block;font-size:10.5px;color:var(--tx-3);margin-top:1px;
+  font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.est.feita .est-txt b{color:var(--tx-2)}
+.est.vez .est-txt b{color:var(--tx);font-weight:700;font-size:13px}
+.est > button:hover .est-txt b{color:var(--tx)}
+.est > button:hover .est-marca{transform:translateY(-1px)}
+.est > button:focus-visible{outline:2px solid var(--ac);outline-offset:3px;border-radius:10px}
+
+/* o aberto embaixo ganha um traço, que é o que liga o trilho ao conteúdo */
+.est.sel .est-txt::after{content:'';display:block;width:18px;height:2px;border-radius:2px;
+  background:var(--ac);margin:7px auto 0}
+.est.sel .est-txt b{color:var(--tx)}
+
+@media (max-width:620px){
+  .trilho-rolo{padding-inline:12px}
+  .est{min-width:96px}
+}
 
 .loopnote{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--tx-3);margin:-14px 0 20px 2px}
 

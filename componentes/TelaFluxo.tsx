@@ -11,44 +11,15 @@ import { Av, IconeStatus } from './atomos'
 import { classePrazo } from './partes'
 import { Anexos } from './Anexos'
 import { Decisao } from './Decisao'
+import { Trilha } from './Trilha'
 import { curta, isoDe, rel } from '@/lib/datas'
-import { fracao, LBL, progresso, proxPrazo, status } from '@/lib/regras'
+import { LBL, progresso, proxPrazo, status } from '@/lib/regras'
 import { mandaNoProcesso, podeConcluir, podeMexerNoItem } from '@/lib/acesso'
 import { useMemo } from 'react'
 
-/**
- * A bolinha do checkpoint: vazada quando ainda não chegou, enchendo conforme o
- * checklist do corrente anda, e sólida depois de aprovada.
- */
-function Bolinha({ estado, p = 0, cor }: { estado: 'feita' | 'corrente' | 'futura'; p?: number; cor: string }) {
-  if (estado === 'feita') {
-    return (
-      <svg width="16" height="16" viewBox="0 0 16 16">
-        <circle cx="8" cy="8" r="5" fill="var(--tx-3)" />
-      </svg>
-    )
-  }
-  if (estado === 'futura') {
-    return (
-      <svg width="16" height="16" viewBox="0 0 16 16">
-        <circle cx="8" cy="8" r="4.6" fill="var(--panel)" stroke="var(--line-2)" strokeWidth="1.5" />
-      </svg>
-    )
-  }
-  const circ = 2 * Math.PI * 3
-  const cheio = (Math.max(p, 0) * circ).toFixed(2)
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16">
-      <circle cx="8" cy="8" r="6.4" fill="var(--panel)" stroke={cor} strokeWidth="1.6" />
-      <circle cx="8" cy="8" r="3" fill="none" stroke={cor} strokeWidth="6"
-        strokeDasharray={`${cheio} ${circ}`} transform="rotate(-90 8 8)" />
-    </svg>
-  )
-}
-
 export function TelaFluxo({ id }: { id: string }) {
   const { eu, perfis, fluxos, carregando, areaDe, perfilDe, nomeDe, totalItens,
-    alternarItem, excluirItem, excluirFluxo, destravar } = useDados()
+    alternarItem, excluirItem, excluirFluxo, destravar, decisoesDe } = useDados()
   const { abrir } = useModais()
   const router = useRouter()
   const [sel, setSel] = useState<number | null>(null)
@@ -161,34 +132,7 @@ export function TelaFluxo({ id }: { id: string }) {
         </div>
       )}
 
-      <div className="trilha-wrap">
-        <ol className="trilha">
-          {f.etapas.map((et, k) => {
-            const feita = f.concluido || k < f.atual
-            const corrente = k === f.atual && !f.concluido
-            const cor = st === 'late' ? 'var(--late)' : st === 'soon' ? 'var(--warn-forte)'
-              : st === 'hold' ? 'var(--tx-2)' : 'var(--ac)'
-            return (
-              <li key={et.id}
-                className={`etapa ${feita ? 'feita' : ''} ${corrente ? 'corrente' : ''} ${idx === k ? 'sel' : ''}`}>
-                <span className="marca">
-                  <Bolinha estado={feita ? 'feita' : corrente ? 'corrente' : 'futura'}
-                    p={corrente ? fracao(et) : 0} cor={cor} />
-                </span>
-                <button className="rot" onClick={() => setSel(k)}>
-                  <b>{et.nome}</b>
-                  <small>
-                    {feita ? 'Aprovado'
-                      : corrente ? (et.prazo ? rel(et.prazo) : 'em curso')
-                      : (et.prazo ? curta(et.prazo) : 'sem prazo')}
-                    {corrente && !!et.itens.length && ` · ${et.itens.filter((x) => x.feito).length}/${et.itens.length}`}
-                  </small>
-                </button>
-              </li>
-            )
-          })}
-        </ol>
-      </div>
+      <Trilha f={f} sel={idx} aoEscolher={setSel} decisoes={decisoesDe(f.id)} />
 
       {f.tipo === 'ciclo' && (
         <div className="loopnote">
