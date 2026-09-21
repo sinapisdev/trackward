@@ -8,8 +8,10 @@ import { hojeIso } from '@/lib/datas'
 import { proxPeriodo } from '@/lib/modelos'
 import type { RascunhoEtapa } from '@/lib/modelos'
 import { etapaAtual } from '@/lib/regras'
-import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta } from '@/lib/tipos'
+import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta, Anexo, Decisao, TipoDecisao,
+  } from '@/lib/tipos'
 import { chama } from '@/lib/mencao'
+import { nomeLimpo, preparar, LIMITE, tamanhoLegivel } from '@/lib/anexos'
 import type { Contexto as ContextoLeitura, Proposta } from '@/lib/leitor'
 import type { Alvo } from '@/lib/tipos'
 import { iso } from '@/lib/datas'
@@ -68,6 +70,17 @@ type Contexto = {
   excluirItem: (item: Item) => Promise<void>
   alternarItem: (item: Item) => Promise<void>
   aprovar: (f: Fluxo) => Promise<void>
+  /** Os anexos de uma tarefa, que são a prova de que ela saiu. */
+  anexosDe: (itemId: string) => Anexo[]
+  anexar: (item: Item, arquivos: FileList | File[]) => Promise<void>
+  removerAnexo: (a: Anexo) => Promise<void>
+  /** URL temporária para abrir o arquivo. Vale poucos minutos, de propósito. */
+  abrirAnexo: (a: Anexo) => Promise<string | null>
+  /** O que já foi decidido em cada checkpoint desta esteira. */
+  decisoesDe: (fluxoId: string) => Decisao[]
+  decidir: (f: Fluxo, d: {
+    tipo: TipoDecisao; nota?: string; reabrir?: string[]; prazo?: string | null
+  }) => Promise<boolean>
   salvarPerfil: (id: string, d: Partial<Perfil>) => Promise<void>
   salvarEmpresa: (d: { id?: string; nome: string; sigla: string; cor: string }) => Promise<void>
   excluirEmpresa: (id: string) => Promise<void>
@@ -148,6 +161,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [minhaAgendaExterna, setMinhaExterna] = useState<AgendaExterna | null>(null)
   const [processos, setProcessos] = useState<Processo[]>([])
   const [convites, setConvites] = useState<Convite[]>([])
+  const [anexos, setAnexos] = useState<Anexo[]>([])
+  const [decisoes, setDecisoes] = useState<Decisao[]>([])
   const [canais, setCanais] = useState<Canal[]>([])
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [sugestoes, setSugestoes] = useState<Sugestao[]>([])
@@ -181,7 +196,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   /** Recolhe tudo que a pessoa pode ver e monta a árvore de fluxos. */
   const carregar = useCallback(async () => {
-    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp] = await Promise.all([
+    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec] = await Promise.all([
       sb.from('perfis').select('*').order('nome'),
       sb.from('areas').select('*').order('ordem'),
       sb.from('fluxos').select('*').order('criado_em'),
@@ -207,6 +222,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       sb.from('mensagens').select('*').order('criado_em'),
       sb.from('sugestoes').select('*').order('criado_em', { ascending: false }),
       sb.rpc('meus_espacos'),
+      sb.from('anexos').select('*').order('criado_em'),
+      sb.from('decisoes').select('*').order('criado_em', { ascending: false }),
     ])
 
     const listaPerfis = (p.data || []) as Perfil[]
@@ -338,6 +355,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       })),
     )
     setConvites((cvt.data || []) as Convite[])
+    setAnexos((anx.data || []) as Anexo[])
+    setDecisoes((dec.data || []) as Decisao[])
     setEspacos((esp.data || []) as Espaco[])
 
     // Canal: a lista de membros vem junto, e com ela a minha marca de leitura.
@@ -554,6 +573,97 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     }
     recarregar()
   }, [sb, falhou, toast, recarregar, logar])
+
+  // ------------------------------------------------------------- anexos
+
+  const porItem = useMemo(() => {
+    const m = new Map<string, Anexo[]>()
+    for (const a of anexos) {
+      const lista = m.get(a.item_id)
+      if (lista) lista.push(a)
+      else m.set(a.item_id, [a])
+    }
+    return m
+  }, [anexos])
+
+  const anexosDe = useCallback((itemId: string) => porItem.get(itemId) || [], [porItem])
+
+  const anexar: Contexto['anexar'] = useCallback(async (item, arquivos) => {
+    const lista = Array.from(arquivos)
+    if (!lista.length) return
+    if (!org.id) return falhou(null, 'Organização ainda carregando. Tente de novo.')
+
+    let subiram = 0
+    for (const cru of lista) {
+      const arquivo = await preparar(cru)
+      if (arquivo.size > LIMITE) {
+        toast(`${cru.name} tem ${tamanhoLegivel(arquivo.size)}. O limite é ${tamanhoLegivel(LIMITE)}.`, true)
+        continue
+      }
+      // O caminho começa pelo id da organização: é o que a política do Storage
+      // confere no envio, antes de olhar qualquer outra coisa.
+      const caminho = `${org.id}/${item.fluxo_id}/${item.id}/${Date.now()}-${nomeLimpo(arquivo.name)}`
+      const { error: erroArquivo } = await sb.storage.from('anexos').upload(caminho, arquivo)
+      if (erroArquivo) { falhou(erroArquivo, `Não foi possível enviar ${cru.name}.`); continue }
+
+      const { error } = await sb.from('anexos').insert({
+        item_id: item.id, fluxo_id: item.fluxo_id, nome: arquivo.name,
+        tipo: arquivo.type, tamanho: arquivo.size, caminho, autor_id: eu.id,
+      })
+      if (error) {
+        // A linha não entrou, então o arquivo sozinho não serve para nada.
+        await sb.storage.from('anexos').remove([caminho])
+        falhou(error, `Não foi possível anexar ${cru.name}.`)
+        continue
+      }
+      subiram++
+    }
+    if (subiram) toast(subiram === 1 ? 'Anexo guardado.' : `${subiram} anexos guardados.`)
+    recarregar()
+  }, [sb, eu.id, org.id, falhou, toast, recarregar])
+
+  const removerAnexo: Contexto['removerAnexo'] = useCallback(async (a) => {
+    const { error } = await sb.from('anexos').delete().eq('id', a.id)
+    if (error) return falhou(error, 'Só quem anexou, ou quem responde pela esteira, pode remover.')
+    await sb.storage.from('anexos').remove([a.caminho])
+    recarregar()
+  }, [sb, falhou, recarregar])
+
+  const abrirAnexo: Contexto['abrirAnexo'] = useCallback(async (a) => {
+    const { data, error } = await sb.storage.from('anexos').createSignedUrl(a.caminho, 300)
+    if (error || !data?.signedUrl) { falhou(error, 'Não foi possível abrir o arquivo.'); return null }
+    return data.signedUrl
+  }, [sb, falhou])
+
+  // ----------------------------------------------------------- decisões
+
+  const decisoesDe = useCallback(
+    (fluxoId: string) => decisoes.filter((d) => d.fluxo_id === fluxoId),
+    [decisoes],
+  )
+
+  const decidir: Contexto['decidir'] = useCallback(async (f, d) => {
+    const et = etapaAtual(f)
+    const proxima = f.etapas[f.atual + 1]
+    const { data, error } = await sb.rpc('decidir_etapa', {
+      p_fluxo: f.id,
+      p_tipo: d.tipo,
+      p_nota: d.nota || '',
+      p_reabrir: d.reabrir || [],
+      p_periodo: f.tipo === 'ciclo' ? proxPeriodo(f.periodo, f.freq) : null,
+      p_prazo: d.prazo || null,
+    })
+    if (error) { falhou(error, 'Não foi possível registrar a decisão.'); return false }
+    if (data === 'devolveu') toast(`${et?.nome} devolvido. Quem responde já foi avisado na esteira.`)
+    else if (data === 'avancou') {
+      toast(d.tipo === 'ressalva'
+        ? `${et?.nome} aprovado com ressalva. A pendência virou tarefa em ${proxima?.nome}.`
+        : `${et?.nome} aprovado. Avançou para ${proxima?.nome}.`)
+    } else if (data === 'volta') toast(`${f.periodo} fechada. ${proxPeriodo(f.periodo, f.freq)} iniciada.`)
+    else toast('Projeto concluído.')
+    recarregar()
+    return true
+  }, [sb, falhou, toast, recarregar])
 
   const aprovar: Contexto['aprovar'] = useCallback(async (f) => {
     const et = etapaAtual(f)
@@ -1032,6 +1142,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     salvarProcesso, excluirProcesso, duplicarProcesso, criarDoProcesso,
     criarConvite, excluirConvite,
     canais, mensagens, sugestoes, mensagensDe, sugestoesDe, naoLidas, meChamaram,
+    anexosDe, anexar, removerAnexo, abrirAnexo, decisoesDe, decidir,
     enviar, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
     lerConversa, aceitarSugestao, recusarSugestao,
     espacos, trocarEspaco, abrirEspaco,

@@ -217,6 +217,31 @@ export const Ic = {
         strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
+  clipe: () => (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <path d="M12.4 7.4 7.9 11.9a2.9 2.9 0 0 1-4.1-4.1l4.9-4.9a1.9 1.9 0 0 1 2.7 2.7l-4.9 4.9a.9.9 0 0 1-1.3-1.3l4.3-4.3"
+        strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  foto: () => (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <rect x="2" y="3.4" width="12" height="9.2" rx="1.6" />
+      <circle cx="6" cy="6.6" r="1.1" />
+      <path d="m3 11.4 3.1-2.9 2.2 2 2-1.7 2.7 2.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  devolver: () => (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M6.6 3.4 3 7l3.6 3.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3 7h5.8A4.2 4.2 0 0 1 13 11.2v1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  ressalva: () => (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <circle cx="8" cy="8" r="5.6" />
+      <path d="M8 5.2v3.4M8 10.7v.1" strokeLinecap="round" />
+    </svg>
+  ),
   responder: () => (
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
       <path d="M6.4 3.6 2.6 7.2l3.8 3.6" strokeLinecap="round" strokeLinejoin="round" />

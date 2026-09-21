@@ -1,6 +1,7 @@
 'use client'
 
 import { dias, hojeIso, soma } from '@/lib/datas'
+import { buscar, guardar, jogarFora } from './arquivos'
 import { semente, type Base, type Linha } from './semente'
 
 // Chaves novas de propósito: o exemplo antigo era de uma construtora, e o Track
@@ -13,13 +14,14 @@ const CHAVE_EU = 'track.local.eu'
 const CHAVE_USUARIO = 'track.local.user'
 const CHAVE_VERSAO = 'track.local.versao'
 /** Sobe quando o exemplo ganha tabelas novas. Ver completar(). */
-const VERSAO = 3
+const VERSAO = 4
 const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], fluxos: [], etapas: [], itens: [],
   dependencias: [], processos: [], processo_etapas: [], processo_itens: [], fluxo_pessoas: [],
   convites: [],
   canais: [], canal_membros: [], mensagens: [], sugestoes: [],
   compromissos: [], convidados: [], agendas_externas: [], ocupacao_externa: [],
-  historico: [], atividades: [] }
+  historico: [], atividades: [],
+  anexos: [], decisoes: [] }
 
 let base: Base | null = null
 const ouvintes = new Set<() => void>()
@@ -472,7 +474,15 @@ function salvarFluxo(pFluxo: Linha, pEtapas: Linha[]): string {
   return id
 }
 
-function aprovarEtapa(fluxoId: string, periodo: string | null): string {
+/** Espelha decidir_etapa() do banco. Ver a seção 7 de supabase/schema.sql. */
+function decidirEtapa(
+  fluxoId: string,
+  tipo: string,
+  nota: string,
+  reabrir: string[],
+  periodo: string | null,
+  prazo: string | null,
+): string {
   const b = ler()
   const eu = euLocal()
   const f = b.fluxos.find((x) => x.id === fluxoId)
@@ -484,14 +494,49 @@ function aprovarEtapa(fluxoId: string, periodo: string | null): string {
   const etapas = b.etapas.filter((x) => x.fluxo_id === f.id).sort((a, x) => Number(a.ordem) - Number(x.ordem))
   const et = etapas[Number(f.atual)]
   if (!et) throw new Error('Checkpoint não encontrado.')
-  if (et.aprovador_id !== eu) throw new Error('Somente o aprovador deste checkpoint pode aprovar a saída.')
+  if (et.aprovador_id !== eu) throw new Error('Somente o aprovador deste checkpoint pode decidir a saída.')
+  if (!['aprovou', 'ressalva', 'devolveu'].includes(tipo)) throw new Error('Decisão desconhecida.')
+  if (tipo !== 'aprovou' && !nota.trim()) {
+    throw new Error('Escreva o motivo: quem recebe precisa saber o que fazer.')
+  }
+
+  const anotar = (t: string) => {
+    b.decisoes.push({
+      id: uid('d'), fluxo_id: f.id, etapa_id: et.id, quem_id: eu,
+      tipo: t, nota: nota.trim(), criado_em: agora(),
+    })
+  }
+
+  // Devolver para em cima do mesmo checkpoint e reabre o que foi apontado.
+  if (tipo === 'devolveu') {
+    const alvo = new Set(reabrir)
+    b.itens.forEach((i) => { if (i.etapa_id === et.id && alvo.has(i.id as string)) i.feito = false })
+    anotar('devolveu')
+    logar(f.id as string, eu, `devolveu ${et.nome}: ${nota.trim()}`)
+    gravar()
+    return 'devolveu'
+  }
 
   const pendente = b.itens.some(
     (i) => i.etapa_id === et.id && !i.feito && (!i.priv || i.autor_id === eu),
   )
   if (pendente) throw new Error('Ainda existem itens pendentes neste checkpoint.')
 
-  logar(f.id as string, eu, `aprovou a saída de ${et.nome}`)
+  anotar(tipo)
+  logar(f.id as string, eu, tipo === 'ressalva'
+    ? `aprovou ${et.nome} com ressalva: ${nota.trim()}`
+    : `aprovou a saída de ${et.nome}`)
+
+  // A ressalva vira tarefa do checkpoint seguinte, senão ninguém cobra dela.
+  const seguinte = etapas[Number(f.atual) + 1]
+  if (tipo === 'ressalva' && seguinte) {
+    const ordem = b.itens.filter((i) => i.etapa_id === seguinte.id).length
+    b.itens.push({
+      id: uid('i'), etapa_id: seguinte.id, fluxo_id: f.id,
+      texto: `Ressalva: ${nota.trim()}`, resp_id: f.dono_id, prazo: prazo || null,
+      feito: false, priv: false, autor_id: eu, ordem, criado_em: agora(),
+    })
+  }
 
   if (Number(f.atual) < etapas.length - 1) {
     f.atual = Number(f.atual) + 1
@@ -528,6 +573,9 @@ function aprovarEtapa(fluxoId: string, periodo: string | null): string {
   gravar()
   return 'concluido'
 }
+
+const aprovarEtapa = (fluxoId: string, periodo: string | null) =>
+  decidirEtapa(fluxoId, 'aprovou', '', [], periodo, null)
 
 /** Grava o processo inteiro, casando pelo id o que já existia. */
 function salvarProcesso(pProc: Linha, pEtapas: Linha[]): string {
@@ -841,6 +889,19 @@ function montarCliente() {
           }
           return { data: saida, error: null }
         }
+        if (nome === 'decidir_etapa') {
+          return {
+            data: decidirEtapa(
+              args.p_fluxo as string,
+              String(args.p_tipo || 'aprovou'),
+              String(args.p_nota || ''),
+              (args.p_reabrir as string[]) || [],
+              (args.p_periodo as string) || null,
+              (args.p_prazo as string) || null,
+            ),
+            error: null,
+          }
+        }
         if (nome === 'aprovar_etapa') {
           return { data: aprovarEtapa(args.p_fluxo as string, (args.p_periodo as string) || null), error: null }
         }
@@ -874,6 +935,33 @@ function montarCliente() {
       },
       async updateUser(_dados?: unknown) { return { data: null, error: { message: SO_REAL } } },
       async resetPasswordForEmail(_email?: string, _opcoes?: unknown) { return { data: null, error: { message: SO_REAL } } },
+    },
+    /**
+     * O balde de arquivos. Mesma superfície do Storage do Supabase, para o app
+     * chamar igual nos dois mundos: envia, pede o endereço para abrir, e apaga.
+     */
+    storage: {
+      from(_balde: string) {
+        return {
+          async upload(caminho: string, arquivo: Blob) {
+            try {
+              await guardar(caminho, arquivo)
+              return { data: { path: caminho }, error: null }
+            } catch (e) {
+              return { data: null, error: { message: (e as Error).message } }
+            }
+          },
+          async createSignedUrl(caminho: string, _segundos?: number) {
+            const b = await buscar(caminho)
+            if (!b) return { data: null, error: { message: 'Arquivo não encontrado.' } }
+            return { data: { signedUrl: URL.createObjectURL(b) }, error: null }
+          },
+          async remove(caminhos: string[]) {
+            for (const c of caminhos) await jogarFora(c)
+            return { data: null, error: null }
+          },
+        }
+      },
     },
     channel(_nome?: string) {
       const canal = {

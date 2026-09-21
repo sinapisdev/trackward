@@ -9,6 +9,8 @@ import { Carregando } from './Shell'
 import { Ic } from './Icones'
 import { Av, IconeStatus } from './atomos'
 import { classePrazo } from './partes'
+import { Anexos } from './Anexos'
+import { Decisao } from './Decisao'
 import { curta, isoDe, rel } from '@/lib/datas'
 import { fracao, LBL, progresso, proxPrazo, status } from '@/lib/regras'
 import { mandaNoProcesso, podeConcluir, podeMexerNoItem } from '@/lib/acesso'
@@ -46,10 +48,11 @@ function Bolinha({ estado, p = 0, cor }: { estado: 'feita' | 'corrente' | 'futur
 
 export function TelaFluxo({ id }: { id: string }) {
   const { eu, perfis, fluxos, carregando, areaDe, perfilDe, nomeDe, totalItens,
-    alternarItem, excluirItem, excluirFluxo, destravar, aprovar } = useDados()
+    alternarItem, excluirItem, excluirFluxo, destravar } = useDados()
   const { abrir } = useModais()
   const router = useRouter()
   const [sel, setSel] = useState<number | null>(null)
+  const [decidindo, setDecidindo] = useState(false)
 
   /** Índice de todas as tarefas que enxergo, para resolver quem trava quem. */
   const porId = useMemo(() => {
@@ -93,9 +96,7 @@ export function TelaFluxo({ id }: { id: string }) {
   const mandaAqui = mandaNoProcesso(eu, f, perfis)
   const ocultos = Math.max(0, totalItens(f.id) - f.etapas.reduce((n, et) => n + et.itens.length, 0))
 
-  const rotuloAcao = f.tipo === 'ciclo' && ultimo
-    ? 'Aprovar e fechar volta'
-    : ultimo ? 'Aprovar e concluir projeto' : 'Aprovar saída'
+  const rotuloAcao = 'Decidir a saída'
 
   let nota
   if (passado) nota = <><span style={{ color: 'var(--ok)' }}><Ic.check /></span>Aprovado</>
@@ -232,7 +233,8 @@ export function TelaFluxo({ id }: { id: string }) {
               const bloqueada = abertas.length > 0
               const meu = podeMexerNoItem(eu, f, x, perfis)
               return (
-                <div className={`it ${x.feito ? 'f' : ''}`} key={x.id}>
+                <div className="it-bloco" key={x.id}>
+                <div className={`it ${x.feito ? 'f' : ''}`}>
                   <button className={`ck ${x.feito ? 'on' : ''}`}
                     disabled={!naAtual || travado || bloqueada || !podeConcluir(eu, f, x, perfis)}
                     onClick={() => void alternarItem(x)}
@@ -269,6 +271,8 @@ export function TelaFluxo({ id }: { id: string }) {
                     )}
                   </span>
                 </div>
+                <Anexos item={x} podeAnexar={!passado && !travado && podeConcluir(eu, f, x, perfis)} />
+                </div>
               )
             })}
 
@@ -290,9 +294,9 @@ export function TelaFluxo({ id }: { id: string }) {
             <div className="cp-f">
               <span className="note">{nota}</span>
               {naAtual && (
-                <button className="btn pri" onClick={async () => { await aprovar(f); setSel(null) }}
-                  disabled={!completo || travado || !podeAprovar}
-                  title={podeAprovar ? '' : `Somente ${nomeDe(etapa.aprovador_id)} aprova este checkpoint`}>
+                <button className="btn pri" onClick={() => setDecidindo(true)}
+                  disabled={travado || !podeAprovar}
+                  title={podeAprovar ? '' : `Somente ${nomeDe(etapa.aprovador_id)} decide este checkpoint`}>
                   {rotuloAcao}
                 </button>
               )}
@@ -351,6 +355,10 @@ export function TelaFluxo({ id }: { id: string }) {
           </div>
         </aside>
       </div>
+
+      {decidindo && naAtual && (
+        <Decisao f={f} etapa={etapa} fechar={() => { setDecidindo(false); setSel(null) }} />
+      )}
     </>
   )
 }

@@ -185,6 +185,36 @@ export type Etapa = {
   itens: Item[]
 }
 
+/**
+ * A prova de que a tarefa foi feita: o comprovante, o contrato assinado, a foto.
+ * O arquivo mora no Storage; aqui fica o endereço dele.
+ */
+export type Anexo = {
+  id: string
+  item_id: string
+  fluxo_id: string
+  nome: string
+  tipo: string
+  tamanho: number
+  /** Endereço dentro do balde. Começa pelo id da organização. */
+  caminho: string
+  autor_id: string | null
+  criado_em: string
+}
+
+export type TipoDecisao = 'aprovou' | 'ressalva' | 'devolveu'
+
+/** O que o aprovador respondeu num checkpoint, e por quê. */
+export type Decisao = {
+  id: string
+  fluxo_id: string
+  etapa_id: string
+  quem_id: string | null
+  tipo: TipoDecisao
+  nota: string
+  criado_em: string
+}
+
 export type Volta = {
   id: string
   fluxo_id: string
