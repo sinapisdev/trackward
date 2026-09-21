@@ -1,7 +1,7 @@
 'use client'
 
 import { dias, hojeIso, soma } from '@/lib/datas'
-import { buscar, guardar, jogarFora } from './arquivos'
+import { buscarOuInventar, guardar, jogarFora } from './arquivos'
 import { semente, type Base, type Linha } from './semente'
 
 // Chaves novas de propósito: o exemplo antigo era de uma construtora, e o Track
@@ -14,7 +14,7 @@ const CHAVE_EU = 'track.local.eu'
 const CHAVE_USUARIO = 'track.local.user'
 const CHAVE_VERSAO = 'track.local.versao'
 /** Sobe quando o exemplo ganha tabelas novas. Ver completar(). */
-const VERSAO = 4
+const VERSAO = 6
 const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], fluxos: [], etapas: [], itens: [],
   dependencias: [], processos: [], processo_etapas: [], processo_itens: [], fluxo_pessoas: [],
   convites: [],
@@ -338,7 +338,16 @@ class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
       return { data: null as T, error: null }
     }
     if (this.modo === 'update') {
-      lista.filter((l) => this.casa(l)).forEach((l) => Object.assign(l, this.corpo))
+      lista.filter((l) => this.casa(l)).forEach((l) => {
+        const antes = !!l.feito
+        Object.assign(l, this.corpo)
+        // Mesmo gatilho do banco: a hora de ficar pronta é de quem grava, não
+        // de quem pede. Ver proteger_item() na seção 6 de supabase/schema.sql.
+        if (this.tabela === 'itens') {
+          if (l.feito && !antes) l.feito_em = agora()
+          else if (!l.feito && antes) l.feito_em = null
+        }
+      })
       gravar()
       return { data: null as T, error: null }
     }
@@ -952,8 +961,7 @@ function montarCliente() {
             }
           },
           async createSignedUrl(caminho: string, _segundos?: number) {
-            const b = await buscar(caminho)
-            if (!b) return { data: null, error: { message: 'Arquivo não encontrado.' } }
+            const b = await buscarOuInventar(caminho)
             return { data: { signedUrl: URL.createObjectURL(b) }, error: null }
           },
           async remove(caminhos: string[]) {

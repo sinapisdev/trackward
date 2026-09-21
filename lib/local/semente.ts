@@ -20,6 +20,31 @@ const mes = (n = 0) => {
   return MESES[x.getMonth()] + '/' + String(x.getFullYear()).slice(2)
 }
 
+/**
+ * Quando a tarefa de exemplo ficou pronta.
+ *
+ * Com prazo, sai um pouco antes ou um pouco depois dele, sorteado de um jeito
+ * estável: a mesma tarefa dá sempre a mesma data, senão os números do Desempenho
+ * dançariam a cada abertura da tela. Sem prazo, sai espalhada pelas últimas
+ * semanas, para o gráfico não nascer em uma barra só.
+ */
+const saiuEm = (chave: string, prazo: string | null): string => {
+  let n = 0
+  for (let i = 0; i < chave.length; i++) n = (n * 31 + chave.charCodeAt(i)) >>> 0
+  const x = hoje()
+  if (prazo) {
+    // Três em cada quatro saem no prazo. É bom, e não perfeito, que é o que se vê.
+    const desvio = n % 4 === 0 ? 1 + (n % 3) : -(1 + (n % 4))
+    const base = new Date(prazo + 'T12:00:00')
+    base.setDate(base.getDate() + desvio)
+    if (base > x) return new Date(x.getTime() - (n % 48) * 36e5).toISOString()
+    return base.toISOString()
+  }
+  x.setDate(x.getDate() - (n % 40))
+  x.setHours(9 + (n % 9), n % 60, 0, 0)
+  return x.toISOString()
+}
+
 /** Daqui a N dias úteis, para o exemplo não cair sempre num sábado. */
 const du = (n: number) => {
   const x = hoje()
@@ -98,6 +123,9 @@ export function semente(): Base {
   const etapas: Linha[] = []
   const itens: Linha[] = []
   const historico: Linha[] = []
+  const decisoes: Linha[] = []
+  const anexos: Linha[] = []
+  let decidiu = 0
   const atividades: Linha[] = []
 
   let seq = 0
@@ -122,13 +150,46 @@ export function semente(): Base {
     defs.forEach(([eNome, criterio, aprovador, prazo, lista], k) => {
       const eid = `${id}-e${k}`
       etapas.push({ id: eid, fluxo_id: id, ordem: k, nome: eNome, criterio, aprovador_id: aprovador, prazo })
+
+      // Checkpoint já passado deixou uma decisão para trás. Um em cada cinco
+      // voltou antes de passar, que é mais ou menos o que se vê numa empresa
+      // que funciona: quase tudo passa, e de vez em quando alguém segura.
+      if (k < atual && prazo) {
+        const quando = (n: number) => new Date(prazo + 'T15:00:00Z').getTime() - n * 864e5
+        if (decidiu % 5 === 4) {
+          decisoes.push({
+            id: `dec${decidiu}v`, fluxo_id: id, etapa_id: eid, quem_id: aprovador,
+            tipo: 'devolveu', nota: 'Faltava anexar o comprovante da última etapa',
+            criado_em: new Date(quando(3)).toISOString(),
+          })
+        }
+        decisoes.push({
+          id: `dec${decidiu}`, fluxo_id: id, etapa_id: eid, quem_id: aprovador,
+          tipo: decidiu % 7 === 3 ? 'ressalva' : 'aprovou',
+          nota: decidiu % 7 === 3 ? 'Segue, mas a via assinada ainda precisa chegar' : '',
+          criado_em: new Date(quando(0)).toISOString(),
+        })
+        decidiu++
+      }
       ;(lista || []).forEach(([texto, resp, iPrazo, feito, priv, chave], j) => {
         const iid = `i${seq++}`
         if (chave) chaves[chave] = iid
+        const saiu = feito ? saiuEm(iid + texto, iPrazo) : null
         itens.push({
           id: iid, etapa_id: eid, fluxo_id: id, texto, resp_id: resp, prazo: iPrazo,
-          feito, priv: !!priv, autor_id: priv ? 'leo' : dono, ordem: j, criado_em: criado,
+          feito, feito_em: saiu,
+          priv: !!priv, autor_id: priv ? 'leo' : dono, ordem: j, criado_em: criado,
         })
+        if (saiu && seq % 3 !== 0) {
+          const arquivo = `${texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-').slice(0, 40)}.svg`
+          anexos.push({
+            id: `anx${iid}`, item_id: iid, fluxo_id: id, nome: arquivo,
+            tipo: 'image/svg+xml', tamanho: 640 + (seq % 9) * 137,
+            caminho: `org1/${id}/${iid}/${arquivo}`,
+            autor_id: resp, criado_em: saiu,
+          })
+        }
       })
     })
   }
@@ -178,8 +239,16 @@ export function semente(): Base {
   ], { empresa_id: 'nor', freq: 'mensal', periodo: mes() })
 
   fluxo('f-erp', 'esteira', 'Implantação do ERP', 'fin', 'ana', 2, [
-    ['Diagnóstico', 'Processos atuais mapeados', 'leo', d(-40), []],
-    ['Escolha', 'Ferramenta contratada', 'leo', d(-20), []],
+    ['Diagnóstico', 'Processos atuais mapeados', 'leo', d(-40), [
+      ['Mapear o fluxo de contas a pagar', 'ana', d(-46), true],
+      ['Levantar o volume de notas por mês', 'marina', d(-43), true],
+      ['Listar o que o sistema atual não resolve', 'ana', d(-41), true],
+    ]],
+    ['Escolha', 'Ferramenta contratada', 'leo', d(-20), [
+      ['Receber proposta dos três fornecedores', 'ana', d(-28), true],
+      ['Montar o comparativo de custo e prazo', 'marina', d(-24), true],
+      ['Assinar o contrato', 'leo', d(-20), true],
+    ]],
     ['Migração', 'Dados migrados e conferidos', 'ana', d(4), [
       ['Migrar o plano de contas', 'ana', d(-2), false, false, 'plano-contas'],
       ['Homologar a integração bancária', 'carlos', d(3), false, false, 'integra-banco'],
@@ -189,7 +258,10 @@ export function semente(): Base {
   ])
 
   fluxo('f-forn', 'esteira', 'Renegociação com fornecedores', 'fin', 'ana', 1, [
-    ['Levantamento', 'Contratos e valores na mão', 'ana', d(-6), []],
+    ['Levantamento', 'Contratos e valores na mão', 'ana', d(-6), [
+      ['Reunir os contratos vigentes', 'ana', d(-9), true],
+      ['Somar o gasto dos últimos doze meses', 'marina', d(-6), true],
+    ]],
     ['Negociação', 'Propostas recebidas e comparadas', 'ana', d(2), [
       ['Pedir proposta aos três maiores', 'ana', d(-1), true],
       ['Montar o comparativo', 'marina', d(2), false],
@@ -211,7 +283,11 @@ export function semente(): Base {
   ], { freq: 'quinzenal', periodo: quinzena() })
 
   fluxo('f-norte', 'esteira', 'Abertura da unidade Norte', 'ope', 'carlos', 1, [
-    ['Viabilidade', 'Ponto e custos aprovados', 'leo', d(-30), []],
+    ['Viabilidade', 'Ponto e custos aprovados', 'leo', d(-30), [
+      ['Visitar os três pontos finalistas', 'carlos', d(-38), true],
+      ['Montar a projeção de custo do primeiro ano', 'ana', d(-33), true],
+      ['Apresentar à diretoria', 'carlos', d(-30), true],
+    ]],
     ['Preparação', 'Espaço pronto para operar', 'carlos', d(-2), [
       ['Fechar contrato do imóvel', 'carlos', d(-10), true],
       ['Contratar internet e telefonia', 'marina', d(-3), false],
@@ -226,7 +302,11 @@ export function semente(): Base {
   })
 
   fluxo('f-lgpd', 'esteira', 'Adequação à LGPD', 'ope', 'carlos', 1, [
-    ['Mapeamento', 'Dados pessoais mapeados', 'carlos', d(-15), []],
+    ['Mapeamento', 'Dados pessoais mapeados', 'carlos', d(-15), [
+      ['Listar onde cada base de dados vive', 'carlos', d(-21), true],
+      ['Identificar o que é dado pessoal sensível', 'ana', d(-17), true],
+      ['Registrar quem tem acesso a cada base', 'marina', d(-15), true],
+    ]],
     ['Ajustes', 'Sistemas e contratos ajustados', 'carlos', d(5), [
       ['Revisar os contratos com fornecedores', 'ana', d(3), false],
       ['Definir prazo de guarda de cada base', 'carlos', d(5), false],
@@ -253,7 +333,11 @@ export function semente(): Base {
   )
 
   fluxo('f-site', 'esteira', 'Novo site e catálogo', 'cml', 'marina', 1, [
-    ['Conteúdo', 'Textos e fotos prontos', 'marina', d(-4), []],
+    ['Conteúdo', 'Textos e fotos prontos', 'marina', d(-4), [
+      ['Escrever os textos das páginas principais', 'marina', d(-11), true],
+      ['Fotografar os produtos do catálogo', 'marina', d(-6), true],
+      ['Revisar com o comercial', 'leo', d(-4), true],
+    ]],
     ['Construção', 'Site navegável em ambiente de teste', 'marina', d(3), [
       ['Revisar os textos de cada página', 'marina', d(1), false],
       ['Subir o catálogo completo', 'marina', d(3), false, false, 'sobe-catalogo'],
@@ -264,7 +348,10 @@ export function semente(): Base {
 
   // ----------------------------------------------------------------- Pessoas
   fluxo('f-gerente', 'esteira', 'Contratação do gerente comercial', 'pes', 'leo', 1, [
-    ['Descrição da vaga', 'Perfil e faixa salarial definidos', 'leo', d(-18), []],
+    ['Descrição da vaga', 'Perfil e faixa salarial definidos', 'leo', d(-18), [
+      ['Definir as responsabilidades do cargo', 'leo', d(-25), true],
+      ['Pesquisar a faixa salarial do mercado', 'marina', d(-20), true],
+    ]],
     ['Triagem', 'Finalistas escolhidos', 'leo', d(1), [
       ['Publicar a vaga nos canais', 'marina', d(-8), true],
       ['Entrevistar os cinco primeiros', 'leo', d(0), false],
@@ -567,5 +654,5 @@ export function semente(): Base {
     processos, processo_etapas, processo_itens,
     canais, canal_membros, mensagens, sugestoes,
     compromissos, convidados, agendas_externas, ocupacao_externa, fluxo_pessoas: [], convites: [],
-    historico, atividades, anexos: [], decisoes: [] }
+    historico, atividades, anexos, decisoes }
 }

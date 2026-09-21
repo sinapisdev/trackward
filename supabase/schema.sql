@@ -203,6 +203,9 @@ create table if not exists public.itens (
   priv      boolean not null default false,
   autor_id  uuid references public.perfis on delete set null,
   ordem     int  not null default 0,
+  -- Quando ficou pronta. Sem isto dá para saber que a tarefa está feita, mas não
+  -- em que semana ela saiu, e aí nenhum número de produtividade é verdade.
+  feito_em  timestamptz,
   criado_em timestamptz not null default now()
 );
 
@@ -1116,8 +1119,29 @@ begin
     new.fluxo_id := old.fluxo_id;
     new.etapa_id := old.etapa_id;
   end if;
+  -- A hora de ficar pronta é do servidor, não do navegador: se viesse de fora,
+  -- bastaria mudar o relógio do computador para a entrega parecer no prazo.
+  if new.feito and not old.feito then new.feito_em := now();
+  elsif not new.feito and old.feito then new.feito_em := null;
+  else new.feito_em := old.feito_em;
+  end if;
   return new;
 end $$;
+
+-- Tarefa que já nasce marcada (importação, molde) leva a hora de agora.
+create or replace function public.marcar_feito_em()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  new.feito_em := case when new.feito then now() else null end;
+  return new;
+end $$;
+
+drop trigger if exists ao_criar_item on public.itens;
+create trigger ao_criar_item
+  before insert on public.itens
+  for each row execute function public.marcar_feito_em();
+
+create index if not exists itens_feito_em_idx on public.itens (feito_em desc) where feito;
 
 drop trigger if exists ao_alterar_item on public.itens;
 create trigger ao_alterar_item
@@ -1519,6 +1543,10 @@ begin
   alter table public.fluxos alter column area_id drop not null;
 exception when others then null;
 end $$;
+
+-- Bancos anteriores à coluna feito_em: ela entra vazia, e o que já estava
+-- pronto fica sem data. Preencher com um palpite seria pior do que não ter.
+alter table public.itens add column if not exists feito_em timestamptz;
 
 do $$
 begin

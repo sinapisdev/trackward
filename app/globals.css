@@ -1470,3 +1470,91 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
   .dec-op small{display:none}
   .dec-botoes .btn{flex:1;justify-content:center}
 }
+
+/* ======================================================================
+   Desempenho: como a empresa está entregando, e onde ela está presa.
+   Os gráficos são CSS puro, sem biblioteca: são poucos e simples, e uma
+   dependência a mais custaria mais do que resolve.
+   ====================================================================== */
+
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px}
+.kpi{position:relative;padding:15px 16px 14px;border-radius:var(--r);background:var(--panel);
+  box-shadow:var(--sombra),0 0 0 1px var(--line)}
+.kpi-rot{display:block;font-size:10.5px;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--tx-3);margin-bottom:8px}
+.kpi-num{display:block;font-size:34px;font-weight:700;letter-spacing:-.04em;line-height:1;
+  font-variant-numeric:tabular-nums}
+.kpi-num i{font-style:normal;font-size:19px;font-weight:600;color:var(--tx-3);margin-left:1px}
+.kpi-linha{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.kpi-dif{display:inline-flex;align-items:center;gap:3px;
+  font-size:11.5px;font-weight:600;font-variant-numeric:tabular-nums}
+.kpi-dif.bom{color:var(--ac)}
+.kpi-dif.ruim{color:var(--late)}
+.kpi-dif .sobe{display:grid;transform:rotate(-90deg)}
+.kpi-dif .desce{display:grid;transform:rotate(90deg)}
+.kpi-dif svg{width:12px;height:12px}
+.kpi-sobre{display:block;font-size:11px;color:var(--tx-3);line-height:1.45;margin-top:9px}
+
+.graf{display:flex;align-items:flex-end;gap:4px;height:132px;padding:4px 0 0}
+.graf-col{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:flex-end;height:100%;gap:5px}
+.graf-n{font-size:10.5px;color:var(--tx-3);font-variant-numeric:tabular-nums;line-height:1;height:12px}
+.graf-barra{position:relative;width:100%;max-width:38px;min-height:2px;border-radius:5px 5px 0 0;
+  background:var(--ac);transition:var(--t)}
+.graf-col:hover .graf-barra{filter:brightness(1.15)}
+.graf-late{position:absolute;left:0;right:0;bottom:0;border-radius:0 0 5px 5px;background:var(--late)}
+.graf-rot{font-size:10px;color:var(--tx-3);white-space:nowrap;line-height:1;height:11px}
+
+.dois{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+.preso{display:flex;align-items:center;gap:11px;padding:9px 2px;color:var(--tx-2);transition:var(--t)}
+.preso + .preso{box-shadow:inset 0 1px 0 var(--line)}
+.preso:hover{color:var(--tx)}
+.preso-dias{flex:none;width:34px;text-align:center;font-size:10.5px;color:var(--late);
+  font-variant-numeric:tabular-nums}
+.preso-dias b{display:block;font-size:16px;font-weight:700;letter-spacing:-.03em;line-height:1.1}
+.preso-txt{flex:1;min-width:0}
+.preso-txt b{display:block;font-size:12.5px;font-weight:600;letter-spacing:-.015em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preso-txt span{display:block;font-size:11px;color:var(--tx-3);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.preso > svg{flex:none;color:var(--tx-3)}
+
+.sarea{display:flex;align-items:center;gap:9px;padding:9px 2px;color:var(--tx-2);transition:var(--t)}
+.sarea + .sarea{box-shadow:inset 0 1px 0 var(--line)}
+.sarea:hover{color:var(--tx)}
+.sarea-nm{flex:1;min-width:0;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sarea-n{flex:none;font-size:11px;color:var(--tx-3);font-variant-numeric:tabular-nums}
+.sarea-ok{flex:none;font-size:11px;color:var(--tx-3)}
+
+.pes-h,.pes{display:grid;grid-template-columns:minmax(120px,1.4fr) minmax(90px,1fr) repeat(4,58px);
+  align-items:center;gap:10px}
+.pes-h{padding:0 2px 8px;font-size:10px;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--tx-3);box-shadow:inset 0 -1px 0 var(--line)}
+.pes{padding:9px 2px;font-size:12.5px}
+.pes + .pes{box-shadow:inset 0 1px 0 var(--line)}
+.pes-nm{display:flex;align-items:center;gap:7px;min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.pes-carga{display:flex;align-items:center;gap:2px;height:7px}
+.pes-b{height:100%;border-radius:2px;min-width:0}
+.pes-b.feito{background:var(--line-3)}
+.pes-b.aberto{background:var(--ac)}
+.pes-b.late{background:var(--late)}
+.pes .num{text-align:right;font-variant-numeric:tabular-nums;color:var(--tx-2)}
+.pes .num.ruim{color:var(--late);font-weight:600}
+.pes-h .num{text-align:right}
+
+.rodape-honesto{display:flex;align-items:flex-start;gap:8px;margin:18px 0 0;padding:11px 13px;
+  border-radius:var(--r);background:var(--sunken);font-size:11.5px;line-height:1.5;color:var(--tx-3)}
+.rodape-honesto svg{flex:none;margin-top:1px}
+
+@media (max-width:980px){
+  .kpis{grid-template-columns:1fr 1fr}
+  .dois{grid-template-columns:1fr}
+}
+@media (max-width:620px){
+  .kpis{gap:8px}
+  .kpi-num{font-size:27px}
+  .pes-h,.pes{grid-template-columns:minmax(0,1fr) 46px 46px 46px;gap:8px}
+  .pes-carga,.pes-h span:nth-child(2){display:none}
+}

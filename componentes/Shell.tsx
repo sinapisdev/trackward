@@ -207,6 +207,8 @@ export function Shell({ children }: { children: ReactNode }) {
 
           <NavItem href="/tracks" icone={<Ic.proj />} rotulo="Tracks"
             ativo={caminho.startsWith('/tracks')} conta={tracks} />
+          <NavItem href="/desempenho" icone={<Ic.grafico />} rotulo="Desempenho"
+            ativo={caminho === '/desempenho'} />
         </div>
 
         <div className="sh"><span>Configuração</span></div>

@@ -242,6 +242,14 @@ export const Ic = {
       <path d="M8 5.2v3.4M8 10.7v.1" strokeLinecap="round" />
     </svg>
   ),
+  grafico: () => (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <path d="M2.4 13.4h11.2" strokeLinecap="round" />
+      <rect x="3.4" y="8.4" width="2.6" height="4" rx=".8" />
+      <rect x="6.9" y="5.2" width="2.6" height="7.2" rx=".8" />
+      <rect x="10.4" y="2.6" width="2.6" height="9.8" rx=".8" />
+    </svg>
+  ),
   responder: () => (
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
       <path d="M6.4 3.6 2.6 7.2l3.8 3.6" strokeLinecap="round" strokeLinejoin="round" />

@@ -163,6 +163,8 @@ export type Item = {
   priv: boolean
   autor_id: string | null
   ordem: number
+  /** Quando ficou pronta. Vazio enquanto está aberta. Carimbado pelo servidor. */
+  feito_em: string | null
   /** Tarefas que precisam sair antes desta, mesmo em outra esteira. */
   depende_de: string[]
 }
