@@ -337,6 +337,7 @@ mudanças diretas. Cinco tipos:
 | **tarefa** | Cria uma tarefa nova no checkpoint da vez |
 | **prazo** | Muda o prazo de uma tarefa existente |
 | **concluir** | Marca uma tarefa como pronta |
+| **distribuir** | Põe o dono numa tarefa que existe e está **sem responsável** |
 | **decisao** | Registra uma decisão na linha do tempo |
 | **trava** | Marca a track como travada, com o motivo |
 
@@ -347,6 +348,48 @@ nunca entram sozinhos**, porque prazo é compromisso com quem espera.
 Duas implementações, mesma saída: com `ANTHROPIC_API_KEY` quem lê é o modelo Claude;
 sem chave, ou se a chamada falhar, entram as regras de português (compromisso, pedido,
 entrega, decisão, datas por extenso). **O app nunca fica sem ler.**
+
+### 4.6b O que a IA faz sozinha, e como se sabe que foi ela
+
+Com **Aplicar sozinho** ligado em Ajustes, a leitura aplica o que propõe sem esperar
+ninguém. Prazo e trava **nunca** entram sozinhos: um mexe em compromisso com quem espera,
+o outro para a frente inteira.
+
+E tudo que ela faz sozinha fica **assinado por ela**, em três lugares:
+
+| Onde | O que aparece |
+|---|---|
+| Na conversa | A mensagem sai assinada por "A leitura da conversa", não por quem mandou ler |
+| Na esteira | A linha do tempo mostra a faísca em vez do avatar da pessoa |
+| No canal | Um bloco lista o que ela fez, com **Desfazer** em cada linha |
+
+**Desfazer volta ao que era:** a tarefa criada sai, a concluída reabre e perde a hora de
+conclusão, o dono posto sai de novo. Decisão registrada não desfaz, porque apagar linha do
+tempo é pior do que ter linha demais. O desfazer também entra na conversa, então a reversão
+fica no registro junto com a ação.
+
+A razão de tudo isso: **autonomia sem desfazer não é autonomia, é risco.** E sem
+assinatura, ninguém mais consegue olhar uma esteira e saber o que foi decidido por gente e
+o que a máquina fez.
+
+### 4.6c Quem faz o que ainda não tem dono
+
+Dentro da track, uma faixa aparece quando há tarefa sem responsável, e só para quem
+responde pela esteira. A leitura diz um nome e, mais importante, **diz de onde tirou o
+nome**. Três origens, em ordem de força, e nenhuma é palpite sobre gente:
+
+1. **O processo.** A tarefa do molde aponta para uma área, e a área tem responsável. Foi a
+   empresa que escreveu isso
+2. **O histórico.** Quem entregou as tarefas parecidas antes. É o que aconteceu, não o que
+   se supõe
+3. **A área da track**, como piso: melhor cair no responsável da área do que ficar sem
+   ninguém
+
+Entre dois candidatos de força parecida, **ganha quem tem menos na mão**, senão a
+distribuição empilharia tudo em quem mais trabalha.
+
+Duas regras: **só preenche o que está vazio**, porque tirar uma tarefa de quem já a tem é
+decisão de gente; e **pessoa inativa não recebe nada**.
 
 ### 4.7 Agenda (`/agenda`)
 
@@ -644,19 +687,17 @@ A lista para o UX cobrir.
 
 ### Pedidos já feitos e ainda não construídos
 
-10. **Distribuição de tarefas com IA** (faz sentido agora que os processos existem e dão
-    de onde aprender)
-11. **Modelos por setor** no primeiro cadastro
-12. **Integração com WhatsApp**, adiada de propósito em 21/09/2026. Entrada livre e
+10. **Modelos por setor** no primeiro cadastro
+11. **Integração com WhatsApp**, adiada de propósito em 21/09/2026. Entrada livre e
     saída racionada é o desenho recomendado
-13. **As três telas de segurança**: log de acesso, exportar tudo, excluir organização.
+12. **As três telas de segurança**: log de acesso, exportar tudo, excluir organização.
     São o que um cliente grande pede antes de assinar
-14. **App nativo de celular**
+13. **App nativo de celular**
 
 ### Pendências fora do código
 
-15. Criar o projeto no Supabase (região São Paulo), rodar o `schema.sql`, desligar
+14. Criar o projeto no Supabase (região São Paulo), rodar o `schema.sql`, desligar
     "Confirm email" e trazer a Project URL e a anon key
-16. Criar as contas de GitHub e Vercel para publicar
-17. Configurar a `ANTHROPIC_API_KEY` para a leitura da conversa sair das regras e passar
+15. Criar as contas de GitHub e Vercel para publicar
+16. Configurar a `ANTHROPIC_API_KEY` para a leitura da conversa sair das regras e passar
     para o modelo
