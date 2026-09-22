@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useRouter } from 'next/navigation'
 import { useDados } from './Dados'
 import { Ic } from './Icones'
+import { AvisoPrazo } from './AvisoPrazo'
 import { Av } from './atomos'
 import Link from 'next/link'
 import { dias, hojeIso } from '@/lib/datas'
@@ -555,6 +556,8 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
     item?.prazo || (etapa.prazo && dias(etapa.prazo) >= 0 ? etapa.prazo : ''),
   )
   const [priv, setPriv] = useState(!!item?.priv)
+  const [firme, setFirme] = useState(!!item?.prazo_firme)
+  const [avisando, setAvisando] = useState(false)
   const [travas, setTravas] = useState<string[]>(item?.depende_de || [])
   const [busca, setBusca] = useState('')
 
@@ -578,9 +581,21 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
     return travas.map((id) => todos.get(id)).filter(Boolean) as { item: Item; fluxo: Fluxo }[]
   }, [travas, fluxos])
 
+  /** Mudou a data de uma tarefa que já existe: o efeito passa pelo aviso. */
+  const mexeuNoPrazo = !!item && !!prazo && prazo !== (item.prazo || '') && !item.prazo_firme
+
+  const gravarResto = async () => {
+    if (!item) return
+    await editarItem(item, { texto: texto.trim(), resp_id: resp, prazo, priv, firme, quieto: true })
+    if (JSON.stringify(travas) !== JSON.stringify(item.depende_de)) await definirTravas(item, travas)
+  }
+
   const salvar = async () => {
     if (!texto.trim()) return
-    const d = { texto: texto.trim(), resp_id: resp, prazo, priv }
+    // O aviso vem antes de gravar qualquer coisa: quem vai mexer numa data
+    // precisa ver o que ela arrasta antes de arrastar.
+    if (mexeuNoPrazo) { setAvisando(true); return }
+    const d = { texto: texto.trim(), resp_id: resp, prazo, priv, firme }
     if (item) {
       await editarItem(item, d)
       if (JSON.stringify(travas) !== JSON.stringify(item.depende_de)) await definirTravas(item, travas)
@@ -626,6 +641,18 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
             {!mandaNoPrazo && (
               <p className="hint">Prazo é compromisso com quem espera. Só quem responde pelo processo muda.</p>
             )}
+            {mandaNoPrazo && (
+              <label className="marca-firme">
+                <input type="checkbox" checked={firme} onChange={(e) => setFirme(e.target.checked)} />
+                <span>
+                  <b>Data firme</b>
+                  <small>
+                    Prazo legal, data de cliente, evento marcado. Quando o que vem antes atrasa,
+                    esta data não anda: alguém tem que dar um jeito.
+                  </small>
+                </span>
+              </label>
+            )}
           </div>
         </div>
 
@@ -668,6 +695,15 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
         </label>
       </div>
       <Rodape fechar={fechar} rotulo={item ? 'Salvar tarefa' : 'Adicionar tarefa'} acao={() => void salvar()} />
+
+      {avisando && item && (
+        <AvisoPrazo
+          item={item}
+          novo={prazo}
+          fechar={() => setAvisando(false)}
+          aoConfirmar={async () => { await gravarResto(); fechar() }}
+        />
+      )}
     </div>
   )
 }

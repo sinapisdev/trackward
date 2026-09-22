@@ -8,7 +8,7 @@ import { hojeIso } from '@/lib/datas'
 import { proxPeriodo } from '@/lib/modelos'
 import type { RascunhoEtapa } from '@/lib/modelos'
 import { etapaAtual } from '@/lib/regras'
-import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta, Anexo, Decisao, TipoDecisao,
+import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta, Anexo, Decisao, TipoDecisao, NaCascata, PedidoPrazo,
   } from '@/lib/tipos'
 import { chama } from '@/lib/mencao'
 import { nomeLimpo, preparar, LIMITE, tamanhoLegivel } from '@/lib/anexos'
@@ -18,6 +18,17 @@ import { iso } from '@/lib/datas'
 import { itensVisiveis, podeMexerNoPrazo, veFluxo } from '@/lib/acesso'
 
 type Aviso = { texto: string; erro: boolean; id: number }
+
+/** O que o formulário de tarefa manda para o banco. */
+type DadosItem = {
+  texto: string
+  resp_id: string | null
+  prazo: string
+  priv: boolean
+  firme?: boolean
+  /** Sem aviso na tela: quem chamou já vai dizer algo mais importante. */
+  quieto?: boolean
+}
 
 type Contexto = {
   eu: Perfil
@@ -64,8 +75,8 @@ type Contexto = {
   excluirFluxo: (id: string) => Promise<void>
   travar: (f: Fluxo, motivo: string) => Promise<void>
   destravar: (f: Fluxo) => Promise<void>
-  adicionarItem: (et: Etapa, d: { texto: string; resp_id: string | null; prazo: string; priv: boolean }) => Promise<string | null>
-  editarItem: (item: Item, d: { texto: string; resp_id: string | null; prazo: string; priv: boolean }) => Promise<void>
+  adicionarItem: (et: Etapa, d: DadosItem) => Promise<string | null>
+  editarItem: (item: Item, d: DadosItem) => Promise<void>
   definirTravas: (item: Item, ids: string[]) => Promise<void>
   excluirItem: (item: Item) => Promise<void>
   alternarItem: (item: Item) => Promise<void>
@@ -81,6 +92,13 @@ type Contexto = {
   decidir: (f: Fluxo, d: {
     tipo: TipoDecisao; nota?: string; reabrir?: string[]; prazo?: string | null
   }) => Promise<boolean>
+  /** O que andaria se este prazo passasse a ser outro. Só leitura, para o aviso. */
+  preverCascata: (item: Item, novo: string) => Promise<NaCascata[]>
+  /** Aplica o que é da mesma esteira e pede o resto. */
+  moverPrazo: (item: Item, novo: string, motivo: string) => Promise<boolean>
+  /** Pedidos de prazo em aberto que esperam decisão de alguém. */
+  pedidosPrazo: PedidoPrazo[]
+  decidirPrazo: (p: PedidoPrazo, aceita: boolean) => Promise<void>
   salvarPerfil: (id: string, d: Partial<Perfil>) => Promise<void>
   salvarEmpresa: (d: { id?: string; nome: string; sigla: string; cor: string }) => Promise<void>
   excluirEmpresa: (id: string) => Promise<void>
@@ -163,6 +181,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [convites, setConvites] = useState<Convite[]>([])
   const [anexos, setAnexos] = useState<Anexo[]>([])
   const [decisoes, setDecisoes] = useState<Decisao[]>([])
+  const [pedidosPrazo, setPedidosPrazo] = useState<PedidoPrazo[]>([])
   const [canais, setCanais] = useState<Canal[]>([])
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [sugestoes, setSugestoes] = useState<Sugestao[]>([])
@@ -196,7 +215,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   /** Recolhe tudo que a pessoa pode ver e monta a árvore de fluxos. */
   const carregar = useCallback(async () => {
-    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec] = await Promise.all([
+    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz] = await Promise.all([
       sb.from('perfis').select('*').order('nome'),
       sb.from('areas').select('*').order('ordem'),
       sb.from('fluxos').select('*').order('criado_em'),
@@ -224,6 +243,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       sb.rpc('meus_espacos'),
       sb.from('anexos').select('*').order('criado_em'),
       sb.from('decisoes').select('*').order('criado_em', { ascending: false }),
+      sb.from('pedidos_prazo').select('*').order('criado_em', { ascending: false }),
     ])
 
     const listaPerfis = (p.data || []) as Perfil[]
@@ -357,6 +377,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     setConvites((cvt.data || []) as Convite[])
     setAnexos((anx.data || []) as Anexo[])
     setDecisoes((dec.data || []) as Decisao[])
+    setPedidosPrazo((pz.data || []) as PedidoPrazo[])
     setEspacos((esp.data || []) as Espaco[])
 
     // Canal: a lista de membros vem junto, e com ela a minha marca de leitura.
@@ -511,6 +532,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       resp_id: d.resp_id,
       prazo: d.prazo || null,
       priv: d.priv,
+      prazo_firme: !!d.firme,
       autor_id: eu.id,
       ordem: et.itens.length,
     }).select().single()
@@ -524,10 +546,13 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const editarItem: Contexto['editarItem'] = useCallback(async (item, d) => {
     const { error } = await sb
       .from('itens')
-      .update({ texto: d.texto, resp_id: d.resp_id, prazo: d.prazo || null, priv: d.priv })
+      .update({
+        texto: d.texto, resp_id: d.resp_id, prazo: d.prazo || null,
+        priv: d.priv, prazo_firme: !!d.firme,
+      })
       .eq('id', item.id)
     if (error) return falhou(error, 'Não foi possível salvar o item.')
-    toast('Item salvo.')
+    if (!d.quieto) toast('Item salvo.')
     recarregar()
   }, [sb, falhou, toast, recarregar])
 
@@ -641,6 +666,36 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     (fluxoId: string) => decisoes.filter((d) => d.fluxo_id === fluxoId),
     [decisoes],
   )
+
+  // -------------------------------------------------------- prazo em cascata
+
+  const preverCascata: Contexto['preverCascata'] = useCallback(async (item, novo) => {
+    const { data, error } = await sb.rpc('cascata', { p_item: item.id, p_novo: novo })
+    if (error) { falhou(error, 'Não foi possível calcular o efeito.'); return [] }
+    return (data || []) as NaCascata[]
+  }, [sb, falhou])
+
+  const moverPrazo: Contexto['moverPrazo'] = useCallback(async (item, novo, motivo) => {
+    const { data, error } = await sb.rpc('aplicar_cascata', {
+      p_item: item.id, p_novo: novo, p_motivo: motivo,
+    })
+    if (error) { falhou(error, 'Não foi possível mudar o prazo.'); return false }
+    const r = (data || {}) as { mexi?: number; pedi?: number; presas?: number }
+    const partes = ['Prazo alterado.']
+    if (r.mexi) partes.push(`${r.mexi} ${r.mexi === 1 ? 'tarefa andou' : 'tarefas andaram'} junto.`)
+    if (r.pedi) partes.push(`${r.pedi} ${r.pedi === 1 ? 'pedido' : 'pedidos'} ${r.pedi === 1 ? 'espera' : 'esperam'} aceite.`)
+    if (r.presas) partes.push(`${r.presas} com data firme não ${r.presas === 1 ? 'andou' : 'andaram'}.`)
+    toast(partes.join(' '))
+    recarregar()
+    return true
+  }, [sb, falhou, toast, recarregar])
+
+  const decidirPrazo: Contexto['decidirPrazo'] = useCallback(async (p, aceita) => {
+    const { error } = await sb.rpc('decidir_prazo', { p_pedido: p.id, p_aceita: aceita })
+    if (error) return falhou(error, 'Não foi possível decidir o pedido.')
+    toast(aceita ? 'Prazo remarcado.' : 'Pedido recusado. A data fica onde está.')
+    recarregar()
+  }, [sb, falhou, toast, recarregar])
 
   const decidir: Contexto['decidir'] = useCallback(async (f, d) => {
     const et = etapaAtual(f)
@@ -1143,6 +1198,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     criarConvite, excluirConvite,
     canais, mensagens, sugestoes, mensagensDe, sugestoesDe, naoLidas, meChamaram,
     anexosDe, anexar, removerAnexo, abrirAnexo, decisoesDe, decidir,
+    preverCascata, moverPrazo, pedidosPrazo, decidirPrazo,
     enviar, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
     lerConversa, aceitarSugestao, recusarSugestao,
     espacos, trocarEspaco, abrirEspaco,

@@ -6,7 +6,7 @@ import { Ic } from '@/componentes/Icones'
 import { Av } from '@/componentes/atomos'
 import { Anexos } from '@/componentes/Anexos'
 import { classePrazo } from '@/componentes/partes'
-import { curta, hojeIso, rel, soma } from '@/lib/datas'
+import { curta, hojeIso, isoDe, rel, soma } from '@/lib/datas'
 import type { Etapa, Fluxo, TipoDecisao } from '@/lib/tipos'
 
 /**
@@ -152,7 +152,7 @@ export function Decisao({ f, etapa, fechar }: {
               {jaDecidido.map((d) => (
                 <p key={d.id}>
                   <b>{d.tipo === 'devolveu' ? 'Devolvido' : d.tipo === 'ressalva' ? 'Ressalva' : 'Aprovado'}</b>
-                  {' por '}{nomeDe(d.quem_id)}, {curta(d.criado_em.slice(0, 10))}
+                  {' por '}{nomeDe(d.quem_id)}, {curta(isoDe(d.criado_em))}
                   {d.nota && `: ${d.nota}`}
                 </p>
               ))}

@@ -165,6 +165,8 @@ export type Item = {
   ordem: number
   /** Quando ficou pronta. Vazio enquanto está aberta. Carimbado pelo servidor. */
   feito_em: string | null
+  /** Data que não se move: prazo legal, data de cliente, evento marcado. */
+  prazo_firme: boolean
   /** Tarefas que precisam sair antes desta, mesmo em outra esteira. */
   depende_de: string[]
 }
@@ -201,6 +203,37 @@ export type Anexo = {
   /** Endereço dentro do balde. Começa pelo id da organização. */
   caminho: string
   autor_id: string | null
+  criado_em: string
+}
+
+/** Uma tarefa que a cascata quer mover, e o que aconteceria com ela. */
+export type NaCascata = {
+  item_id: string
+  fluxo_id: string
+  fluxo: string
+  texto: string
+  de: string | null
+  para: string
+  firme: boolean
+  /** Está na mesma esteira da tarefa que mudou, então anda direto. */
+  meu: boolean
+  resp_id: string | null
+  nivel: number
+}
+
+/** O prazo de uma tarefa de outra esteira só muda com o sim de quem responde por ela. */
+export type PedidoPrazo = {
+  id: string
+  item_id: string
+  fluxo_id: string
+  de: string | null
+  para: string
+  motivo: string
+  origem_id: string | null
+  pedido_por: string | null
+  estado: 'aberto' | 'aceito' | 'recusado'
+  decidido_por: string | null
+  decidido_em: string | null
   criado_em: string
 }
 

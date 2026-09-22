@@ -177,7 +177,7 @@ export function semente(): Base {
         const saiu = feito ? saiuEm(iid + texto, iPrazo) : null
         itens.push({
           id: iid, etapa_id: eid, fluxo_id: id, texto, resp_id: resp, prazo: iPrazo,
-          feito, feito_em: saiu,
+          feito, feito_em: saiu, prazo_firme: chave === 'encarregado',
           priv: !!priv, autor_id: priv ? 'leo' : dono, ordem: j, criado_em: criado,
         })
         if (saiu && seq % 3 !== 0) {
@@ -308,9 +308,9 @@ export function semente(): Base {
       ['Registrar quem tem acesso a cada base', 'marina', d(-15), true],
     ]],
     ['Ajustes', 'Sistemas e contratos ajustados', 'carlos', d(5), [
-      ['Revisar os contratos com fornecedores', 'ana', d(3), false],
+      ['Revisar os contratos com fornecedores', 'ana', d(3), false, false, 'revisa-contratos'],
       ['Definir prazo de guarda de cada base', 'carlos', d(5), false],
-      ['Nomear o encarregado', 'leo', d(2), false],
+      ['Nomear o encarregado', 'leo', d(2), false, false, 'encarregado'],
     ]],
     ['Treinamento', 'Time treinado', 'leo', d(30), []],
   ])
@@ -361,12 +361,17 @@ export function semente(): Base {
     ['Integração', 'Pessoa integrada ao time', 'ana', d(40), []],
   ])
 
-  // Uma trava dentro da mesma esteira e outra atravessando áreas: o catálogo do
-  // site não sobe enquanto o pagamento do fornecedor de TI não sair, e esse
-  // pagamento vive na esteira do Financeiro.
+  // Travas dentro da mesma esteira e travas atravessando áreas. As de fora
+  // existem para o exemplo mostrar o que acontece quando um prazo anda: o
+  // catálogo do site espera o pagamento do fornecedor de TI, que vive no
+  // Financeiro; a revisão de contratos da LGPD espera o mesmo pagamento; e o
+  // encarregado da LGPD vem depois da revisão, mas a data dele é firme, porque
+  // quem marcou foi a lei. É o caso em que a cascata bate na parede.
   const dependencias = [
     { id: 'dep1', item_id: chaves['integra-banco'], depende_de: chaves['plano-contas'] },
     { id: 'dep2', item_id: chaves['sobe-catalogo'], depende_de: chaves['paga-ti'] },
+    { id: 'dep3', item_id: chaves['revisa-contratos'], depende_de: chaves['paga-ti'] },
+    { id: 'dep4', item_id: chaves['encarregado'], depende_de: chaves['revisa-contratos'] },
   ].filter((x) => x.item_id && x.depende_de)
 
   // ------------------------------------------------------- processos
@@ -654,5 +659,5 @@ export function semente(): Base {
     processos, processo_etapas, processo_itens,
     canais, canal_membros, mensagens, sugestoes,
     compromissos, convidados, agendas_externas, ocupacao_externa, fluxo_pessoas: [], convites: [],
-    historico, atividades, anexos, decisoes }
+    historico, atividades, anexos, decisoes, pedidos_prazo: [] }
 }

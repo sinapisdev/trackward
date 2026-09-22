@@ -1,6 +1,6 @@
 'use client'
 
-import { dias, hojeIso, soma } from '@/lib/datas'
+import { curta, dias, hojeIso, soma } from '@/lib/datas'
 import { buscarOuInventar, guardar, jogarFora } from './arquivos'
 import { semente, type Base, type Linha } from './semente'
 
@@ -14,14 +14,14 @@ const CHAVE_EU = 'track.local.eu'
 const CHAVE_USUARIO = 'track.local.user'
 const CHAVE_VERSAO = 'track.local.versao'
 /** Sobe quando o exemplo ganha tabelas novas. Ver completar(). */
-const VERSAO = 6
+const VERSAO = 9
 const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], fluxos: [], etapas: [], itens: [],
   dependencias: [], processos: [], processo_etapas: [], processo_itens: [], fluxo_pessoas: [],
   convites: [],
   canais: [], canal_membros: [], mensagens: [], sugestoes: [],
   compromissos: [], convidados: [], agendas_externas: [], ocupacao_externa: [],
   historico: [], atividades: [],
-  anexos: [], decisoes: [] }
+  anexos: [], decisoes: [], pedidos_prazo: [] }
 
 let base: Base | null = null
 const ouvintes = new Set<() => void>()
@@ -483,6 +483,128 @@ function salvarFluxo(pFluxo: Linha, pEtapas: Linha[]): string {
   return id
 }
 
+/**
+ * Espelha cascata() do banco. Ver a seção 7b de supabase/schema.sql.
+ *
+ * Só anda o que quebrou, data firme não anda nem empurra quem vem depois, e o
+ * que decide entre mexer e pedir é a esteira, não o cargo.
+ */
+function cascataLocal(itemId: string, novo: string): Linha[] {
+  const b = ler()
+  const raiz = b.itens.find((i) => i.id === itemId)
+  if (!raiz) return []
+  const nomeDoFluxo = (id: string) => String(b.fluxos.find((f) => f.id === id)?.nome || '')
+
+  const saida: Linha[] = [{
+    item_id: raiz.id, fluxo_id: raiz.fluxo_id, fluxo: nomeDoFluxo(String(raiz.fluxo_id)),
+    texto: raiz.texto, de: raiz.prazo, para: novo, firme: !!raiz.prazo_firme,
+    meu: true, resp_id: raiz.resp_id, nivel: 0,
+  }]
+
+  const vistos = new Set([raiz.id as string])
+  let fila = [{ id: raiz.id as string, de: raiz.prazo as string | null, para: novo, firme: !!raiz.prazo_firme }]
+
+  for (let nivel = 1; nivel <= 20 && fila.length; nivel++) {
+    const proxima: typeof fila = []
+    for (const pai of fila) {
+      if (pai.firme || !pai.de) continue
+      const filhos = b.dependencias
+        .filter((d) => d.depende_de === pai.id)
+        .map((d) => b.itens.find((i) => i.id === d.item_id))
+        .filter((i): i is Linha => !!i && !i.feito && !!i.prazo)
+      for (const f of filhos) {
+        if (vistos.has(f.id as string)) continue
+        const prazo = String(f.prazo)
+        if (prazo >= pai.para) continue          // a folga absorve o atraso
+        const folga = Math.max(0, dias(prazo) - dias(pai.de))
+        const para = soma(pai.para, folga)
+        vistos.add(f.id as string)
+        saida.push({
+          item_id: f.id, fluxo_id: f.fluxo_id, fluxo: nomeDoFluxo(String(f.fluxo_id)),
+          texto: f.texto, de: prazo, para, firme: !!f.prazo_firme,
+          meu: f.fluxo_id === raiz.fluxo_id, resp_id: f.resp_id, nivel,
+        })
+        proxima.push({ id: f.id as string, de: prazo, para, firme: !!f.prazo_firme })
+      }
+    }
+    fila = proxima
+  }
+  return saida
+}
+
+function aplicarCascataLocal(itemId: string, novo: string, motivo: string): Linha {
+  const b = ler()
+  const eu = euLocal()
+  const raiz = b.itens.find((i) => i.id === itemId)
+  if (!raiz) throw new Error('Tarefa não encontrada.')
+  if (raiz.prazo_firme) {
+    throw new Error('Esta data é firme. Para mudá-la, tire a marca de data firme primeiro.')
+  }
+
+  let mexi = 0, pedi = 0, presas = 0
+  for (const l of cascataLocal(itemId, novo)) {
+    const alvo = b.itens.find((i) => i.id === l.item_id)!
+    if (l.nivel === 0) { alvo.prazo = novo; continue }
+    if (l.firme) { presas++; continue }
+    if (l.meu) { alvo.prazo = l.para; mexi++; continue }
+    b.pedidos_prazo = b.pedidos_prazo.filter(
+      (p) => !(p.item_id === l.item_id && p.estado === 'aberto'),
+    )
+    b.pedidos_prazo.push({
+      id: uid('pz'), item_id: l.item_id, fluxo_id: l.fluxo_id, de: l.de, para: l.para,
+      motivo: motivo.trim(), origem_id: itemId, pedido_por: eu, estado: 'aberto',
+      decidido_por: null, decidido_em: null, criado_em: agora(),
+    })
+    pedi++
+  }
+
+  const tocadas = mexi + pedi + presas
+  logar(String(raiz.fluxo_id), eu,
+    `mudou o prazo de ${raiz.texto} para ${curta(novo)}`
+    + (tocadas ? `, e ${tocadas} tarefa(s) sentiram` : ''))
+  gravar()
+  return { mexi, pedi, presas }
+}
+
+function decidirPrazoLocal(pedidoId: string, aceita: boolean): string {
+  const b = ler()
+  const eu = euLocal()
+  const pd = b.pedidos_prazo.find((p) => p.id === pedidoId)
+  if (!pd) throw new Error('Pedido não encontrado.')
+  if (pd.estado !== 'aberto') throw new Error('Este pedido já foi decidido.')
+
+  const item = b.itens.find((i) => i.id === pd.item_id)
+  pd.decidido_por = eu
+  pd.decidido_em = agora()
+
+  if (aceita) {
+    if (item && !item.prazo_firme) item.prazo = pd.para
+    pd.estado = 'aceito'
+    logar(String(pd.fluxo_id), eu, `aceitou mover ${item?.texto} para ${curta(String(pd.para))}`)
+    gravar()
+    return 'aceito'
+  }
+
+  pd.estado = 'recusado'
+  // Em cadeia: o que nasceu deste pedido não faz mais sentido.
+  let frente = [String(pd.item_id)]
+  for (let i = 0; i < 20 && frente.length; i++) {
+    const seguintes: string[] = []
+    for (const p of b.pedidos_prazo) {
+      if (p.estado !== 'aberto' || !frente.includes(String(p.origem_id))) continue
+      p.estado = 'recusado'
+      p.decidido_por = eu
+      p.decidido_em = agora()
+      p.motivo = `${p.motivo} (caiu junto: o pedido que veio antes foi recusado)`
+      seguintes.push(String(p.item_id))
+    }
+    frente = seguintes
+  }
+  logar(String(pd.fluxo_id), eu, `recusou mover ${item?.texto}: a data fica onde está`)
+  gravar()
+  return 'recusado'
+}
+
 /** Espelha decidir_etapa() do banco. Ver a seção 7 de supabase/schema.sql. */
 function decidirEtapa(
   fluxoId: string,
@@ -897,6 +1019,23 @@ function montarCliente() {
             }
           }
           return { data: saida, error: null }
+        }
+        if (nome === 'cascata') {
+          return { data: cascataLocal(args.p_item as string, args.p_novo as string), error: null }
+        }
+        if (nome === 'aplicar_cascata') {
+          return {
+            data: aplicarCascataLocal(
+              args.p_item as string, args.p_novo as string, String(args.p_motivo || ''),
+            ),
+            error: null,
+          }
+        }
+        if (nome === 'decidir_prazo') {
+          return {
+            data: decidirPrazoLocal(args.p_pedido as string, !!args.p_aceita),
+            error: null,
+          }
         }
         if (nome === 'decidir_etapa') {
           return {

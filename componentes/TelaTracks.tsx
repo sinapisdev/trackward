@@ -12,7 +12,7 @@ import { Av, IconeStatus } from '@/componentes/atomos'
 import { classePrazo } from '@/componentes/partes'
 import { mandaNoProcesso, podeConcluir } from '@/lib/acesso'
 import { LBL, ORD, etapaAtual, progresso, status } from '@/lib/regras'
-import { curta, rel } from '@/lib/datas'
+import { curta, isoDe, rel } from '@/lib/datas'
 import type { RascunhoEtapa } from '@/lib/modelos'
 import type { Area, Etapa, Fluxo } from '@/lib/tipos'
 
@@ -337,7 +337,7 @@ function Palco({ alvo }: { alvo: { tipo: 'projeto'; f: Fluxo } | { tipo: 'area';
       id: `${f.id}:inicio`,
       tipo: 'inicio',
       nome: f.tipo === 'ciclo' ? 'Toda volta' : 'Início',
-      sub: f.tipo === 'ciclo' ? (f.periodo || '') : (f.criado_em ? curta(f.criado_em.slice(0, 10)) : ''),
+      sub: f.tipo === 'ciclo' ? (f.periodo || '') : (f.criado_em ? curta(isoDe(f.criado_em)) : ''),
       estado: 'feito',
     }]
 
@@ -445,7 +445,7 @@ function Palco({ alvo }: { alvo: { tipo: 'projeto'; f: Fluxo } | { tipo: 'area';
         )}
         {cab.pct !== null && <span className="tk-selo"><Ic.check />{cab.pct}% da trilha</span>}
         {!!cab.voltas && <span className="tk-selo"><Ic.ciclo />{cab.voltas} voltas</span>}
-        {cab.criado && <span className="tk-selo"><Ic.agenda />Criada {rel(cab.criado.slice(0, 10))}</span>}
+        {cab.criado && <span className="tk-selo"><Ic.agenda />Criada {rel(isoDe(cab.criado))}</span>}
       </div>
 
       <div className="tk-quadro">

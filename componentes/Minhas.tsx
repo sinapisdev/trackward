@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { PedidosDePrazo } from './PedidosDePrazo'
 import { useDados } from './Dados'
 import { Carregando } from './Shell'
 import { Ic } from './Icones'
@@ -62,6 +63,8 @@ export function Minhas() {
 
   return (
     <>
+      <PedidosDePrazo />
+
       <div className="hdr">
         <div>
           <div className="eyebrow">Tudo que depende de você, nas áreas e nos projetos</div>
