@@ -312,14 +312,20 @@ h1{font:var(--fw-bold) var(--fs-title)/var(--lh-title) var(--sans);letter-spacin
 .gh .chev{margin-left:auto;color:var(--tx-3);transition:transform var(--t)}
 .gh.closed .chev{transform:rotate(-90deg)}
 
-.rw{display:grid;grid-template-columns:18px minmax(0,1.3fr) 132px minmax(0,1.1fr) 70px 22px;gap:15px;
-  align-items:center;padding:11px 15px;border-top:1px solid var(--line);width:100%;text-align:left;
-  transition:var(--t);position:relative}
-.card>.rw:first-child{border-top:0}
-.rw:hover{background:var(--hover)}
-.rw .nm{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;gap:6px;align-items:center}
-.rw .sub{font-size:12px;color:var(--tx-3);display:flex;gap:5px;align-items:center;white-space:nowrap;overflow:hidden}
-.rw .why{font-size:12px;color:var(--tx-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* DataTable do sistema: linha de 58px, colunas separadas por 16, fio de cabelo
+   embaixo. A primeira coluna é a que nomeia, e só ela vem em tinta cheia. */
+.rw{display:grid;grid-template-columns:18px minmax(0,1.3fr) 132px minmax(0,1.1fr) 70px 22px;gap:16px;
+  align-items:center;padding:10px 12px;min-height:var(--alt-linha);
+  border-bottom:1px solid var(--line);width:100%;text-align:left;
+  transition:background-color var(--t);position:relative}
+.card>.rw:last-child{border-bottom:0}
+.rw:hover{background:var(--brilho)}
+.rw .nm{font:var(--fw-medium) var(--fs-body)/1.3 var(--sans);color:var(--tx);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;gap:7px;align-items:center}
+.rw .sub{font:var(--fw-regular) var(--fs-meta)/var(--lh-meta) var(--sans);color:var(--tx-3);
+  display:flex;gap:6px;align-items:center;white-space:nowrap;overflow:hidden}
+.rw .why{font:var(--fw-regular) var(--fs-meta)/var(--lh-meta) var(--sans);color:var(--tx-2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .why.late{color:var(--late)} .why.soon{color:var(--warn)} .why.hold{color:var(--tx-2)}
 .type{display:inline-flex;align-items:center;gap:4px;color:var(--tx-3)}
 .emp-tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;letter-spacing:.03em;
@@ -338,7 +344,9 @@ h1{font:var(--fw-bold) var(--fs-title)/var(--lh-title) var(--sans);letter-spacin
   flex:none;letter-spacing:.02em;background:color-mix(in srgb,var(--cor) 16%,transparent);color:var(--cor);
   box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--cor) 28%,transparent)}
 .av.sm{width:18px;height:18px;font-size:8.5px}
-.av.lg{width:30px;height:30px;font-size:11px}
+/* lg é o tamanho do Avatar do sistema, usado onde a pessoa é o assunto da
+   linha: a conversa, a tela Equipe e o rodapé do celular. */
+.av.lg{width:40px;height:40px;font-size:14px}
 .people{display:flex;align-items:center;gap:5px;margin-left:6px}
 .pbtn{border-radius:50%;padding:2px;transition:var(--t)}
 .pbtn.on{box-shadow:0 0 0 1.5px var(--ac-tinta)}
@@ -750,8 +758,11 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns
   border-bottom:1px solid var(--line);position:sticky;top:52px;background:var(--panel);z-index:5}
 .ag-cab>div{padding:9px 8px;text-align:center;border-left:1px solid var(--line)}
 .ag-cab>div:first-child{border-left:0}
-.ag-cab .ds{font-size:10.5px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.06em}
-.ag-cab .dn{font-size:17px;font-weight:600;letter-spacing:-.025em;margin-top:1px}
+/* WeekGrid do sistema: o dia da semana é kicker, o número é h3, e hoje é a
+   única coisa colorida da grade. */
+.ag-cab .ds{font:var(--fw-semibold) var(--fs-kicker)/1.2 var(--sans);color:var(--tx-3);
+  text-transform:uppercase;letter-spacing:var(--ls-kicker)}
+.ag-cab .dn{font:var(--fw-semibold) var(--fs-h3)/1.1 var(--sans);letter-spacing:var(--ls-h3);margin-top:3px}
 .ag-cab .hoje .dn{color:var(--ac-tinta)}
 .ag-cab .hoje .ds{color:var(--ac-tinta)}
 
@@ -762,7 +773,8 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns
 
 .ag-corpo{grid-column:1/-1;display:grid;grid-template-columns:52px repeat(7,minmax(0,1fr));position:relative}
 .ag-horas{display:flex;flex-direction:column}
-.ag-hora{font-size:10.5px;color:var(--tx-3);text-align:right;padding-right:7px;position:relative;top:-6px}
+.ag-hora{font:var(--fw-regular) var(--fs-meta)/1 var(--sans);color:var(--tx-3);
+  text-align:right;padding-right:9px;position:relative;top:-6px}
 .ag-col{border-left:1px solid var(--line);position:relative}
 .ag-col.fds{background:var(--sunken)}
 .ag-linha{position:absolute;left:0;right:0;border-top:1px solid var(--line);pointer-events:none}
@@ -1052,16 +1064,20 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
 .chat-dia::before,.chat-dia::after{content:'';height:1px;background:var(--line);flex:1}
 .chat-dia span{flex:none}
 
-.msg{position:relative;display:grid;grid-template-columns:28px minmax(0,1fr);gap:11px;
-  padding:5px 16px;align-items:start}
-.msg:hover{background:var(--hover)}
+/* ChatMessage do sistema: avatar maior, nome em semibold, hora em meta apagada,
+   e o corpo da mensagem no tamanho de leitura, 17px, que é maior que o resto
+   da interface de propósito: mensagem se lê, não se escaneia. */
+.msg{position:relative;display:grid;grid-template-columns:40px minmax(0,1fr);gap:16px;
+  padding:12px 16px;align-items:start}
+.msg:hover{background:var(--brilho)}
 .msg.junto{padding-top:1px;padding-bottom:1px}
-.msg-av{display:grid;place-items:center;padding-top:2px;height:20px}
+.msg-av{display:grid;place-items:center;padding-top:2px;height:40px;width:40px}
 .msg-hora{font-size:10px;color:transparent;font-style:normal;font-variant-numeric:tabular-nums;transition:var(--t)}
 .msg.junto:hover .msg-hora{color:var(--tx-3)}
 .msg-h{display:flex;align-items:baseline;gap:8px;margin-bottom:1px}
-.msg-h b{font-size:12.5px;font-weight:600;letter-spacing:-.012em}
-.msg-h i{font-size:10.5px;color:var(--tx-3);font-style:normal;font-variant-numeric:tabular-nums}
+.msg-h b{font:var(--fw-semibold) var(--fs-body)/1.2 var(--sans);color:var(--tx)}
+.msg-h i{font:var(--fw-regular) var(--fs-meta)/1.2 var(--sans);color:var(--tx-3);
+  font-style:normal;font-variant-numeric:tabular-nums}
 
 /* Chamar pelo nome, citar e responder: o que impede a conversa de se perder. */
 .arroba{color:var(--ac-tinta);font-weight:600}
@@ -1076,8 +1092,12 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
   color:var(--tx-3);transition:var(--t)}
 .msg-acoes button:hover{background:var(--hover);color:var(--tx)}
 .msg-acoes button.del:hover{color:var(--late)}
-.msg-cit{display:flex;align-items:center;gap:6px;max-width:100%;margin-bottom:2px;padding:1px 0;
-  font-size:11.5px;color:var(--tx-3);text-align:left;transition:var(--t)}
+/* A citação: bloco recuado com fio à esquerda, como o quote do sistema. */
+.msg-cit{display:flex;align-items:center;gap:7px;max-width:100%;margin-bottom:6px;
+  padding:8px 12px;border-radius:var(--r-sm);background:var(--alto);
+  border-left:2px solid var(--line-3);
+  font:var(--fw-regular) var(--fs-meta)/1.3 var(--sans);color:var(--tx-3);
+  text-align:left;transition:var(--t)}
 .msg-cit:hover:not(:disabled){color:var(--tx-2)}
 .msg-cit:disabled{font-style:italic}
 .msg-cit svg{flex:none;opacity:.7}
@@ -1086,7 +1106,8 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
 @keyframes pisca{from{background:color-mix(in srgb,var(--ac) 22%,transparent)}}
 .msg.pisca{animation:pisca 1.4s ease-out}
 .msg-corpo{min-width:0}
-.msg-corpo p{margin:0;font-size:13.5px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg-corpo p{margin:0;font:var(--fw-regular) var(--fs-body-lg)/1.5 var(--sans);color:var(--tx-2);
+  white-space:pre-wrap;overflow-wrap:anywhere;text-wrap:pretty}
 
 /* O que o próprio sistema anotou, quando uma proposta virou trabalho. */
 .chat-sis{display:flex;align-items:center;gap:8px;padding:7px 16px;color:var(--tx-3);font-size:12px}
@@ -1134,12 +1155,14 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
 .chat-resp b{font-weight:600;color:var(--tx-2)}
 .chat-resp span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chat-resp .iconbtn{flex:none}
-.chat-campo textarea{flex:1;resize:none;border:0;background:var(--bg);box-shadow:0 0 0 1px var(--line-2);
-  border-radius:var(--r);padding:9px 12px;font-size:13.5px;line-height:1.5;max-height:160px;
-  min-height:38px;font-family:inherit;color:var(--tx)}
+/* Composer do sistema: 56px de altura, raio de gaveta, fundo de vidro leve e
+   fio do acento no foco. */
+.chat-campo textarea{flex:1;resize:none;border:1px solid var(--line-2);background:var(--brilho);
+  border-radius:var(--r-lg);padding:16px 20px;max-height:170px;min-height:56px;
+  font:var(--fw-regular) var(--fs-body-lg)/1.4 var(--sans);font-family:inherit;color:var(--tx)}
 .chat-campo textarea::placeholder{color:var(--tx-3)}
-.chat-campo textarea:focus{outline:none;box-shadow:0 0 0 1.5px var(--ac-tinta)}
-.chat-campo .btn.pri{height:38px;padding-inline:14px;flex:none}
+.chat-campo textarea:focus{outline:none;border-color:var(--ac-tinta);box-shadow:0 0 0 3px var(--ac-luz)}
+.chat-campo .btn.pri{height:56px;width:56px;padding:0;flex:none;border-radius:var(--r-pill)}
 .mencoes{position:absolute;bottom:calc(100% + 6px);left:0;background:var(--alto);border-radius:var(--r);
   box-shadow:var(--pop);padding:4px;min-width:210px;z-index:5}
 .mencoes button{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border-radius:6px;

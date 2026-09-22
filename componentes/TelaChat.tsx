@@ -542,7 +542,7 @@ function Conversa({ canal }: { canal: Canal }) {
               <div id={`msg-${m.id}`}
                 className={`msg ${junto ? 'junto' : ''} ${chama(m.texto, eu.nome) ? 'chamou' : ''}`}>
                 <span className="msg-av">
-                  {junto ? <i className="msg-hora">{hora(m.criado_em)}</i> : <Av p={perfilDe(m.autor_id)} />}
+                  {junto ? <i className="msg-hora">{hora(m.criado_em)}</i> : <Av p={perfilDe(m.autor_id)} tam="lg" />}
                 </span>
                 <div className="msg-corpo">
                   {!junto && (
