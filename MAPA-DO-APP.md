@@ -277,8 +277,37 @@ O Painel responde "o que precisa de mim agora". Esta tela responde outra pergunt
 
 Abaixo: as **entregas ao longo do tempo**, em barras, com a parte fora do prazo em
 vermelho; **onde está preso**, com o checkpoint, há quantos dias, quem se aguarda e
-quantas tarefas faltam; a **saúde de cada área**; e a **carga de cada pessoa**, com o que
-está na mão dela, o que está atrasado e o que ela entregou.
+quantas tarefas faltam; a **saúde de cada área**; a **sobrecarga de cada pessoa** (abaixo);
+e a **carga de cada pessoa**, com o que está na mão dela, o que está atrasado e o que ela
+entregou.
+
+**A sobrecarga**, em bloco próprio, é um índice de 0 a 100 por pessoa. A definição importa:
+sobrecarga aqui **não é tamanho de fila**, é a fila não caber no tempo que a pessoa tem, no
+ritmo em que ela costuma entregar. Quem tem vinte tarefas e entrega vinte por semana não
+está sobrecarregado; quem tem cinco e entrega uma por mês está.
+
+| | |
+|---|---|
+| **Com folga** | A fila cabe no tempo que tem |
+| **No limite** | Dá, mas sem folga para imprevisto |
+| **Em sobrecarga** | A fila não cabe no tempo que tem |
+| **Pouco para medir** | Falta histórico para dizer algo |
+
+Dois motivos bastam sozinhos para acender: **prazo já perdido** (o que se vê) e **fila que
+não fecha** (o que se prevê). Carregar mais que os colegas só agrava, porque pode ser o
+trabalho sendo diferente.
+
+**As partes aparecem sempre**, não só o número: "1 de 7 atrasada, neste ritmo são 105 dias
+de fila para 5 de prazo, 21 vezes o prazo". Assim o número é discutível. Um 88 sozinho não
+se discute, só se obedece.
+
+**E quando o time inteiro está com fila maior que o prazo**, a tela diz isso em vez de
+pintar todos de vermelho: não é sobrecarga de uma pessoa, é mais trabalho do que o time
+vaza, e tirar de um para dar a outro não resolve.
+
+O índice aparece em três lugares: aqui, **no formulário de tarefa no instante em que se
+escolhe o responsável** (que é onde a decisão acontece), e na distribuição pela IA, que
+troca a sugestão quando há alguém da mesma área com folga.
 
 **Cada um mede o que enxerga.** O colaborador vê os próprios números, o gestor vê os do
 time dele, o administrador vê os da empresa. Isso não é uma regra escrita nesta tela: é
@@ -387,6 +416,10 @@ nome**. Três origens, em ordem de força, e nenhuma é palpite sobre gente:
 
 Entre dois candidatos de força parecida, **ganha quem tem menos na mão**, senão a
 distribuição empilharia tudo em quem mais trabalha.
+
+**E quando o escolhido está em sobrecarga**, a IA procura alguém da mesma área que não
+esteja, e a sugestão já vem trocada, explicando a troca. Não havendo alternativa, mantém a
+sugestão e avisa: às vezes só uma pessoa sabe fazer aquilo, e esconder isso não ajudaria.
 
 Duas regras: **só preenche o que está vazio**, porque tirar uma tarefa de quem já a tem é
 decisão de gente; e **pessoa inativa não recebe nada**.
@@ -652,6 +685,11 @@ a coisa está agora. Vermelho marca o que passou do prazo. Tudo o mais é neutro
 distingue pela forma, não pela cor.
 
 **Datas são sempre relativas** na interface: "Hoje", "Amanhã", "em 4 dias", "há 2 dias".
+
+**Nenhum texto concorda em gênero com uma pessoa.** O app não sabe o gênero de ninguém, e
+deduzir pelo nome erraria com gente de verdade. Por isso as faixas de sobrecarga são
+substantivos ("em sobrecarga", e não "sobrecarregado") e as frases dizem "neste ritmo", e
+não "no ritmo dela".
 
 **Sem travessão** em nenhum texto da interface.
 
