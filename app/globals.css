@@ -1761,3 +1761,56 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
   .fez{flex-wrap:wrap}
   .fez .btn{width:100%;justify-content:center}
 }
+
+/* ------------------------------------------------------------ sobrecarga
+   Um número de 0 a 100 sobre uma pessoa precisa vir com a conta ao lado,
+   senão ele não se discute, só se obedece.
+   -------------------------------------------------------------------------- */
+
+.sc-regua{margin:0 0 14px;padding:10px 12px;border-radius:var(--r-sm);background:var(--bg);
+  font-size:11.5px;line-height:1.55;color:var(--tx-3)}
+.sc-regua b{color:var(--tx-2);font-weight:600}
+
+.sc{display:grid;grid-template-columns:minmax(110px,1fr) 90px 34px minmax(0,2fr);
+  align-items:center;gap:12px;padding:10px 2px}
+.sc + .sc{box-shadow:inset 0 1px 0 var(--line)}
+.sc-nm{display:flex;align-items:center;gap:7px;min-width:0;font-size:12.5px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sc-barra{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.sc-barra span{display:block;height:100%;border-radius:3px;background:var(--line-3);
+  transition:width .4s cubic-bezier(.22,1,.36,1)}
+.sc.apertado .sc-barra span{background:var(--warn-forte)}
+.sc.sobrecarregado .sc-barra span{background:var(--late)}
+.sc-n{text-align:right;font-size:15px;font-weight:700;letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums;color:var(--tx-3)}
+.sc.apertado .sc-n{color:var(--warn-forte)}
+.sc.sobrecarregado .sc-n{color:var(--late)}
+.sc-txt{min-width:0}
+.sc-txt b{display:block;font-size:12px;font-weight:600}
+.sc.apertado .sc-txt b{color:var(--warn-forte)}
+.sc.sobrecarregado .sc-txt b{color:var(--late)}
+.sc-txt small{display:block;font-size:10.5px;color:var(--tx-3);line-height:1.4;margin-top:1px}
+
+@media (max-width:760px){
+  .sc{grid-template-columns:minmax(0,1fr) 34px;gap:8px 10px}
+  .sc-barra{grid-column:1 / -1;order:3}
+  .sc-txt{grid-column:1 / -1;order:4}
+}
+
+.aviso-carga{display:flex;align-items:flex-start;gap:8px;margin:0 0 4px;padding:9px 11px;
+  border-radius:var(--r-sm);font-size:11.5px;line-height:1.5}
+.aviso-carga svg{flex:none;margin-top:1px}
+.aviso-carga.apertado{background:color-mix(in srgb,var(--warn-forte) 10%,transparent);
+  color:var(--warn-forte)}
+.aviso-carga.sobrecarregado{background:color-mix(in srgb,var(--late) 10%,transparent);
+  color:var(--late)}
+.aviso-carga b{font-weight:700}
+.qf-carga{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:5px;
+  font-size:9.5px;font-style:normal;font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.qf-carga.apertado{background:color-mix(in srgb,var(--warn-forte) 18%,transparent);color:var(--warn-forte)}
+.qf-carga.sobrecarregado{background:color-mix(in srgb,var(--late) 20%,transparent);color:var(--late)}
+.sc-time{display:flex;align-items:flex-start;gap:8px;margin:0 0 14px;padding:10px 12px;
+  border-radius:var(--r-sm);background:color-mix(in srgb,var(--warn-forte) 10%,transparent);
+  font-size:11.5px;line-height:1.55;color:var(--tx-2)}
+.sc-time svg{flex:none;margin-top:1px;color:var(--warn-forte)}
+.sc-time b{color:var(--warn-forte);font-weight:700}

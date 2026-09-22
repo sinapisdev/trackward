@@ -13,6 +13,7 @@ import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao,
 import { chama } from '@/lib/mencao'
 import { nomeLimpo, preparar, LIMITE, tamanhoLegivel } from '@/lib/anexos'
 import { distribuir, type Palpite } from '@/lib/distribuir'
+import { sobrecarga, type Carga } from '@/lib/sobrecarga'
 import type { Contexto as ContextoLeitura, Proposta } from '@/lib/leitor'
 import type { Alvo } from '@/lib/tipos'
 import { iso } from '@/lib/datas'
@@ -146,6 +147,9 @@ type Contexto = {
   desfazerSugestao: (s: Sugestao) => Promise<void>
   /** Quem a leitura sugere para cada tarefa sem dono. */
   palpites: Palpite[]
+  /** O índice de sobrecarga de cada pessoa, na janela de 30 dias. */
+  cargas: Carga[]
+  cargaDe: (perfilId: string | null) => Carga | null
   /** Põe o dono sugerido na tarefa. porIa quando foi a leitura que aplicou. */
   distribuirTarefa: (p: Palpite, porIa?: boolean) => Promise<void>
   recusarSugestao: (s: Sugestao) => Promise<void>
@@ -1186,9 +1190,25 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   // ------------------------------------------------- distribuir tarefas
 
+  /**
+   * A sobrecarga vive aqui, e não em cada tela, porque ela é usada em três
+   * lugares que não se conhecem: o Desempenho, o formulário de tarefa e a
+   * distribuição. Se cada um calculasse do seu jeito, os três dariam números
+   * diferentes para a mesma pessoa, e aí nenhum valeria nada.
+   */
+  const cargas = useMemo(() => sobrecarga(fluxos, perfis, 30), [fluxos, perfis])
+
   const palpites = useMemo(
-    () => distribuir(fluxos, processos, areas, perfis),
-    [fluxos, processos, areas, perfis],
+    () => distribuir(fluxos, processos, areas, perfis, cargas),
+    [fluxos, processos, areas, perfis, cargas],
+  )
+  const porPessoaCarga = useMemo(
+    () => new Map(cargas.map((c) => [c.pessoa.id, c])),
+    [cargas],
+  )
+  const cargaDe = useCallback(
+    (id: string | null) => (id && porPessoaCarga.get(id)) || null,
+    [porPessoaCarga],
   )
 
   const distribuirTarefa: Contexto['distribuirTarefa'] = useCallback(async (p, porIa = false) => {
@@ -1294,7 +1314,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     criarConvite, excluirConvite,
     canais, mensagens, sugestoes, mensagensDe, sugestoesDe, naoLidas, meChamaram,
     anexosDe, anexar, removerAnexo, abrirAnexo, decisoesDe, decidir,
-    desfazerSugestao, palpites, distribuirTarefa,
+    desfazerSugestao, palpites, distribuirTarefa, cargas, cargaDe,
     preverCascata, moverPrazo, pedidosPrazo, decidirPrazo,
     enviar, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
     lerConversa, aceitarSugestao, recusarSugestao,

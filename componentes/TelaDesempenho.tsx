@@ -10,6 +10,7 @@ import {
   PERIODOS, gargalos, indicadores, porArea, porDia, porPessoa, semHora,
   type Indicador, type Periodo,
 } from '@/lib/desempenho'
+import { FAIXAS, porque, timeInteiroApertado, type Carga } from '@/lib/sobrecarga'
 
 /**
  * Desempenho: como a empresa está entregando, e onde ela está presa.
@@ -81,8 +82,24 @@ function Grafico({ barras }: { barras: { rotulo: string; titulo: string; total: 
   )
 }
 
+function LinhaCarga({ c }: { c: Carga }) {
+  return (
+    <div className={`sc ${c.faixa}`}>
+      <span className="sc-nm"><Av p={c.pessoa} tam="sm" />{c.pessoa.nome}</span>
+      <span className="sc-barra" aria-hidden>
+        <span style={{ width: `${c.indice ?? 0}%` }} />
+      </span>
+      <span className="sc-n">{c.indice === null ? '—' : c.indice}</span>
+      <span className="sc-txt">
+        <b>{FAIXAS[c.faixa].nome}</b>
+        <small>{porque(c)}</small>
+      </span>
+    </div>
+  )
+}
+
 export function TelaDesempenho() {
-  const { fluxos, areas, perfis, decisoesDe, anexosDe, nomeDe, carregando, todosFluxos } = useDados()
+  const { fluxos, areas, perfis, decisoesDe, anexosDe, nomeDe, carregando, todosFluxos, cargas } = useDados()
   const [janela, setJanela] = useState<Periodo>(30)
 
   const dados = useMemo(() => {
@@ -185,6 +202,33 @@ export function TelaDesempenho() {
                   </Link>
                 )) : <div className="empty" style={{ padding: 0 }}>Nenhuma área com movimento.</div>}
               </div>
+            </div>
+          </div>
+
+          <div className="blk">
+            <div className="bh">
+              <h2>Sobrecarga</h2>
+              <span className="c">demanda contra o ritmo de cada um, nos últimos 30 dias</span>
+            </div>
+            <div className="card">
+              <p className="sc-regua">
+                Sobrecarga aqui não é tamanho de fila: é <b>a fila não caber no tempo que a
+                pessoa tem</b>, no ritmo em que ela costuma entregar. Duas coisas bastam
+                sozinhas para acender: prazo já perdido, ou fila que não fecha. Carregar mais
+                que os colegas só agrava, porque pode ser o trabalho sendo diferente.
+              </p>
+              {timeInteiroApertado(cargas) && (
+                <p className="sc-time">
+                  <Ic.espera />
+                  <span>
+                    <b>Os {cargas.filter((c) => c.indice !== null).length} estão com fila maior
+                    que o prazo.</b> Quando isso vale para todo mundo, não é sobrecarga de uma
+                    pessoa: é mais trabalho do que o time vaza. Tirar de um para dar a outro
+                    não resolve.
+                  </span>
+                </p>
+              )}
+              {cargas.map((c) => <LinhaCarga key={c.pessoa.id} c={c} />)}
             </div>
           </div>
 

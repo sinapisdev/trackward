@@ -1,4 +1,5 @@
 import { parecido } from './leitor'
+import type { Carga } from './sobrecarga'
 import type { Area, Etapa, Fluxo, Item, Perfil, Processo } from './tipos'
 
 /**
@@ -23,6 +24,13 @@ import type { Area, Etapa, Fluxo, Item, Perfil, Processo } from './tipos'
  * **Entre dois candidatos parecidos, ganha quem tem menos na mão.** Sem isso a
  * distribuição empilharia tudo em quem trabalha mais, que é o contrário do que
  * se quer de uma distribuição.
+ *
+ * **E quando o escolhido está sobrecarregado, procura-se alguém da mesma área
+ * que não esteja.** É o índice de sobrecarga trabalhando a favor de quem
+ * distribui: em vez de sugerir e deixar o gestor descobrir depois que a pessoa
+ * não dá conta, a sugestão já vem com a alternativa. Não havendo alternativa, a
+ * sugestão continua sendo a mesma, e a tela avisa: às vezes só há uma pessoa que
+ * sabe fazer aquilo, e esconder isso não ajudaria ninguém.
  */
 
 export type Palpite = {
@@ -42,7 +50,7 @@ export type Palpite = {
 const PISO = 0.35
 
 /** Quantas tarefas abertas cada pessoa tem agora, para não empilhar em ninguém. */
-function cargas(fluxos: Fluxo[]): Map<string, number> {
+function contarFila(fluxos: Fluxo[]): Map<string, number> {
   const m = new Map<string, number>()
   for (const f of fluxos) {
     if (f.concluido) continue
@@ -122,8 +130,29 @@ function pelaArea(fluxo: Fluxo, areas: Area[]): Voto | null {
 
 export function distribuir(
   fluxos: Fluxo[], processos: Processo[], areas: Area[], perfis: Perfil[],
+  /** O índice de sobrecarga, quando já foi calculado. Sem ele, só a contagem. */
+  cargas: Carga[] = [],
 ): Palpite[] {
-  const carga = cargas(fluxos)
+  const indice = new Map(cargas.map((c) => [c.pessoa.id, c.indice ?? 0]))
+  const sobrecarregado = (id: string) => (indice.get(id) ?? 0) >= 70
+
+  /**
+   * Alguém da mesma área com folga, quando o escolhido está sobrecarregado.
+   * Precisa ser bem mais leve, não só um ponto: trocar a pessoa por causa de
+   * diferença de ruído seria pior do que não trocar.
+   */
+  const alivio = (escolhido: string, areaId: string | null) => {
+    if (!areaId || !sobrecarregado(escolhido)) return null
+    const meu = indice.get(escolhido) ?? 0
+    const outros = perfis
+      .filter((p) => p.ativo && p.id !== escolhido && p.area_id === areaId)
+      .map((p) => ({ p, i: indice.get(p.id) ?? 0 }))
+      .filter((x) => x.i < 40 && meu - x.i >= 25)
+      .sort((a, b) => a.i - b.i)
+    return outros[0]?.p ?? null
+  }
+
+  const carga = contarFila(fluxos)
   const ativo = new Map(perfis.filter((p) => p.ativo).map((p) => [p.id, p]))
   const saida: Palpite[] = []
 
@@ -153,13 +182,20 @@ export function distribuir(
         const forca = Math.min(0.98, melhor.forca + reforco)
         if (forca < PISO) continue
 
+        // O escolhido está sobrecarregado e há alguém da área com folga.
+        const trocado = alivio(melhor.resp_id, f.area_id)
+        const quem = trocado?.id ?? melhor.resp_id
+        const porqueFinal = trocado
+          ? `${melhor.porque}, mas ${ativo.get(melhor.resp_id)!.nome} está em sobrecarga, e ${trocado.nome} é da mesma área com folga`
+          : melhor.porque
+
         saida.push({
           item, fluxo: f, etapa: et,
-          resp_id: melhor.resp_id,
-          nome: ativo.get(melhor.resp_id)!.nome,
-          porque: melhor.porque,
-          forca,
-          carga: carga.get(melhor.resp_id) ?? 0,
+          resp_id: quem,
+          nome: ativo.get(quem)?.nome ?? trocado?.nome ?? '',
+          porque: porqueFinal,
+          forca: trocado ? forca * 0.9 : forca,
+          carga: carga.get(quem) ?? 0,
         })
       }
     }

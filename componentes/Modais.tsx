@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useDados } from './Dados'
 import { Ic } from './Icones'
 import { AvisoPrazo } from './AvisoPrazo'
+import { FAIXAS, porque } from '@/lib/sobrecarga'
 import { Av } from './atomos'
 import Link from 'next/link'
 import { dias, hojeIso } from '@/lib/datas'
@@ -545,7 +546,7 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
 // ------------------------------------------------------------------- item
 
 function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () => void }) {
-  const { eu, perfis, fluxos, areaDe, pessoal, adicionarItem, editarItem, definirTravas } = useDados()
+  const { eu, perfis, fluxos, areaDe, pessoal, adicionarItem, editarItem, definirTravas, cargaDe } = useDados()
   const ativos = perfis.filter((p) => p.ativo)
   const fluxo = fluxos.find((f) => f.id === etapa.fluxo_id)
   const mandaNoPrazo = !!fluxo && podeMexerNoPrazo(eu, fluxo, perfis)
@@ -634,6 +635,23 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
               </select>
             </div>
           )}
+          {!pessoal && resp !== item?.resp_id && (() => {
+            const c = cargaDe(resp)
+            if (!c || c.faixa === 'tranquilo' || c.faixa === 'sem-base') return null
+            return (
+              <p className={`aviso-carga ${c.faixa}`}>
+                <Ic.espera />
+                <span>
+                  <b>{c.pessoa.nome}: {FAIXAS[c.faixa].nome.toLowerCase()}</b>
+                  {' '}({c.indice} de 100). {porque(c)}.
+                  {c.faixa === 'sobrecarregado'
+                    ? ' Vale ver se não cabe em outra pessoa.'
+                    : ' Dá, mas sem folga para imprevisto.'}
+                </span>
+              </p>
+            )
+          })()}
+
           <div className="fld">
             <label htmlFor="i-p">Prazo</label>
             <input className="inp" type="date" id="i-p" value={prazo} disabled={!mandaNoPrazo}
