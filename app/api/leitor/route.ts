@@ -17,7 +17,7 @@ export const runtime = 'nodejs'
 export const maxDuration = 30
 
 const MODELO = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5'
-const TIPOS: TipoProposta[] = ['tarefa', 'prazo', 'concluir', 'decisao', 'trava']
+const TIPOS: TipoProposta[] = ['tarefa', 'prazo', 'concluir', 'decisao', 'trava', 'distribuir']
 
 const FERRAMENTA = {
   name: 'registrar',
@@ -34,7 +34,7 @@ const FERRAMENTA = {
             texto: { type: 'string', description: 'A tarefa ou a decisão, em uma linha, começando por verbo no infinitivo quando for tarefa.' },
             motivo: { type: 'string', description: 'O trecho exato da conversa que deu origem, copiado.' },
             mensagem_id: { type: ['string', 'null'], description: 'O id da mensagem de onde saiu.' },
-            item_id: { type: ['string', 'null'], description: 'Só para tipo concluir ou prazo: o id da tarefa existente.' },
+            item_id: { type: ['string', 'null'], description: 'Para concluir, prazo ou distribuir: o id da tarefa que já existe.' },
             resp_id: { type: ['string', 'null'], description: 'O id da pessoa responsável, quando a conversa deixa claro.' },
             prazo: { type: ['string', 'null'], description: 'Data no formato AAAA-MM-DD, só quando a conversa disser.' },
           },
@@ -58,10 +58,13 @@ Hoje é ${ctx.hoje}.
 Pessoas: ${pessoas}.
 ${ctx.fluxo ? `A conversa é do projeto "${ctx.fluxo.nome}".\nTarefas que já existem nele:\n${itens || '(nenhuma)'}` : 'A conversa não está presa a um projeto.'}
 
-Cinco tipos:
+Seis tipos:
 - tarefa: alguém se comprometeu, pediu a alguém, ou a equipe reconheceu que algo precisa ser feito.
 - concluir: alguém disse que uma tarefa que já existe ficou pronta. Use item_id.
 - prazo: a conversa mudou o prazo de uma tarefa que já existe. Use item_id e prazo.
+- distribuir: uma tarefa que já existe e está SEM responsável ganhou dono na conversa
+  ("eu pego a conciliação", "passa para a Ana"). Use item_id e resp_id. Não use quando a
+  tarefa já tem responsável: trocar o dono de uma tarefa é decisão de gente, não sua.
 - decisao: a equipe decidiu alguma coisa que precisa ficar registrada.
 - trava: a frente parou esperando alguém de fora.
 
@@ -70,6 +73,7 @@ Regras:
 - Cumprimento, piada, combinação de almoço e pergunta sem resposta não são tarefa.
 - Se uma tarefa igual já existe na lista acima, não crie outra.
 - resp_id só quando a conversa deixar claro de quem é. Na dúvida, deixe nulo.
+- Em distribuir, resp_id e item_id são obrigatórios: sem os dois, não registre.
 - prazo só quando a conversa disser a data. Nunca invente um prazo.
 - Escreva em português do Brasil, sem travessão.
 - Nada a registrar é uma resposta boa: devolva a lista vazia.`
@@ -98,10 +102,15 @@ function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
     if (!tipo || !texto) continue
 
     const item = c.item_id && itens.get(c.item_id)
-    if ((tipo === 'concluir' || tipo === 'prazo') && !item) continue
+    if ((tipo === 'concluir' || tipo === 'prazo' || tipo === 'distribuir') && !item) continue
 
     const prazo = /^\d{4}-\d{2}-\d{2}$/.test(String(c.prazo)) ? String(c.prazo) : null
     if (tipo === 'prazo' && !prazo) continue
+
+    const resp = c.resp_id && pessoas.has(c.resp_id) ? c.resp_id : null
+    // Distribuir sem nome não é distribuir. E se a tarefa já tem dono, trocar o
+    // dono é decisão de gente: o modelo não passa por cima disso.
+    if (tipo === 'distribuir' && (!resp || (item && item.resp_id))) continue
 
     saida.push({
       tipo,
@@ -112,7 +121,7 @@ function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
         fluxo_id: ctx.fluxo?.id ?? null,
         etapa_id: item ? item.etapa_id : ctx.fluxo?.etapa_id ?? null,
         item_id: item ? item.id : null,
-        resp_id: c.resp_id && pessoas.has(c.resp_id) ? c.resp_id : null,
+        resp_id: resp,
         prazo,
       },
     })

@@ -237,6 +237,9 @@ create table if not exists public.atividades (
   fluxo_id  uuid not null references public.fluxos on delete cascade,
   quem_id   uuid references public.perfis on delete set null,
   texto     text not null,
+  -- Foi a leitura da conversa, e não a pessoa. A linha do tempo mostra a faísca
+  -- em vez do avatar, para dar para olhar a esteira e saber quem mexeu no quê.
+  por_ia    boolean not null default false,
   criado_em timestamptz not null default now()
 );
 
@@ -342,6 +345,9 @@ create table if not exists public.mensagens (
   responde_a  uuid references public.mensagens on delete set null,
   -- Escrita pelo próprio sistema, quando uma sugestão vira tarefa.
   sistema     boolean not null default false,
+  -- Escrita pela leitura da conversa, e não por quem mandou ler. A mensagem
+  -- aparece assinada pela leitura, que é o aviso de que a máquina fez algo.
+  por_ia      boolean not null default false,
   criado_em   timestamptz not null default now(),
   editado_em  timestamptz
 );
@@ -352,7 +358,7 @@ create table if not exists public.sugestoes (
   id            uuid primary key default gen_random_uuid(),
   canal_id      uuid not null references public.canais on delete cascade,
   mensagem_id   uuid references public.mensagens on delete set null,
-  tipo          text not null check (tipo in ('tarefa','prazo','concluir','decisao','trava')),
+  tipo          text not null check (tipo in ('tarefa','prazo','concluir','decisao','trava','distribuir')),
   texto         text not null,
   -- O trecho da conversa que deu origem, para ninguém aceitar no escuro.
   motivo        text not null default '',
@@ -360,7 +366,14 @@ create table if not exists public.sugestoes (
   estado        text not null default 'aberta' check (estado in ('aberta','aceita','recusada')),
   criado_em     timestamptz not null default now(),
   decidido_por  uuid references public.perfis on delete set null,
-  decidido_em   timestamptz
+  decidido_em   timestamptz,
+  -- Quem aplicou: a leitura sozinha, ou uma pessoa. Sem isto, o que a IA faz
+  -- aparece no nome de quem por acaso mandou ler, e ninguém mais distingue o
+  -- que foi feito por gente do que foi feito por máquina.
+  por_ia        boolean not null default false,
+  -- Desfeita quando alguém voltou atrás no que a leitura fez sozinha.
+  desfeita_em   timestamptz,
+  desfeita_por  uuid references public.perfis on delete set null
 );
 
 create index if not exists msg_canal_idx  on public.mensagens (canal_id, criado_em);
@@ -1765,6 +1778,19 @@ end $$;
 -- pronto fica sem data. Preencher com um palpite seria pior do que não ter.
 alter table public.itens add column if not exists feito_em timestamptz;
 alter table public.itens add column if not exists prazo_firme boolean not null default false;
+
+-- A autoria da leitura. Bancos anteriores tinham tudo no nome de quem mandou ler.
+alter table public.atividades add column if not exists por_ia boolean not null default false;
+alter table public.mensagens  add column if not exists por_ia boolean not null default false;
+alter table public.sugestoes  add column if not exists por_ia boolean not null default false;
+alter table public.sugestoes  add column if not exists desfeita_em timestamptz;
+alter table public.sugestoes  add column if not exists desfeita_por uuid references public.perfis on delete set null;
+do $$ begin
+  alter table public.sugestoes drop constraint if exists sugestoes_tipo_check;
+  alter table public.sugestoes add constraint sugestoes_tipo_check
+    check (tipo in ('tarefa','prazo','concluir','decisao','trava','distribuir'));
+exception when others then null;
+end $$;
 
 do $$
 begin

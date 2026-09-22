@@ -1703,3 +1703,61 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
   .cas-datas{flex-direction:column;align-items:flex-end;gap:1px}
   .cas-datas svg{display:none}
 }
+
+/* ======================================================================
+   O que a leitura faz, e quem faz o que ainda não tem dono.
+   A faísca é sempre a marca da máquina: onde ela aparece, não foi gente.
+   ====================================================================== */
+
+.chat-sis.ia{color:var(--ac)}
+.chat-sis.ia b{font-weight:600}
+.act.ia .act-ia{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;
+  background:color-mix(in srgb,var(--ac) 16%,transparent);color:var(--ac);flex:none}
+.act.ia b{color:var(--ac)}
+
+.chat-ia{flex:none;border-top:1px solid var(--line);
+  background:color-mix(in srgb,var(--ac) 7%,transparent)}
+.chat-ia-h{position:relative;padding:11px 16px 10px}
+.chat-ia-h > svg{float:left;margin:1px 8px 0 0;color:var(--ac)}
+.chat-ia-h b{font-size:12.5px;font-weight:700;letter-spacing:-.015em;color:var(--ac)}
+.chat-ia-h span{display:block;font-size:11.5px;color:var(--tx-3);line-height:1.5;
+  margin-top:3px;clear:both;padding-right:22px}
+.chat-ia-h .iconbtn{position:absolute;top:9px;right:10px}
+.fez{display:flex;align-items:center;gap:10px;padding:9px 16px;
+  box-shadow:inset 0 1px 0 color-mix(in srgb,var(--ac) 18%,transparent)}
+.fez-txt{flex:1;min-width:0}
+.fez-txt b{display:block;font-size:12.5px;font-weight:500;line-height:1.4}
+.fez-txt small{display:block;font-size:11px;color:var(--tx-3);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.fez .btn{flex:none}
+
+.qf{margin:0 0 22px;border-radius:var(--r-lg);overflow:hidden;
+  box-shadow:0 0 0 1.5px color-mix(in srgb,var(--ac) 38%,transparent)}
+.qf-h{position:relative;padding:13px 16px 12px;background:color-mix(in srgb,var(--ac) 8%,transparent)}
+.qf-h > svg{float:left;margin:1px 9px 0 0;color:var(--ac)}
+.qf-h b{font-size:13.5px;font-weight:700;letter-spacing:-.02em;color:var(--ac)}
+.qf-h span{display:block;font-size:12px;color:var(--tx-3);line-height:1.5;margin-top:3px;
+  clear:both;padding-right:26px}
+.qf-h .iconbtn{position:absolute;top:11px;right:12px}
+.qf-l{display:flex;align-items:center;gap:14px;padding:11px 16px;background:var(--panel);
+  box-shadow:inset 0 1px 0 var(--line)}
+.qf-txt{flex:1;min-width:0}
+.qf-txt b{display:block;font-size:13px;font-weight:500;line-height:1.4}
+.qf-txt small{display:block;font-size:11px;color:var(--tx-3);margin-top:1px}
+.qf-quem{flex:none;display:flex;align-items:center;gap:8px;max-width:300px}
+.qf-quem > span{min-width:0}
+.qf-quem b{display:block;font-size:12.5px;font-weight:600}
+.qf-quem small{display:block;font-size:10.5px;color:var(--tx-3);line-height:1.35}
+.qf-l .btn{flex:none}
+.qf-pe{display:flex;justify-content:flex-end;padding:10px 16px 12px;background:var(--panel);
+  box-shadow:inset 0 1px 0 var(--line)}
+
+.sug-tag.distribuir{background:color-mix(in srgb,var(--ac) 18%,transparent);color:var(--ac)}
+
+@media (max-width:760px){
+  .qf-l{flex-wrap:wrap}
+  .qf-quem{width:100%;max-width:none;padding-left:0}
+  .qf-l .btn{width:100%;justify-content:center}
+  .fez{flex-wrap:wrap}
+  .fez .btn{width:100%;justify-content:center}
+}

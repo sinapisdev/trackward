@@ -12,6 +12,7 @@ import { classePrazo } from './partes'
 import { Anexos } from './Anexos'
 import { Decisao } from './Decisao'
 import { Trilha } from './Trilha'
+import { QuemFaz } from './QuemFaz'
 import { curta, isoDe, rel } from '@/lib/datas'
 import { LBL, progresso, proxPrazo, status } from '@/lib/regras'
 import { mandaNoProcesso, podeConcluir, podeMexerNoItem } from '@/lib/acesso'
@@ -133,6 +134,8 @@ export function TelaFluxo({ id }: { id: string }) {
       )}
 
       <Trilha f={f} sel={idx} aoEscolher={setSel} decisoes={decisoesDe(f.id)} />
+
+      <QuemFaz f={f} />
 
       {f.tipo === 'ciclo' && (
         <div className="loopnote">
@@ -287,10 +290,12 @@ export function TelaFluxo({ id }: { id: string }) {
             <div className="bh"><h2>Atividade</h2></div>
             <div className="card">
               {f.log.length ? f.log.slice(0, 8).map((a) => (
-                <div className="act" key={a.id}>
-                  <Av p={perfilDe(a.quem_id)} tam="sm" />
+                <div className={`act ${a.por_ia ? 'ia' : ''}`} key={a.id}>
+                  {a.por_ia
+                    ? <span className="act-ia" title="Feito pela leitura da conversa"><Ic.faisca /></span>
+                    : <Av p={perfilDe(a.quem_id)} tam="sm" />}
                   <span>
-                    <b>{nomeDe(a.quem_id)}</b> {a.texto}
+                    <b>{a.por_ia ? 'A leitura da conversa' : nomeDe(a.quem_id)}</b> {a.texto}
                     <small>{rel(isoDe(a.criado_em))}</small>
                   </span>
                 </div>

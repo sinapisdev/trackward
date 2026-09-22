@@ -18,6 +18,7 @@ const ROTULO: Record<TipoProposta, string> = {
   concluir: 'Ficou pronto',
   decisao: 'Decisão',
   trava: 'Travou',
+  distribuir: 'Quem faz',
 }
 
 const hora = (ts: string) =>
@@ -304,6 +305,7 @@ function Conversa({ canal }: { canal: Canal }) {
   const {
     eu, perfis, perfilDe, nomeDe, todosFluxos, areaDe, org,
     mensagensDe, sugestoesDe, marcarLido, lerConversa, apagarMensagem, excluirCanal,
+    desfazerSugestao,
   } = useDados()
   const { abrir } = useModais()
   const router = useRouter()
@@ -317,7 +319,15 @@ function Conversa({ canal }: { canal: Canal }) {
   const nomes = useMemo(() => perfis.map((p) => p.nome), [perfis])
   const sugs = useMemo(() => sugestoesDe(canal.id), [sugestoesDe, canal.id])
   const abertas = sugs.filter((s) => s.estado === 'aberta')
-  const fechadas = sugs.filter((s) => s.estado !== 'aberta')
+  const fechadas = sugs.filter((s) => s.estado !== 'aberta' && !(s.por_ia && s.estado === 'aceita'))
+  /**
+   * O que a leitura aplicou sozinha e ainda ninguém revisou.
+   *
+   * Fica em bloco próprio, em cima das propostas: a pessoa precisa ver que a
+   * máquina mexeu em algo antes de ver o que ela está propondo. Sem isso, o
+   * "aplicar sozinho" seria a IA trabalhando escondida.
+   */
+  const feitasPelaIa = sugs.filter((s) => s.por_ia && s.estado === 'aceita' && !s.desfeita_em)
 
   const canalId = canal.id
   useEffect(() => { void marcarLido(canalId) }, [canalId, msgs.length, marcarLido])
@@ -416,9 +426,11 @@ function Conversa({ canal }: { canal: Canal }) {
           <div key={m.id}>
             {dia && <div className="chat-dia"><span>{diaDe(dia)}</span></div>}
             {m.sistema ? (
-              <div className="chat-sis">
+              <div className={`chat-sis ${m.por_ia ? 'ia' : ''}`}>
                 <Ic.faisca />
-                <span>{nomeDe(m.autor_id)} {m.texto}</span>
+                <span>
+                  {m.por_ia ? <b>A leitura da conversa</b> : nomeDe(m.autor_id)} {m.texto}
+                </span>
                 <i>{hora(m.criado_em)}</i>
               </div>
             ) : (
@@ -465,6 +477,35 @@ function Conversa({ canal }: { canal: Canal }) {
           )
         })}
       </div>
+
+      {!!feitasPelaIa.length && (
+        <div className="chat-ia">
+          <div className="chat-ia-h">
+            <Ic.faisca />
+            <b>
+              {feitasPelaIa.length === 1
+                ? 'A leitura fez uma coisa sozinha'
+                : `A leitura fez ${feitasPelaIa.length} coisas sozinhas`}
+            </b>
+            <span>
+              Está ligado o modo de aplicar sozinho, em Ajustes. Se alguma não era isso,
+              dá para desfazer aqui.
+            </span>
+          </div>
+          {feitasPelaIa.map((s) => (
+            <div className="fez" key={s.id}>
+              <span className={`sug-tag ${s.tipo}`}>{ROTULO[s.tipo]}</span>
+              <span className="fez-txt">
+                <b>{s.texto}</b>
+                {!!s.motivo && <small>{s.motivo}</small>}
+              </span>
+              <button className="btn ghost" onClick={() => void desfazerSugestao(s)}>
+                <Ic.devolver />Desfazer
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {(!!abertas.length || !!fechadas.length) && (
         <div className="chat-sugs">

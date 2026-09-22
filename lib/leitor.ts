@@ -74,7 +74,7 @@ function comuns(a: string, b: string) {
  * Quanto a frase FALA DE alguma coisa: "o orçamento já está pronto" fala do item
  * "Orçamento da fundação" mesmo tendo o dobro das palavras. Por isso o menor lado.
  */
-function parecido(a: string, b: string) {
+export function parecido(a: string, b: string) {
   const { juntos, x, y } = comuns(a, b)
   if (!x || !y) return 0
   return juntos / Math.min(x, y)
@@ -85,7 +85,7 @@ function parecido(a: string, b: string) {
  * cláusulas do contrato da empreiteira" seria tratado como repetição de
  * "Contrato da empreiteira", e a tarefa nova se perderia.
  */
-function mesmaCoisa(a: string, b: string) {
+export function mesmaCoisa(a: string, b: string) {
   const { juntos, x, y } = comuns(a, b)
   if (!x || !y) return 0
   return juntos / Math.max(x, y)
@@ -192,7 +192,27 @@ const PEDIDO = /\b(consegue|poderia|pode ver|pode cuidar|pode pegar|da para|te p
 /** Em português o pedido quase sempre vem de pergunta: "você consegue ... ?" */
 const PERGUNTA_PEDIDO = /\b(consegue|poderia|pode|da para|daria)\b/
 
+/**
+ * Alguém dizendo quem vai fazer uma tarefa que JÁ EXISTE e está sem dono.
+ *
+ * Diferente de COMPROMISSO, que gera tarefa nova: aqui a tarefa está na esteira
+ * esperando um nome, e a conversa deu o nome. "Eu pego a conciliação" não é
+ * trabalho novo, é a conciliação ganhando dono.
+ */
+const ASSUME = /\b(eu pego|pego essa|pego esta|pego isso|deixa comigo|fico com|eu fico com|assumo|eu assumo|pode deixar comigo|me passa|passa para mim|eu cuido dessa|eu cuido disso)\b/
+const PASSA_PARA = /\b(passa para|passe para|manda para|fica com|deixa com|delega para|e do|e da|sera do|sera da|responsavel e)\b/
+
 const PRONTO = /\b(ja (?:fiz|feito|foi|enviei|mandei|paguei|assinei|assinamos|ficou|esta)|conclui|concluimos|concluido|concluida|terminei|terminamos|finalizei|finalizamos|entreguei|entregamos|esta pronto|ta pronto|ficou pronto|resolvido|resolvi|fechei|assinado|aprovado e enviado)\b/
+
+/**
+ * "já" mais um verbo no passado, para o que a lista acima não alcança.
+ *
+ * A lista fechada nunca vai dar conta: cada empresa tem os verbos dela, e
+ * "já homologamos", "já conciliamos", "já protocolei" são tão conclusão quanto
+ * "já fiz". O que barra o falso positivo é a lista de exclusão: "já vamos",
+ * "já precisamos", "já podemos" falam de futuro, não de coisa pronta.
+ */
+const JA_PASSADO = /\bja (?!vamos|iremos|podemos|precisamos|devemos|queremos|temos|tinhamos|estamos|ficamos de)([a-z]{4,}(?:amos|emos|imos|ei|iu|ou))\b/
 const MUDOU_PRAZO = /\b(adiar|adiamos|adiado|adiada|empurra|empurramos|passou para|passa para|passamos para|mudou para|muda para|remarca|remarcado|remarcamos|prorroga|prorrogamos|vai para|fica para|ficar para|ficou para|estende|estendemos)\b/
 const DECISAO = /\b(ficou definido|ficou decidido|ficou acertado|decidimos|decidido que|fechado que|fechamos com|aprovamos|optamos por|definimos|vamos com|escolhemos|acordado)\b/
 const TRAVA = /\b(travad|bloquead|parad[oa]s? (?:esperando|aguardando)|nao consigo avancar|nao da para avancar|impedid|sem retorno|de maos atadas|na mao (?:deles|dela|dele))\b/
@@ -290,7 +310,7 @@ export function porRegras(ctx: Contexto): Proposta[] {
 
       // 1. Ficou pronto. Vem antes de tudo, senão "já fiz o orçamento" viraria
       //    uma tarefa nova de fazer o orçamento.
-      if (PRONTO.test(t) && !pergunta) {
+      if ((PRONTO.test(t) || JA_PASSADO.test(t)) && !pergunta) {
         const alvo = itemDaFrase(frase, abertos)
         if (alvo) {
           saida.push({
@@ -301,6 +321,32 @@ export function porRegras(ctx: Contexto): Proposta[] {
             dados: { fluxo_id: ctx.fluxo?.id ?? null, item_id: alvo.id, etapa_id: alvo.etapa_id },
           })
           continue
+        }
+      }
+
+      // 1b. Quem vai fazer. A tarefa já existe e está sem dono, e a conversa deu
+      //     o nome. Não é tarefa nova: é a tarefa ganhando responsável.
+      if (!pergunta && (ASSUME.test(t) || PASSA_PARA.test(t))) {
+        const semDono = abertos.filter((i) => !i.resp_id)
+        const alvo = itemDaFrase(frase, semDono)
+        if (alvo) {
+          // "eu pego" é quem falou. "passa para a Ana" é a Ana.
+          const outro = chamado(frase, ctx.pessoas.filter((x) => x.id !== m.autor_id))
+          const quem = ASSUME.test(t) && !outro ? m.autor_id : outro
+          const nome = ctx.pessoas.find((x) => x.id === quem)?.nome
+          if (quem && nome) {
+            saida.push({
+              tipo: 'distribuir',
+              texto: `${alvo.texto} fica com ${nome}`,
+              motivo: `${m.autor}: ${frase}`,
+              mensagem_id: m.id,
+              dados: {
+                fluxo_id: ctx.fluxo?.id ?? null, item_id: alvo.id,
+                etapa_id: alvo.etapa_id, resp_id: quem,
+              },
+            })
+            continue
+          }
         }
       }
 

@@ -263,6 +263,8 @@ export type Atividade = {
   fluxo_id: string
   quem_id: string | null
   texto: string
+  /** Foi a leitura da conversa, e não uma pessoa. */
+  por_ia: boolean
   criado_em: string
 }
 
@@ -372,11 +374,13 @@ export type Mensagem = {
   responde_a: string | null
   /** Escrita pelo próprio sistema, quando uma sugestão vira tarefa. */
   sistema: boolean
+  /** Escrita pela leitura da conversa, e não por quem mandou ler. */
+  por_ia: boolean
   criado_em: string
   editado_em: string | null
 }
 
-export type TipoProposta = 'tarefa' | 'prazo' | 'concluir' | 'decisao' | 'trava'
+export type TipoProposta = 'tarefa' | 'prazo' | 'concluir' | 'decisao' | 'trava' | 'distribuir'
 
 /** O que a leitura da conversa propõe. Nada acontece antes de alguém aceitar. */
 export type Alvo = {
@@ -385,6 +389,10 @@ export type Alvo = {
   item_id?: string | null
   resp_id?: string | null
   prazo?: string | null
+  /** A tarefa que nasceu daqui. Sem guardar isto não há como desfazer depois. */
+  criou_id?: string | null
+  /** Quem era o dono antes, para desfazer poder devolver ao que era. */
+  de_resp_id?: string | null
 }
 
 export type Sugestao = {
@@ -401,4 +409,8 @@ export type Sugestao = {
   criado_em: string
   decidido_por: string | null
   decidido_em: string | null
+  /** A leitura aplicou sozinha. Aparece assinada por ela, e dá para desfazer. */
+  por_ia: boolean
+  desfeita_em: string | null
+  desfeita_por: string | null
 }

@@ -131,7 +131,8 @@ export function semente(): Base {
   let seq = 0
   const chaves: Record<string, string> = {}
   type DefItem = [
-    texto: string, resp: string, prazo: string | null, feito: boolean,
+    // resp nulo é tarefa sem dono, que é o caso que a distribuição resolve.
+    texto: string, resp: string | null, prazo: string | null, feito: boolean,
     priv?: boolean, chave?: string,
   ]
   type DefEtapa = [nome: string, criterio: string, aprovador: string, prazo: string | null, itens?: DefItem[]]
@@ -253,6 +254,7 @@ export function semente(): Base {
       ['Migrar o plano de contas', 'ana', d(-2), false, false, 'plano-contas'],
       ['Homologar a integração bancária', 'carlos', d(3), false, false, 'integra-banco'],
       ['Treinar o time financeiro', 'marina', d(4), false],
+      ['Conciliar os extratos do mês de virada', null, d(4), false],
     ]],
     ['Virada', 'Sistema antigo desligado', 'leo', d(20), []],
   ])
@@ -342,6 +344,7 @@ export function semente(): Base {
       ['Revisar os textos de cada página', 'marina', d(1), false],
       ['Subir o catálogo completo', 'marina', d(3), false, false, 'sobe-catalogo'],
       ['Testar o formulário de contato', 'carlos', d(3), false],
+      ['Revisar o texto da página de contato', null, d(4), false],
     ]],
     ['Publicação', 'Site no ar com domínio próprio', 'leo', d(12), []],
   ], { empresa_id: 'dig' })

@@ -12,6 +12,7 @@ import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao,
   } from '@/lib/tipos'
 import { chama } from '@/lib/mencao'
 import { nomeLimpo, preparar, LIMITE, tamanhoLegivel } from '@/lib/anexos'
+import { distribuir, type Palpite } from '@/lib/distribuir'
 import type { Contexto as ContextoLeitura, Proposta } from '@/lib/leitor'
 import type { Alvo } from '@/lib/tipos'
 import { iso } from '@/lib/datas'
@@ -75,11 +76,11 @@ type Contexto = {
   excluirFluxo: (id: string) => Promise<void>
   travar: (f: Fluxo, motivo: string) => Promise<void>
   destravar: (f: Fluxo) => Promise<void>
-  adicionarItem: (et: Etapa, d: DadosItem) => Promise<string | null>
+  adicionarItem: (et: Etapa, d: DadosItem, porIa?: boolean) => Promise<string | null>
   editarItem: (item: Item, d: DadosItem) => Promise<void>
   definirTravas: (item: Item, ids: string[]) => Promise<void>
   excluirItem: (item: Item) => Promise<void>
-  alternarItem: (item: Item) => Promise<void>
+  alternarItem: (item: Item, porIa?: boolean) => Promise<void>
   aprovar: (f: Fluxo) => Promise<void>
   /** Os anexos de uma tarefa, que são a prova de que ela saiu. */
   anexosDe: (itemId: string) => Anexo[]
@@ -140,7 +141,13 @@ type Contexto = {
   excluirCanal: (id: string) => Promise<void>
   /** Lê a conversa e guarda o que ela produziu, sem aplicar nada ainda. */
   lerConversa: (canalId: string) => Promise<{ achou: number; motor: string } | null>
-  aceitarSugestao: (s: Sugestao, ajuste?: Alvo) => Promise<void>
+  aceitarSugestao: (s: Sugestao, ajuste?: Alvo, porIa?: boolean) => Promise<void>
+  /** Volta atrás no que a leitura fez sozinha. */
+  desfazerSugestao: (s: Sugestao) => Promise<void>
+  /** Quem a leitura sugere para cada tarefa sem dono. */
+  palpites: Palpite[]
+  /** Põe o dono sugerido na tarefa. porIa quando foi a leitura que aplicou. */
+  distribuirTarefa: (p: Palpite, porIa?: boolean) => Promise<void>
   recusarSugestao: (s: Sugestao) => Promise<void>
 }
 
@@ -437,8 +444,15 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     toast(msg && msg.length < 120 ? msg : padrao, true)
   }, [toast])
 
-  const logar = useCallback(async (fluxo_id: string, texto: string) => {
-    await sb.from('atividades').insert({ fluxo_id, quem_id: eu.id, texto })
+  /**
+   * A linha do tempo da esteira.
+   *
+   * porIa existe porque o que a leitura faz sozinha não pode aparecer no nome de
+   * quem por acaso mandou ler. Sem essa distinção, ninguém mais olha a esteira e
+   * sabe o que foi decidido por gente e o que a máquina fez.
+   */
+  const logar = useCallback(async (fluxo_id: string, texto: string, porIa = false) => {
+    await sb.from('atividades').insert({ fluxo_id, quem_id: porIa ? null : eu.id, texto, por_ia: porIa })
   }, [sb, eu.id])
 
   // ---------------------------------------------------------------- ações
@@ -524,7 +538,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     recarregar()
   }, [sb, falhou, toast, recarregar, logar])
 
-  const adicionarItem: Contexto['adicionarItem'] = useCallback(async (et, d) => {
+  const adicionarItem: Contexto['adicionarItem'] = useCallback(async (et, d, porIa = false) => {
     const { data, error } = await sb.from('itens').insert({
       etapa_id: et.id,
       fluxo_id: et.fluxo_id,
@@ -537,8 +551,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       ordem: et.itens.length,
     }).select().single()
     if (error) { falhou(error, 'Não foi possível adicionar o item.'); return null }
-    if (!d.priv) await logar(et.fluxo_id, `adicionou ${d.texto}`)
-    toast('Item adicionado.')
+    if (!d.priv) await logar(et.fluxo_id, `adicionou ${d.texto}`, porIa)
+    if (!porIa) toast('Item adicionado.')
     recarregar()
     return (data as Item | null)?.id ?? null
   }, [sb, eu.id, falhou, toast, recarregar, logar])
@@ -575,7 +589,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   }, [sb, falhou, toast, recarregar, logar])
 
   /** Marca na hora e confirma depois, para o clique não parecer lento. */
-  const alternarItem: Contexto['alternarItem'] = useCallback(async (item) => {
+  const alternarItem: Contexto['alternarItem'] = useCallback(async (item, porIa = false) => {
     const feito = !item.feito
     setFluxos((atual) =>
       atual.map((f) =>
@@ -593,8 +607,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     const { error } = await sb.from('itens').update({ feito }).eq('id', item.id)
     if (error) { falhou(error, 'Não foi possível salvar.'); recarregar(); return }
     if (feito) {
-      if (!item.priv) await logar(item.fluxo_id, `concluiu ${item.texto}`)
-      toast(`Concluído: ${item.texto}`)
+      if (!item.priv) await logar(item.fluxo_id, `concluiu ${item.texto}`, porIa)
+      if (!porIa) toast(`Concluído: ${item.texto}`)
     }
     recarregar()
   }, [sb, falhou, toast, recarregar, logar])
@@ -1057,7 +1071,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     return null
   }, [todosFluxos])
 
-  const aceitarSugestao: Contexto['aceitarSugestao'] = useCallback(async (sug, ajuste) => {
+  const aceitarSugestao: Contexto['aceitarSugestao'] = useCallback(async (sug, ajuste, porIa = false) => {
     const dados: Alvo = { ...sug.dados, ...ajuste }
     const fluxo = todosFluxos.find((x) => x.id === dados.fluxo_id) || null
     let contou = ''
@@ -1069,13 +1083,15 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       if (!et) return toast('Este projeto ainda não tem checkpoint.', true)
       const id = await adicionarItem(et, {
         texto: sug.texto, resp_id: dados.resp_id ?? null, prazo: dados.prazo || '', priv: false,
-      })
+      }, porIa)
       if (!id) return
+      // Guardamos o que nasceu daqui, senão não há como desfazer depois.
+      dados.criou_id = id
       contou = `criou a tarefa "${sug.texto}" em ${fluxo.nome}`
     } else if (sug.tipo === 'concluir') {
       const achado = itemPorId(dados.item_id)
       if (!achado) return toast('A tarefa não existe mais.', true)
-      if (!achado.item.feito) await alternarItem(achado.item)
+      if (!achado.item.feito) await alternarItem(achado.item, porIa)
       contou = `marcou "${achado.item.texto}" como feita`
     } else if (sug.tipo === 'prazo') {
       const achado = itemPorId(dados.item_id)
@@ -1093,21 +1109,97 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       await travar(fluxo, sug.texto.replace(/^Travar [^:]+:\s*/, ''))
       contou = `travou ${fluxo.nome}`
     } else if (sug.tipo === 'decisao') {
-      if (fluxo) await logar(fluxo.id, `registrou da conversa: ${sug.texto}`)
+      if (fluxo) await logar(fluxo.id, `registrou da conversa: ${sug.texto}`, porIa)
       contou = fluxo ? `registrou a decisão em ${fluxo.nome}` : 'registrou a decisão'
+    } else if (sug.tipo === 'distribuir') {
+      const achado = itemPorId(dados.item_id)
+      if (!achado) return toast('A tarefa não existe mais.', true)
+      if (achado.item.resp_id) return toast('Esta tarefa já tem dono.', true)
+      if (!dados.resp_id) return toast('A proposta não diz quem.', true)
+      // Guardamos que estava vazia, para desfazer poder deixar vazia de novo.
+      dados.de_resp_id = null
+      await editarItem(achado.item, {
+        texto: achado.item.texto, resp_id: dados.resp_id, prazo: achado.item.prazo || '',
+        priv: achado.item.priv, firme: achado.item.prazo_firme, quieto: true,
+      })
+      await logar(achado.fluxo.id, `passou ${achado.item.texto} para ${nomeDe(dados.resp_id)}`, porIa)
+      contou = `passou "${achado.item.texto}" para ${nomeDe(dados.resp_id)}`
     }
 
     await sb.from('sugestoes').update({
-      estado: 'aceita', decidido_por: eu.id, decidido_em: new Date().toISOString(),
+      estado: 'aceita',
+      decidido_por: porIa ? null : eu.id,
+      decidido_em: new Date().toISOString(),
+      por_ia: porIa,
+      dados,
     }).eq('id', sug.id)
+
     // A conversa fica sabendo do que saiu dela, senão o trabalho some do contexto.
+    // Quando foi a leitura, a mensagem sai assinada por ela: é o aviso de que a
+    // máquina mexeu em algo, e é o que permite saber depois quem fez o quê.
     if (contou) {
       await sb.from('mensagens').insert({
-        canal_id: sug.canal_id, autor_id: eu.id, texto: contou, sistema: true, responde_a: null,
+        canal_id: sug.canal_id, autor_id: porIa ? null : eu.id,
+        texto: contou, sistema: true, por_ia: porIa, responde_a: null,
       })
     }
     recarregar()
-  }, [sb, eu, perfis, todosFluxos, itemPorId, adicionarItem, alternarItem, editarItem, travar, logar, toast, recarregar])
+  }, [sb, eu, perfis, todosFluxos, itemPorId, adicionarItem, alternarItem, editarItem, travar, logar, nomeDe, toast, recarregar])
+
+  /**
+   * Volta atrás no que a leitura fez sozinha.
+   *
+   * Autonomia sem desfazer não é autonomia, é risco. Cada tipo sabe voltar ao
+   * que era: a tarefa criada sai, a concluída reabre, o dono posto sai de novo.
+   * Decisão registrada não desfaz, porque apagar linha do tempo é pior.
+   */
+  const desfazerSugestao: Contexto['desfazerSugestao'] = useCallback(async (sug) => {
+    const d = sug.dados || {}
+
+    if (sug.tipo === 'tarefa' && d.criou_id) {
+      const achado = itemPorId(d.criou_id)
+      if (achado) await excluirItem(achado.item)
+    } else if (sug.tipo === 'concluir') {
+      const achado = itemPorId(d.item_id)
+      if (achado?.item.feito) await alternarItem(achado.item)
+    } else if (sug.tipo === 'distribuir') {
+      const achado = itemPorId(d.item_id)
+      if (achado) {
+        await editarItem(achado.item, {
+          texto: achado.item.texto, resp_id: d.de_resp_id ?? null,
+          prazo: achado.item.prazo || '', priv: achado.item.priv,
+          firme: achado.item.prazo_firme, quieto: true,
+        })
+      }
+    }
+
+    await sb.from('sugestoes').update({
+      estado: 'recusada', desfeita_em: new Date().toISOString(), desfeita_por: eu.id,
+    }).eq('id', sug.id)
+    await sb.from('mensagens').insert({
+      canal_id: sug.canal_id, autor_id: eu.id, sistema: true, responde_a: null,
+      texto: `desfez o que a leitura tinha feito: ${sug.texto}`,
+    })
+    toast('Desfeito.')
+    recarregar()
+  }, [sb, eu.id, itemPorId, excluirItem, alternarItem, editarItem, toast, recarregar])
+
+  // ------------------------------------------------- distribuir tarefas
+
+  const palpites = useMemo(
+    () => distribuir(fluxos, processos, areas, perfis),
+    [fluxos, processos, areas, perfis],
+  )
+
+  const distribuirTarefa: Contexto['distribuirTarefa'] = useCallback(async (p, porIa = false) => {
+    await editarItem(p.item, {
+      texto: p.item.texto, resp_id: p.resp_id, prazo: p.item.prazo || '',
+      priv: p.item.priv, firme: p.item.prazo_firme, quieto: true,
+    })
+    await logar(p.fluxo.id, `passou ${p.item.texto} para ${p.nome}`, porIa)
+    if (!porIa) toast(`${p.item.texto} agora é de ${p.nome}.`)
+    recarregar()
+  }, [editarItem, logar, toast, recarregar])
 
   const recusarSugestao: Contexto['recusarSugestao'] = useCallback(async (sug) => {
     await sb.from('sugestoes').update({
@@ -1175,10 +1267,14 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     if (org.ia_modo === 'aplicar') {
       for (const g of gravadas) {
         // Prazo e trava nunca entram sozinhos: um mexe em compromisso com quem
-        // espera, o outro para a frente inteira.
+        // espera, o outro para a frente inteira. Distribuir entra, porque só
+        // preenche tarefa sem dono, e tirar dono de alguém não é caso dela.
         if (g.tipo === 'prazo' || g.tipo === 'trava') continue
         if (g.tipo === 'tarefa' && !g.dados.fluxo_id) continue
-        await aceitarSugestao(g)
+        // porIa: o que sai daqui fica assinado pela leitura, na linha do tempo e
+        // na conversa. É o que permite saber depois o que foi gente e o que foi
+        // máquina, e é o que dá para desfazer.
+        await aceitarSugestao(g, undefined, true)
       }
     }
 
@@ -1198,6 +1294,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     criarConvite, excluirConvite,
     canais, mensagens, sugestoes, mensagensDe, sugestoesDe, naoLidas, meChamaram,
     anexosDe, anexar, removerAnexo, abrirAnexo, decisoesDe, decidir,
+    desfazerSugestao, palpites, distribuirTarefa,
     preverCascata, moverPrazo, pedidosPrazo, decidirPrazo,
     enviar, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
     lerConversa, aceitarSugestao, recusarSugestao,
