@@ -20,7 +20,7 @@ com prazo vencendo.
 
 Escolha quem você é na tela inicial. Isso muda o que aparece: as pendências, quais
 aprovações estão liberadas para você e quais itens privados você enxerga. Para trocar,
-use o botão de pessoas no rodapé da lateral. Para voltar aos dados originais, vá em
+use o menu do seu avatar, na barra de cima. Para voltar aos dados originais, vá em
 **Equipe > Modo demonstração > Recarregar exemplo**.
 
 Tudo fica guardado só no seu navegador. Nada é enviado para lugar nenhum.
@@ -101,7 +101,7 @@ administrador, onde ninguém mais entra nem é liberado.
 
 O mesmo e-mail pode estar em **várias empresas ao mesmo tempo**: a que ele abriu, mais
 cada uma em que aceitou um convite. São perfis diferentes do mesmo login, e o seletor no
-alto da lateral troca entre eles. É o caso do grupo e da holding, em que a mesma pessoa
+alto da barra troca entre eles. É o caso do grupo e da holding, em que a mesma pessoa
 responde por mais de uma empresa. Para abrir mais uma, use o seletor, **Abrir outra
 empresa**.
 
@@ -333,7 +333,7 @@ a área. Área sem responsável cai como "escolher depois".
 Desenhar processo é de **gestor ou administrador**. Colaborador usa os processos que
 existem, mas não mexe no trilho.
 
-A tela de cada área mostra, na lateral, os processos desenhados para ela, com um botão
+A tela de Rotinas mostra, abaixo das rotinas da área, os processos desenhados para ela, com um botão
 para criar a esteira direto dali.
 
 ## A trilha da esteira
@@ -345,7 +345,7 @@ qualquer bolinha abre aquele checkpoint.
 
 ## No celular
 
-Abaixo de 840px de largura o app troca de forma: a lateral sai e entra uma **barra de
+Abaixo de 840px de largura o app troca de forma: as abas saem e entra uma **barra de
 abas no rodapé** (Painel, Você, Agenda, Projetos, Mais), com um botão redondo de criar.
 "Mais" abre uma folha por baixo com as áreas, a equipe, os ajustes e o tema.
 
@@ -361,7 +361,7 @@ início". Ele abre sem barra de navegador, com ícone próprio.
 ## Mais de um negócio
 
 Em **Ajustes** você diz se o app atende um negócio só ou vários. Ligado, cada rotina e
-cada projeto passa a ter uma empresa, e o seletor no alto da lateral foca o app inteiro
+cada projeto passa a ter uma empresa, e o seletor no alto da barra foca o app inteiro
 em uma delas por vez. O rótulo é seu: Empresa, Negócio, Unidade, Centro de custo.
 
 Desligado, a interface não menciona empresa em lugar nenhum, e quem usa o app para um
@@ -386,7 +386,7 @@ e nada mais. Em dia, travado e concluído ficam em neutro e se distinguem pela f
 
 Temas em **Ajustes > Aparência**: Escuro (o tema que o sistema especifica, medido da
 arte), Claro (uma derivação: o próprio DESIGN.md marca modo claro como inferência) e
-Automático. O botão no rodapé da lateral percorre os três.
+Automático. O menu do seu avatar, na barra de cima, percorre os três.
 
 No claro há uma diferença que vale conhecer: lima puro não se lê como letra sobre fundo
 claro, então letra, ícone e fio fino usam o mesmo acento escurecido (`--ac-tinta`),
@@ -441,8 +441,11 @@ componentes/
   Dados.tsx       carrega tudo, escuta o tempo real e concentra as ações
   Modais.tsx      novo area, nova esteira, item, travar, canal, excluir
   TelaChat.tsx    canais, mensagens e as propostas que saem da conversa
-  Shell.tsx       navegação lateral e avisos
-  Painel.tsx  Minhas.tsx  TelaArea.tsx  TelaFluxo.tsx  Equipe.tsx
+  Barra.tsx       a barra de cima: marca, espaço, abas, busca e você
+  Shell.tsx       o chassi (barra, conteúdo, rodapé) e os avisos
+  Radar.tsx       o radar da operação e a tabela de tracks
+  Trilha.tsx      a trilha, deitada (TrilhaH) e em coluna (Trilha)
+  Painel.tsx  Minhas.tsx  TelaRotinas.tsx  TelaFluxo.tsx  Equipe.tsx
 lib/
   regras.ts       situação, progresso, motivo, pendências
   modelos.ts      cálculo de período das rotinas e o esqueleto em branco

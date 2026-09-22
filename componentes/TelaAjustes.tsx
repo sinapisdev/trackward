@@ -36,14 +36,25 @@ export function TelaAjustes() {
     <>
       <div className="hdr">
         <div>
-          <div className="eyebrow">Como este app se comporta para todo mundo</div>
           <h1>Ajustes</h1>
+          <p className="lede">Seu espaço, sua operação.</p>
         </div>
       </div>
 
-      <div style={{ maxWidth: 780 }}>
+      <div className="aj">
+        {/* O índice não é navegação nova: é atalho para as seções desta mesma
+            página, que é comprida por natureza. */}
+        <nav className="aj-indice" aria-label="Seções dos ajustes">
+          {admin && <a href="#aj-org">Organização</a>}
+          <a href="#aj-ia">Leitura da conversa</a>
+          {admin && <a href="#aj-multi">Mais de um negócio</a>}
+          <a href="#aj-agenda">Minha agenda externa</a>
+          <a href="#aj-tema">Aparência</a>
+        </nav>
+
+        <div className="aj-corpo">
         {admin && (
-          <div className="blk">
+          <div className="blk" id="aj-org">
             <div className="bh"><h2>Organização</h2><span className="c">o nome que aparece no alto da lateral</span></div>
             <div className="card" style={{ padding: 15 }}>
               <div className="fld">
@@ -58,7 +69,7 @@ export function TelaAjustes() {
           </div>
         )}
 
-        <div className="blk">
+        <div className="blk" id="aj-ia">
           <div className="bh">
             <h2>Leitura da conversa</h2>
             <span className="c">o que a equipe combina no chat vira trabalho na esteira</span>
@@ -107,7 +118,7 @@ export function TelaAjustes() {
 
         {org.ia_ativa && <Memoria />}
 
-        <div className="blk">
+        <div className="blk" id="aj-multi">
           <div className="bh">
             <h2>Mais de um negócio</h2>
             <span className="c">separe áreas e projetos por empresa, unidade ou centro de custo</span>
@@ -211,7 +222,7 @@ export function TelaAjustes() {
           </div>
         )}
 
-        <div className="blk">
+        <div className="blk" id="aj-agenda">
           <div className="bh">
             <h2>Minha agenda externa</h2>
             <span className="c">Google, Apple, Outlook</span>
@@ -293,7 +304,7 @@ export function TelaAjustes() {
           </div>
         </div>
 
-        <div className="blk">
+        <div className="blk" id="aj-tema">
           <div className="bh"><h2>Aparência</h2><span className="c">vale só para você, neste navegador</span></div>
           <div className="card" style={{ padding: 15 }}>
             <div className="temas">
@@ -336,6 +347,7 @@ export function TelaAjustes() {
             </div>
           </div>
         )}
+        </div>
       </div>
     </>
   )

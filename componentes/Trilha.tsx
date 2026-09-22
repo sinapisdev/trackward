@@ -135,3 +135,76 @@ export function Trilha({ f, sel, aoEscolher, decisoes }: {
     </div>
   )
 }
+
+/**
+ * A mesma trilha deitada, que é como a arte do produto desenha a track aberta,
+ * a rotina na lista e a pasta em foco no painel.
+ *
+ * Deitada ela só serve enquanto os checkpoints cabem na largura. Passando disso
+ * ela rola de lado, e rolar para descobrir onde a esteira está é justamente o
+ * que a trilha existe para evitar: por isso, quando não cabe, quem aparece é a
+ * versão em coluna. Quem decide é `limite`, e a tela de uma track com muitos
+ * checkpoints continua tendo a coluna à mão.
+ */
+export function TrilhaH({ f, sel, aoEscolher, numerada = false, miuda = false, decisoes = [] }: {
+  f: Fluxo
+  sel?: number
+  aoEscolher?: (k: number) => void
+  /** "1. Preparação" em vez de "Preparação". A track aberta numera; a lista não. */
+  numerada?: boolean
+  /** Versão de lista: marcas menores e sem a linha de detalhe. */
+  miuda?: boolean
+  decisoes?: Decisao[]
+}) {
+  const devolvidos = new Set(decisoes.filter((d) => d.tipo === 'devolveu').map((d) => d.etapa_id))
+
+  return (
+    <div className={`trilhah ${miuda ? 'miuda' : ''} ${f.concluido ? 'fim' : ''}`}>
+      <ol>
+        {f.etapas.map((et, k) => {
+          const feita = f.concluido || k < f.atual
+          const vez = k === f.atual && !f.concluido
+          const feitos = et.itens.filter((x) => x.feito).length
+          const detalhe = feita
+            ? 'Aprovado'
+            : vez
+              ? `${feitos} de ${et.itens.length} ${et.itens.length === 1 ? 'tarefa' : 'tarefas'}`
+              : k === f.etapas.length - 1 ? 'Final' : k === f.atual + 1 ? 'Próximo' : et.prazo ? curta(et.prazo) : ''
+          const estado = feita ? 'feita' : vez ? 'vez' : 'futura'
+          const Marca = (
+            <span className="th-marca">
+              {feita ? <span className="th-ok"><Ic.check /></span>
+                : vez ? (
+                  <svg viewBox="0 0 28 28" className="th-anel" aria-hidden>
+                    <circle cx="14" cy="14" r="12" className="trilha-vazio" />
+                    <circle cx="14" cy="14" r="12" className="trilha-cheio"
+                      strokeDasharray={`${(fracao(et) * 2 * Math.PI * 12).toFixed(2)} ${(2 * Math.PI * 12).toFixed(2)}`}
+                      transform="rotate(-90 14 14)" />
+                  </svg>
+                ) : <span className="th-oca">{k + 1}</span>}
+              {devolvidos.has(et.id) && <span className="th-voltou" title="Este checkpoint já voltou atrás" />}
+            </span>
+          )
+          const dentro = (
+            <>
+              {vez && <small className="th-agora">Agora</small>}
+              {Marca}
+              <b>{numerada ? `${k + 1}. ` : ''}{et.nome}</b>
+              {!miuda && <small className="th-det">{detalhe}</small>}
+            </>
+          )
+          return (
+            <li key={et.id} className={`th-est ${estado} ${sel === k ? 'sel' : ''}`}>
+              {aoEscolher ? (
+                <button onClick={() => aoEscolher(k)} aria-current={vez ? 'step' : undefined}
+                  aria-label={`${et.nome}, ${feita ? 'aprovado' : vez ? 'em curso' : 'ainda não chegou'}`}>
+                  {dentro}
+                </button>
+              ) : <span>{dentro}</span>}
+            </li>
+          )
+        })}
+      </ol>
+    </div>
+  )
+}

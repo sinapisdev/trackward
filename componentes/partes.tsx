@@ -16,49 +16,50 @@ export function classePrazo(prazo: string | null | undefined) {
   return n < 0 ? 'late' : n <= 3 ? 'soon' : ''
 }
 
-/** Linha do bloco "Aguardando você": concluir o item ou aprovar a saída, ali mesmo. */
+/**
+ * Linha de pendência: a tarefa nomeia, a track endereça, o prazo cobra.
+ *
+ * É a mesma linha do painel e da fila, e é onde o trabalho anda sem sair da
+ * lista: concluir o item ou aprovar a saída ali mesmo.
+ */
 export function LinhaPendencia({ p }: { p: Pendencia }) {
   const { alternarItem, aprovar, nomeDe } = useDados()
   const et = etapaAtual(p.fluxo)
   const prazo = p.prazo ? rel(p.prazo) : 'Sem prazo'
   const cls = classePrazo(p.prazo)
-  const contexto = (
-    <span className="s">
-      <Link href={`/fluxo/${p.fluxo.id}`}>{p.fluxo.nome}</Link> · {et?.nome}
-      {p.tipo === 'aprov' ? ' · checklist completo' : ''}
-    </span>
-  )
 
-  if (p.tipo === 'aprov')
+  if (p.tipo === 'aprov') {
+    const feitos = p.etapa.itens.filter((x) => x.feito).length
     return (
       <div className="ib">
-        <span style={{ color: 'var(--ac)' }}><Ic.flag /></span>
-        <span style={{ minWidth: 0 }}>
-          <span className="t">Aprovar saída de {p.etapa.nome}</span>
-          {contexto}
-        </span>
-        <span style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <span className={`due ${cls}`}>{prazo}</span>
+        <span className="ib-ic ok"><Ic.check /></span>
+        <span className="ib-nm">Aprovar saída de {p.etapa.nome}</span>
+        <Link className="ib-onde" href={`/fluxo/${p.fluxo.id}`}>{p.fluxo.nome}</Link>
+        <span className="ib-fim">
+          <span className="due">{feitos} de {p.etapa.itens.length} prontas</span>
           <button className="btn-sm" onClick={() => void aprovar(p.fluxo)}>Aprovar</button>
         </span>
       </div>
     )
+  }
 
   return (
     <div className="ib">
       <button className="ck" onClick={() => void alternarItem(p.item)} aria-label={`Concluir ${p.item.texto}`}>
         <Ic.check />
       </button>
-      <span style={{ minWidth: 0 }}>
-        <span className="t">
-          {p.item.priv && (
-            <span className="lk" title="Tarefa privada: só você vê"><Ic.lock /></span>
-          )}
-          {p.item.texto}
-        </span>
-        {contexto}
+      <span className="ib-nm">
+        {p.item.priv && <span className="lk" title="Tarefa privada: só você vê"><Ic.lock /></span>}
+        <span>{p.item.texto}</span>
       </span>
-      <span className={`due ${cls}`} title={p.item.resp_id ? `Responsável: ${nomeDe(p.item.resp_id)}` : ''}>{prazo}</span>
+      <Link className="ib-onde" href={`/fluxo/${p.fluxo.id}`}>
+        {p.fluxo.nome}{et ? ` · ${et.nome}` : ''}
+      </Link>
+      <span className="ib-fim">
+        <span className={`due ${cls}`}
+          title={p.item.resp_id ? `Responsável: ${nomeDe(p.item.resp_id)}` : ''}>{prazo}</span>
+        <Link className="ib-chev" href={`/fluxo/${p.fluxo.id}`} aria-label={`Abrir ${p.fluxo.nome}`}><Ic.seta /></Link>
+      </span>
     </div>
   )
 }

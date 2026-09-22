@@ -1,4 +1,4 @@
-# Track, mapa completo do que o app faz hoje
+# TrackWard, mapa completo do que o app faz hoje
 
 Documento de referência para desenhar o UX/UI. Descreve o que existe e está
 funcionando em 21/09/2026, tela por tela, regra por regra, com as ligações entre
@@ -70,46 +70,45 @@ virou departamento. Uma área sem rotina é uma frente recém criada.
 
 ## 3. Mapa das telas
 
-### Navegação principal (lateral, no computador)
+### Navegação principal (barra de cima, no computador)
 
 | Item | Rota | O que mostra | Contador |
 |---|---|---|---|
-| **Painel** | `/` | Visão geral do dia | Quantos estão atrasados ou travados |
-| **Aguardando você** | `/minhas` | Sua fila pessoal | Quantas pendências suas |
+| **Visão geral** | `/` | O dia da empresa | |
+| **Meu trabalho** | `/minhas` | Sua fila pessoal | Quantas pendências suas |
+| **Projetos** | `/projetos` | O que tem começo e fim | |
+| **Rotinas** | `/areas` | As áreas e o que se repete em cada uma | |
+| **Processos** | `/processos` | Os moldes reutilizáveis | |
 | **Conversa** | `/chat` | Chat por canais | Mensagens não lidas |
-| **Agenda** | `/agenda` | Compromissos e prazos | Quantos são hoje |
-| **Notas** | `/notas` | Seu caderno de bolso, só seu | Quantas notas |
-| **Tracks** | `/tracks` | Todos os projetos e áreas | Quantas tracks existem |
-| **Desempenho** | `/desempenho` | Como a empresa está entregando | |
-| **Relatórios** | `/relatorios` | O período contado, para ler e para mandar | |
-| **Processos** | `/processos` | Os moldes reutilizáveis | Quantos moldes |
-| **Agentes** | `/agentes` | Situações que disparam ação | Quantos ligados |
-| **Conectores** | `/conectores` | Os serviços de fora que o app pode usar | Quantos ligados |
+| **Agenda** | `/agenda` | Compromissos e prazos | |
+| **Mais** | menu | Relatórios, Desempenho, todas as tracks, Notas, Agentes, Conectores | |
 
-No alto da lateral: a marca **Track.** e, abaixo, o **seletor de espaço** (a
-organização em cima, a empresa em foco embaixo). No rodapé: seu nome, o botão de
-tema e o de sair.
+À esquerda da barra: a marca **TrackWard** e o **seletor de espaço** (a organização, ou a
+empresa em foco quando o app separa por empresa). À direita: a busca, os atalhos de
+Equipe e Ajustes, e o seu avatar, que abre tema e saída.
 
-### Telas que não estão na lateral
+No pé de toda tela: `TrackWard move work forward.` de um lado, o nome do espaço do outro.
+
+### Telas que não estão na barra
 
 | Rota | Como se chega |
 |---|---|
-| `/tracks/[id]` | Clicando numa track na lista |
-| `/fluxo/[id]` | Botão "Abrir" na track, ou busca do topo |
-| `/area/[id]` | Botão "Abrir" numa área |
+| `/tracks` e `/tracks/[id]` | Menu "Mais", ou "Ver todas as tracks" no radar |
+| `/fluxo/[id]` | Clicando numa track em qualquer lista, ou pela busca |
+| `/area/[id]` | Clicando numa área na coluna da tela Rotinas |
 | `/chat/[id]` | Clicando num canal |
-| `/processos/[id]` | Clicando num processo, ou "novo" |
-| `/equipe` | Clicando no seu nome no rodapé da lateral |
-| `/ajustes` | Engrenagem no topo direito |
-| `/projetos` e `/areas` | Visões analíticas antigas, hoje só pelo menu "Mais" do celular |
-| `/entrar`, `/nova-senha` | Fora do app, sem lateral |
+| `/processos/[id]` | Botão "Editar" na lateral de Processos, ou "novo" |
+| `/equipe` | Ícone de pessoas na barra, ou o menu do avatar |
+| `/ajustes` | Engrenagem na barra, ou o menu do avatar |
+| `/entrar`, `/nova-senha` | Fora do app, sem barra |
 
 ### Navegação de celular
 
-Abaixo de 840px a lateral some e entra uma **barra de abas no rodapé**: Painel,
-Você, Conversa, Tracks, Mais. O "Mais" abre uma folha com Agenda, visão de projetos,
-visão de áreas, Processos, Equipe, Ajustes, tema e sair. Há um **botão redondo
-laranja** de criar, flutuando acima da barra.
+Abaixo de 840px as abas saem e entra uma **barra de abas no rodapé**: Painel,
+Você, Conversa, Tracks, Mais. O "Mais" abre uma folha com Agenda, Relatórios, Desempenho,
+visão de projetos, visão de áreas, Processos, Agentes, Equipe, Ajustes, tema e sair. Há um
+**botão redondo** de criar flutuando acima da barra, em vidro grafite: o lima fica
+reservado para a ação que faz o trabalho andar.
 
 ### Barra de topo (todas as telas do app)
 

@@ -1,43 +1,49 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Ic } from './Icones'
+import { Av, IconeStatus } from './atomos'
+import type { Perfil, Status } from '@/lib/tipos'
 
 export type Pasta = {
   id: string
   /** Para onde o clique leva. */
   href: string
-  /** Área ou Projeto: a pasta diz o que ela é antes de dizer quem é. */
+  /** Área, Rotina, Projeto ou Processo: a pasta diz o que ela é antes de dizer quem é. */
   rotulo: string
   nome: string
+  /** A linha logo abaixo do nome: o checkpoint da vez, ou o resumo da área. */
+  etapa: string
+  /** Situação, que dá a forma do sinal ao lado da etapa. */
+  st: Status
   /**
-   * O número grande do miolo, já com a unidade. Num projeto é o quanto andou;
-   * numa área é quantas tarefas estão abertas, porque área não tem linha de
-   * chegada e porcentagem ali não quer dizer nada.
+   * O número grande, que só a pasta em foco mostra. Num projeto é o quanto
+   * andou; numa área é quantas tarefas estão abertas, porque área não tem linha
+   * de chegada e porcentagem ali não diria nada.
    */
   numero: string
-  /** O que aquele número é, quando não for óbvio. */
   numeroSub?: string
-  /** Linha de baixo do miolo: a etapa da vez, ou o resumo da área. */
-  sub: string
-  /** Quantas pessoas estão dentro. É o número no pé da pasta. */
-  contagem: number
-  /** 0 a 1. Enche a barra do miolo e a lombada. */
+  /** O pé da pasta em foco: o quanto do checkpoint já saiu. */
+  pe?: string
+  /** Quem está dentro. Vira a pilha de avatares no pé. */
+  gente: Perfil[]
+  /** Uma palavra em cor quando a pasta pede ação, para quem está atrás também ver. */
+  alerta?: string
+  alertaTipo?: 'late' | 'soon' | 'hold'
+  /** 0 a 1. Enche a barra do pé. */
   progresso: number
-  /** Atrasado pinta a lombada de vermelho, mesmo sem estar selecionada. */
   atrasado?: boolean
   travado?: boolean
 }
 
 /**
- * O arquivo em perspectiva.
+ * O arquivo de pastas.
  *
- * As pastas ficam de pé, em fila, vistas de lado, e você corre por elas com a
- * roda do mouse, arrastando ou com as setas. A pasta da vez vem para a frente e
- * acende em laranja; as outras continuam legíveis atrás, em vidro.
+ * As pastas ficam em fila, de frente, e você corre por elas com a roda do
+ * mouse, arrastando ou com as setas. A da vez vem para a frente e mostra o
+ * número grande e o pé; as outras continuam legíveis dos lados, menores.
  *
- * É a peça da referência do ClauseOS, com o verde trocado por laranja. A
- * geometria é toda CSS 3D: nada de biblioteca, nada de canvas, então o teclado,
+ * A geometria é toda CSS: nada de biblioteca, nada de canvas, então o teclado,
  * o leitor de tela e o celular continuam funcionando.
  */
 export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
@@ -58,37 +64,23 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
    */
   const [pos, setPos] = useState(atual)
   /**
-   * O mesmo valor de pos, guardado num ref.
-   *
-   * Existe por um motivo específico: a mola e o encaixe da roda precisam LER
-   * onde a fila está agora, e o lugar errado de fazer isso é dentro da função
-   * que atualiza o estado. Essa função tem que ser pura, porque o React pode
-   * chamá-la duas vezes para conferir, e avisar o Painel lá de dentro é avisar
-   * no meio do desenho de outro componente. Era exatamente essa a reclamação.
-   *
-   * Com o ref, ler a posição atual não custa nada e não depende de render.
+   * O mesmo valor de pos, num ref: a mola e o encaixe da roda precisam ler onde
+   * a fila está agora, e o lugar errado de fazer isso é dentro da função que
+   * atualiza o estado, que tem que ser pura.
    */
   const posRef = useRef(atual)
 
-  /** O único lugar que mexe na posição, para o ref nunca ficar para trás. */
-  const irPara = useCallback((v: number) => {
-    posRef.current = v
-    setPos(v)
-  }, [])
+  const irPara = useCallback((v: number) => { posRef.current = v; setPos(v) }, [])
 
   const total = itens.length
   const limitar = useCallback((i: number) => Math.max(0, Math.min(total - 1, i)), [total])
 
-  /** Puxa a fila até o índice escolhido, com mola. Parado, não gasta quadro. */
+  /** Puxa a fila até o índice escolhido, com mola. Parada, não gasta quadro. */
   const assentar = useCallback((destino: number) => {
     if (quadro.current) cancelAnimationFrame(quadro.current)
     const passo = () => {
       const falta = destino - posRef.current
-      if (Math.abs(falta) < 0.004) {
-        quadro.current = null
-        irPara(destino)
-        return
-      }
+      if (Math.abs(falta) < 0.004) { quadro.current = null; irPara(destino); return }
       irPara(posRef.current + falta * 0.24)
       quadro.current = requestAnimationFrame(passo)
     }
@@ -103,9 +95,13 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
 
   useEffect(() => () => { if (quadro.current) cancelAnimationFrame(quadro.current) }, [])
 
-  // Roda e trackpad movem a fila em fração de pasta, sem esperar completar o
-  // passo, e ela só encaixa quando a pessoa para. No trackpad isso é a
-  // diferença entre deslizar e clicar onze vezes.
+  /** O pai manda: trocar a pasta pelo teclado ou pelo pager move a fila. */
+  useEffect(() => {
+    if (Math.round(posRef.current) !== atual) assentar(limitar(atual))
+  }, [atual, assentar, limitar])
+
+  // Roda e trackpad movem a fila em fração de pasta, e ela só encaixa quando a
+  // pessoa para. No trackpad isso é a diferença entre deslizar e clicar onze vezes.
   useEffect(() => {
     const el = palco.current
     if (!el) return
@@ -115,10 +111,8 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
       if (!d) return
       e.preventDefault()
       if (quadro.current) { cancelAnimationFrame(quadro.current); quadro.current = null }
-      irPara(limitar(posRef.current + d / 90))
+      irPara(limitar(posRef.current + d / 160))
       if (parar) clearTimeout(parar)
-      // Parou de rolar: encaixa na pasta mais perto e conta para o Painel. Aqui
-      // fora do updater, que é o lugar certo de um efeito colateral.
       parar = setTimeout(() => {
         const destino = limitar(Math.round(posRef.current))
         aoTrocar(destino)
@@ -136,7 +130,7 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
   }
   const mover = (x: number) => {
     if (!inicio.current) return
-    irPara(limitar(inicio.current.pos + (inicio.current.x - x) / 86))
+    irPara(limitar(inicio.current.pos + (inicio.current.x - x) / 306))
   }
   const soltar = () => {
     if (inicio.current) {
@@ -151,50 +145,22 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
   const naVez = limitar(Math.round(pos))
   const ativa = itens[naVez]
 
-  // A geometria de cada pasta, em função da distância para a da vez. À direita
-  // elas se comprimem, como folhas de um arquivo visto de viés; à esquerda
-  // empilham atrás, para a fila continuar existindo mesmo depois de passar.
-  const pose = useMemo(() => (d: number) => {
-    if (d === 0) return { x: 0, z: 60, ry: -20, o: 1, s: 1.04 }
-    if (d < 0) {
-      const k = Math.min(-d, 4)
-      return { x: -40 - k * 16, z: 20 - k * 28, ry: -20, o: Math.max(0.14, 0.46 - k * 0.1), s: 0.96 - k * 0.02 }
-    }
-    // Espaçamento que abre no começo e fecha no fim, como folhas de um arquivo
-    // visto de viés: as primeiras precisam ser legíveis, as últimas só sugeridas.
-    // Passo fixo no plano. A compressão de verdade vem da profundidade com a
-    // perspectiva, que é o que faz o arquivo parecer fundo em vez de achatado.
-    return {
-      x: 202 + (d - 1) * 88,
-      z: -26 - d * 25,
-      ry: -20,
-      o: Math.max(0.1, 1 - d * 0.072),
-      s: 1 - Math.min(0.22, d * 0.018),
-    }
-  }, [])
-
   /**
-   * Entre duas posições inteiras o valor é interpolado, e é por isso que a fila
-   * desliza em vez de saltar. As poses continuam exatamente as mesmas: o que
-   * mudou foi só o caminho entre elas.
+   * Onde cada pasta cai, em função da distância para a da vez. A função é
+   * contínua de propósito: é o que faz a fila deslizar enquanto o dedo arrasta,
+   * em vez de saltar de posição em posição.
    */
-  const misturar = (a: number, b: number, t: number) => a + (b - a) * t
   const lugar = (d: number) => {
-    const a = Math.floor(d)
-    const t = d - a
-    const pa = pose(a)
-    const pb = pose(a + 1)
+    const a = Math.abs(d)
+    const sinal = d < 0 ? -1 : 1
     return {
-      x: misturar(pa.x, pb.x, t), z: misturar(pa.z, pb.z, t), ry: pa.ry,
-      o: misturar(pa.o, pb.o, t), s: misturar(pa.s, pb.s, t),
+      x: sinal * (a <= 1 ? a * 306 : 306 + (a - 1) * 180),
+      s: 1 - Math.min(0.5, a * 0.26),
+      o: Math.max(0.1, 1 - a * 0.26),
     }
   }
 
   if (!total) return null
-
-  // Enquanto a fila corre, o ponto de fuga acompanha: é o que dá a sensação de
-  // que o arquivo girou, e não de que os cartões trocaram de lugar.
-  const inclina = Math.max(-1, Math.min(1, (pos - naVez) * 2))
 
   return (
     <section className="arquivo" aria-roledescription="carrossel" aria-label={rotulo}>
@@ -205,7 +171,6 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
         role="listbox"
         aria-label={rotulo}
         aria-activedescendant={`pasta-${ativa?.id}`}
-        style={{ perspectiveOrigin: `${30 + inclina * 5}% 50%` }}
         onKeyDown={(e) => {
           if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); andar(1) }
           if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); andar(-1) }
@@ -218,14 +183,13 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
         onPointerUp={soltar}
         onPointerCancel={soltar}
       >
-        <div className="arquivo-fila" style={{ transform: `rotateY(${inclina * -2.4}deg)` }}>
+        <div className="arquivo-fila">
           {itens.map((p, i) => {
             const d = i - pos
             const g = lugar(d)
             const viva = i === naVez
-            const dist = Math.round(d)
-            // Passando de quatro, a pasta vira só volume: texto ali seria ruído.
-            const longe = dist > 4 || dist < -1
+            // Passando de três, a pasta vira só volume: texto ali seria ruído.
+            const longe = Math.abs(d) > 3.4
             return (
               <article
                 key={p.id}
@@ -234,53 +198,46 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
                 aria-selected={viva}
                 className={`pasta ${viva ? 'viva' : ''} ${longe ? 'longe' : ''} ${p.atrasado ? 'tarde' : ''} ${p.travado ? 'presa' : ''}`}
                 style={{
-                  zIndex: 100 - Math.abs(dist),
+                  zIndex: 100 - Math.round(Math.abs(d) * 10),
                   opacity: g.o,
-                  transform: `translate3d(calc(-50% + ${g.x.toFixed(1)}px), -50%, ${g.z.toFixed(1)}px) rotateY(${g.ry}deg) scale(${g.s.toFixed(3)})`,
+                  transform: `translate3d(calc(-50% + ${g.x.toFixed(1)}px), -50%, 0) scale(${g.s.toFixed(3)})`,
                 }}
                 onClick={() => (viva ? aoAbrir(p) : (aoTrocar(i), assentar(i)))}
               >
-                <span className="pasta-luz" aria-hidden="true" />
-                {/* O miolo branco é o painel da pasta: é aqui que mora o que
-                    antes vivia numa ficha flutuante ao lado. */}
-                <span className="pasta-doc">
-                  <span className="doc-topo">
-                    <span className="doc-pct num">{p.numero}</span>
-                    {(p.atrasado || p.travado) && (
-                      <span className={`doc-selo ${p.atrasado ? 'tarde' : 'presa'}`}>
-                        {p.atrasado ? 'Atrasado' : 'Travado'}
-                      </span>
-                    )}
-                  </span>
-                  {p.numeroSub && <span className="doc-unid">{p.numeroSub}</span>}
-                  <span className="doc-sub">{p.sub}</span>
-                  <span className="doc-barra"><b style={{ width: `${Math.max(3, p.progresso * 100)}%` }} /></span>
-                </span>
-                <span className="pasta-pe">
-                  <span className="pasta-n"><Ic.team />{p.contagem}</span>
+                <span className="pasta-pilha" aria-hidden><i /><i /></span>
+                <span className="pasta-aba" aria-hidden />
+                <span className="pasta-face">
                   <span className="pasta-rot">{p.rotulo}</span>
-                </span>
-                <span className="pasta-nome" aria-hidden={longe}>{p.nome}</span>
-                <span className="pasta-lomba" aria-hidden="true">
-                  <b style={{ height: `${Math.max(4, p.progresso * 100)}%` }} />
+                  <b className="pasta-nome">{p.nome}</b>
+                  <span className="pasta-etapa">
+                    <IconeStatus st={p.st} p={p.progresso} />
+                    <span>{p.etapa}</span>
+                  </span>
+
+                  {viva ? (
+                    <>
+                      <span className="pasta-num">
+                        <b className="num">{p.numero}</b>
+                        {p.numeroSub && <small>{p.numeroSub}</small>}
+                      </span>
+                      <span className="pasta-fim">
+                        <span className="pasta-pe">{p.pe || p.alerta || ''}</span>
+                        <span className="pasta-gente">
+                          {p.gente.slice(0, 3).map((q) => <Av key={q.id} p={q} tam="sm" />)}
+                          {p.gente.length > 3 && <i className="mais num">+{p.gente.length - 3}</i>}
+                        </span>
+                      </span>
+                    </>
+                  ) : p.alerta ? (
+                    <span className={`pasta-alerta ${p.alertaTipo || ''}`}>{p.alerta}</span>
+                  ) : null}
                 </span>
               </article>
             )
           })}
         </div>
-
       </div>
 
-      <div className="arquivo-pe">
-        <button className="iconbtn" onClick={() => andar(-1)} disabled={naVez === 0} aria-label="Anterior">
-          <Ic.volta />
-        </button>
-        <span className="arquivo-conta num">{naVez + 1} / {total}</span>
-        <button className="iconbtn" onClick={() => andar(1)} disabled={naVez === total - 1} aria-label="Próxima">
-          <Ic.seta />
-        </button>
-        <span className="arquivo-dica">role de lado, arraste ou use as setas</span>
-      </div>
     </section>
   )
 }

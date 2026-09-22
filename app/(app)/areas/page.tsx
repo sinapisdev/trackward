@@ -1,2 +1,2 @@
-import { TelaAreas } from '@/componentes/TelaAreas'
-export default function Pagina() { return <TelaAreas /> }
+import { TelaRotinas } from '@/componentes/TelaRotinas'
+export default function Pagina() { return <TelaRotinas /> }

@@ -8,7 +8,7 @@ import { AvisoPrazo } from './AvisoPrazo'
 import { FAIXAS, porque } from '@/lib/sobrecarga'
 import { Av } from './atomos'
 import Link from 'next/link'
-import { dias, hojeIso } from '@/lib/datas'
+import { curta, dias, hojeIso } from '@/lib/datas'
 import { podeMexerNoPrazo } from '@/lib/acesso'
 import { faixa, minutos, ocupados } from '@/lib/agenda'
 import { esqueletoEmBranco, periodoAtual, type RascunhoEtapa } from '@/lib/modelos'
@@ -368,10 +368,11 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
   return (
     <div className="dlg wide" role="dialog" aria-modal="true" aria-labelledby="mf">
       <div className="dlg-h">
-        <h3 id="mf">{edicao ? 'Editar esteira' : ciclo ? 'Nova rotina' : 'Novo projeto'}</h3>
-        <p>{edicao ? 'Mudanças valem para todos que veem esta esteira.' : 'Depois de criar, a trilha se monta no quadro, checkpoint por checkpoint.'}</p>
+        <h3 id="mf">{edicao ? 'Ajustes da track' : 'Criar track'}</h3>
+        <p>{edicao ? 'Mudanças valem para todos que veem esta track.' : 'Defina o trabalho. Depois, desenhe a trilha.'}</p>
       </div>
-      <div className="dlg-b">
+      <div className="dlg-b mf">
+        <div className="mf-form">
         {!edicao && (
           <div className="opt">
             <button className={`optc ${!ciclo ? 'on' : ''}`} onClick={() => trocarTipo('esteira')}>
@@ -588,9 +589,41 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
           </div>
         </div>
         )}
+        </div>
+
+        {/* A trilha que vai nascer, antes de nascer: é o que deixa conferir a
+            escolha do processo sem criar a track para depois olhar. */}
+        <aside className="mf-lado">
+          <h4>Sua trilha inicial</h4>
+          <p className="mf-de">
+            {processo ? `A partir do processo ${processo.nome}` : 'Do zero, do jeito que você montar aqui.'}
+          </p>
+          <ol className="proc-trilho">
+            {etapas.map((e, k) => (
+              <li key={k}>
+                <span className="n num">{k + 1}</span>
+                <span>
+                  <b>{e.nome || `Checkpoint ${k + 1}`}</b>
+                  <small>
+                    {nomeDe(e.aprovador_id)}{e.prazo ? ` · ${curta(e.prazo)}` : ''}
+                  </small>
+                </span>
+              </li>
+            ))}
+          </ol>
+          <p className="mf-nums">
+            {etapas.length} {etapas.length === 1 ? 'checkpoint' : 'checkpoints'}
+            {!!processo && <> · {processo.etapas.reduce((n, e) => n + e.itens.length, 0)} tarefas</>}
+          </p>
+          <p className="hint">
+            {processo
+              ? 'Os responsáveis serão definidos pelas áreas. Os prazos partem da data de início.'
+              : 'Você poderá ajustar a trilha depois de criar.'}
+          </p>
+        </aside>
       </div>
       <Rodape fechar={fechar} acao={() => void salvar()}
-        rotulo={edicao ? 'Salvar alterações' : ciclo ? 'Criar rotina' : 'Criar projeto'} />
+        rotulo={edicao ? 'Salvar alterações' : 'Criar e abrir trilha'} />
     </div>
   )
 }

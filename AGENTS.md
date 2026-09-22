@@ -32,6 +32,8 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
   só. O rótulo vem de `config.rotulo`, nunca escrever "Empresa" fixo na tela.
 - Rotina vive sempre dentro de uma área. **A tela de uma área mostra só rotinas**: projeto
   nenhum aparece ali, mesmo pertencendo à área. Quem quer projeto vai na tela Projetos.
+  Áreas e área aberta são a mesma tela (`componentes/TelaRotinas.tsx`, rotas `/areas` e
+  `/area/[id]`): a coluna da esquerda lista as áreas, o resto é a área escolhida.
 - Com vários negócios em foco, rotinas e projetos são separados em blocos por empresa,
   um bloco por empresa, não uma lista só com etiqueta.
 - Tudo tem responsável e prazo: item (quem executa), checkpoint (quem aprova), fluxo (dono).
@@ -74,10 +76,17 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
 
 ## Regras visuais
 
-**A fonte da verdade é `design-system/DESIGN.md`.** Ele descreve cor, tipo, espaço,
-movimento, iconografia e voz, e foi medido da arte do produto. O `app/globals.css` não
-inventa cor: ele traduz aqueles tokens para os nomes que as telas já usam, e foi isso que
-permitiu virar a identidade inteira sem reescrever 40 componentes.
+**A fonte da verdade é `design-system/DESIGN.md`** para os tokens, e **as telas de
+referência do produto** para o layout. Desde 22/09/2026 as telas do app foram refeitas
+para bater com a arte: barra horizontal, arquivo de pastas, trilha deitada, tabela de
+tracks, radar da operação, gaveta da fila e a entrada em tela dividida. O
+`app/globals.css` não inventa cor: ele traduz os tokens do sistema para os nomes que as
+telas já usam, e foi isso que permitiu virar a identidade inteira sem reescrever 40
+componentes.
+
+A marca na tela é **TrackWard**, e a unidade de trabalho se chama **track** para o
+usuário. No código o nome antigo continua: `fluxo` (tabela e tipo), `esteira` (projeto) e
+`ciclo` (rotina). Não renomear o banco por causa da interface.
 
 Sistema de **acento único**: chão quase preto (`#0A0B0A`), tudo construído com branco a
 4 a 20% de alfa em vez de cinzas novos, e uma cor saturada, o lima `#D0FA3C`. Tipografia
@@ -153,24 +162,57 @@ Quem decide a pessoa é `areas.responsavel_id`, e o formulário de criação dei
 Não voltar a embutir trilhos em `lib/modelos.ts`: ele ficou só com o cálculo de período e
 o esqueleto em branco.
 
-## Celular
+## A visão geral cabe numa tela
 
-Abaixo de 840px a lateral sai e entra a `TabBar` (barra de abas no rodapé, folha de
-"Mais" e botão redondo de criar). Não duplicar navegação: quem aparece no celular é a
-TabBar, quem aparece no desktop é a `Shell`. Telas novas precisam caber nas duas formas.
+**A visão geral não rola**, nem para baixo nem para o lado, do computador para cima
+(acima de 1180px). Ela responde "como está o dia", e rolar para descobrir isso é perder
+a resposta. A regra está na classe `.duas.uma-tela`, em `app/globals.css`.
+
+Como ela se ajusta, em ordem: o **arquivo de pastas é quem estica**, e a pasta encolhe
+junto com ele por container query no `.arquivo-palco`, em vez de ser cortada; as listas
+mostram só o que cabe, e o que sobra continua no "Ver tudo" e no "Ver todas" ao lado, com
+a contagem cheia no título. Nada é escondido sem dizer quanto é.
+
+Ao mexer nessa tela, medir de novo em 1366x768, 1440x900 e 1920x1080: é fácil ganhar
+20px de altura sem perceber e a tela voltar a rolar. No celular ela rola normalmente,
+como qualquer app de celular.
+
+## Navegação
+
+**A navegação é horizontal**, na `Barra` (`componentes/Barra.tsx`, classe `.tw-topo`):
+marca, seletor de espaço, as abas, busca e você. Não existe mais lateral de navegação: a
+lateral de uma tela é **contexto** (o radar da visão geral, a conversa da track, o índice
+dos ajustes), nunca navegação. O que não cabe na fileira principal mora no menu "Mais",
+e continua a um clique: Relatórios, Desempenho, Notas, Agentes, Conectores, Processos.
+
+Abaixo de 840px as abas sacam e entra a `TabBar` (barra no rodapé, folha de "Mais" e
+botão redondo de criar). Não duplicar navegação: quem navega no celular é a TabBar, quem
+navega no desktop é a Barra. Telas novas precisam caber nas duas formas.
+
+O botão redondo do celular **não é lima**. O acento é da ação que faz o trabalho andar, e
+ela já está na tela (concluir, aprovar, abrir a track); lima no botão de criar daria dois
+limas em toda tela, que é defeito.
 
 A agenda usa `matchMedia` para mostrar um dia por vez no celular; grade de sete colunas
 não cabe em 375px.
 
-A esteira é desenhada como **trilha vertical** (`componentes/Trilha.tsx`, classe `.trilha`),
-que é o CheckpointTrail do design system na orientação de coluna. Ela vive numa lateral de
-264px à esquerda do checkpoint aberto, em `.fluxo-corpo`. Aprovado é disco cheio com o
-visto, o corrente é anel do acento com halo fraco, o que ainda não chegou é contorno
-apagado com o número dentro, e o fio que liga acende até onde a esteira andou.
+## A trilha
 
-**Não voltar para stepper horizontal**: com sete checkpoints ele não cabe, e foi o que
-aconteceu. Até 22/09/2026 o código tinha um trilho deitado que rolava de lado, apesar
-desta regra já estar escrita aqui, e descobrir onde a esteira estava exigia arrastar.
+A trilha existe para responder **onde a track está** antes de qualquer outra pergunta, e
+tem duas orientações, as duas em `componentes/Trilha.tsx`:
+
+- `TrilhaH` (classe `.trilhah`), **deitada**, é a da arte do produto: é ela na track
+  aberta, na linha de cada rotina e na gaveta de Meu trabalho.
+- `Trilha` (classe `.trilha`), **em coluna**, é o CheckpointTrail na vertical.
+
+Quem escolhe é o número de checkpoints: **deitada só até cinco**. Passando disso ela
+rolaria de lado, e descobrir onde a track está passaria a exigir arrastar, que é
+exatamente o que a trilha existe para evitar. A regra mora em `TelaFluxo` (`deitada`).
+Não tirar esse limite para "ficar igual à arte": a arte foi desenhada com quatro.
+
+Aprovado é disco cheio com o visto, o corrente é anel do acento com halo fraco, o que
+ainda não chegou é contorno apagado com o número dentro, e o fio que liga acende até onde
+a track andou.
 
 O anel do corrente **enche conforme o checklist anda**, e isso o design system não tem:
 é acréscimo do produto, para ver o progresso de dentro do checkpoint sem abrir o

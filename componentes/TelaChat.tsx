@@ -7,10 +7,11 @@ import { useDados } from './Dados'
 import { useModais } from './Modais'
 import { Carregando } from './Shell'
 import { Ic } from './Icones'
-import { Av } from './atomos'
+import { Av, IconeStatus } from './atomos'
 import { curta, hojeIso, isoDe } from '@/lib/datas'
 import type { Canal, Mensagem, Sugestao, TipoProposta } from '@/lib/tipos'
 import { chama, pedacos } from '@/lib/mencao'
+import { progresso, status } from '@/lib/regras'
 import { BotaoVoz, Recado } from './Voz'
 
 const ROTULO: Record<TipoProposta, string> = {
@@ -650,6 +651,57 @@ function Conversa({ canal }: { canal: Canal }) {
 
 // ------------------------------------------------------------------ tela
 
+
+/**
+ * O contexto do canal: de qual track ele é, em que checkpoint ela está e quem
+ * participa. É o que evita ler a conversa sem saber do que se trata.
+ */
+function LadoDoCanal({ canal }: { canal: Canal }) {
+  const { fluxos, areas, perfis, perfilDe, nomeDe } = useDados()
+  const fluxo = canal.fluxo_id ? fluxos.find((f) => f.id === canal.fluxo_id) : null
+  const area = canal.area_id ? areas.find((a) => a.id === canal.area_id) : null
+  const gente = (canal.membros.length ? canal.membros.map((m) => perfilDe(m)) : perfis.filter((p) => p.ativo))
+  if (!fluxo && !area) return null
+  const et = fluxo ? fluxo.etapas[fluxo.atual] : null
+  const feitos = et ? et.itens.filter((x) => x.feito).length : 0
+
+  return (
+    <aside className="chat-lado">
+      <h2 className="track-rot">{fluxo ? 'Nesta track' : 'Nesta área'}</h2>
+      <h3 className="chat-lado-nome">{fluxo ? fluxo.nome : area!.nome}</h3>
+
+      {fluxo && et && (
+        <>
+          <div className="chat-lado-etapa">
+            <IconeStatus st={status(fluxo)} p={progresso(fluxo)} />
+            <span>
+              <b>{et.nome}</b>
+              <small>{feitos} de {et.itens.length} {et.itens.length === 1 ? 'tarefa pronta' : 'tarefas prontas'}</small>
+            </span>
+          </div>
+          <h4>Aprovador</h4>
+          <p className="chat-lado-quem"><Av p={perfilDe(et.aprovador_id)} tam="sm" />{nomeDe(et.aprovador_id)}</p>
+          <Link className="chat-lado-abrir" href={`/fluxo/${fluxo.id}`}>Abrir track <Ic.seta /></Link>
+        </>
+      )}
+
+      <div className="rail-sep" />
+      <h4>Participantes</h4>
+      <div className="chat-lado-gente">
+        {gente.slice(0, 5).map((p) => <Av key={p.id} p={p} />)}
+        {gente.length > 5 && <i className="mais num">+{gente.length - 5}</i>}
+      </div>
+
+      {fluxo && et?.criterio && (
+        <>
+          <h4>Critério de passagem</h4>
+          <p className="chat-lado-crit">{et.criterio}</p>
+        </>
+      )}
+    </aside>
+  )
+}
+
 export function TelaChat({ id }: { id?: string }) {
   const { canais, carregando } = useDados()
   const { abrir } = useModais()
@@ -661,7 +713,7 @@ export function TelaChat({ id }: { id?: string }) {
   return (
     <div className="chat" data-aberto={canal ? 'sim' : 'nao'}>
       <Lista atual={canal?.id} />
-      {canal ? <Conversa canal={canal} /> : (
+      {canal ? <><Conversa canal={canal} /><LadoDoCanal canal={canal} /></> : (
         <section className="chat-conversa">
           <div className="chat-vazio">
             <h3>Escolha uma conversa</h3>

@@ -72,11 +72,11 @@ function Cartao({ a }: { a: Agente }) {
           })}><Ic.x /></button>
       </div>
 
-      <div className="ag-linha">
+      <div className="agt-linha">
         <span className="ag-rot">Quando</span>
         <span>{a.reconhecer}</span>
       </div>
-      <div className="ag-linha">
+      <div className="agt-linha">
         <span className="ag-rot">Propõe</span>
         <span>
           {oQueFaz(a,

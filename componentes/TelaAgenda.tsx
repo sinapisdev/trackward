@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import Link from 'next/link'
 import { useDados } from './Dados'
 import { useModais } from './Modais'
@@ -14,10 +14,14 @@ import type { Compromisso } from '@/lib/tipos'
 
 type Modo = 'semana' | 'mes'
 type Lente = 'minha' | 'equipe'
+type Recorte = 'uteis' | 'todos'
 
-const ALTURA = 46
-const PRIMEIRA = 7
-const ULTIMA = 20
+const ALTURA = 58
+const PRIMEIRA = 8
+const ULTIMA = 19
+
+/** 8h vira "08:00": a agenda escreve hora cheia, como qualquer calendário. */
+const hhmm = (h: number) => `${String(h).padStart(2, '0')}:00`
 
 export function TelaAgenda() {
   const { eu, perfis, agenda, fluxos, carregando, nomeDe, perfilDe } = useDados()
@@ -25,6 +29,8 @@ export function TelaAgenda() {
   const [modo, setModo] = useState<Modo>('semana')
   const [lente, setLente] = useState<Lente>('minha')
   const [ancora, setAncora] = useState<string>(hojeIso())
+  const [recorte, setRecorte] = useState<Recorte>('uteis')
+  const [sel, setSel] = useState<string | null>(null)
   /** No celular a semana inteira não cabe, então mostramos um dia por vez. */
   const [estreito, setEstreito] = useState(false)
 
@@ -59,7 +65,10 @@ export function TelaAgenda() {
 
   const base = data(ancora)
   const semana = semanaDe(base)
-  const dias = estreito && modo === 'semana' ? [ancora] : semana
+  const util = (d: string) => { const k = data(d).getDay(); return k !== 0 && k !== 6 }
+  const dias = estreito && modo === 'semana'
+    ? [ancora]
+    : recorte === 'uteis' ? semana.filter(util) : semana
   const hj = hojeIso()
 
   const andar = (n: number) => {
@@ -74,13 +83,15 @@ export function TelaAgenda() {
     : estreito
       ? `${DSEM_LONGO[base.getDay()]}, ${base.getDate()} de ${MES_LONGO[base.getMonth()]}`
       : (() => {
-          const a = data(semana[0]), b = data(semana[6])
+          const visto = recorte === 'uteis' ? semana.filter(util) : semana
+          const a = data(visto[0]), b = data(visto[visto.length - 1])
           return a.getMonth() === b.getMonth()
-            ? `${a.getDate()} a ${b.getDate()} de ${MES_LONGO[a.getMonth()]}`
-            : `${curta(semana[0])} a ${curta(semana[6])}`
+            ? `${a.getDate()} a ${b.getDate()} de ${MES_LONGO[a.getMonth()]} de ${a.getFullYear()}`
+            : `${curta(visto[0])} a ${curta(visto[visto.length - 1])}`
         })()
 
   const doDia = (dia: string) => visiveis.filter((c) => c.quando === dia).sort(porHora)
+  const escolhido = sel ? visiveis.find((c) => c.id === sel && c.aberto) || null : null
   const novoEm = (dia: string, hora?: string) =>
     abrir({ tipo: 'compromisso', quando: dia, inicio: hora })
 
@@ -91,12 +102,12 @@ export function TelaAgenda() {
     const alt = Math.max(22, ((fim - ini) / 60) * ALTURA - 2)
     const pessoas = envolvidos(c).filter((p) => p !== eu.id)
     return (
-      <button className={`ev-bloco ${c.aberto ? '' : 'fechado'} ${c.bloqueia ? '' : 'livre'}`}
+      <button className={`ev-bloco ${c.aberto ? '' : 'fechado'} ${c.bloqueia ? '' : 'livre'} ${sel === c.id ? 'sel' : ''}`}
         style={{ top, height: alt }}
         title={c.aberto
           ? `${c.titulo}, ${faixa(c)}${c.local ? `, ${c.local}` : ''}`
           : `${nomeDe(c.dono_id)} está ocupado${c.externo ? ', pela agenda externa' : ''}`}
-        onClick={() => c.aberto && abrir({ tipo: 'compromisso', compromisso: c })}>
+        onClick={() => c.aberto && setSel(c.id)}>
         <b>{c.aberto ? c.titulo : 'Ocupado'}</b>
         <small>
           {faixa(c)}
@@ -112,31 +123,38 @@ export function TelaAgenda() {
     <>
       <div className="hdr">
         <div>
-          <div className="eyebrow">Compromissos e prazos no mesmo lugar</div>
           <h1>Agenda</h1>
+          <p className="lede">Compromissos e prazos no mesmo lugar.</p>
         </div>
         <div className="hdr-actions">
-          <div className="seg">
-            <button className={lente === 'minha' ? 'on' : ''} onClick={() => setLente('minha')}>Minha</button>
-            <button className={lente === 'equipe' ? 'on' : ''} onClick={() => setLente('equipe')}>Equipe</button>
-          </div>
-          <div className="seg">
-            <button className={modo === 'semana' ? 'on' : ''} onClick={() => setModo('semana')}>Semana</button>
-            <button className={modo === 'mes' ? 'on' : ''} onClick={() => setModo('mes')}>Mês</button>
-          </div>
-          <button className="btn pri" onClick={() => novoEm(hj)}><Ic.plus />Novo compromisso</button>
+          <button className="btn" onClick={() => novoEm(hj)}><Ic.plus />Compromisso</button>
         </div>
       </div>
 
-      <div className="bh" style={{ marginBottom: 12 }}>
+      <div className="ag-ctl">
+        <button className="iconbtn grd" aria-label="Anterior" onClick={() => andar(-1)}><Ic.volta /></button>
+        <button className="iconbtn grd" aria-label="Próximo" onClick={() => andar(1)}><Ic.seta /></button>
+        <button className="btn" onClick={() => setAncora(hj)}>Hoje</button>
         <span className="ag-titulo">{titulo}</span>
-        <div className="ag-nav" style={{ marginLeft: 'auto' }}>
-          <button className="iconbtn" aria-label="Anterior" onClick={() => andar(-1)}
-            style={{ transform: 'rotate(90deg)' }}><Ic.chev /></button>
-          <button className="ag-hoje" onClick={() => setAncora(hj)}>Hoje</button>
-          <button className="iconbtn" aria-label="Próximo" onClick={() => andar(1)}
-            style={{ transform: 'rotate(-90deg)' }}><Ic.chev /></button>
+        <div className="seg" style={{ marginLeft: 'auto' }}>
+          <button className={modo === 'semana' ? 'on' : ''} onClick={() => setModo('semana')}>Semana</button>
+          <button className={modo === 'mes' ? 'on' : ''} onClick={() => setModo('mes')}>Mês</button>
         </div>
+        <label className="sel-quem">
+          <select value={recorte} onChange={(e) => setRecorte(e.target.value as Recorte)}
+            aria-label="Quais dias mostrar">
+            <option value="uteis">Dias úteis</option>
+            <option value="todos">Semana inteira</option>
+          </select>
+          <Ic.chev />
+        </label>
+        <label className="sel-quem">
+          <select value={lente} onChange={(e) => setLente(e.target.value as Lente)} aria-label="De quem">
+            <option value="minha">Minha agenda</option>
+            <option value="equipe">Da equipe</option>
+          </select>
+          <Ic.chev />
+        </label>
       </div>
 
       {estreito && modo === 'semana' && (
@@ -156,23 +174,27 @@ export function TelaAgenda() {
         </div>
       )}
 
+      <div className="ag">
+      <div className="ag-grade">
       {modo === 'semana' ? (
-        <div className={`ag-semana ${estreito ? 'um-dia' : ''}`}>
+        <div className={`ag-semana ${estreito ? 'um-dia' : ''}`}
+          style={{ '--colunas': dias.length } as CSSProperties}>
           <div className="ag-cab">
             <div />
             {dias.map((d) => {
               const x = data(d)
               return (
                 <div key={d} className={d === hj ? 'hoje' : ''}>
-                  <div className="ds">{DSEM[x.getDay()]}</div>
-                  <div className="dn num">{x.getDate()}</div>
+                  <span className="ds">{DSEM[x.getDay()]}</span>
+                  <span className="dn num">{x.getDate()}</span>
+                  {d === hj && <i className="ag-pt" aria-label="hoje" />}
                 </div>
               )
             })}
           </div>
 
           <div className="ag-dia-inteiro">
-            <div className="rot">dia<br />inteiro</div>
+            <div className="rot">Prazos</div>
             {dias.map((d) => (
               <div key={d}>
                 {doDia(d).filter((c) => !c.inicio).map((c) => (
@@ -194,7 +216,7 @@ export function TelaAgenda() {
           <div className="ag-corpo">
             <div className="ag-horas">
               {Array.from({ length: ULTIMA - PRIMEIRA }, (_, k) => (
-                <div className="ag-hora" key={k} style={{ height: ALTURA }}>{PRIMEIRA + k}h</div>
+                <div className="ag-hora" key={k} style={{ height: ALTURA }}>{hhmm(PRIMEIRA + k)}</div>
               ))}
             </div>
             {dias.map((d) => {
@@ -267,6 +289,65 @@ export function TelaAgenda() {
           local ou observação. Você sabe que a pessoa não está livre, e nada além disso.
         </p>
       )}
+      </div>
+
+      {escolhido && (
+        <aside className="ag-lado">
+          <div className="ag-lado-topo">
+            <button className="iconbtn grd" onClick={() => setSel(null)} aria-label="Fechar"><Ic.x /></button>
+          </div>
+          <h2>{escolhido.titulo}</h2>
+          <p className="ag-lado-quando">
+            {escolhido.quando === hj ? 'Hoje' : curta(escolhido.quando)} · {faixa(escolhido)}
+          </p>
+
+          <dl className="ag-lado-kv">
+            {escolhido.fluxo_id && (
+              <div>
+                <dt><Ic.proj /></dt>
+                <dd><Link href={`/fluxo/${escolhido.fluxo_id}`}>
+                  {fluxos.find((f) => f.id === escolhido.fluxo_id)?.nome || 'Track'}
+                </Link></dd>
+              </div>
+            )}
+            <div>
+              <dt><Ic.eu /></dt>
+              <dd>{escolhido.dono_id === eu.id ? 'Você' : nomeDe(escolhido.dono_id)}</dd>
+            </div>
+            {!!escolhido.local && (
+              <div><dt><Ic.dot /></dt><dd>{escolhido.local}</dd></div>
+            )}
+            {!!escolhido.convidados.length && (
+              <div>
+                <dt><Ic.team /></dt>
+                <dd className="ag-lado-gente">
+                  {escolhido.convidados.map((c) => <Av key={c} p={perfilDe(c)} tam="sm" />)}
+                </dd>
+              </div>
+            )}
+          </dl>
+
+          <div className="ag-lado-chaves">
+            <span><span className={`chave ${escolhido.bloqueia ? 'on' : ''}`} aria-hidden /><b>Ocupa minha agenda</b></span>
+            <span><span className={`chave ${escolhido.visivel ? 'on' : ''}`} aria-hidden /><b>Outros veem o título</b></span>
+          </div>
+          {!escolhido.visivel && (
+            <p className="ag-lado-nota"><Ic.lock />Para outras pessoas, aparece apenas <i>Ocupado</i>.</p>
+          )}
+
+          {!!escolhido.nota && <p className="ag-lado-obs">{escolhido.nota}</p>}
+
+          {escolhido.dono_id === eu.id && !escolhido.externo && (
+            <button className="btn larga" onClick={() => abrir({ tipo: 'compromisso', compromisso: escolhido })}>
+              <Ic.edit />Editar compromisso
+            </button>
+          )}
+          {escolhido.fluxo_id && (
+            <Link className="gaveta-abrir" href={`/fluxo/${escolhido.fluxo_id}`}>Abrir track <Ic.seta /></Link>
+          )}
+        </aside>
+      )}
+      </div>
     </>
   )
 }

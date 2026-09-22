@@ -102,14 +102,14 @@ export function TelaRelatorios() {
     <>
       <div className="hdr nao-imprime">
         <div>
-          <div className="eyebrow">O período contado, para ler e para mandar</div>
           <h1>Relatórios</h1>
+          <p className="lede">O período contado, para ler e para mandar.</p>
         </div>
         <div className="hdr-actions">
           <button className="btn" onClick={() => void copiar()}>
             <Ic.copiar />{copiado ? 'Copiado' : 'Copiar como texto'}
           </button>
-          <button className="btn pri" onClick={() => window.print()}>
+          <button className="btn" onClick={() => window.print()}>
             <Ic.processo />Imprimir ou salvar em PDF
           </button>
         </div>
