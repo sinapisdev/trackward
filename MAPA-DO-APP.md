@@ -357,6 +357,29 @@ fala ou passam 6 minutos), separadores de dia, mensagens de sistema com faísca.
 - **Responder**: cada mensagem tem os botões de responder e apagar. Respondendo, a
   citação aparece em cima da resposta, e clicar nela leva até a original e pisca
 - Apagar vale só para as suas mensagens
+- **Recado de voz**: o botão de microfone grava, e o texto vai aparecendo enquanto a pessoa
+  fala, com a onda do microfone se mexendo. Ao parar, ela **revisa a transcrição** e envia.
+  A mensagem mostra o áudio para ouvir e o texto embaixo, com o selo "transcrito"
+
+#### Como a IA entende o recado de voz
+
+A decisão que faz isso funcionar: **a transcrição vai no campo de texto da mensagem**, não
+numa coluna própria. Então a leitura da conversa, a menção pelo nome e a busca funcionam no
+áudio sem nenhuma mudança: para elas, é só uma mensagem escrita.
+
+E **quem transcreve é o próprio navegador, enquanto a pessoa fala**. Duas razões:
+
+1. **Não custa nada.** Nenhuma chave, nenhum provedor, nenhum centavo por minuto
+2. **Quem falou revisa antes de enviar.** É o que impede o erro de audição de virar
+   trabalho: basta o navegador ouvir "cancela" onde a pessoa disse "confirma" para nascer
+   uma tarefa errada, e ninguém vai conferir o áudio depois
+
+Quando o navegador não sabe ouvir (Firefox, hoje), o recado vai sem texto e a tela diz
+**"a IA não lê este"**. Continua servindo para quem escuta, e avisar é mais honesto do que
+fingir.
+
+O arquivo mora no mesmo balde dos anexos. O **recado se abre quando o canal se abre**, então
+canal fechado continua fechado. Apagar a mensagem apaga o áudio.
 
 **"Ler a conversa"** é o botão que aciona a IA. Ela devolve **propostas**, nunca
 mudanças diretas. Cinco tipos:
