@@ -1,0 +1,52 @@
+<!-- @dsCard group="Components" viewport="700x330" name="Core — buttons, chips, avatars" subtitle="Lime pill for the forward move; outline and chip for everything else" -->
+<!doctype html><html data-ds="trackward" lang="pt-BR"><head><meta charset="utf-8"><title>TrackWard</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.454.0/dist/umd/lucide.min.js"></script>
+<script src="../../ds-boot.js"></script>
+<script>/* preview shim: this sandbox only serves subresources with the page's ?t= token */
+(function(){var t=new URL(location.href).searchParams.get("t");if(!t)return;var q="?t="+t;
+var l=document.createElement("link");l.rel="stylesheet";l.href="../../styles.css"+q;document.head.appendChild(l);
+["../../ds-boot.js"].forEach(function(s){var e=document.createElement("script");e.src=s+q;e.async=false;document.head.appendChild(e)});})();</script>
+<style>html,body{margin:0;background:var(--bg-page)}#root{padding:22px 24px}.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.col{display:grid;gap:16px}.lbl{color:var(--ink-3);font:var(--type-micro);letter-spacing:.06em;text-transform:uppercase}</style>
+</head><body><div id="root"></div>
+<script type="text/babel" data-presets="react">
+(function wait(){ if (!window.DSBoot) return setTimeout(wait, 40);
+DSBoot().then(NS => {
+  const { Button, IconButton, Badge, Chip, Avatar, AvatarGroup, TextLink, Kbd, Divider, Icon, Logo } = NS;
+  const Card = () => (
+    <div className="col">
+      <Logo size={20} />
+      <div className="row">
+        <Button iconRight={<Icon name="arrow-right" size={17} />}>Abrir track</Button>
+        <Button variant="secondary" iconLeft={<Icon name="settings" size={17} />}>Ajustes</Button>
+        <Button variant="quiet" size="sm">Executar</Button>
+        <Button variant="ghost" size="sm" iconRight={<Icon name="arrow-right" size={15} />}>Ver tudo</Button>
+        <Button disabled iconLeft={<Icon name="lock" size={17} />}>Concluir tarefa</Button>
+      </div>
+      <Divider />
+      <div className="row">
+        <Chip selected count={5}>Tudo</Chip>
+        <Chip count={3}>Executar</Chip>
+        <Chip count={1}>Aprovar</Chip>
+        <Badge>5</Badge>
+        <Badge tone="accent">3</Badge>
+        <Kbd>/</Kbd>
+        <IconButton label="Ajustes" active><Icon name="settings" size={20} /></IconButton>
+        <IconButton label="Mais"><Icon name="more-horizontal" size={20} /></IconButton>
+      </div>
+      <Divider />
+      <div className="row" style={{gap:26}}>
+        <Avatar name="Leonardo Esteves" size="lg" />
+        <Avatar name="Ana Nunes" />
+        <Avatar name="Mariana Costa" size="sm" />
+        <AvatarGroup people={["Leonardo E","Ana N","Mariana C","Bruno R"]} size="md" />
+        <TextLink href="#">Esqueci minha senha</TextLink>
+      </div>
+    </div>
+  );
+  ReactDOM.createRoot(document.getElementById("root")).render(<Card />);
+}).catch(e => { document.getElementById("root").innerHTML = '<pre style="color:#FF5A5A;font:13px/1.5 monospace">'+e.message+'</pre>'; }); })();
+</script></body></html>

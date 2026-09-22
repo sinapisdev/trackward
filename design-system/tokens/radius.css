@@ -1,0 +1,10 @@
+[data-ds="trackward"]{
+  --r-xs:6px;
+  --r-sm:8px;
+  --r-md:10px;      /* inputs, selects */
+  --r-lg:14px;      /* panels, flat cards */
+  --r-xl:18px;      /* folder cards, drawers */
+  --r-2xl:24px;
+  --r-pill:999px;   /* every button, chip, badge, avatar */
+  --border-w:1px; /* @kind spacing */
+}

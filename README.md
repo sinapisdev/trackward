@@ -341,9 +341,8 @@ com seu próprio ciclo e seu próprio histórico.
 ## Aparência
 
 A linguagem visual vem de uma referência escolhida pelo Leo (o projeto Harbor, no
-Behance): tipografia **Plus Jakarta Sans**, fundo off-white quente, preto como ação,
-cinza quente no secundário e **um único acento laranja** (#F98B05) para o que pede
-atenção. Rótulos de seção em caixa alta espaçada, formas arredondadas, respiro generoso.
+Behance): tipografia **Urbanist**, fundo off-white quente, preto como ação, cinza
+quente no secundário e **um único acento laranja** para o que pede atenção. Rótulos de seção em caixa alta espaçada, formas arredondadas, respiro generoso.
 
 Cor continua sendo informação, não decoração: laranja para o que vence, vermelho para o
 que atrasou, e nada mais. Em dia, travado e concluído ficam em neutro e se distinguem
@@ -352,6 +351,43 @@ para conviverem com o off-white sem competir.
 
 Temas em **Ajustes > Aparência**: Claro (fiel à referência), Escuro (a mesma linguagem
 invertida, em preto quente) e Automático. O botão no rodapé da lateral percorre os três.
+
+## O design system
+
+Em `design-system/` mora um sistema de peças completo, vindo do Claude Design: 50
+componentes, os tokens, os contratos de props e a especificação escrita.
+
+**Ele não é a aparência do app.** O app continua com a sua, a de cima. Este é escuro,
+com outra tipografia e acento lima, e serve para desenhar e prototipar. Os dois convivem
+sem se tocar porque todo token do design system desce de `[data-ds="trackward"]`, e não
+da raiz do documento, então nenhuma tela existente muda de cor por causa dele.
+
+Para ver os componentes desenhando de verdade, `npm run dev` e abra
+`http://localhost:3000/design-system`.
+
+Para ver as páginas de referência que vieram do export, fundamentos, componentes estado
+por estado e telas inteiras:
+
+```bash
+npm run ds:referencia
+```
+
+e abra `http://localhost:4321/referencia/`. Elas precisam de servidor porque montam os
+componentes lendo os arquivos vizinhos, o que o navegador barra em `file://`.
+
+Como usar, o que é cada pasta e quais são as regras: `design-system/README.md`. A
+especificação de cor, tipo, espaço, movimento e voz: `design-system/DESIGN.md`.
+
+## Conferir antes de subir
+
+```bash
+npm run typecheck   # tipos
+npm run lint        # aderência ao design system
+npm run build       # build de produção
+```
+
+O lint só cobra a aderência ao design system, e só onde ele é usado. As telas antigas
+não entram: elas são anteriores ao sistema e não estão sendo migradas.
 
 ## Estrutura do código
 
@@ -380,4 +416,12 @@ lib/
 supabase/
   schema.sql      tabelas, RLS e as duas funções de servidor
   exemplo.sql     dados de demonstração
+design-system/
+  DESIGN.md       a especificação: cor, tipo, espaço, movimento, voz
+  styles.css      entrada única dos tokens, tudo sob [data-ds="trackward"]
+  index.js        o barril, único caminho de importação
+  components/     50 componentes, com contrato de props e regra de uso ao lado
+  referencia/     as páginas de referência visual, para consulta
+app/design-system/
+                  a vitrine, em /design-system
 ```

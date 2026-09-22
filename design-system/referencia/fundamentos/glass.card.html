@@ -1,0 +1,17 @@
+<!-- @dsCard group="Spacing" viewport="700x180" name="Glass & focus" subtitle="18px backdrop blur on folders; lime 2px focus ring" -->
+<!doctype html><html data-ds="trackward" lang="pt-BR"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<script src="../../ds-boot.js"></script>
+<script>/* sandbox preview: subresources are only served with the page's ?t= token */
+(function(){var t=new URL(location.href).searchParams.get("t");if(!t)return;var e=document.createElement("script");e.src="../../ds-boot.js?t="+t;e.onload=function(){DSStyles()};document.head.appendChild(e)})();</script>
+<style>html,body{margin:0;background:var(--bg-page);color:var(--text-body);font-family:var(--font-ui)}.wrap{padding:20px 22px;display:grid;gap:14px}.sw{display:flex;gap:10px;flex-wrap:wrap}.chip{display:grid;gap:7px;min-width:96px}.box{height:56px;border-radius:var(--r-md);border:1px solid var(--border-hairline)}.nm{color:var(--ink-1);font:var(--type-micro)}.hx{color:var(--ink-3);font:var(--type-micro);letter-spacing:.02em}</style>
+</head><body><div class="wrap"><div style="display:flex;gap:22px;align-items:center;flex-wrap:wrap">
+<div style="position:relative;width:250px;height:110px;border-radius:var(--r-lg);overflow:hidden;background:radial-gradient(120px 80px at 20% 20%,rgba(208,250,60,.35),transparent),radial-gradient(160px 100px at 80% 70%,rgba(255,255,255,.18),transparent),var(--n-900)">
+  <div style="position:absolute;inset:18px;border-radius:var(--r-md);background:var(--surface-glass);backdrop-filter:var(--blur-glass);border:1px solid var(--border-hairline);display:grid;place-items:center;color:var(--ink-1);font:var(--type-meta)">--surface-glass + --blur-glass</div>
+</div>
+<div style="display:grid;gap:12px">
+  <div style="height:44px;width:230px;border-radius:var(--r-md);background:rgba(255,255,255,.03);border:1px solid var(--border-focus);box-shadow:0 0 0 3px rgba(208,250,60,.14);display:flex;align-items:center;padding:0 14px;color:var(--ink-0);font:var(--type-body)">Campo em foco</div>
+  <span class="hx">--border-focus + 3px lime wash · --sh-focus</span>
+  <div style="color:var(--ink-1);font:var(--type-body)">Texto com <span style="background:var(--lime-500);color:var(--ink-on-lime)">seleção</span> — ::selection é lime.</div>
+</div>
+</div></div></body></html>

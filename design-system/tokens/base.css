@@ -1,0 +1,51 @@
+/* Reset e estilos de elemento do design system.
+
+   Tudo aqui desce de [data-ds="trackward"], nunca de :root ou de body. É isso que
+   deixa o sistema conviver com app/globals.css sem disputar nome de token nem
+   repintar tela nenhuma do app: quem não estiver dentro de um nó marcado com
+   data-ds="trackward" não enxerga uma linha deste arquivo.
+
+   Nas páginas de referência o atributo fica no <html>, então `[data-ds] body`
+   casa com o body daquela página. Dentro do app ele fica num <div>, e a mesma
+   regra simplesmente não encontra nada. */
+
+[data-ds="trackward"],
+[data-ds="trackward"] *,
+[data-ds="trackward"] *::before,
+[data-ds="trackward"] *::after{box-sizing:border-box}
+
+[data-ds="trackward"]{
+  background:var(--bg-page);
+  color:var(--text-body);
+  font:var(--type-body);
+  font-family:var(--font-ui);
+  -webkit-text-size-adjust:100%;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+
+[data-ds="trackward"] body{margin:0;min-height:100%}
+[data-ds="trackward"] h1,
+[data-ds="trackward"] h2,
+[data-ds="trackward"] h3,
+[data-ds="trackward"] h4,
+[data-ds="trackward"] p,
+[data-ds="trackward"] figure{margin:0}
+[data-ds="trackward"] h1,
+[data-ds="trackward"] h2,
+[data-ds="trackward"] h3,
+[data-ds="trackward"] h4{color:var(--text-strong);font-family:var(--font-display)}
+[data-ds="trackward"] button,
+[data-ds="trackward"] input,
+[data-ds="trackward"] select,
+[data-ds="trackward"] textarea{font:inherit;color:inherit}
+[data-ds="trackward"] a{color:var(--text-link);text-decoration:none}
+[data-ds="trackward"] a:hover{color:var(--ink-0);text-decoration:underline;text-decoration-color:var(--white-20);text-underline-offset:3px}
+[data-ds="trackward"] :focus-visible{outline:none;box-shadow:var(--sh-focus)}
+[data-ds="trackward"] ::selection{background:var(--lime-500);color:var(--ink-on-lime)}
+[data-ds="trackward"] ::-webkit-scrollbar{width:10px;height:10px}
+[data-ds="trackward"] ::-webkit-scrollbar-thumb{background:var(--white-08);border-radius:var(--r-pill);border:3px solid transparent;background-clip:content-box}
+[data-ds="trackward"] ::-webkit-scrollbar-thumb:hover{background:var(--white-12);background-clip:content-box}
+[data-ds="trackward"] ::-webkit-scrollbar-track{background:transparent}
+
+[data-ds="trackward"] .tw-kicker{font:var(--type-kicker);letter-spacing:var(--ls-kicker);text-transform:uppercase;color:var(--text-muted)}

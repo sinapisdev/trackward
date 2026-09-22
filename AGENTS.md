@@ -66,8 +66,8 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
 ## Regras visuais
 
 A linguagem visual segue a referência escolhida pelo Leo (projeto Harbor, Behance):
-**Plus Jakarta Sans**, off-white quente de fundo, preto como ação, cinza quente no
-secundário, laranja #F98B05 como único acento de atenção. Rótulos de seção em caixa
+**Urbanist** (é ela que `app/layout.tsx` carrega), off-white quente de fundo, preto como
+ação, cinza quente no secundário, laranja como único acento de atenção. Rótulos de seção em caixa
 alta espaçada, cantos generosos (`--r-lg` 18px), pílulas para segmentos e badges.
 
 Não introduzir: emoji, faixas coloridas laterais em cards, blocos grandes de KPI,
@@ -81,6 +81,32 @@ pequenos ou como tinta (ver `.av`, que usa `color-mix` em vez de fundo chapado).
 
 Cores vivem só em `app/globals.css`, sobre `:root[data-tema="..."]`. Nenhuma tela conhece
 o tema no ar. Ao criar um token, defini-lo no escuro e no claro.
+
+## Design system TrackWard
+
+Em `design-system/` mora um segundo sistema visual, vindo do Claude Design. **Ele não é
+a linguagem do app** e não está substituindo nada: é escuro, com Figtree e acento lima,
+e serve para desenhar e prototipar. As telas de `componentes/` e `app/(app)/` continuam
+com o `app/globals.css` e não estão sendo migradas.
+
+A regra acima, de cor viver só em `app/globals.css`, continua valendo para o app. O
+design system é a exceção, e ela se sustenta num detalhe: **todo token dele desce de
+`[data-ds="trackward"]`, nunca de `:root`**. Sem isso haveria colisão de verdade, porque
+`--r-lg`, `--r-sm` e `--warn` existem nos dois lados com valores diferentes. Mexeu nos
+tokens de `design-system/tokens/`, mantenha o escopo.
+
+- Importe sempre pelo barril `@/design-system`, nunca por dentro de `components/`.
+- O que usar o sistema precisa de um pai com `data-ds="trackward"`, e de `window.lucide`
+  de pé antes da primeira pintura, que é de onde o `Icon` tira os glifos.
+- A fonte da verdade dos tokens é `design-system/DESIGN.md`. Antes de compor tela, leia
+  o `.prompt.md` do componente: ele guarda a regra de uso que a prop não conta.
+- As regras de aderência (barril, token no lugar de valor cru, contrato de props) estão
+  em `design-system/aderencia.eslint.json` e rodam no `npm run lint`. Reexportou o design
+  system, troque aquele arquivo.
+- `design-system/referencia/` é material congelado, para consulta visual. Não é código
+  a manter, e o lint não passa por lá.
+- A vitrine é a rota `/design-system`, fora do grupo `(app)` de propósito: sem Shell,
+  sem TabBar, fora da navegação.
 
 <!-- END:esteira -->
 

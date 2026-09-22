@@ -951,6 +951,20 @@ não "no ritmo dela".
 **Elementos recorrentes**: ícones de status pequenos, avatares com iniciais e cor por
 pessoa, bolinha que enche, selo de visto, cadeado para travado e para privado.
 
+### O design system, que é outra coisa
+
+Desde 22/09/2026 existe `design-system/` no repositório: um sistema de peças completo
+(50 componentes, tokens, contratos de props e a especificação escrita), vindo do Claude
+Design. **Ele não descreve o app que este documento mapeia.** A paleta dele é escura com
+acento lima, a tipografia é Figtree, e nada disso está nas telas de hoje.
+
+Ele existe para desenhar e prototipar, e por isso não conflita com o que está escrito
+acima: todo token dele vive sob `[data-ds="trackward"]`, então nenhuma tela do app muda.
+A vitrine fica em `/design-system`, fora do grupo `(app)`, sem Shell e fora da navegação.
+
+Quem for desenhar UX olhando este mapa tem duas fontes, e elas não são a mesma: o
+vocabulário acima é o que o app usa hoje; `design-system/DESIGN.md` é o sistema à parte.
+
 ---
 
 ## 10. O que ainda não existe
