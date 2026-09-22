@@ -12,6 +12,7 @@ import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao,
   } from '@/lib/tipos'
 import { chama } from '@/lib/mencao'
 import { nomeLimpo, preparar, LIMITE, tamanhoLegivel } from '@/lib/anexos'
+import { extensaoDe } from '@/lib/voz'
 import { distribuir, type Palpite } from '@/lib/distribuir'
 import { sobrecarga, type Carga } from '@/lib/sobrecarga'
 import type { Contexto as ContextoLeitura, Proposta } from '@/lib/leitor'
@@ -133,6 +134,12 @@ type Contexto = {
   /** Quantas mensagens novas deste canal chamam você pelo nome. */
   meChamaram: (canalId: string) => number
   enviar: (canalId: string, texto: string, respondeA?: string | null) => Promise<void>
+  /** Manda um recado de voz. O texto é a transcrição, e vai no corpo da mensagem. */
+  enviarAudio: (canalId: string, g: {
+    blob: Blob; mime: string; segundos: number; texto: string
+  }, respondeA?: string | null) => Promise<boolean>
+  /** URL temporária para tocar o áudio de uma mensagem. */
+  abrirAudio: (m: Mensagem) => Promise<string | null>
   apagarMensagem: (m: Mensagem) => Promise<void>
   marcarLido: (canalId: string) => Promise<void>
   salvarCanal: (d: {
@@ -1014,9 +1021,45 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     recarregar()
   }, [sb, eu.id, falhou, recarregar])
 
+  const enviarAudio: Contexto['enviarAudio'] = useCallback(async (canalId, g, respondeA = null) => {
+    if (!org.id) { falhou(null, 'Organização ainda carregando. Tente de novo.'); return false }
+    if (g.blob.size > LIMITE) {
+      falhou(null, `O recado tem ${tamanhoLegivel(g.blob.size)}. O limite é ${tamanhoLegivel(LIMITE)}.`)
+      return false
+    }
+    // Mesmo balde e mesma convenção de caminho dos anexos: começa pelo id da
+    // organização, que é o que a política do Storage confere no envio.
+    const caminho = `${org.id}/voz/${canalId}/${Date.now()}-${eu.id}.${extensaoDe(g.mime)}`
+    const { error: erroArquivo } = await sb.storage.from('anexos').upload(caminho, g.blob)
+    if (erroArquivo) { falhou(erroArquivo, 'Não foi possível enviar o recado.'); return false }
+
+    const { error } = await sb.from('mensagens').insert({
+      canal_id: canalId, autor_id: eu.id, texto: g.texto.trim(), responde_a: respondeA,
+      sistema: false, audio_caminho: caminho,
+      audio_segundos: Math.round(g.segundos), transcrito: !!g.texto.trim(),
+    })
+    if (error) {
+      // Sem a mensagem, o arquivo sozinho é lixo.
+      await sb.storage.from('anexos').remove([caminho])
+      falhou(error, 'Não foi possível enviar o recado.')
+      return false
+    }
+    recarregar()
+    return true
+  }, [sb, eu.id, org.id, falhou, recarregar])
+
+  const abrirAudio: Contexto['abrirAudio'] = useCallback(async (m) => {
+    if (!m.audio_caminho) return null
+    const { data, error } = await sb.storage.from('anexos').createSignedUrl(m.audio_caminho, 600)
+    if (error || !data?.signedUrl) { falhou(error, 'Não foi possível tocar o recado.'); return null }
+    return data.signedUrl
+  }, [sb, falhou])
+
   const apagarMensagem: Contexto['apagarMensagem'] = useCallback(async (m) => {
     const { error } = await sb.from('mensagens').delete().eq('id', m.id)
     if (error) return falhou(error, 'Só quem escreveu pode apagar.')
+    // O áudio vai junto: mensagem apagada com arquivo de pé é lixo que ocupa.
+    if (m.audio_caminho) await sb.storage.from('anexos').remove([m.audio_caminho])
     recarregar()
   }, [sb, falhou, recarregar])
 
@@ -1316,7 +1359,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     anexosDe, anexar, removerAnexo, abrirAnexo, decisoesDe, decidir,
     desfazerSugestao, palpites, distribuirTarefa, cargas, cargaDe,
     preverCascata, moverPrazo, pedidosPrazo, decidirPrazo,
-    enviar, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
+    enviar, enviarAudio, abrirAudio, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
     lerConversa, aceitarSugestao, recusarSugestao,
     espacos, trocarEspaco, abrirEspaco,
   }

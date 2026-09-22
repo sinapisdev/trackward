@@ -250,6 +250,17 @@ export const Ic = {
       <rect x="10.4" y="2.6" width="2.6" height="9.8" rx=".8" />
     </svg>
   ),
+  microfone: () => (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <rect x="6" y="1.8" width="4" height="7.4" rx="2" />
+      <path d="M3.6 7.4a4.4 4.4 0 0 0 8.8 0M8 11.8v2.4" strokeLinecap="round" />
+    </svg>
+  ),
+  play: () => (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M4.8 3.2a.7.7 0 0 1 1.06-.61l6.3 4.8a.7.7 0 0 1 0 1.22l-6.3 4.8A.7.7 0 0 1 4.8 12.8V3.2Z" />
+    </svg>
+  ),
   responder: () => (
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
       <path d="M6.4 3.6 2.6 7.2l3.8 3.6" strokeLinecap="round" strokeLinejoin="round" />

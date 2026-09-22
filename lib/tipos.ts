@@ -376,6 +376,11 @@ export type Mensagem = {
   sistema: boolean
   /** Escrita pela leitura da conversa, e não por quem mandou ler. */
   por_ia: boolean
+  /** Recado de voz: o endereço do arquivo no balde. */
+  audio_caminho: string | null
+  audio_segundos: number | null
+  /** O texto veio da transcrição do áudio, então pode ter erro de audição. */
+  transcrito: boolean
   criado_em: string
   editado_em: string | null
 }

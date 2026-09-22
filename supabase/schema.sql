@@ -348,6 +348,16 @@ create table if not exists public.mensagens (
   -- Escrita pela leitura da conversa, e não por quem mandou ler. A mensagem
   -- aparece assinada pela leitura, que é o aviso de que a máquina fez algo.
   por_ia      boolean not null default false,
+  -- Recado de voz. O arquivo mora no balde de anexos; aqui fica o endereço.
+  --
+  -- A transcrição vai em TEXTO, e não numa coluna própria. É a decisão que faz o
+  -- resto do app funcionar sem mudar nada: a leitura da conversa, a menção pelo
+  -- nome e a busca já leem texto, então um recado de voz entra em todos eles de
+  -- graça. transcrito diz de onde o texto veio, para a tela poder avisar que
+  -- pode ter erro de audição.
+  audio_caminho  text,
+  audio_segundos int,
+  transcrito     boolean not null default false,
   criado_em   timestamptz not null default now(),
   editado_em  timestamptz
 );
@@ -446,6 +456,7 @@ create index if not exists pz_item_idx  on public.pedidos_prazo (item_id);
 create index if not exists pz_abertos_idx on public.pedidos_prazo (fluxo_id) where estado = 'aberto';
 
 create index if not exists anexos_item_idx  on public.anexos (item_id);
+create index if not exists msg_audio_idx on public.mensagens (audio_caminho) where audio_caminho is not null;
 create index if not exists anexos_fluxo_idx on public.anexos (fluxo_id);
 create index if not exists dec_etapa_idx    on public.decisoes (etapa_id, criado_em desc);
 create index if not exists dec_fluxo_idx    on public.decisoes (fluxo_id, criado_em desc);
@@ -1782,6 +1793,9 @@ alter table public.itens add column if not exists prazo_firme boolean not null d
 -- A autoria da leitura. Bancos anteriores tinham tudo no nome de quem mandou ler.
 alter table public.atividades add column if not exists por_ia boolean not null default false;
 alter table public.mensagens  add column if not exists por_ia boolean not null default false;
+alter table public.mensagens  add column if not exists audio_caminho text;
+alter table public.mensagens  add column if not exists audio_segundos int;
+alter table public.mensagens  add column if not exists transcrito boolean not null default false;
 alter table public.sugestoes  add column if not exists por_ia boolean not null default false;
 alter table public.sugestoes  add column if not exists desfeita_em timestamptz;
 alter table public.sugestoes  add column if not exists desfeita_por uuid references public.perfis on delete set null;
@@ -1993,9 +2007,16 @@ end $$;
 
 create or replace function public.posso_ver_anexo(p_caminho text)
 returns boolean language sql stable security definer set search_path = public as $$
+  -- Prova de tarefa: abre quando a tarefa abre.
   select exists (
     select 1 from anexos a
     where a.caminho = p_caminho and minha(a.org_id) and ve_item(a.item_id)
+  )
+  -- Recado de voz: abre quando o canal abre. Canal fechado continua fechado, e
+  -- é por isso que a conta passa por ve_canal e não pelo caminho do arquivo.
+  or exists (
+    select 1 from mensagens m
+    where m.audio_caminho = p_caminho and minha(m.org_id) and ve_canal(m.canal_id)
   );
 $$;
 
@@ -2006,6 +2027,9 @@ returns boolean language sql stable security definer set search_path = public as
   select coalesce(
     (select minha(a.org_id) and (a.autor_id = meu_perfil() or manda_no_processo(a.fluxo_id))
        from anexos a where a.caminho = p_caminho),
+    -- Recado de voz: apaga quem escreveu, igual à mensagem de texto.
+    (select minha(m.org_id) and m.autor_id = meu_perfil()
+       from mensagens m where m.audio_caminho = p_caminho),
     split_part(p_caminho, '/', 1) = minha_org()::text
   );
 $$;

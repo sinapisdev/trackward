@@ -11,6 +11,7 @@ import { Av } from './atomos'
 import { curta, hojeIso, isoDe } from '@/lib/datas'
 import type { Canal, Mensagem, Sugestao, TipoProposta } from '@/lib/tipos'
 import { chama, pedacos } from '@/lib/mencao'
+import { BotaoVoz, Recado } from './Voz'
 
 const ROTULO: Record<TipoProposta, string> = {
   tarefa: 'Tarefa nova',
@@ -291,6 +292,7 @@ function Campo({ canalId, respondendo, fecharResposta }: {
           }
         }}
       />
+      <BotaoVoz canalId={canalId} respondeA={respondendo?.id ?? null} aoEnviar={fecharResposta} />
       <button className="btn pri" onClick={() => void mandar()} disabled={!texto.trim()} aria-label="Enviar">
         <Ic.enviar />
       </button>
@@ -305,7 +307,7 @@ function Conversa({ canal }: { canal: Canal }) {
   const {
     eu, perfis, perfilDe, nomeDe, todosFluxos, areaDe, org,
     mensagensDe, sugestoesDe, marcarLido, lerConversa, apagarMensagem, excluirCanal,
-    desfazerSugestao,
+    desfazerSugestao, abrirAudio,
   } = useDados()
   const { abrir } = useModais()
   const router = useRouter()
@@ -455,13 +457,27 @@ function Conversa({ canal }: { canal: Canal }) {
                         : <span>mensagem apagada</span>}
                     </button>
                   )}
-                  <p>
-                    {pedacos(m.texto, nomes).map((d, i) => (
-                      d.chamada
-                        ? <b key={i} className="arroba">{d.texto}</b>
-                        : <span key={i}>{d.texto}</span>
-                    ))}
-                  </p>
+                  {m.audio_caminho && (
+                    <Recado caminho={m.audio_caminho} segundos={m.audio_segundos}
+                      aoAbrir={() => abrirAudio(m)} />
+                  )}
+                  {!!m.texto && (
+                    <p className={m.transcrito ? 'transcrito' : ''}>
+                      {pedacos(m.texto, nomes).map((d, i) => (
+                        d.chamada
+                          ? <b key={i} className="arroba">{d.texto}</b>
+                          : <span key={i}>{d.texto}</span>
+                      ))}
+                      {m.transcrito && (
+                        <i className="marca-transcrito" title="Texto ouvido do áudio pelo navegador, e revisado por quem gravou">
+                          transcrito
+                        </i>
+                      )}
+                    </p>
+                  )}
+                  {m.audio_caminho && !m.texto && (
+                    <p className="sem-texto">Recado sem transcrição, a IA não lê este.</p>
+                  )}
                 </div>
                 <span className="msg-acoes">
                   <button aria-label="Responder" title="Responder"
