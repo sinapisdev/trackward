@@ -368,7 +368,7 @@ create table if not exists public.sugestoes (
   id            uuid primary key default gen_random_uuid(),
   canal_id      uuid not null references public.canais on delete cascade,
   mensagem_id   uuid references public.mensagens on delete set null,
-  tipo          text not null check (tipo in ('tarefa','prazo','concluir','decisao','trava','distribuir')),
+  tipo          text not null check (tipo in ('tarefa','prazo','concluir','decisao','trava','distribuir','agente')),
   texto         text not null,
   -- O trecho da conversa que deu origem, para ninguém aceitar no escuro.
   motivo        text not null default '',
@@ -517,6 +517,48 @@ create table if not exists public.consumo (
   criado_em   timestamptz not null default now()
 );
 
+-- Os agentes da empresa.
+--
+-- A descoberta que fez isto caber: o agente que a empresa quer JÁ É UM PROCESSO.
+-- "Alguém foi desligado, o RH faz o acerto, o Financeiro paga" é um molde com
+-- dois checkpoints em duas áreas, e criar_do_processo já distribui isso sozinho.
+-- O que faltava era o GATILHO: alguma coisa disparando o molde a partir da
+-- conversa. Então um agente é gatilho mais ação, e nada mais.
+--
+-- E a ação nunca é direta: ela vira uma SUGESTÃO, a mesma que a leitura da
+-- conversa usa. Assim o agente herda tudo que já foi construído para a IA não
+-- fazer besteira em silêncio: o trecho que deu origem, o aceite de uma pessoa, a
+-- assinatura de quem fez, o desfazer, e a memória aprendendo com a recusa.
+--
+-- Um agente disparando um processo inteiro sozinho, em cima de uma frase mal
+-- lida, criaria vinte tarefas erradas em duas áreas. Propor não.
+create table if not exists public.agentes (
+  id          uuid primary key default gen_random_uuid(),
+  nome        text not null,
+  ativo       boolean not null default true,
+  -- Hoje só 'conversa'. A coluna existe para o próximo gatilho não precisar de
+  -- tabela nova: tarefa concluída, checkpoint devolvido, prazo vencido.
+  quando      text not null default 'conversa' check (quando in ('conversa')),
+  -- O que reconhecer, escrito em português pela empresa. É isto que vai no
+  -- pedido ao modelo, e são as palavras daqui que valem sem chave de modelo.
+  reconhecer  text not null default '',
+  -- Onde o agente escuta. Nulo nos dois é escutar em todo canal.
+  canal_id    uuid references public.canais on delete cascade,
+  area_id     uuid references public.areas on delete cascade,
+  -- O que faz.
+  faz         text not null check (faz in ('processo','tarefa','webhook')),
+  processo_id uuid references public.processos on delete set null,
+  tarefa_texto text not null default '',
+  tarefa_area_id uuid references public.areas on delete set null,
+  -- Para 'webhook': a ponte para tudo o que não é o Track. Zapier, Make, n8n,
+  -- ou o sistema que a TI do cliente já tem.
+  url         text not null default '',
+  disparos    int not null default 0,
+  disparado_em timestamptz,
+  criado_por  uuid references public.perfis on delete set null,
+  criado_em   timestamptz not null default now()
+);
+
 create index if not exists anexos_item_idx  on public.anexos (item_id);
 create index if not exists msg_audio_idx on public.mensagens (audio_caminho) where audio_caminho is not null;
 create index if not exists anexos_fluxo_idx on public.anexos (fluxo_id);
@@ -542,7 +584,7 @@ begin
     'fluxos','fluxo_pessoas','etapas','itens','dependencias','historico','atividades',
     'compromissos','convidados','agendas_externas','ocupacao_externa',
     'canais','canal_membros','mensagens','sugestoes',
-    'anexos','decisoes','pedidos_prazo','memoria','consumo'
+    'anexos','decisoes','pedidos_prazo','memoria','consumo','agentes'
   ] loop
     execute format(
       'alter table public.%I add column if not exists org_id uuid references public.organizacoes on delete cascade', t);
@@ -590,7 +632,7 @@ begin
     'fluxos','fluxo_pessoas','etapas','itens','dependencias','historico','atividades',
     'compromissos','convidados','agendas_externas','ocupacao_externa',
     'canais','canal_membros','mensagens','sugestoes',
-    'anexos','decisoes','pedidos_prazo','memoria','consumo'
+    'anexos','decisoes','pedidos_prazo','memoria','consumo','agentes'
   ] loop
     execute format('drop trigger if exists ao_inserir_org on public.%I', t);
     execute format(
@@ -983,6 +1025,7 @@ alter table public.decisoes enable row level security;
 alter table public.pedidos_prazo enable row level security;
 alter table public.memoria enable row level security;
 alter table public.consumo enable row level security;
+alter table public.agentes enable row level security;
 alter table public.fluxo_pessoas enable row level security;
 alter table public.dependencias  enable row level security;
 
@@ -1105,6 +1148,30 @@ create policy anx_ins on public.anexos for insert
 drop policy if exists anx_del on public.anexos;
 create policy anx_del on public.anexos for delete
   using (minha(org_id) and (ativo() and (autor_id = meu_perfil() or manda_no_processo(fluxo_id))));
+
+-- agentes: todos da casa leem, porque é bom saber que existe um agente escutando
+-- a conversa. Criar e mexer é de admin e gestor: um agente dispara trabalho em
+-- área que não é a de quem o escreveu, e isso não é decisão de qualquer um.
+drop policy if exists ag_sel on public.agentes;
+create policy ag_sel on public.agentes for select
+  using (minha(org_id) and ativo());
+
+drop policy if exists ag_ins on public.agentes;
+create policy ag_ins on public.agentes for insert
+  with check (minha(org_id) and ativo() and exists (
+    select 1 from perfis p where p.id = meu_perfil() and p.papel in ('admin','gestor')));
+
+drop policy if exists ag_upd on public.agentes;
+create policy ag_upd on public.agentes for update
+  using (minha(org_id) and ativo() and exists (
+    select 1 from perfis p where p.id = meu_perfil() and p.papel in ('admin','gestor')))
+  with check (minha(org_id) and ativo() and exists (
+    select 1 from perfis p where p.id = meu_perfil() and p.papel in ('admin','gestor')));
+
+drop policy if exists ag_del on public.agentes;
+create policy ag_del on public.agentes for delete
+  using (minha(org_id) and ativo() and exists (
+    select 1 from perfis p where p.id = meu_perfil() and p.papel in ('admin','gestor')));
 
 -- consumo: todos leem o próprio gasto, e ninguém escreve à mão. Quem grava é a
 -- função registrar_consumo, chamada pela rota que fala com o modelo. Sem update
@@ -1977,7 +2044,7 @@ alter table public.sugestoes  add column if not exists desfeita_por uuid referen
 do $$ begin
   alter table public.sugestoes drop constraint if exists sugestoes_tipo_check;
   alter table public.sugestoes add constraint sugestoes_tipo_check
-    check (tipo in ('tarefa','prazo','concluir','decisao','trava','distribuir'));
+    check (tipo in ('tarefa','prazo','concluir','decisao','trava','distribuir','agente'));
 exception when others then null;
 end $$;
 
@@ -2003,7 +2070,7 @@ declare t text;
 begin
   foreach t in array array[
     'perfis','areas','fluxos','etapas','itens','historico','atividades',
-    'anexos','decisoes','pedidos_prazo','memoria','consumo'
+    'anexos','decisoes','pedidos_prazo','memoria','consumo','agentes'
   ] loop
     begin
       execute format('alter publication supabase_realtime add table public.%I', t);
@@ -2259,7 +2326,7 @@ language sql stable set search_path = public as $$
       'fluxos','fluxo_pessoas','etapas','itens','dependencias','historico','atividades',
       'compromissos','convidados','agendas_externas','ocupacao_externa',
       'canais','canal_membros','mensagens','sugestoes',
-      'anexos','decisoes','pedidos_prazo','memoria','consumo'
+      'anexos','decisoes','pedidos_prazo','memoria','consumo','agentes'
     ]) as t
   )
   -- 1. Tabela sem a etiqueta da organização

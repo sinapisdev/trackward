@@ -19,7 +19,7 @@ export const runtime = 'nodejs'
 export const maxDuration = 30
 
 const MODELO = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5'
-const TIPOS: TipoProposta[] = ['tarefa', 'prazo', 'concluir', 'decisao', 'trava', 'distribuir']
+const TIPOS: TipoProposta[] = ['tarefa', 'prazo', 'concluir', 'decisao', 'trava', 'distribuir', 'agente']
 
 const FERRAMENTA = {
   name: 'registrar',
@@ -39,6 +39,7 @@ const FERRAMENTA = {
             item_id: { type: ['string', 'null'], description: 'Para concluir, prazo ou distribuir: o id da tarefa que já existe.' },
             resp_id: { type: ['string', 'null'], description: 'O id da pessoa responsável, quando a conversa deixa claro.' },
             prazo: { type: ['string', 'null'], description: 'Data no formato AAAA-MM-DD, só quando a conversa disser.' },
+            agente_id: { type: ['string', 'null'], description: 'Só para tipo agente: o id do agente que reconheceu a situação.' },
           },
           required: ['tipo', 'texto', 'motivo'],
         },
@@ -60,13 +61,34 @@ function instrucoes(ctx: Contexto) {
     ? `\nO QUE ESTA EMPRESA JÁ ENSINOU (use, e não contrarie):\n${ctx.memoria}\n`
     : ''
 
+  /**
+   * Os agentes que esta empresa escreveu.
+   *
+   * Aqui está a parte que só o modelo faz: julgar se a conversa fala daquela
+   * situação. "O João não vem mais" é um desligamento, "o cliente cancelou" é um
+   * cancelamento, e nenhuma palavra-chave pega isso. Reconhecer situação é
+   * entender contexto, e é por isso que o agente vale mais com chave de modelo.
+   */
+  const comAgentes = ctx.agentes?.length
+    ? `
+AGENTES QUE ESTA EMPRESA ESCREVEU:
+${ctx.agentes.map((a) => `- id ${a.id}, "${a.nome}": dispare quando ${a.reconhecer}. Ao disparar, o app vai propor ${a.faz}.`).join('\n')}
+
+Quando a conversa indicar uma dessas situações, registre uma proposta de tipo
+agente com o agente_id correspondente, e ponha no motivo o trecho exato que fez
+você reconhecer. Julgue a SITUAÇÃO, não a palavra: "o João não vem mais" é um
+desligamento mesmo sem a palavra desligamento aparecer. Em dúvida, não dispare:
+um agente que dispara errado cria trabalho errado em área que não é sua.
+`
+    : ''
+
   return `Você lê a conversa de uma equipe e separa o que virou trabalho do que foi só conversa.
 
-Hoje é ${ctx.hoje}.${aprendido}
+Hoje é ${ctx.hoje}.${aprendido}${comAgentes}
 Pessoas: ${pessoas}.
 ${ctx.fluxo ? `A conversa é do projeto "${ctx.fluxo.nome}".\nTarefas que já existem nele:\n${itens || '(nenhuma)'}` : 'A conversa não está presa a um projeto.'}
 
-Seis tipos:
+Sete tipos:
 - tarefa: alguém se comprometeu, pediu a alguém, ou a equipe reconheceu que algo precisa ser feito.
 - concluir: alguém disse que uma tarefa que já existe ficou pronta. Use item_id.
 - prazo: a conversa mudou o prazo de uma tarefa que já existe. Use item_id e prazo.
@@ -75,6 +97,8 @@ Seis tipos:
   tarefa já tem responsável: trocar o dono de uma tarefa é decisão de gente, não sua.
 - decisao: a equipe decidiu alguma coisa que precisa ficar registrada.
 - trava: a frente parou esperando alguém de fora.
+- agente: a conversa indicou uma das situações que a empresa descreveu nos agentes
+  abaixo. Use agente_id.
 
 Regras:
 - Só registre o que a conversa disser de fato. Nada de deduzir trabalho que ninguém pediu.
@@ -95,6 +119,7 @@ type Cru = {
   tipo?: string; texto?: string; motivo?: string
   mensagem_id?: string | null; item_id?: string | null
   resp_id?: string | null; prazo?: string | null
+  agente_id?: string | null
 }
 
 /** O que volta do modelo é texto, não verdade: cada campo é conferido aqui. */
@@ -116,6 +141,10 @@ function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
     if (tipo === 'prazo' && !prazo) continue
 
     const resp = c.resp_id && pessoas.has(c.resp_id) ? c.resp_id : null
+
+    // Agente sem id de agente conhecido não existe: o modelo não inventa agente.
+    const agentes = new Set((ctx.agentes || []).map((a) => a.id))
+    if (tipo === 'agente' && !(c.agente_id && agentes.has(c.agente_id))) continue
     // Distribuir sem nome não é distribuir. E se a tarefa já tem dono, trocar o
     // dono é decisão de gente: o modelo não passa por cima disso.
     if (tipo === 'distribuir' && (!resp || (item && item.resp_id))) continue
@@ -131,6 +160,7 @@ function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
         item_id: item ? item.id : null,
         resp_id: resp,
         prazo,
+        agente_id: tipo === 'agente' ? c.agente_id : null,
       },
     })
   }

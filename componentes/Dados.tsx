@@ -8,13 +8,14 @@ import { hojeIso } from '@/lib/datas'
 import { proxPeriodo } from '@/lib/modelos'
 import type { RascunhoEtapa } from '@/lib/modelos'
 import { etapaAtual } from '@/lib/regras'
-import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta, Anexo, Decisao, TipoDecisao, NaCascata, PedidoPrazo,
+import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta, Anexo, Decisao, TipoDecisao, NaCascata, PedidoPrazo, Agente,
   } from '@/lib/tipos'
 import { chama } from '@/lib/mencao'
 import { nomeLimpo, preparar, LIMITE, tamanhoLegivel } from '@/lib/anexos'
 import { extensaoDe } from '@/lib/voz'
 import { distribuir, type Palpite } from '@/lib/distribuir'
 import { sobrecarga, type Carga } from '@/lib/sobrecarga'
+import { escutaAqui, oQueFaz, porPalavras } from '@/lib/agentes'
 import {
   daDecisao, jaFoiRecusada, paraOModelo, quemCostuma, termosDaConversa, ultimoAprendizado,
   type Aprendizado, type Lembranca,
@@ -103,6 +104,10 @@ type Contexto = {
   preverCascata: (item: Item, novo: string) => Promise<NaCascata[]>
   /** Aplica o que é da mesma esteira e pede o resto. */
   moverPrazo: (item: Item, novo: string, motivo: string) => Promise<boolean>
+  /** Os agentes da empresa: o que reconhecer na conversa, e o que fazer. */
+  agentes: Agente[]
+  salvarAgente: (a: Partial<Agente>) => Promise<void>
+  excluirAgente: (id: string) => Promise<void>
   /** Quanto a IA consumiu neste mês, e qual é o teto. */
   consumo: { leituras: number; gastoMicro: number; limite: number | null; modelo: string }
   /** O que o Track já aprendeu sobre esta empresa. Visível e apagável. */
@@ -211,6 +216,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [decisoes, setDecisoes] = useState<Decisao[]>([])
   const [pedidosPrazo, setPedidosPrazo] = useState<PedidoPrazo[]>([])
   const [memoria, setMemoria] = useState<Lembranca[]>([])
+  const [agentes, setAgentes] = useState<Agente[]>([])
   const [consumo, setConsumo] = useState<Contexto['consumo']>(
     { leituras: 0, gastoMicro: 0, limite: null, modelo: '' },
   )
@@ -247,7 +253,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   /** Recolhe tudo que a pessoa pode ver e monta a árvore de fluxos. */
   const carregar = useCallback(async () => {
-    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns] = await Promise.all([
+    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns, ags] = await Promise.all([
       sb.from('perfis').select('*').order('nome'),
       sb.from('areas').select('*').order('ordem'),
       sb.from('fluxos').select('*').order('criado_em'),
@@ -278,6 +284,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       sb.from('pedidos_prazo').select('*').order('criado_em', { ascending: false }),
       sb.from('memoria').select('*').order('peso', { ascending: false }),
       sb.from('consumo').select('onde,custo_micro,criado_em'),
+      sb.from('agentes').select('*').order('criado_em'),
     ])
 
     const listaPerfis = (p.data || []) as Perfil[]
@@ -413,6 +420,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     setDecisoes((dec.data || []) as Decisao[])
     setPedidosPrazo((pz.data || []) as PedidoPrazo[])
     setMemoria((mem.data || []) as Lembranca[])
+    setAgentes((ags.data || []) as Agente[])
 
     // O gasto do mês, contado aqui porque as linhas já chegaram filtradas pela
     // organização. Mês corrente pelo relógio de quem olha, que é o que a pessoa
@@ -723,6 +731,40 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     (fluxoId: string) => decisoes.filter((d) => d.fluxo_id === fluxoId),
     [decisoes],
   )
+
+  // ------------------------------------------------------------- agentes
+
+  const salvarAgente: Contexto['salvarAgente'] = useCallback(async (a) => {
+    const corpo = {
+      nome: String(a.nome || '').trim(),
+      ativo: a.ativo ?? true,
+      quando: 'conversa',
+      reconhecer: String(a.reconhecer || '').trim(),
+      canal_id: a.canal_id ?? null,
+      area_id: a.area_id ?? null,
+      faz: a.faz || 'tarefa',
+      processo_id: a.processo_id ?? null,
+      tarefa_texto: String(a.tarefa_texto || '').trim(),
+      tarefa_area_id: a.tarefa_area_id ?? null,
+      url: String(a.url || '').trim(),
+    }
+    if (!corpo.nome || !corpo.reconhecer) {
+      return toast('Um agente precisa de nome e do que reconhecer.', true)
+    }
+    const { error } = a.id
+      ? await sb.from('agentes').update(corpo).eq('id', a.id)
+      : await sb.from('agentes').insert({ ...corpo, criado_por: eu.id, disparos: 0 })
+    if (error) return falhou(error, 'Só admin e gestor mexem em agente.')
+    toast(a.id ? 'Agente salvo.' : `Agente ${corpo.nome} criado. Ele já escuta a conversa.`)
+    recarregar()
+  }, [sb, eu.id, falhou, toast, recarregar])
+
+  const excluirAgente: Contexto['excluirAgente'] = useCallback(async (id) => {
+    const { error } = await sb.from('agentes').delete().eq('id', id)
+    if (error) return falhou(error, 'Só admin e gestor mexem em agente.')
+    toast('Agente removido.')
+    recarregar()
+  }, [sb, falhou, toast, recarregar])
 
   // ------------------------------------------------------------- memória
 
@@ -1225,6 +1267,75 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     } else if (sug.tipo === 'decisao') {
       if (fluxo) await logar(fluxo.id, `registrou da conversa: ${sug.texto}`, porIa)
       contou = fluxo ? `registrou a decisão em ${fluxo.nome}` : 'registrou a decisão'
+    } else if (sug.tipo === 'agente') {
+      const a = agentes.find((x) => x.id === dados.agente_id)
+      if (!a) return toast('Este agente não existe mais.', true)
+      if (!a.ativo) return toast(`O agente ${a.nome} está desligado.`, true)
+
+      if (a.faz === 'processo') {
+        if (!a.processo_id) return toast('Este agente não aponta para um processo.', true)
+        const pr = processos.find((x) => x.id === a.processo_id)
+        if (!pr) return toast('O processo deste agente não existe mais.', true)
+        /**
+         * A distribuição pelas áreas.
+         *
+         * criar_do_processo recebe um mapa de área para pessoa, e NÃO cai no
+         * responsável da área por conta própria. Sem montar esse mapa, a esteira
+         * nasce com tudo sem dono e tudo aprovado por quem aceitou, o que é o
+         * contrário do que um agente serve para fazer: atravessar setores sem
+         * ninguém encaminhar nada à mão.
+         */
+        const quemPorArea: Record<string, string> = {}
+        for (const et of pr.etapas) {
+          for (const id of [et.aprovador_area_id, ...et.itens.map((i) => i.area_id)]) {
+            if (!id || quemPorArea[id]) continue
+            const dono = areaDe(id).responsavel_id
+            if (dono) quemPorArea[id] = dono
+          }
+        }
+
+        const novo = await criarDoProcesso(pr.id, {
+          nome: pr.nome, area_id: pr.area_id, empresa_id: empresaAtiva,
+          dono_id: eu.id, visib: 'equipe', pessoas: [], freq: null, periodo: null,
+        }, quemPorArea, hojeIso())
+        if (!novo) return
+        dados.abriu_id = novo
+        contou = `abriu ${pr.nome} pelo agente ${a.nome}`
+      } else if (a.faz === 'tarefa') {
+        const alvo = todosFluxos.find(
+          (f) => !f.concluido && f.area_id === a.tarefa_area_id && f.tipo === 'ciclo',
+        ) || todosFluxos.find((f) => !f.concluido && f.area_id === a.tarefa_area_id)
+        const et = alvo?.etapas[alvo.atual] || alvo?.etapas[0]
+        if (!alvo || !et) {
+          return toast(`${areaDe(a.tarefa_area_id).nome} ainda não tem esteira para receber a tarefa.`, true)
+        }
+        const id = await adicionarItem(et, {
+          texto: a.tarefa_texto, resp_id: areaDe(a.tarefa_area_id).responsavel_id,
+          prazo: '', priv: false,
+        }, porIa)
+        if (!id) return
+        dados.criou_id = id
+        contou = `criou "${a.tarefa_texto}" em ${alvo.nome} pelo agente ${a.nome}`
+      } else {
+        // O endereço vem do banco, na rota: o navegador só manda o id do agente.
+        try {
+          const r = await fetch('/api/webhook', {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ agente_id: a.id, contexto: { motivo: sug.motivo } }),
+          })
+          const volta = await r.json() as { ok?: boolean; erro?: string }
+          if (!volta.ok) toast(volta.erro || 'O endereço não respondeu.', true)
+        } catch {
+          toast('Não consegui chamar o endereço do agente.', true)
+        }
+        contou = `avisou o endereço do agente ${a.nome}`
+      }
+
+      await sb.from('agentes').update({
+        // (a.disparos ?? 0) porque linha vinda de banco antigo, ou do modo
+        // demonstração, pode chegar sem o campo, e undefined + 1 é NaN.
+        disparos: (a.disparos ?? 0) + 1, disparado_em: new Date().toISOString(),
+      }).eq('id', a.id)
     } else if (sug.tipo === 'distribuir') {
       const achado = itemPorId(dados.item_id)
       if (!achado) return toast('A tarefa não existe mais.', true)
@@ -1262,7 +1373,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       })
     }
     recarregar()
-  }, [sb, eu, perfis, todosFluxos, itemPorId, adicionarItem, alternarItem, editarItem, travar, logar, nomeDe, guardar, toast, recarregar])
+  }, [sb, eu, perfis, todosFluxos, itemPorId, adicionarItem, alternarItem, editarItem, travar,
+      logar, nomeDe, guardar, agentes, processos, areaDe, criarDoProcesso, empresaAtiva, toast, recarregar])
 
   /**
    * Volta atrás no que a leitura fez sozinha.
@@ -1280,6 +1392,17 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     } else if (sug.tipo === 'concluir') {
       const achado = itemPorId(d.item_id)
       if (achado?.item.feito) await alternarItem(achado.item)
+    } else if (sug.tipo === 'agente') {
+      // A esteira que o agente abriu sai inteira, com checkpoints e tarefas. É a
+      // única forma de desfazer de verdade: metade de um processo aberto é pior
+      // do que o processo inteiro ou nenhum.
+      if (d.abriu_id) await excluirFluxo(d.abriu_id)
+      else if (d.criou_id) {
+        const achado = itemPorId(d.criou_id)
+        if (achado) await excluirItem(achado.item)
+      }
+      // Webhook não desfaz: o aviso já saiu, e fingir que dá para voltar seria
+      // pior do que dizer que não dá.
     } else if (sug.tipo === 'distribuir') {
       const achado = itemPorId(d.item_id)
       if (achado) {
@@ -1300,7 +1423,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     })
     toast('Desfeito.')
     recarregar()
-  }, [sb, eu.id, itemPorId, excluirItem, alternarItem, editarItem, toast, recarregar])
+  }, [sb, eu.id, itemPorId, excluirItem, excluirFluxo, alternarItem, editarItem, toast, recarregar])
 
   // ------------------------------------------------- distribuir tarefas
 
@@ -1374,6 +1497,17 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       // melhora sem ninguém treinar nada.
       memoria: paraOModelo(memoria),
       canal_id: canalId,
+      // Os agentes que escutam este canal. É o modelo que julga se a conversa
+      // fala daquela situação: palavra-chave não entende "o João não vem mais".
+      agentes: agentes
+        .filter((a) => escutaAqui(a, canal))
+        .map((a) => ({
+          id: a.id,
+          nome: a.nome,
+          reconhecer: a.reconhecer,
+          faz: oQueFaz(a, (id) => processos.find((p) => p.id === id)?.nome || 'um processo',
+            (id) => areaDe(id).nome),
+        })),
     }
 
     let propostas: Proposta[] = []
@@ -1395,6 +1529,19 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
     // Aprende as palavras desta frente. Precisa das mensagens dos OUTROS canais
     // para saber o que é vocabulário da casa e o que é português comum.
+    // Sem chave de modelo, a rota devolve só o que as regras acharam. Os agentes
+    // entram aqui, pelas palavras que a empresa escreveu, que é mais bruto e
+    // ainda assim útil: é a diferença entre o agente existir e não existir.
+    if (motor === 'regras') {
+      const jaVistasAgente = sugestoesDe(canalId)
+      propostas = [...propostas, ...porPalavras(
+        agentes, canal, doCanal, null,
+        (agenteId, msgId) => jaVistasAgente.some(
+          (v) => v.tipo === 'agente' && v.dados.agente_id === agenteId && v.mensagem_id === msgId,
+        ),
+      )]
+    }
+
     const deFora = mensagens.filter((m) => m.canal_id !== canalId && !m.sistema)
     await guardar(termosDaConversa(
       canal, doCanal, deFora, f ?? null,
@@ -1441,7 +1588,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     recarregar()
     return { achou: novas.length, motor }
   }, [sb, canais, mensagens, perfis, todosFluxos, nomeDe, sugestoesDe, org.ia_modo,
-      memoria, guardar, aceitarSugestao, toast, recarregar])
+      memoria, guardar, agentes, processos, areaDe, aceitarSugestao, toast, recarregar])
 
   const valor: Contexto = {
     eu, perfis, areas, empresas, org, pessoal: org.tipo === 'pessoal', fluxos, todosFluxos, totalItens, agenda, minhaAgendaExterna, processos, convites,
@@ -1456,7 +1603,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     canais, mensagens, sugestoes, mensagensDe, sugestoesDe, naoLidas, meChamaram,
     anexosDe, anexar, removerAnexo, abrirAnexo, decisoesDe, decidir,
     desfazerSugestao, palpites, distribuirTarefa, cargas, cargaDe,
-    memoria, esquecer, consumo,
+    memoria, esquecer, consumo, agentes, salvarAgente, excluirAgente,
     preverCascata, moverPrazo, pedidosPrazo, decidirPrazo,
     enviar, enviarAudio, abrirAudio, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
     lerConversa, aceitarSugestao, recusarSugestao,

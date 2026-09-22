@@ -12,7 +12,9 @@ import { dias, hojeIso } from '@/lib/datas'
 import { podeMexerNoPrazo } from '@/lib/acesso'
 import { faixa, minutos, ocupados } from '@/lib/agenda'
 import { esqueletoEmBranco, periodoAtual, type RascunhoEtapa } from '@/lib/modelos'
-import type { Canal, Compromisso, Empresa, Etapa, Fluxo, Freq, Item, Area, Tipo, TipoCanal, Visibilidade } from '@/lib/tipos'
+import type {
+  Agente, Area, Canal, Compromisso, Empresa, Etapa, Fluxo, Freq, Item, Tipo, TipoCanal, Visibilidade,
+} from '@/lib/tipos'
 
 const CORES = ['#8A8A8A', '#B0B0B0', '#C9884A', '#6F6F6F', '#A0704A', '#9A9A9A', '#7A6A5E', '#B5A08C']
 
@@ -24,6 +26,12 @@ export type Pedido =
   | { tipo: 'travar'; fluxo: Fluxo }
   | { tipo: 'compromisso'; compromisso?: Compromisso; quando?: string; inicio?: string }
   | { tipo: 'canal'; canal?: Canal }
+  | {
+      tipo: 'agente'
+      agente?: Agente
+      /** Um exemplo escolhido na tela, para o formulário nascer preenchido. */
+      inicial?: { nome: string; reconhecer: string }
+    }
   | { tipo: 'excluir'; titulo: string; texto: string; acao: () => void | Promise<void> }
 
 const Ctx = createContext<{ abrir: (p: Pedido) => void; fechar: () => void } | null>(null)
@@ -58,6 +66,7 @@ export function Modais({ children }: { children: ReactNode }) {
           {pedido.tipo === 'travar' && <MTravar fluxo={pedido.fluxo} fechar={fechar} />}
           {pedido.tipo === 'compromisso' && <MCompromisso pedido={pedido} fechar={fechar} />}
           {pedido.tipo === 'canal' && <MCanal canal={pedido.canal} fechar={fechar} />}
+          {pedido.tipo === 'agente' && <MAgente pedido={pedido} fechar={fechar} />}
           {pedido.tipo === 'excluir' && <MExcluir pedido={pedido} fechar={fechar} />}
         </div>
       )}
@@ -1085,6 +1094,171 @@ function MCanal({ canal, fechar }: { canal?: Canal; fechar: () => void }) {
         </div>
       </div>
       <Rodape fechar={fechar} rotulo={canal ? 'Salvar' : 'Criar canal'} acao={() => void salvar()} />
+    </div>
+  )
+}
+
+/**
+ * O formulário do agente.
+ *
+ * Duas perguntas, e a ordem importa: primeiro o que reconhecer, depois o que
+ * fazer. Quem escreve um agente está pensando na situação que o incomoda, não na
+ * ação: a ação é consequência.
+ */
+function MAgente({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'agente' }>; fechar: () => void }) {
+  const { processos, areas, canais, salvarAgente } = useDados()
+  const a = pedido.agente
+
+  const [nome, setNome] = useState(a?.nome || pedido.inicial?.nome || '')
+  const [reconhecer, setReconhecer] = useState(a?.reconhecer || pedido.inicial?.reconhecer || '')
+  const [onde, setOnde] = useState<'tudo' | 'canal' | 'area'>(
+    a?.canal_id ? 'canal' : a?.area_id ? 'area' : 'tudo',
+  )
+  const [canalId, setCanalId] = useState(a?.canal_id || '')
+  const [areaOuvida, setAreaOuvida] = useState(a?.area_id || areas[0]?.id || '')
+  const [faz, setFaz] = useState<'processo' | 'tarefa' | 'webhook'>(a?.faz || 'tarefa')
+  const [processoId, setProcessoId] = useState(a?.processo_id || processos[0]?.id || '')
+  const [tarefaTexto, setTarefaTexto] = useState(a?.tarefa_texto || '')
+  const [tarefaArea, setTarefaArea] = useState(a?.tarefa_area_id || areas[0]?.id || '')
+  const [url, setUrl] = useState(a?.url || '')
+
+  const salvar = async () => {
+    await salvarAgente({
+      id: a?.id,
+      nome, reconhecer, ativo: a?.ativo ?? true,
+      canal_id: onde === 'canal' ? canalId || null : null,
+      area_id: onde === 'area' ? areaOuvida || null : null,
+      faz,
+      processo_id: faz === 'processo' ? processoId || null : null,
+      tarefa_texto: faz === 'tarefa' ? tarefaTexto : '',
+      tarefa_area_id: faz === 'tarefa' ? tarefaArea || null : null,
+      url: faz === 'webhook' ? url : '',
+    })
+    fechar()
+  }
+
+  return (
+    <div className="dlg wide" role="dialog" aria-modal="true" aria-labelledby="mag">
+      <div className="dlg-h">
+        <h3 id="mag">{a ? 'Editar agente' : 'Novo agente'}</h3>
+        <p>O que reconhecer na conversa, e o que propor quando reconhecer.</p>
+      </div>
+      <div className="dlg-b">
+        <div className="fld">
+          <label htmlFor="ag-n">Nome do agente</label>
+          <input className="inp" id="ag-n" value={nome} onChange={(e) => setNome(e.target.value)}
+            placeholder="Ex.: Cliente reclamou" />
+        </div>
+
+        <div className="fld">
+          <label htmlFor="ag-r">Dispare quando</label>
+          <textarea className="inp" id="ag-r" rows={2} value={reconhecer}
+            onChange={(e) => setReconhecer(e.target.value)}
+            placeholder="Ex.: um cliente reclamou de atraso, de qualidade ou de cobrança" />
+          <p className="hint">
+            Escreva a situação, não a palavra. O modelo julga o sentido: uma frase como
+            &quot;o cliente ligou irritado com a entrega&quot; entra nessa descrição mesmo
+            sem a palavra reclamação aparecer.
+          </p>
+        </div>
+
+        <div className="fld">
+          <span className="lbl">Escuta onde</span>
+          <div className="tpls">
+            <button className={`tpl ${onde === 'tudo' ? 'on' : ''}`} onClick={() => setOnde('tudo')}>
+              Todos os canais
+            </button>
+            <button className={`tpl ${onde === 'area' ? 'on' : ''}`} onClick={() => setOnde('area')}>
+              Os canais de uma área
+            </button>
+            <button className={`tpl ${onde === 'canal' ? 'on' : ''}`} onClick={() => setOnde('canal')}>
+              Um canal só
+            </button>
+          </div>
+          {onde === 'area' && (
+            <select className="inp" style={{ marginTop: 8 }} value={areaOuvida}
+              onChange={(e) => setAreaOuvida(e.target.value)}>
+              {areas.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+            </select>
+          )}
+          {onde === 'canal' && (
+            <select className="inp" style={{ marginTop: 8 }} value={canalId}
+              onChange={(e) => setCanalId(e.target.value)}>
+              <option value="">Escolha o canal</option>
+              {canais.filter((c) => c.tipo !== 'direto').map((c) => (
+                <option key={c.id} value={c.id}>{c.nome}</option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        <div className="fld">
+          <span className="lbl">E então propõe</span>
+          <div className="tpls">
+            <button className={`tpl ${faz === 'tarefa' ? 'on' : ''}`} onClick={() => setFaz('tarefa')}>
+              Uma tarefa numa área
+            </button>
+            <button className={`tpl ${faz === 'processo' ? 'on' : ''}`} onClick={() => setFaz('processo')}
+              disabled={!processos.length}>
+              Abrir um processo inteiro
+            </button>
+            <button className={`tpl ${faz === 'webhook' ? 'on' : ''}`} onClick={() => setFaz('webhook')}>
+              Avisar um sistema de fora
+            </button>
+          </div>
+        </div>
+
+        {faz === 'tarefa' && (
+          <>
+            <div className="fld">
+              <label htmlFor="ag-t">A tarefa</label>
+              <input className="inp" id="ag-t" value={tarefaTexto}
+                onChange={(e) => setTarefaTexto(e.target.value)}
+                placeholder="Ex.: Ligar para o cliente em até 24 horas" />
+            </div>
+            <div className="fld">
+              <label htmlFor="ag-ta">Em qual área</label>
+              <select className="inp" id="ag-ta" value={tarefaArea}
+                onChange={(e) => setTarefaArea(e.target.value)}>
+                {areas.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+              </select>
+              <p className="hint">
+                Ela cai na esteira daquela área e no responsável padrão dela.
+              </p>
+            </div>
+          </>
+        )}
+
+        {faz === 'processo' && (
+          <div className="fld">
+            <label htmlFor="ag-p">Qual processo</label>
+            <select className="inp" id="ag-p" value={processoId}
+              onChange={(e) => setProcessoId(e.target.value)}>
+              {processos.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+            </select>
+            <p className="hint">
+              A esteira nasce <b>distribuída pelas áreas do processo</b>: a área de cada
+              checkpoint vira quem aprova, e a área de cada tarefa vira quem faz. É assim que
+              uma situação atravessa dois ou três setores sem ninguém encaminhar nada à mão.
+            </p>
+          </div>
+        )}
+
+        {faz === 'webhook' && (
+          <div className="fld">
+            <label htmlFor="ag-u">Endereço que recebe o aviso</label>
+            <input className="inp" id="ag-u" value={url} onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://hooks.exemplo.com/..." />
+            <p className="hint">
+              Precisa ser <b>https</b> e público. O aviso sai do servidor do Track, com o nome
+              do agente e o trecho da conversa, e é por aqui que dá para ligar o Track no
+              Zapier, no Make, no n8n ou no sistema que a sua TI já tem. <b>Isto não desfaz</b>:
+              o aviso, uma vez enviado, saiu.
+            </p>
+          </div>
+        )}
+      </div>
+      <Rodape fechar={fechar} rotulo={a ? 'Salvar agente' : 'Criar agente'} acao={() => void salvar()} />
     </div>
   )
 }

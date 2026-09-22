@@ -20,6 +20,7 @@ const ROTULO: Record<TipoProposta, string> = {
   decisao: 'Decisão',
   trava: 'Travou',
   distribuir: 'Quem faz',
+  agente: 'Agente',
 }
 
 const hora = (ts: string) =>

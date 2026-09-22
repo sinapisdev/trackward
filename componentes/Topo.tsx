@@ -67,6 +67,7 @@ export function Topo() {
     if (caminho === '/equipe') return [{ nome: 'Equipe' }]
     if (caminho === '/ajustes') return [{ nome: 'Ajustes' }]
     if (caminho === '/processos') return [{ nome: 'Processos' }]
+    if (caminho === '/agentes') return [{ nome: 'Agentes' }]
     if (caminho.startsWith('/processos/')) {
       const alvo = caminho.split('/')[2]
       const p = alvo === 'novo' ? null : processos.find((x) => x.id === alvo)

@@ -45,6 +45,13 @@ export type Contexto = {
   memoria?: string
   /** De qual canal veio, para o medidor saber onde o gasto aconteceu. */
   canal_id?: string | null
+  /**
+   * Os agentes que escutam este canal.
+   *
+   * As regras deste arquivo não usam: reconhecer situação é julgamento, e as
+   * regras só sabem contar palavra. Quem usa é o modelo, em /api/leitor.
+   */
+  agentes?: { id: string; nome: string; reconhecer: string; faz: string }[]
 }
 
 export type Proposta = {

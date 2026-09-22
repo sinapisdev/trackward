@@ -247,6 +247,33 @@ export type PedidoPrazo = {
   criado_em: string
 }
 
+/**
+ * Um agente da empresa: o que reconhecer, e o que fazer quando reconhecer.
+ *
+ * A ação nunca é direta, sempre vira proposta. Ver lib/agentes.ts.
+ */
+export type Agente = {
+  id: string
+  nome: string
+  ativo: boolean
+  quando: 'conversa'
+  /** O que reconhecer, em português, escrito pela empresa. */
+  reconhecer: string
+  /** Onde escuta. Nulo nos dois é escutar em todo canal. */
+  canal_id: string | null
+  area_id: string | null
+  faz: 'processo' | 'tarefa' | 'webhook'
+  processo_id: string | null
+  tarefa_texto: string
+  tarefa_area_id: string | null
+  /** A ponte para o que não é o Track: Zapier, Make, n8n, o sistema do cliente. */
+  url: string
+  disparos: number
+  disparado_em: string | null
+  criado_por: string | null
+  criado_em: string
+}
+
 export type TipoDecisao = 'aprovou' | 'ressalva' | 'devolveu'
 
 /** O que o aprovador respondeu num checkpoint, e por quê. */
@@ -395,7 +422,7 @@ export type Mensagem = {
   editado_em: string | null
 }
 
-export type TipoProposta = 'tarefa' | 'prazo' | 'concluir' | 'decisao' | 'trava' | 'distribuir'
+export type TipoProposta = 'tarefa' | 'prazo' | 'concluir' | 'decisao' | 'trava' | 'distribuir' | 'agente'
 
 /** O que a leitura da conversa propõe. Nada acontece antes de alguém aceitar. */
 export type Alvo = {
@@ -408,6 +435,10 @@ export type Alvo = {
   criou_id?: string | null
   /** Quem era o dono antes, para desfazer poder devolver ao que era. */
   de_resp_id?: string | null
+  /** Qual agente reconheceu a situação, quando a proposta vem de um. */
+  agente_id?: string | null
+  /** A esteira que o agente abriu, para desfazer poder fechá-la. */
+  abriu_id?: string | null
 }
 
 export type Sugestao = {

@@ -154,7 +154,7 @@ function SeletorEmpresa() {
 }
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { eu, fluxos, areas, org, agenda, processos, canais, naoLidas, aviso, carregando } = useDados()
+  const { eu, fluxos, areas, org, agenda, processos, canais, naoLidas, aviso, carregando, agentes } = useDados()
   const { abrir } = useModais()
   const caminho = usePathname()
   const router = useRouter()
@@ -216,6 +216,8 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="sh"><span>Configuração</span></div>
         <NavItem href="/processos" icone={<Ic.processo />} rotulo="Processos"
           ativo={caminho.startsWith('/processos')} conta={processos.length} />
+        <NavItem href="/agentes" icone={<Ic.faisca />} rotulo="Agentes"
+          ativo={caminho.startsWith('/agentes')} conta={agentes.filter((a) => a.ativo).length} />
 
         <div className="side-foot">
           <Link className="me" href="/equipe">
