@@ -52,9 +52,15 @@ function instrucoes(ctx: Contexto) {
     .map((i) => `- ${i.texto} (id ${i.id}, ${i.feito ? 'feita' : 'aberta'}${i.prazo ? `, prazo ${i.prazo}` : ''})`)
     .join('\n')
 
+  // O que a empresa ensinou entra antes das regras, porque é o que muda a
+  // leitura de genérica para específica daquela casa.
+  const aprendido = ctx.memoria
+    ? `\nO QUE ESTA EMPRESA JÁ ENSINOU (use, e não contrarie):\n${ctx.memoria}\n`
+    : ''
+
   return `Você lê a conversa de uma equipe e separa o que virou trabalho do que foi só conversa.
 
-Hoje é ${ctx.hoje}.
+Hoje é ${ctx.hoje}.${aprendido}
 Pessoas: ${pessoas}.
 ${ctx.fluxo ? `A conversa é do projeto "${ctx.fluxo.nome}".\nTarefas que já existem nele:\n${itens || '(nenhuma)'}` : 'A conversa não está presa a um projeto.'}
 

@@ -37,6 +37,12 @@ export type Contexto = {
   pessoas: { id: string; nome: string }[]
   /** A esteira a que o canal está preso, quando há uma. */
   fluxo: { id: string; nome: string; etapa_id: string | null; itens: ItemLido[] } | null
+  /**
+   * O que o app já aprendeu sobre esta empresa, em texto pronto para o modelo.
+   * As regras daqui não usam: elas não sabem ler vocabulário, e forçar isso
+   * daria falso positivo. Quem aproveita é o modelo, em /api/leitor.
+   */
+  memoria?: string
 }
 
 export type Proposta = {

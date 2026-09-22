@@ -15,6 +15,10 @@ import { nomeLimpo, preparar, LIMITE, tamanhoLegivel } from '@/lib/anexos'
 import { extensaoDe } from '@/lib/voz'
 import { distribuir, type Palpite } from '@/lib/distribuir'
 import { sobrecarga, type Carga } from '@/lib/sobrecarga'
+import {
+  daDecisao, jaFoiRecusada, paraOModelo, quemCostuma, termosDaConversa, ultimoAprendizado,
+  type Aprendizado, type Lembranca,
+} from '@/lib/memoria'
 import type { Contexto as ContextoLeitura, Proposta } from '@/lib/leitor'
 import type { Alvo } from '@/lib/tipos'
 import { iso } from '@/lib/datas'
@@ -99,6 +103,9 @@ type Contexto = {
   preverCascata: (item: Item, novo: string) => Promise<NaCascata[]>
   /** Aplica o que é da mesma esteira e pede o resto. */
   moverPrazo: (item: Item, novo: string, motivo: string) => Promise<boolean>
+  /** O que o Track já aprendeu sobre esta empresa. Visível e apagável. */
+  memoria: Lembranca[]
+  esquecer: (id: string) => Promise<void>
   /** Pedidos de prazo em aberto que esperam decisão de alguém. */
   pedidosPrazo: PedidoPrazo[]
   decidirPrazo: (p: PedidoPrazo, aceita: boolean) => Promise<void>
@@ -200,6 +207,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [anexos, setAnexos] = useState<Anexo[]>([])
   const [decisoes, setDecisoes] = useState<Decisao[]>([])
   const [pedidosPrazo, setPedidosPrazo] = useState<PedidoPrazo[]>([])
+  const [memoria, setMemoria] = useState<Lembranca[]>([])
   const [canais, setCanais] = useState<Canal[]>([])
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [sugestoes, setSugestoes] = useState<Sugestao[]>([])
@@ -233,7 +241,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   /** Recolhe tudo que a pessoa pode ver e monta a árvore de fluxos. */
   const carregar = useCallback(async () => {
-    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz] = await Promise.all([
+    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem] = await Promise.all([
       sb.from('perfis').select('*').order('nome'),
       sb.from('areas').select('*').order('ordem'),
       sb.from('fluxos').select('*').order('criado_em'),
@@ -262,6 +270,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       sb.from('anexos').select('*').order('criado_em'),
       sb.from('decisoes').select('*').order('criado_em', { ascending: false }),
       sb.from('pedidos_prazo').select('*').order('criado_em', { ascending: false }),
+      sb.from('memoria').select('*').order('peso', { ascending: false }),
     ])
 
     const listaPerfis = (p.data || []) as Perfil[]
@@ -396,6 +405,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     setAnexos((anx.data || []) as Anexo[])
     setDecisoes((dec.data || []) as Decisao[])
     setPedidosPrazo((pz.data || []) as PedidoPrazo[])
+    setMemoria((mem.data || []) as Lembranca[])
     setEspacos((esp.data || []) as Espaco[])
 
     // Canal: a lista de membros vem junto, e com ela a minha marca de leitura.
@@ -691,6 +701,41 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     (fluxoId: string) => decisoes.filter((d) => d.fluxo_id === fluxoId),
     [decisoes],
   )
+
+  // ------------------------------------------------------------- memória
+
+  /**
+   * Guarda o que a casa ensinou, somando peso ao que já existia.
+   *
+   * Peso é confirmação: a mesma lição chegando de novo vale mais, e é isso que
+   * separa hábito de coincidência. O upsert é por (tipo, chave), então a memória
+   * não cresce sem limite conforme a empresa conversa.
+   */
+  const guardar = useCallback(async (licoes: Aprendizado[]) => {
+    if (!licoes.length) return
+    for (const l of licoes) {
+      const antiga = memoria.find((m) => m.tipo === l.tipo && m.chave === l.chave)
+      if (antiga) {
+        await sb.from('memoria').update({
+          peso: antiga.peso + 1, valor: l.valor, visto_em: new Date().toISOString(),
+        }).eq('id', antiga.id)
+      } else {
+        await sb.from('memoria').insert({
+          tipo: l.tipo, chave: l.chave, valor: l.valor,
+          fluxo_id: l.fluxo_id ?? null, area_id: l.area_id ?? null,
+          perfil_id: l.perfil_id ?? null, exemplo: l.exemplo, peso: 1,
+          visto_em: new Date().toISOString(),
+        })
+      }
+    }
+  }, [sb, memoria])
+
+  const esquecer: Contexto['esquecer'] = useCallback(async (id) => {
+    const { error } = await sb.from('memoria').delete().eq('id', id)
+    if (error) return falhou(error, 'Não foi possível esquecer isto.')
+    toast('Esquecido. A leitura não vai mais usar isso.')
+    recarregar()
+  }, [sb, falhou, toast, recarregar])
 
   // -------------------------------------------------------- prazo em cascata
 
@@ -1173,6 +1218,10 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       contou = `passou "${achado.item.texto}" para ${nomeDe(dados.resp_id)}`
     }
 
+    // A casa acabou de ensinar algo: quem ela põe neste assunto. Vale mais quando
+    // houve correção, e é justamente o caso que a máquina precisa aprender.
+    await guardar(daDecisao(sug, true, dados.resp_id ?? null, nomeDe))
+
     await sb.from('sugestoes').update({
       estado: 'aceita',
       decidido_por: porIa ? null : eu.id,
@@ -1191,7 +1240,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       })
     }
     recarregar()
-  }, [sb, eu, perfis, todosFluxos, itemPorId, adicionarItem, alternarItem, editarItem, travar, logar, nomeDe, toast, recarregar])
+  }, [sb, eu, perfis, todosFluxos, itemPorId, adicionarItem, alternarItem, editarItem, travar, logar, nomeDe, guardar, toast, recarregar])
 
   /**
    * Volta atrás no que a leitura fez sozinha.
@@ -1268,8 +1317,11 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     await sb.from('sugestoes').update({
       estado: 'recusada', decidido_por: eu.id, decidido_em: new Date().toISOString(),
     }).eq('id', sug.id)
+    // O sinal mais claro que existe: a empresa disse "isto não". Sem guardar, a
+    // leitura repete o mesmo erro toda semana, e é assim que se desiste de IA.
+    await guardar(daDecisao(sug, false, null, nomeDe))
     recarregar()
-  }, [sb, eu.id, recarregar])
+  }, [sb, eu.id, guardar, nomeDe, recarregar])
 
   /**
    * Manda a conversa para a leitura e guarda o que ela produziu.
@@ -1296,6 +1348,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
           id: i.id, texto: i.texto, resp_id: i.resp_id, feito: i.feito, prazo: i.prazo, etapa_id: e.id,
         }))),
       } : null,
+      // O que a casa já ensinou vai junto no pedido: é assim que a leitura
+      // melhora sem ninguém treinar nada.
+      memoria: paraOModelo(memoria),
     }
 
     let propostas: Proposta[] = []
@@ -1312,11 +1367,27 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       return null
     }
 
-    // O que já foi proposto antes não volta, nem o que alguém já recusou.
+    // Aprende as palavras desta frente. Precisa das mensagens dos OUTROS canais
+    // para saber o que é vocabulário da casa e o que é português comum.
+    const deFora = mensagens.filter((m) => m.canal_id !== canalId && !m.sistema)
+    await guardar(termosDaConversa(
+      canal, doCanal, deFora, f ?? null,
+      ultimoAprendizado(canalId, memoria, canal),
+    ))
+
+    // Não volta o que já foi proposto, nem o padrão que a empresa já recusou
+    // mais de uma vez. Este segundo corte é a memória em ação.
     const jaVistas = sugestoesDe(canalId)
-    const novas = propostas.filter(
-      (p) => !jaVistas.some((v) => v.texto.trim().toLowerCase() === p.texto.trim().toLowerCase()),
-    )
+    const novas = propostas
+      .filter((p) => !jaVistas.some((v) => v.texto.trim().toLowerCase() === p.texto.trim().toLowerCase()))
+      .filter((p) => !jaFoiRecusada(p, memoria))
+      .map((p) => {
+        // Sem responsável na proposta, a casa pode já ter ensinado quem costuma
+        // pegar este assunto. É palpite, e por isso continua sendo proposta.
+        if (p.dados.resp_id) return p
+        const quem = quemCostuma(p.texto, memoria)
+        return quem ? { ...p, dados: { ...p.dados, resp_id: quem } } : p
+      })
 
     const gravadas: Sugestao[] = []
     for (const p of novas) {
@@ -1343,7 +1414,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
     recarregar()
     return { achou: novas.length, motor }
-  }, [sb, canais, mensagens, perfis, todosFluxos, nomeDe, sugestoesDe, org.ia_modo, aceitarSugestao, toast, recarregar])
+  }, [sb, canais, mensagens, perfis, todosFluxos, nomeDe, sugestoesDe, org.ia_modo,
+      memoria, guardar, aceitarSugestao, toast, recarregar])
 
   const valor: Contexto = {
     eu, perfis, areas, empresas, org, pessoal: org.tipo === 'pessoal', fluxos, todosFluxos, totalItens, agenda, minhaAgendaExterna, processos, convites,
@@ -1358,6 +1430,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     canais, mensagens, sugestoes, mensagensDe, sugestoesDe, naoLidas, meChamaram,
     anexosDe, anexar, removerAnexo, abrirAnexo, decisoesDe, decidir,
     desfazerSugestao, palpites, distribuirTarefa, cargas, cargaDe,
+    memoria, esquecer,
     preverCascata, moverPrazo, pedidosPrazo, decidirPrazo,
     enviar, enviarAudio, abrirAudio, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
     lerConversa, aceitarSugestao, recusarSugestao,

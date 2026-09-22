@@ -662,5 +662,5 @@ export function semente(): Base {
     processos, processo_etapas, processo_itens,
     canais, canal_membros, mensagens, sugestoes,
     compromissos, convidados, agendas_externas, ocupacao_externa, fluxo_pessoas: [], convites: [],
-    historico, atividades, anexos, decisoes, pedidos_prazo: [] }
+    historico, atividades, anexos, decisoes, pedidos_prazo: [], memoria: [] }
 }

@@ -455,6 +455,41 @@ create table if not exists public.pedidos_prazo (
 create index if not exists pz_item_idx  on public.pedidos_prazo (item_id);
 create index if not exists pz_abertos_idx on public.pedidos_prazo (fluxo_id) where estado = 'aberto';
 
+-- O que o Track aprendeu sobre ESTA empresa.
+--
+-- Aprender aqui não é treinar modelo: é acumular o que a casa ensinou e entregar
+-- isso ao modelo em cada leitura. Três coisas, e a terceira é a que mais vale:
+--
+--   termo    a palavra da casa e a que frente ela se refere. "a virada" é a
+--            Abertura da unidade Norte, e ninguém escreve o nome completo
+--   pessoa   quem costuma responder por que assunto, tirado do que a conversa
+--            pediu a quem e de quem aceitou o quê
+--   recusa   o padrão de frase que já gerou proposta e foi recusada. É a única
+--            forma de a leitura parar de repetir o mesmo erro
+--
+-- peso é quantas vezes aquilo se confirmou. Uma coincidência tem peso 1, um
+-- hábito da casa tem peso 20. Nada com peso 1 muda decisão nenhuma.
+--
+-- Tudo aqui é visível e apagável na tela, de propósito: se a máquina aprendeu
+-- errado, alguém precisa poder ver e desfazer. Memória que não se audita é
+-- exatamente o que faz uma empresa desconfiar de IA.
+create table if not exists public.memoria (
+  id        uuid primary key default gen_random_uuid(),
+  tipo      text not null check (tipo in ('termo','pessoa','recusa')),
+  -- A palavra, o assunto ou o padrão, sempre normalizado (sem acento, minúsculo).
+  chave     text not null,
+  -- O que aquilo quer dizer, em texto, para a tela mostrar e o modelo ler.
+  valor     text not null default '',
+  fluxo_id  uuid references public.fluxos on delete cascade,
+  area_id   uuid references public.areas on delete cascade,
+  perfil_id uuid references public.perfis on delete set null,
+  peso      int not null default 1,
+  -- O trecho que ensinou isto, para ninguém ter que acreditar na palavra da máquina.
+  exemplo   text not null default '',
+  visto_em  timestamptz not null default now(),
+  criado_em timestamptz not null default now()
+);
+
 create index if not exists anexos_item_idx  on public.anexos (item_id);
 create index if not exists msg_audio_idx on public.mensagens (audio_caminho) where audio_caminho is not null;
 create index if not exists anexos_fluxo_idx on public.anexos (fluxo_id);
@@ -480,7 +515,7 @@ begin
     'fluxos','fluxo_pessoas','etapas','itens','dependencias','historico','atividades',
     'compromissos','convidados','agendas_externas','ocupacao_externa',
     'canais','canal_membros','mensagens','sugestoes',
-    'anexos','decisoes','pedidos_prazo'
+    'anexos','decisoes','pedidos_prazo','memoria'
   ] loop
     execute format(
       'alter table public.%I add column if not exists org_id uuid references public.organizacoes on delete cascade', t);
@@ -528,7 +563,7 @@ begin
     'fluxos','fluxo_pessoas','etapas','itens','dependencias','historico','atividades',
     'compromissos','convidados','agendas_externas','ocupacao_externa',
     'canais','canal_membros','mensagens','sugestoes',
-    'anexos','decisoes','pedidos_prazo'
+    'anexos','decisoes','pedidos_prazo','memoria'
   ] loop
     execute format('drop trigger if exists ao_inserir_org on public.%I', t);
     execute format(
@@ -536,6 +571,9 @@ begin
          for each row execute function public.carimbar_org()', t);
   end loop;
 end $$;
+
+create unique index if not exists memoria_uk on public.memoria (org_id, tipo, chave);
+create index if not exists memoria_peso_idx on public.memoria (org_id, tipo, peso desc);
 
 -- Uma pessoa, um perfil por espaço. A restrição entra aqui porque depende da
 -- coluna org_id, que nasce no bloco acima.
@@ -905,6 +943,7 @@ alter table public.atividades enable row level security;
 alter table public.anexos   enable row level security;
 alter table public.decisoes enable row level security;
 alter table public.pedidos_prazo enable row level security;
+alter table public.memoria enable row level security;
 alter table public.fluxo_pessoas enable row level security;
 alter table public.dependencias  enable row level security;
 
@@ -1027,6 +1066,25 @@ create policy anx_ins on public.anexos for insert
 drop policy if exists anx_del on public.anexos;
 create policy anx_del on public.anexos for delete
   using (minha(org_id) and (ativo() and (autor_id = meu_perfil() or manda_no_processo(fluxo_id))));
+
+-- memória: é da organização inteira, e quem trabalha nela lê e corrige. Apagar
+-- é de todo mundo de propósito: quem viu a máquina aprender errado tem que poder
+-- desfazer na hora, sem pedir para o administrador.
+drop policy if exists mem_sel on public.memoria;
+create policy mem_sel on public.memoria for select
+  using (minha(org_id) and ativo());
+
+drop policy if exists mem_ins on public.memoria;
+create policy mem_ins on public.memoria for insert
+  with check (minha(org_id) and ativo());
+
+drop policy if exists mem_upd on public.memoria;
+create policy mem_upd on public.memoria for update
+  using (minha(org_id) and ativo()) with check (minha(org_id) and ativo());
+
+drop policy if exists mem_del on public.memoria;
+create policy mem_del on public.memoria for delete
+  using (minha(org_id) and ativo());
 
 -- pedidos de prazo: quem enxerga a tarefa enxerga o pedido. Criar é de quem
 -- manda no processo de onde o atraso veio, e por isso passa pela função; decidir
@@ -1828,7 +1886,7 @@ declare t text;
 begin
   foreach t in array array[
     'perfis','areas','fluxos','etapas','itens','historico','atividades',
-    'anexos','decisoes','pedidos_prazo'
+    'anexos','decisoes','pedidos_prazo','memoria'
   ] loop
     begin
       execute format('alter publication supabase_realtime add table public.%I', t);
@@ -2084,7 +2142,7 @@ language sql stable set search_path = public as $$
       'fluxos','fluxo_pessoas','etapas','itens','dependencias','historico','atividades',
       'compromissos','convidados','agendas_externas','ocupacao_externa',
       'canais','canal_membros','mensagens','sugestoes',
-      'anexos','decisoes','pedidos_prazo'
+      'anexos','decisoes','pedidos_prazo','memoria'
     ]) as t
   )
   -- 1. Tabela sem a etiqueta da organização

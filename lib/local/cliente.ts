@@ -14,14 +14,14 @@ const CHAVE_EU = 'track.local.eu'
 const CHAVE_USUARIO = 'track.local.user'
 const CHAVE_VERSAO = 'track.local.versao'
 /** Sobe quando o exemplo ganha tabelas novas. Ver completar(). */
-const VERSAO = 10
+const VERSAO = 11
 const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], fluxos: [], etapas: [], itens: [],
   dependencias: [], processos: [], processo_etapas: [], processo_itens: [], fluxo_pessoas: [],
   convites: [],
   canais: [], canal_membros: [], mensagens: [], sugestoes: [],
   compromissos: [], convidados: [], agendas_externas: [], ocupacao_externa: [],
   historico: [], atividades: [],
-  anexos: [], decisoes: [], pedidos_prazo: [] }
+  anexos: [], decisoes: [], pedidos_prazo: [], memoria: [] }
 
 let base: Base | null = null
 const ouvintes = new Set<() => void>()
