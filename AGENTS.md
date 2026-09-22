@@ -162,6 +162,35 @@ Quem decide a pessoa é `areas.responsavel_id`, e o formulário de criação dei
 Não voltar a embutir trilhos em `lib/modelos.ts`: ele ficou só com o cálculo de período e
 o esqueleto em branco.
 
+## Avisos
+
+Um app de prazo que não avisa é um caderno: só serve para quem lembra de abrir.
+Quatro regras, e nenhuma delas é detalhe de implementação.
+
+- **O aviso nasce no banco, não na tela.** São gatilhos na seção 14 do
+  `supabase/schema.sql`, `security definer`, porque quem age quase nunca é quem
+  precisa ser avisado. Aviso criado no cliente só avisaria quem já está com o
+  app aberto, que é exatamente quem não precisa.
+- **Todo aviso tem `chave`, única por pessoa.** É ela que faz gerar os avisos do
+  dia duas vezes escrever uma vez só. `on conflict do nothing` é a regra inteira.
+  Ao criar um tipo novo de aviso, a chave precisa carregar o que o identifica, e
+  a data quando ele se repete por dia.
+- **A caixa é de uma pessoa e de mais ninguém**, inclusive do administrador. Ali
+  dentro aparece texto de tarefa privada e de mensagem de canal fechado, e o
+  aviso não pode virar a porta dos fundos das regras de visibilidade. Telefone e
+  assinatura de push moram em `avisos_contato` e `push_assinaturas`, fora de
+  `perfis`, porque RLS trabalha por linha e em `perfis` a organização inteira
+  leria o celular de todo mundo.
+- **Urgente é faixa estreita, de propósito**: o que já venceu, o que trava outra
+  pessoa e o que só aquela pessoa destrava. Tocar o celular de alguém gasta a
+  atenção dela e a credibilidade do app; se tudo é urgente, nada é, e a primeira
+  coisa que a pessoa faz é desligar tudo.
+
+O sino mostra tudo, porque quem está no app já escolheu olhar. Fora do app sai
+só o que a pessoa ligou, respeitando "só urgente" e o não perturbe, e quem
+entrega é `/api/avisar`, a única parte do sistema que usa a chave de serviço.
+Ver `lib/avisos.ts`, que guarda a regra do que pode sair, e o README para ligar.
+
 ## A visão geral cabe numa tela
 
 **A visão geral não rola**, nem para baixo nem para o lado, do computador para cima

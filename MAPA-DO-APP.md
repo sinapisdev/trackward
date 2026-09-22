@@ -81,11 +81,12 @@ virou departamento. Uma área sem rotina é uma frente recém criada.
 | **Processos** | `/processos` | Os moldes reutilizáveis | |
 | **Conversa** | `/chat` | Chat por canais | Mensagens não lidas |
 | **Agenda** | `/agenda` | Compromissos e prazos | |
-| **Mais** | menu | Relatórios, Desempenho, todas as tracks, Notas, Agentes, Conectores | |
+| **Mais** | menu | Avisos, Relatórios, Desempenho, todas as tracks, Notas, Agentes, Conectores | |
 
 À esquerda da barra: a marca **TrackWard** e o **seletor de espaço** (a organização, ou a
-empresa em foco quando o app separa por empresa). À direita: a busca, os atalhos de
-Equipe e Ajustes, e o seu avatar, que abre tema e saída.
+empresa em foco quando o app separa por empresa). À direita: a busca, o **sino** com a contagem do que
+você ainda não leu, os atalhos de Equipe e Ajustes, e o seu avatar, que abre tema
+e saída.
 
 No pé de toda tela: `TrackWard move work forward.` de um lado, o nome do espaço do outro.
 
@@ -98,6 +99,7 @@ No pé de toda tela: `TrackWard move work forward.` de um lado, o nome do espaç
 | `/area/[id]` | Clicando numa área na coluna da tela Rotinas |
 | `/chat/[id]` | Clicando num canal |
 | `/processos/[id]` | Botão "Editar" na lateral de Processos, ou "novo" |
+| `/avisos` | Sino na barra, em "Ver todos os avisos" |
 | `/equipe` | Ícone de pessoas na barra, ou o menu do avatar |
 | `/ajustes` | Engrenagem na barra, ou o menu do avatar |
 | `/entrar`, `/nova-senha` | Fora do app, sem barra |

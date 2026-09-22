@@ -142,6 +142,85 @@ recusa, mesmo que a chamada não venha pela tela.
    coloque o endereço da Vercel em **Site URL** (é o endereço usado no link de
    recuperação de senha).
 
+## Avisos
+
+O app avisa quando alguém te passa uma tarefa, quando um prazo seu vence, quando um
+checkpoint fica pronto para a sua aprovação, quando a tarefa que te travava sai, quando te
+chamam na conversa e quando pedem para mexer num prazo seu. Nada além disso: aviso que não
+pede nada de você é ruído, e ruído faz a pessoa desligar tudo.
+
+**O sino dentro do app funciona sozinho**, assim que o `supabase/schema.sql` estiver
+aplicado. Não precisa de chave nenhuma. O resto desta seção é só para o aviso sair do app e
+ir atrás da pessoa.
+
+### Push no navegador e no celular
+
+1. Gere o par de chaves, uma vez:
+
+   ```bash
+   npx web-push generate-vapid-keys
+   ```
+
+2. Ponha no `.env.local` e na Vercel. A pública vai em duas variáveis com o mesmo valor:
+
+   ```
+   VAPID_CHAVE_PUBLICA=B...
+   NEXT_PUBLIC_VAPID_CHAVE=B...
+   VAPID_CHAVE_PRIVADA=...
+   VAPID_CONTATO=mailto:avisos@trackward.com.br
+   ```
+
+3. Cada pessoa liga o próprio aparelho em **Ajustes > Como quero ser avisado**.
+
+No iPhone e no iPad o push só existe com o app instalado na tela inicial: abrir o menu de
+compartilhar do Safari e escolher "Adicionar à Tela de Início". Não é limitação do
+TrackWard, é do iOS, e a tela de ajustes diz isso em vez de o botão não funcionar.
+
+### WhatsApp
+
+1. Em **Conectores**, ligue o conector da **Twilio** e cole a chave (a Twilio usa Basic,
+   e o console dela mostra o valor pronto). A chave fica cifrada no banco.
+2. Em **Ajustes > Como quero ser avisado**, no bloco do administrador, escolha o conector,
+   cole o **Account SID** e o **número que assina**, no formato `whatsapp:+14155238886`.
+3. Cada pessoa põe o próprio número e liga a chave.
+
+O número precisa estar aprovado pela Meta do lado da Twilio, e cada mensagem tem custo.
+Por isso vale deixar ligado o **só o urgente sai do app**, que é o padrão que recomendo.
+
+### O relógio
+
+O aviso de prazo não tem gatilho, porque o fato dele é a passagem do tempo, e tempo não
+dispara `insert`. Alguém precisa chamar `/api/avisar` uma vez por dia. A rota é idempotente:
+chamar dez vezes não avisa dez vezes.
+
+Antes, duas variáveis no servidor:
+
+```
+SUPABASE_SERVICE_ROLE=...      # nunca com NEXT_PUBLIC_: ela abre o banco inteiro
+TRACK_AVISOS_SEGREDO=...       # qualquer texto longo e aleatório
+```
+
+Depois, uma das três:
+
+- **Vercel Cron.** O `vercel.json` já tem a entrada, às 11h UTC (8h de Brasília). Na Vercel,
+  adicione `TRACK_AVISOS_SEGREDO` também como cabeçalho do cron, ou chame pela opção 3.
+- **pg_cron mais pg_net**, se o projeto do Supabase tiver as duas extensões:
+
+  ```sql
+  select cron.schedule('avisos-do-dia', '0 11 * * *', $$
+    select net.http_post(
+      url := 'https://app.trackward.com.br/api/avisar',
+      headers := '{"authorization":"Bearer SEU_TRACK_AVISOS_SEGREDO"}'::jsonb
+    );
+  $$);
+  ```
+
+- **Qualquer relógio de fora** (cron-job.org, GitHub Actions) batendo em
+  `POST /api/avisar` com o cabeçalho `authorization: Bearer <TRACK_AVISOS_SEGREDO>`.
+
+Sem nenhuma das três, o sino continua certo: só o push e o WhatsApp do aviso de prazo
+deixam de sair. Os outros avisos saem no momento em que acontecem.
+
 ## Os conceitos
 
 | Conceito | O que é |

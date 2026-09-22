@@ -165,6 +165,12 @@ export type Organizacao = {
   /** Qual modelo esta empresa usa. Vazio é o padrão do servidor. */
   modelo_ia: string | null
   criado_em: string
+  /** O conector da Twilio que assina o WhatsApp da casa. Nulo é WhatsApp desligado. */
+  whats_conector: string | null
+  /** O Account SID da Twilio, que entra no caminho da chamada. Não é segredo. */
+  whats_sid: string
+  /** O remetente aprovado pela Meta, como a Twilio espera: whatsapp:+14155238886 */
+  whats_de: string
 }
 
 export type Item = {
@@ -525,4 +531,58 @@ export type Sugestao = {
   por_ia: boolean
   desfeita_em: string | null
   desfeita_por: string | null
+}
+
+/* ==========================================================================
+   Avisos
+   ========================================================================== */
+
+export type TipoAviso =
+  | 'tarefa' | 'aprovacao' | 'prazo' | 'travou' | 'destravou' | 'citacao' | 'pedido_prazo'
+
+/**
+ * Um aviso é sempre de uma pessoa. Não existe aviso do grupo: aviso sem dono
+ * ninguém responde, e a caixa de cada um só ela lê, nem o administrador.
+ */
+export type Aviso = {
+  id: string
+  perfil_id: string
+  tipo: TipoAviso
+  titulo: string
+  corpo: string
+  /** O que justifica tocar o celular de alguém. O resto espera no sino. */
+  urgente: boolean
+  fluxo_id: string | null
+  item_id: string | null
+  etapa_id: string | null
+  canal_id: string | null
+  /** A chave que impede o mesmo aviso duas vezes. Ver `avisar()` no schema. */
+  chave: string
+  lido_em: string | null
+  /** Quando saiu daqui para o push e para o WhatsApp. */
+  entregue_em: string | null
+  criado_em: string
+}
+
+/** Por onde a pessoa quer ser avisada. Fora de `perfis`: telefone não é assunto da casa. */
+export type AvisoContato = {
+  perfil_id: string
+  /** Formato internacional, com o mais na frente: +5511999999999. */
+  telefone: string
+  whats: boolean
+  push: boolean
+  so_urgente: boolean
+  /** Não perturbe, no relógio de quem recebe. Vazio é sempre pode. */
+  calado_de: string | null
+  calado_ate: string | null
+}
+
+/** Um aparelho que aceitou push. Uma pessoa costuma ter dois ou três. */
+export type PushAssinatura = {
+  id: string
+  perfil_id: string
+  endpoint: string
+  aparelho: string
+  criado_em: string
+  usado_em: string | null
 }

@@ -34,6 +34,7 @@ yarn-error.log*
 .env*
 # o exemplo entra no repositorio: e ele que diz quais chaves preencher
 !.env.local.example
+!.env.example
 
 # vercel
 .vercel

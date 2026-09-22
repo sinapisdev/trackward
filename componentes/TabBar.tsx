@@ -108,6 +108,7 @@ export function TabBar() {
               <Ic.agenda />Agenda
               {!!hoje && <span className="ct num" style={{ marginLeft: 'auto' }}>{hoje} hoje</span>}
             </Link>
+            <Link className="folha-item" href="/avisos"><Ic.sino />Avisos</Link>
             <Link className="folha-item" href="/desempenho"><Ic.grafico />Desempenho</Link>
             <Link className="folha-item" href="/relatorios"><Ic.processo />Relatórios</Link>
             <Link className="folha-item" href="/projetos"><Ic.painel />Visão de projetos</Link>

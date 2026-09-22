@@ -147,6 +147,13 @@ export const Ic = {
    * cheio, senão some sobre o fundo claro. Sem fundo e sem moldura: o logo oficial,
    * com o quadrado preto, mora só no ícone do aplicativo.
    */
+  sino: () => (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M4 6.6a4 4 0 0 1 8 0c0 2.5.6 3.6 1.2 4.2.3.3.1.8-.3.8H3.1c-.4 0-.6-.5-.3-.8C3.4 10.2 4 9.1 4 6.6Z"
+        stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M6.6 13.2a1.6 1.6 0 0 0 2.8 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  ),
   olho: () => (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
       <path d="M1.5 8s2.4-4 6.5-4 6.5 4 6.5 4-2.4 4-6.5 4S1.5 8 1.5 8Z" stroke="currentColor" strokeWidth="1.4" />

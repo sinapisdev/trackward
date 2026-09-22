@@ -9,6 +9,8 @@ import { Ic } from './Icones'
 import { Av, IconeStatus } from './atomos'
 import { supabase } from '@/lib/supabase/browser'
 import { pendencias, progresso, status } from '@/lib/regras'
+import { isoDe, rel } from '@/lib/datas'
+import { destino } from '@/lib/avisos'
 import { MODO_LOCAL } from '@/lib/modo'
 import { aplicarTema, temaAtual, TEMAS, type Tema } from '@/lib/tema'
 
@@ -242,6 +244,7 @@ function Mais({ ativo }: { ativo: boolean }) {
   const [aberto, setAberto] = useState(false)
   const caixa = useFora(aberto, () => setAberto(false))
   const linhas: [string, string, number?][] = [
+    ['/avisos', 'Avisos'],
     ['/relatorios', 'Relatórios'],
     ['/desempenho', 'Desempenho'],
     ['/tracks', 'Todas as tracks'],
@@ -263,6 +266,72 @@ function Mais({ ativo }: { ativo: boolean }) {
               {!!conta && <i className="tw-ct num">{conta}</i>}
             </Link>
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+
+/**
+ * O sino: a caixa de avisos, a um clique de qualquer tela.
+ *
+ * Ele mostra a lista e nada mais. Quem decide o que vira aviso é o banco, e quem
+ * leva o aviso para fora do app é `/api/avisar`: aqui dentro a pessoa já está
+ * olhando, então não há o que empurrar.
+ *
+ * Abrir o sino **não** marca tudo como lido. Ler é um ato: quem passa o olho e
+ * fecha continua com a marca, porque o contador existe para lembrar do que ainda
+ * não foi resolvido, não do que ainda não foi visto.
+ */
+function Sino() {
+  const { avisos, naoVistos, lerAvisos, apagarAviso } = useDados()
+  const [aberto, setAberto] = useState(false)
+  const caixa = useFora(aberto, () => setAberto(false))
+  const lista = avisos.slice(0, 8)
+
+  return (
+    <div className="tw-sino" ref={caixa}>
+      <button className="iconbtn grd" onClick={() => setAberto((a) => !a)} aria-expanded={aberto}
+        aria-label={naoVistos ? `Avisos, ${naoVistos} sem ler` : 'Avisos'} title="Avisos">
+        <Ic.sino />
+        {!!naoVistos && <i className="tw-sino-pt">{naoVistos > 9 ? '9+' : naoVistos}</i>}
+      </button>
+
+      {aberto && (
+        <div className="tw-menu dir tw-avisos">
+          <div className="tw-avisos-h">
+            <b>Avisos</b>
+            {!!naoVistos && (
+              <button onClick={() => void lerAvisos()}>Marcar tudo como lido</button>
+            )}
+          </div>
+
+          {lista.length ? lista.map((a) => (
+            <Link key={a.id} href={destino(a)} className={`av-l ${a.lido_em ? '' : 'novo'}`}
+              onClick={() => { void lerAvisos([a.id]); setAberto(false) }}>
+              <span className={`av-pt ${a.urgente ? 'urgente' : ''}`} aria-hidden />
+              <span className="av-txt">
+                <b>{a.titulo}</b>
+                {!!a.corpo && <small>{a.corpo}</small>}
+              </span>
+              <span className="av-q">{rel(isoDe(a.criado_em))}</span>
+              <button className="iconbtn av-x" aria-label={`Apagar ${a.titulo}`}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); void apagarAviso(a.id) }}>
+                <Ic.x />
+              </button>
+            </Link>
+          )) : (
+            <p className="tw-avisos-vazio">
+              Nada por aqui. Quando alguém te passar uma tarefa, um prazo vencer ou um
+              checkpoint ficar pronto para a sua aprovação, o aviso aparece aqui.
+            </p>
+          )}
+
+          <div className="tw-menu-sep" />
+          <Link href="/avisos" onClick={() => setAberto(false)}>
+            <span className="nm">Ver todos os avisos</span><Ic.seta />
+          </Link>
         </div>
       )}
     </div>
@@ -299,6 +368,7 @@ export function Barra() {
 
       <div className="tw-dir">
         <Busca />
+        <Sino />
         {!pessoal && (
           <Link className="iconbtn grd" href="/equipe" title="Equipe" aria-label="Equipe"><Ic.team /></Link>
         )}

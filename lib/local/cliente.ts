@@ -21,7 +21,8 @@ const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], flu
   canais: [], canal_membros: [], mensagens: [], sugestoes: [],
   compromissos: [], convidados: [], agendas_externas: [], ocupacao_externa: [],
   historico: [], atividades: [],
-  anexos: [], decisoes: [], pedidos_prazo: [], memoria: [], consumo: [], agentes: [], conectores: [], notas: [] }
+  anexos: [], decisoes: [], pedidos_prazo: [], memoria: [], consumo: [], agentes: [], conectores: [], notas: [],
+  avisos: [], avisos_contato: [], push_assinaturas: [] }
 
 let base: Base | null = null
 const ouvintes = new Set<() => void>()
@@ -966,7 +967,129 @@ function abrirEspacoLocal(nome: string, tipo: string): string {
   return pid
 }
 
+
+// ------------------------------------------------------------------ avisos
+
+/**
+ * Os avisos no modo demonstração.
+ *
+ * No banco eles nascem de gatilho: quem troca um responsável escreve na caixa de
+ * outra pessoa, e isso só o servidor pode. Aqui não existe servidor, e repetir
+ * sete gatilhos em JavaScript seria duplicar regra em dois lugares, que é o jeito
+ * mais rápido de os dois discordarem.
+ *
+ * Então aqui eles são **derivados**: esta função olha a base e escreve o aviso
+ * que estaria lá se o gatilho existisse. A chave é a mesma do banco, e a escrita
+ * é ignorada quando a chave já existe, exatamente como o `on conflict do nothing`
+ * de lá. O resultado é o mesmo do ponto de vista de quem usa: o sino enche, o
+ * contador anda, e marcar como lido gruda.
+ */
+function sincronizarAvisos() {
+  const b = ler()
+  const eu = euLocal()
+  if (!eu) return
+  const hoje = hojeIso()
+  const tem = new Set((b.avisos as Linha[]).map((a) => `${a.perfil_id}|${a.chave}`))
+
+  const escrever = (a: {
+    perfil: string; tipo: string; titulo: string; corpo?: string; chave: string
+    urgente?: boolean; fluxo?: string | null; item?: string | null; canal?: string | null
+    quando?: string
+  }) => {
+    if (a.perfil !== eu) return
+    if (tem.has(`${a.perfil}|${a.chave}`)) return
+    tem.add(`${a.perfil}|${a.chave}`)
+    ;(b.avisos as Linha[]).push({
+      id: `av-${a.chave}`, perfil_id: a.perfil, tipo: a.tipo, titulo: a.titulo,
+      corpo: a.corpo || '', urgente: !!a.urgente, chave: a.chave,
+      fluxo_id: a.fluxo || null, item_id: a.item || null, etapa_id: null, canal_id: a.canal || null,
+      lido_em: null, entregue_em: null, criado_em: a.quando || agora(),
+    })
+  }
+
+  const fluxoDe = (id: unknown) => b.fluxos.find((f) => f.id === id)
+  const etapaDe = (id: unknown) => b.etapas.find((e) => e.id === id)
+
+  for (const i of b.itens as Linha[]) {
+    const f = fluxoDe(i.fluxo_id)
+    const e = etapaDe(i.etapa_id)
+    if (!f || !e || f.concluido) continue
+    const naVez = e.ordem === f.atual
+
+    // Tarefa que passaram para você.
+    if (i.resp_id && i.resp_id !== f.dono_id) {
+      escrever({
+        perfil: i.resp_id as string, tipo: 'tarefa', titulo: 'Nova tarefa com você',
+        corpo: `${i.texto} · ${f.nome}`, chave: `tarefa:${i.id}:${i.resp_id}`,
+        fluxo: f.id as string, item: i.id as string, quando: (i.criado_em as string) || agora(),
+      })
+    }
+
+    // Prazo vencido ou vencendo hoje, só no checkpoint da vez.
+    if (naVez && !i.feito && i.resp_id && i.prazo && (i.prazo as string) <= hoje && !f.travado_motivo) {
+      const venceu = (i.prazo as string) < hoje
+      escrever({
+        perfil: i.resp_id as string, tipo: 'prazo',
+        titulo: `${venceu ? 'Venceu' : 'Vence hoje'}: ${i.texto}`,
+        corpo: f.nome as string, chave: `prazo:${i.id}:${hoje}`, urgente: venceu,
+        fluxo: f.id as string, item: i.id as string,
+      })
+    }
+
+    // Destravou: tudo que esta tarefa esperava já saiu.
+    if (!i.feito && i.resp_id) {
+      const travas = (b.dependencias as Linha[]).filter((d) => d.item_id === i.id)
+      if (travas.length) {
+        const abertas = travas.filter((d) =>
+          !(b.itens as Linha[]).find((x) => x.id === d.depende_de)?.feito)
+        if (!abertas.length) {
+          escrever({
+            perfil: i.resp_id as string, tipo: 'destravou', titulo: 'Destravou: já dá para tocar',
+            corpo: i.texto as string, chave: `destravou:${i.id}`, urgente: true,
+            fluxo: f.id as string, item: i.id as string,
+          })
+        }
+      }
+    }
+  }
+
+  // Checkpoint da vez com o checklist completo: quem aprova precisa saber.
+  for (const e of b.etapas as Linha[]) {
+    const f = fluxoDe(e.fluxo_id)
+    if (!f || f.concluido || e.ordem !== f.atual || !e.aprovador_id) continue
+    const itens = (b.itens as Linha[]).filter((i) => i.etapa_id === e.id)
+    if (itens.length && itens.every((i) => i.feito)) {
+      escrever({
+        perfil: e.aprovador_id as string, tipo: 'aprovacao', titulo: 'Checkpoint pronto para aprovar',
+        corpo: `${e.nome} · ${f.nome}`, chave: `aprovacao:${e.id}`, urgente: true,
+        fluxo: f.id as string,
+      })
+    }
+  }
+
+  // Te chamaram na conversa.
+  const meu = b.perfis.find((p) => p.id === eu)
+  const primeiro = String(meu?.nome || '').trim().split(/\s+/)[0]
+  if (primeiro) {
+    const arroba = new RegExp(`@${primeiro}($|[^\\p{L}])`, 'iu')
+    for (const m of b.mensagens as Linha[]) {
+      if (m.autor_id === eu || !arroba.test(String(m.texto || ''))) continue
+      const canal = b.canais.find((c) => c.id === m.canal_id)
+      const quem = b.perfis.find((p) => p.id === m.autor_id)
+      escrever({
+        perfil: eu, tipo: 'citacao',
+        titulo: `${quem?.nome || 'Alguém'} te chamou em #${canal?.nome || 'conversa'}`,
+        corpo: String(m.texto || '').slice(0, 180), chave: `citacao:${m.id}:${eu}`,
+        canal: m.canal_id as string, quando: (m.criado_em as string) || agora(),
+      })
+    }
+  }
+
+  gravar()
+}
+
 // ------------------------------------------------------------------ cliente
+
 
 const SO_REAL = 'Isto funciona quando o app estiver ligado ao Supabase. No modo demonstração, escolha quem você é na tela inicial.'
 
@@ -981,6 +1104,8 @@ export function clienteLocal() {
 function montarCliente() {
   return {
     from(tabela: string) {
+      // A caixa de aviso é derivada da base. Ver sincronizarAvisos acima.
+      if (tabela === 'avisos') sincronizarAvisos()
       return {
         select: (colunas?: string) => new Consulta(tabela, 'select').select(colunas),
         insert: (corpo: Linha) => new Consulta(tabela, 'insert', corpo),
@@ -1011,6 +1136,20 @@ function montarCliente() {
             error: null,
           }
         }
+        if (nome === 'ler_avisos') {
+          const b = ler()
+          const eu = euLocal()
+          const ids = (args.p_ids as string[] | null) ?? null
+          let n = 0
+          for (const a of b.avisos as Linha[]) {
+            if (a.perfil_id !== eu || a.lido_em) continue
+            if (ids && !ids.includes(a.id as string)) continue
+            a.lido_em = agora(); n++
+          }
+          gravar()
+          return { data: n, error: null }
+        }
+        if (nome === 'gerar_avisos_de_prazo') { sincronizarAvisos(); return { data: 0, error: null } }
         if (nome === 'meus_espacos') return { data: espacosLocais(), error: null }
         if (nome === 'trocar_espaco') {
           return { data: trocarEspacoLocal(args.p_perfil as string), error: null }

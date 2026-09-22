@@ -162,17 +162,17 @@ svg{display:block;flex:none}
   background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px)}
 .tw-marca{display:flex;align-items:center;gap:10px;flex:none;color:var(--tx)}
 .tw-marca b{font-size:17px;font-weight:var(--fw-semibold);letter-spacing:-.02em;line-height:1}
-.tw-risco{width:1px;height:20px;background:var(--line-2);margin-inline:14px;flex:none}
+.tw-risco{width:1px;height:20px;background:var(--line-2);margin-inline:10px;flex:none}
 
 .tw-esp{position:relative;flex:none}
 .tw-esp-btn{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:var(--r-sm);
-  color:var(--tx-2);font:var(--fw-medium) var(--fs-ui)/1 var(--sans);transition:var(--t);max-width:220px}
+  color:var(--tx-2);font:var(--fw-medium) var(--fs-ui)/1 var(--sans);transition:var(--t);max-width:180px}
 .tw-esp-btn:hover{background:var(--hover);color:var(--tx)}
 .tw-esp-btn .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tw-esp-btn svg{color:var(--tx-3)}
 
-.tw-nav{display:flex;align-items:center;gap:2px;margin-inline:auto;min-width:0}
-.tw-aba{display:flex;align-items:center;gap:7px;padding:9px 15px;border-radius:var(--r-pill);
+.tw-nav{display:flex;align-items:center;gap:1px;margin-inline:auto;min-width:0}
+.tw-aba{display:flex;align-items:center;gap:7px;padding:9px 13px;flex:none;border-radius:var(--r-pill);
   color:var(--tx-2);font:var(--fw-medium) var(--fs-ui)/1 var(--sans);white-space:nowrap;transition:var(--t)}
 .tw-aba:hover{color:var(--tx)}
 .tw-aba.on{background:var(--alto);color:var(--tx);font-weight:var(--fw-semibold)}
@@ -184,7 +184,7 @@ svg{display:block;flex:none}
 .tw-mais{position:relative}
 
 .tw-dir{display:flex;align-items:center;gap:8px;flex:none}
-.tw-busca{position:relative;width:min(220px,18vw)}
+.tw-busca{position:relative;width:min(200px,15vw)}
 .tw-busca input{width:100%;background:var(--alto);border:1px solid var(--line);border-radius:var(--r-pill);
   padding:8px 30px 8px 34px;font-size:var(--fs-ui);transition:var(--t)}
 .tw-busca input::placeholder{color:var(--tx-3)}
@@ -2874,12 +2874,13 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
   .gaveta{position:static}
 }
 @media (max-width:840px){
-  /* o filtro da fila vira uma fita que rola, em vez de esticar a página */
-  .fila .filtros{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-inline:-16px;
+  /* Toda fileira de filtro vira uma fita que rola de lado, em vez de esticar a
+     página inteira: rolar dentro da fita é esperado, rolar a tela não é. */
+  .filtros{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-inline:-16px;
     padding-inline:16px}
-  .fila .filtros::-webkit-scrollbar{display:none}
-  .fila .seg{flex:none}
-  .fila .campo-busca{min-width:180px}
+  .filtros::-webkit-scrollbar{display:none}
+  .filtros .seg,.filtros .sel-quem,.filtros .abas{flex:none}
+  .filtros .campo-busca{min-width:180px}
   .fila-l{grid-template-columns:20px minmax(0,1fr) auto;gap:8px 12px}
   .fila-l>.av,.fila-chev{display:none}
   .fila-l .due{grid-column:2/-1;font-size:var(--fs-meta)}
@@ -3279,3 +3280,69 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
   .duas.uma-tela .lista-fina .ib:nth-child(n+3){display:none}
   .duas.uma-tela .atv-recente{display:none}
 }
+
+/* ==========================================================================
+   Avisos: o sino na barra e a caixa inteira
+   O aviso é uma linha: um ponto que diz se é urgente, o que aconteceu, onde, e
+   há quanto tempo. Sem cor de fundo e sem caixa: cor aqui seria alarme, e uma
+   caixa de aviso com oito alarmes não avisa nada.
+   ========================================================================== */
+
+.tw-sino{position:relative}
+.tw-sino-pt{position:absolute;top:2px;right:2px;min-width:16px;height:16px;padding:0 4px;
+  border-radius:var(--r-pill);background:var(--late);color:var(--late-tx);
+  font:var(--fw-semibold) 10px/16px var(--sans);text-align:center;font-style:normal;
+  box-shadow:0 0 0 2px var(--bg)}
+
+.tw-avisos{width:min(380px,92vw);padding:0}
+.tw-avisos-h{display:flex;align-items:center;gap:12px;padding:14px 16px 10px}
+.tw-avisos-h b{font:var(--fw-semibold) var(--fs-body)/1.3 var(--sans);flex:1}
+.tw-avisos-h button{width:auto;padding:0;font-size:var(--fs-meta);color:var(--tx-2)}
+.tw-avisos-h button:hover{background:none;color:var(--tx)}
+.tw-avisos-vazio{margin:0;padding:6px 16px 18px;font-size:var(--fs-meta);color:var(--tx-3);line-height:1.5}
+.tw-avisos>a:last-of-type{padding:12px 16px}
+.tw-avisos .av-x{width:22px;height:22px}
+
+/* A linha do aviso, no sino e na caixa.
+   No sino ela precisa vencer o `.tw-menu a` genérico, que é display:flex e tem
+   especificidade maior que uma classe só. Daí o prefixo. */
+.tw-avisos .av-l,.av-linha{display:grid;grid-template-columns:10px minmax(0,1fr) auto auto;
+  gap:12px;align-items:center;padding:12px 16px;border-top:1px solid var(--line);
+  border-radius:0;transition:var(--t)}
+.tw-avisos .av-l:hover,.av-linha:hover{background:var(--hover)}
+.tw-avisos .av-l .av-txt{flex:none}
+.av-pt{width:8px;height:8px;border-radius:50%;background:var(--line-3);justify-self:center}
+.av-pt.urgente{background:var(--late)}
+.av-l.novo .av-pt,.av-linha.novo .av-pt{background:var(--ac)}
+.av-l.novo .av-pt.urgente,.av-linha.novo .av-pt.urgente{background:var(--late)}
+.tw-avisos .av-txt,.av-linha .av-txt{min-width:0;display:grid;gap:3px}
+.av-txt b{display:block;font:var(--fw-medium) var(--fs-ui)/1.35 var(--sans);color:var(--tx);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.av-l.novo .av-txt b,.av-linha.novo .av-txt b{font-weight:var(--fw-semibold)}
+.av-txt small{display:block;font-size:var(--fs-meta);color:var(--tx-3);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.av-q{font-size:var(--fs-meta);color:var(--tx-3);white-space:nowrap}
+.av-x{opacity:0}
+.av-l:hover .av-x,.av-x:focus-visible{opacity:1}
+
+/* na caixa inteira cabe mais: o tipo do aviso e as duas ações */
+.av-linha{grid-template-columns:10px minmax(0,1fr) 110px 90px 54px;padding-inline:8px;
+  border-top:0;border-bottom:1px solid var(--line);min-height:var(--alt-linha)}
+.av-tipo{font-size:var(--fs-meta);color:var(--tx-2)}
+.av-acoes{display:flex;gap:4px;justify-content:flex-end}
+.av-acoes .iconbtn{opacity:0}
+.av-linha:hover .av-acoes .iconbtn,.av-acoes .iconbtn:focus-visible{opacity:1}
+
+@media (max-width:840px){
+  .av-linha{grid-template-columns:10px minmax(0,1fr) auto;gap:8px 12px;padding:14px 8px}
+  .av-tipo{display:none}
+  .av-acoes{grid-column:3;grid-row:1}
+  .av-acoes .iconbtn{opacity:1}
+}
+
+/* como quero ser avisado: campos curtos, e respiro entre uma chave e outra */
+#aj-avisos .fld{margin-top:20px}
+#aj-avisos .chk{margin-top:10px}
+#aj-avisos input[type="time"]{width:132px;flex:none}
+#aj-avisos .row-inline{flex-wrap:wrap;gap:10px}
+#aj-avisos .hint{margin-top:8px}

@@ -9,6 +9,7 @@ import { proxPeriodo } from '@/lib/modelos'
 import type { RascunhoEtapa } from '@/lib/modelos'
 import { etapaAtual } from '@/lib/regras'
 import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta, Anexo, Decisao, TipoDecisao, NaCascata, PedidoPrazo, Agente, Conector, Nota,
+  Aviso, AvisoContato, PushAssinatura,
   } from '@/lib/tipos'
 import { chama } from '@/lib/mencao'
 import { MODO_LOCAL } from '@/lib/modo'
@@ -28,7 +29,14 @@ import type { Alvo } from '@/lib/tipos'
 import { iso } from '@/lib/datas'
 import { itensVisiveis, podeMexerNoPrazo, veFluxo } from '@/lib/acesso'
 
-type Aviso = { texto: string; erro: boolean; id: number }
+/**
+ * A faixa que aparece no rodapé por três segundos.
+ *
+ * Chama-se Torrada, e não Aviso, porque aviso no TrackWard é outra coisa: é o
+ * que o banco escreve na caixa de alguém e sobrevive ao fechar o app. Esta aqui
+ * some sozinha e ninguém volta para ler.
+ */
+type Torrada = { texto: string; erro: boolean; id: number }
 
 /** O que o formulário de tarefa manda para o banco. */
 type DadosItem = {
@@ -78,7 +86,7 @@ type Contexto = {
   perfilDe: (id: string | null) => Perfil
   nomeDe: (id: string | null) => string
   areaDe: (id: string | null) => Area
-  aviso: Aviso | null
+  aviso: Torrada | null
   toast: (texto: string, erro?: boolean) => void
   salvarArea: (d: { id?: string; nome: string; cor: string; responsavel_id?: string | null }) => Promise<Area | null>
   excluirArea: (id: string) => Promise<void>
@@ -123,6 +131,24 @@ type Contexto = {
    * nem para quem é dono da empresa.
    */
   notas: Nota[]
+
+  /**
+   * A sua caixa de avisos. De mais ninguém: a política do banco recusa o aviso
+   * de qualquer outra pessoa, inclusive para o administrador, porque ali dentro
+   * aparece texto de tarefa privada e de canal fechado.
+   */
+  avisos: Aviso[]
+  naoVistos: number
+  lerAvisos: (ids?: string[]) => Promise<void>
+  apagarAviso: (id: string) => Promise<void>
+  /** Por onde você quer ser avisado. Nulo enquanto a linha não existe. */
+  contato: AvisoContato | null
+  salvarContato: (d: Partial<AvisoContato>) => Promise<void>
+  /** Os aparelhos seus que aceitaram push. */
+  aparelhos: PushAssinatura[]
+  ligarPushAqui: () => Promise<boolean>
+  desligarPushAqui: () => Promise<void>
+  esquecerAparelho: (id: string) => Promise<void>
   salvarNota: (n: Partial<Nota>) => Promise<string | null>
   excluirNota: (id: string) => Promise<void>
   /** O canal de despejo desta pessoa, criado na primeira vez que ela pede. */
@@ -230,6 +256,7 @@ const ORG_PADRAO: Organizacao = {
   dono_id: null, multi: false, rotulo: 'Empresa', rotulo_plural: 'Empresas',
   ia_ativa: true, ia_modo: 'sugerir', criado_em: '',
   plano: 'padrao', limite_leituras: null, modelo_ia: null,
+  whats_conector: null, whats_sid: '', whats_de: '',
 }
 const CHAVE_EMPRESA = 'track.empresa'
 
@@ -264,6 +291,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [agentes, setAgentes] = useState<Agente[]>([])
   const [conectores, setConectores] = useState<Conector[]>([])
   const [notas, setNotas] = useState<Nota[]>([])
+  const [avisos, setAvisos] = useState<Aviso[]>([])
+  const [contato, setContato] = useState<AvisoContato | null>(null)
+  const [aparelhos, setAparelhos] = useState<PushAssinatura[]>([])
   const [consumo, setConsumo] = useState<Contexto['consumo']>(
     { leituras: 0, gastoMicro: 0, limite: null, modelo: '' },
   )
@@ -272,7 +302,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [sugestoes, setSugestoes] = useState<Sugestao[]>([])
   const [espacos, setEspacos] = useState<Espaco[]>([])
   const [carregando, setCarregando] = useState(true)
-  const [aviso, setAviso] = useState<Aviso | null>(null)
+  const [aviso, setAviso] = useState<Torrada | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const toast = useCallback((texto: string, erro = false) => {
@@ -300,7 +330,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   /** Recolhe tudo que a pessoa pode ver e monta a árvore de fluxos. */
   const carregar = useCallback(async () => {
-    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns, ags, cnc, nts] = await Promise.all([
+    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns, ags, cnc, nts, avs, ctt, psh] = await Promise.all([
       sb.from('perfis').select('*').order('nome'),
       sb.from('areas').select('*').order('ordem'),
       sb.from('fluxos').select('*').order('criado_em'),
@@ -334,6 +364,12 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       sb.from('agentes').select('*').order('criado_em'),
       sb.from('conectores').select('id,nome,base_url,auth_tipo,auth_nome,dica,dono_id,ativo,criado_por,criado_em').order('criado_em'),
       sb.from('notas').select('*').order('mexido_em', { ascending: false }),
+      // A caixa é curta de propósito: aviso de duas semanas atrás não é aviso,
+      // é histórico, e histórico já mora na atividade de cada track.
+      sb.from('avisos').select('*').order('criado_em', { ascending: false }).limit(80),
+      sb.from('avisos_contato').select('*').maybeSingle(),
+      sb.from('push_assinaturas').select('id,perfil_id,endpoint,aparelho,criado_em,usado_em')
+        .order('criado_em'),
     ])
 
     const listaPerfis = (p.data || []) as Perfil[]
@@ -473,6 +509,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     // O segredo cifrado nem é pedido acima: a tela não tem o que fazer com ele.
     setConectores((cnc.data || []) as Conector[])
     setNotas((nts.data || []) as Nota[])
+    setAvisos((avs.data || []) as Aviso[])
+    setContato((ctt.data as AvisoContato | null) ?? null)
+    setAparelhos((psh.data || []) as PushAssinatura[])
 
     // O gasto do mês, contado aqui porque as linhas já chegaram filtradas pela
     // organização. Mês corrente pelo relógio de quem olha, que é o que a pessoa
@@ -820,6 +859,75 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     toast('Agente removido.')
     recarregar()
   }, [sb, falhou, toast, recarregar])
+
+  // ------------------------------------------------------------- avisos
+
+  /**
+   * Marca como lido. Sem ids, marca a caixa inteira.
+   *
+   * Passa por função no banco em vez de update direto porque `lido_em` é a única
+   * coisa que a pessoa muda num aviso, e deixar a tabela aberta para update
+   * qualquer abriria a porta para reescrever o texto do próprio aviso.
+   */
+  const lerAvisos: Contexto['lerAvisos'] = useCallback(async (ids) => {
+    const agora = new Date().toISOString()
+    // Otimista: quem clicou no sino não pode ver o contador piscar de volta.
+    setAvisos((a) => a.map((x) =>
+      (!ids || ids.includes(x.id)) && !x.lido_em ? { ...x, lido_em: agora } : x))
+    const { error } = await sb.rpc('ler_avisos', { p_ids: ids ?? null })
+    if (error) falhou(error, 'Não deu para marcar os avisos como lidos.')
+  }, [sb, falhou])
+
+  const apagarAviso: Contexto['apagarAviso'] = useCallback(async (id) => {
+    setAvisos((a) => a.filter((x) => x.id !== id))
+    const { error } = await sb.from('avisos').delete().eq('id', id)
+    if (error) { falhou(error, 'Não deu para apagar o aviso.'); recarregar() }
+  }, [sb, falhou, recarregar])
+
+  const salvarContato: Contexto['salvarContato'] = useCallback(async (d) => {
+    const corpo = {
+      perfil_id: eu.id,
+      telefone: d.telefone ?? contato?.telefone ?? '',
+      whats: d.whats ?? contato?.whats ?? false,
+      push: d.push ?? contato?.push ?? true,
+      so_urgente: d.so_urgente ?? contato?.so_urgente ?? false,
+      calado_de: d.calado_de ?? contato?.calado_de ?? null,
+      calado_ate: d.calado_ate ?? contato?.calado_ate ?? null,
+      mexido_em: new Date().toISOString(),
+    }
+    setContato(corpo as AvisoContato)
+    const { error } = await sb.from('avisos_contato').upsert(corpo, { onConflict: 'perfil_id' })
+    if (error) { falhou(error, 'Não deu para salvar como você quer ser avisado.'); recarregar() }
+  }, [sb, eu.id, contato, falhou, recarregar])
+
+  /** Liga o push neste aparelho. Devolve se deu certo, para a tela explicar. */
+  const ligarPushAqui: Contexto['ligarPushAqui'] = useCallback(async () => {
+    const { ligarPush } = await import('@/lib/push')
+    const assin = await ligarPush()
+    if (!assin) return false
+    const { error } = await sb.from('push_assinaturas').upsert({
+      perfil_id: eu.id,
+      endpoint: assin.endpoint, p256dh: assin.p256dh, auth: assin.auth,
+      aparelho: assin.aparelho,
+    }, { onConflict: 'endpoint' })
+    if (error) { falhou(error, 'Não deu para guardar este aparelho.'); return false }
+    await salvarContato({ push: true })
+    recarregar()
+    return true
+  }, [sb, eu.id, falhou, recarregar, salvarContato])
+
+  const desligarPushAqui: Contexto['desligarPushAqui'] = useCallback(async () => {
+    const { desligarPush } = await import('@/lib/push')
+    const endpoint = await desligarPush()
+    if (endpoint) await sb.from('push_assinaturas').delete().eq('endpoint', endpoint)
+    recarregar()
+  }, [sb, recarregar])
+
+  const esquecerAparelho: Contexto['esquecerAparelho'] = useCallback(async (id) => {
+    const { error } = await sb.from('push_assinaturas').delete().eq('id', id)
+    if (error) return falhou(error, 'Não deu para esquecer este aparelho.')
+    recarregar()
+  }, [sb, falhou, recarregar])
 
   // ------------------------------------------------------------- notas
 
@@ -1930,6 +2038,10 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     memoria, esquecer, consumo, agentes, salvarAgente, excluirAgente,
     conectores, salvarConector, guardarChave, excluirConector, testarConector,
     notas, salvarNota, excluirNota, meuDespejo, abrirDespejo, minhaLista, abrirMinhaLista,
+    avisos, naoVistos: avisos.filter((a) => !a.lido_em).length,
+    lerAvisos, apagarAviso, contato, salvarContato,
+    aparelhos: aparelhos.filter((a) => a.perfil_id === eu.id),
+    ligarPushAqui, desligarPushAqui, esquecerAparelho,
     preverCascata, moverPrazo, pedidosPrazo, decidirPrazo,
     enviar, enviarAudio, abrirAudio, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
     lerConversa, aceitarSugestao, recusarSugestao,

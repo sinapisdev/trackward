@@ -7,6 +7,7 @@ import { useDados } from './Dados'
 import { useModais } from './Modais'
 import { Carregando } from './Shell'
 import { Ic } from './Icones'
+import { AjustesAvisos } from './AjustesAvisos'
 import { isoDe, rel } from '@/lib/datas'
 import { MODO_LOCAL } from '@/lib/modo'
 import { reiniciarLocal } from '@/lib/local/cliente'
@@ -48,6 +49,7 @@ export function TelaAjustes() {
           {admin && <a href="#aj-org">Organização</a>}
           <a href="#aj-ia">Leitura da conversa</a>
           {admin && <a href="#aj-multi">Mais de um negócio</a>}
+          <a href="#aj-avisos">Como quero ser avisado</a>
           <a href="#aj-agenda">Minha agenda externa</a>
           <a href="#aj-tema">Aparência</a>
         </nav>
@@ -221,6 +223,8 @@ export function TelaAjustes() {
             </div>
           </div>
         )}
+
+        <AjustesAvisos />
 
         <div className="blk" id="aj-agenda">
           <div className="bh">
