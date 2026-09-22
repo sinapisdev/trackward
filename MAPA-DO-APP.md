@@ -35,6 +35,7 @@ Sete peças. Tudo no app é combinação delas.
 | **Tarefa** | O que alguém faz dentro de um checkpoint. | O item da lista |
 | **Anexo** | A prova de que a tarefa saiu. Fica preso à tarefa. | O comprovante grampeado |
 | **Decisão** | O que o aprovador respondeu num checkpoint, e por quê. | O carimbo com a rubrica |
+| **Pedido de prazo** | A proposta de mover uma data, esperando o sim de quem responde. | O pedido de prorrogação |
 
 ### Track: os dois tipos
 
@@ -478,6 +479,7 @@ abrir.
 | **Marcar como feito** | O responsável, seu gestor, ou quem manda no processo |
 | **Decidir o checkpoint** (aprovar, ressalvar, devolver) | Só o aprovador daquele checkpoint |
 | **Anexar prova numa tarefa** | Quem pode concluir a tarefa |
+| **Aceitar ou recusar um pedido de prazo** | Quem responde pela track da tarefa que ia se mexer |
 | **Remover um anexo** | Quem anexou, ou quem manda no processo |
 | Convidar, liberar e definir papel | Admin |
 
@@ -493,6 +495,35 @@ O **dono da organização** não pode ser desativado nem rebaixado, nem por outr
 Uma tarefa pode depender de outras, **inclusive de outra track**. Enquanto a tarefa que
 trava não sai, a travada mostra o cadeado e diz quem está segurando. Isso é o que faz a
 tarefa de outra pessoa aparecer na sua tela mesmo sem você participar da track dela.
+
+### 5.5 Quando um prazo anda, o que depende dele anda junto
+
+Cascata automática não serve, porque existe data que ninguém pode mover. Então mudar um
+prazo abre um **aviso antes de gravar qualquer coisa**, com a conta feita e separada em
+três consequências:
+
+| Grupo | O que acontece |
+|---|---|
+| **Não anda** | A data é firme. Fica onde está, e alguém tem que dar um jeito de a coisa acontecer do mesmo jeito |
+| **Pede aceite** | É de outra track. Quem responde por ela decide, e até decidir a data não muda |
+| **Anda junto** | É desta mesma track, e anda guardando a folga que tinha |
+
+Duas regras por baixo disso:
+
+**Só anda o que quebrou.** Tarefa com folga que absorve o atraso fica onde está.
+
+**O que separa "anda" de "pede" é a track, não o cargo.** Dentro da sua você remarca,
+porque responde por ela inteira. Fora dela é pedido, **inclusive para o administrador**:
+ele pode tudo, e é justamente por isso que o aceite existe.
+
+**Data firme** é uma marca na tarefa (prazo legal, data de cliente, evento marcado). Ela
+não anda nunca, e também **não empurra quem vem depois dela**. Para mudá-la é preciso
+primeiro tirar a marca, que é uma decisão e não um efeito colateral.
+
+Os pedidos aparecem no **alto de Aguardando você**, antes das tarefas, porque pedido
+parado é pior do que tarefa parada: enquanto ninguém decide, duas pessoas trabalham com
+datas diferentes na cabeça. Recusar deixa a data onde está e **derruba os pedidos que
+nasceram daquele**, porque foram calculados supondo que ele andaria.
 
 ---
 
@@ -615,18 +646,17 @@ A lista para o UX cobrir.
 
 10. **Distribuição de tarefas com IA** (faz sentido agora que os processos existem e dão
     de onde aprender)
-11. **Cascata de prazo nas dependências**: mexeu num, os que dependem andam junto
-12. **Modelos por setor** no primeiro cadastro
-13. **Integração com WhatsApp**, adiada de propósito em 21/09/2026. Entrada livre e
+11. **Modelos por setor** no primeiro cadastro
+12. **Integração com WhatsApp**, adiada de propósito em 21/09/2026. Entrada livre e
     saída racionada é o desenho recomendado
-14. **As três telas de segurança**: log de acesso, exportar tudo, excluir organização.
+13. **As três telas de segurança**: log de acesso, exportar tudo, excluir organização.
     São o que um cliente grande pede antes de assinar
-15. **App nativo de celular**
+14. **App nativo de celular**
 
 ### Pendências fora do código
 
-16. Criar o projeto no Supabase (região São Paulo), rodar o `schema.sql`, desligar
+15. Criar o projeto no Supabase (região São Paulo), rodar o `schema.sql`, desligar
     "Confirm email" e trazer a Project URL e a anon key
-17. Criar as contas de GitHub e Vercel para publicar
-18. Configurar a `ANTHROPIC_API_KEY` para a leitura da conversa sair das regras e passar
+16. Criar as contas de GitHub e Vercel para publicar
+17. Configurar a `ANTHROPIC_API_KEY` para a leitura da conversa sair das regras e passar
     para o modelo
