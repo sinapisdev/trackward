@@ -61,6 +61,7 @@ export function Topo() {
     }
     if (caminho === '/tracks') return [{ nome: 'Tracks' }]
     if (caminho === '/desempenho') return [{ nome: 'Desempenho' }]
+    if (caminho === '/relatorios') return [{ nome: 'Relatórios' }]
     if (caminho === '/projetos') return [{ nome: 'Tracks', href: '/tracks' }, { nome: 'Projetos' }]
     if (caminho === '/areas') return [{ nome: 'Tracks', href: '/tracks' }, { nome: 'Áreas' }]
     if (caminho === '/equipe') return [{ nome: 'Equipe' }]

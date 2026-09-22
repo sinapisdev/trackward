@@ -84,7 +84,7 @@ function taxa(bons: number, total: number): number {
 }
 
 export function indicadores(
-  fluxos: Fluxo[], decisoes: Decisao[], anexosPorItem: (id: string) => unknown[], janela: Periodo,
+  fluxos: Fluxo[], decisoes: Decisao[], anexosPorItem: (id: string) => unknown[], janela: number,
 ): Indicador[] {
   const agora = entregas(fluxos, janela)
   const antes = entregas(fluxos, janela, janela)
@@ -133,7 +133,7 @@ export function indicadores(
 /** Uma barra por dia (ou por semana, quando o período é longo). */
 export type Barra = { rotulo: string; titulo: string; total: number; noPrazo: number }
 
-export function porDia(fluxos: Fluxo[], janela: Periodo): Barra[] {
+export function porDia(fluxos: Fluxo[], janela: number): Barra[] {
   const passo = janela <= 7 ? 1 : janela <= 30 ? 3 : 7
   const grupos = Math.ceil(janela / passo)
   const saida: Barra[] = []
@@ -172,7 +172,7 @@ export type LinhaPessoa = {
 }
 
 /** A carga de cada pessoa: o que está na mão dela, e o que ela entregou. */
-export function porPessoa(fluxos: Fluxo[], perfis: Perfil[], janela: Periodo): LinhaPessoa[] {
+export function porPessoa(fluxos: Fluxo[], perfis: Perfil[], janela: number): LinhaPessoa[] {
   const mapa = new Map<string, LinhaPessoa>()
   const pega = (id: string) => {
     let l = mapa.get(id)
@@ -244,7 +244,7 @@ export function gargalos(fluxos: Fluxo[], nomeDe: (id: string | null) => string)
 
 export type SaudeArea = { area: Area; rotinas: number; atrasadas: number; entregues: number }
 
-export function porArea(fluxos: Fluxo[], areas: Area[], janela: Periodo): SaudeArea[] {
+export function porArea(fluxos: Fluxo[], areas: Area[], janela: number): SaudeArea[] {
   const feitas = entregas(fluxos, janela)
   return areas
     .map((a) => {

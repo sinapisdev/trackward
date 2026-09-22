@@ -1908,3 +1908,98 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
   line-height:1.5;color:var(--tx-3)}
 .mem > .iconbtn{flex:none;color:var(--tx-3)}
 .mem > .iconbtn:hover{color:var(--late)}
+
+/* ======================================================================
+   Relatórios. A folha é feita para ser lida na tela e impressa igual, e
+   o que é controle da tela não vai para o papel.
+   ====================================================================== */
+
+.rel-escolhas{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:22px}
+.rel{padding:26px 28px 30px;border-radius:var(--r-lg);background:var(--panel);
+  box-shadow:var(--sombra),0 0 0 1px var(--line)}
+.rel-topo{padding-bottom:18px;border-bottom:1.5px solid var(--line)}
+.rel-topo .rot{display:block;font-size:10.5px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ac);margin-bottom:5px}
+.rel-topo h2{margin:0;font-size:22px;font-weight:700;letter-spacing:-.032em;line-height:1.2}
+.rel-topo p{margin:5px 0 0;font-size:12.5px;color:var(--tx-3);line-height:1.5}
+
+.rel-sec{padding-top:20px}
+.rel-h{margin-bottom:9px}
+.rel-h h2{margin:0;font-size:11px;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--tx-3)}
+.rel-h span{display:block;font-size:11px;color:var(--tx-3);margin-top:2px}
+
+.rel-nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}
+.rel-nums > div{padding:11px 13px;border-radius:var(--r-sm);background:var(--bg)}
+.rel-nums b{display:block;font-size:24px;font-weight:700;letter-spacing:-.035em;line-height:1}
+.rel-nums span{display:block;font-size:11px;font-weight:600;margin-top:4px}
+.rel-nums small{display:block;font-size:10.5px;color:var(--tx-3);line-height:1.4;margin-top:2px}
+
+.rel-l{display:flex;align-items:center;gap:10px;padding:7px 0;
+  box-shadow:inset 0 1px 0 var(--line)}
+.rel-l:first-of-type{box-shadow:none}
+.rel-mk{flex:none;display:grid;place-items:center;width:16px;color:var(--ac)}
+.rel-mk.late{color:var(--late)}
+.rel-mk.ia{color:var(--ac)}
+.rel-mk .oco{width:11px;height:11px;border-radius:50%;box-shadow:0 0 0 1.5px var(--line-3)}
+.rel-mk.late .oco{box-shadow:0 0 0 1.5px var(--late)}
+.rel-txt{flex:1;min-width:0}
+.rel-txt b{display:block;font-size:12.5px;font-weight:500;line-height:1.4}
+.rel-txt small{display:block;font-size:10.5px;color:var(--tx-3);margin-top:1px}
+.rel-lado{flex:none;font-size:11px;color:var(--tx-3);text-align:right;
+  font-variant-numeric:tabular-nums}
+.rel-lado.late,.rel-lado i.late{color:var(--late)}
+.rel-lado i{font-style:normal}
+.rel-selo{flex:none;padding:1px 7px;border-radius:5px;font-size:9.5px;font-weight:700;
+  letter-spacing:.03em;text-transform:uppercase}
+.rel-selo.ok{background:color-mix(in srgb,var(--ac) 18%,transparent);color:var(--ac)}
+.rel-selo.warn{background:color-mix(in srgb,var(--warn-forte) 18%,transparent);color:var(--warn-forte)}
+.rel-selo.late{background:color-mix(in srgb,var(--late) 18%,transparent);color:var(--late)}
+
+.rel-tab{width:100%;border-collapse:collapse;font-size:12px}
+.rel-tab th{text-align:left;padding:0 8px 7px 0;font-size:10px;font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--tx-3);
+  box-shadow:inset 0 -1px 0 var(--line)}
+.rel-tab th:not(:first-child),.rel-tab td:not(:first-child){text-align:right;
+  font-variant-numeric:tabular-nums}
+.rel-tab td{padding:7px 8px 7px 0;box-shadow:inset 0 -1px 0 var(--line)}
+.rel-tab td.late{color:var(--late);font-weight:600}
+
+.rel-conv{padding:10px 0;box-shadow:inset 0 1px 0 var(--line)}
+.rel-conv:first-of-type{box-shadow:none}
+.rel-conv-h{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.rel-conv-h b{font-size:12.5px;font-weight:600}
+.rel-conv-h span{font-size:11px;color:var(--tx-3)}
+.rel-quem{margin:3px 0 0;font-size:11px;color:var(--tx-3)}
+.rel-saiu,.rel-decidido{display:flex;align-items:flex-start;gap:7px;margin:5px 0 0;
+  font-size:12px;line-height:1.45}
+.rel-saiu svg,.rel-decidido svg{flex:none;margin-top:3px;width:11px;height:11px;color:var(--tx-3)}
+.rel-decidido svg{color:var(--ac)}
+.pela-ia{margin-left:6px;padding:0 5px;border-radius:4px;font-size:9.5px;font-style:normal;
+  letter-spacing:.03em;text-transform:uppercase;color:var(--ac);
+  background:color-mix(in srgb,var(--ac) 14%,transparent)}
+.rel-vazio{margin:22px 0 0;font-size:13px;color:var(--tx-3)}
+
+@media (max-width:760px){
+  .rel-escolhas{grid-template-columns:1fr;gap:14px}
+  .rel{padding:18px 16px 22px}
+  .rel-l{flex-wrap:wrap}
+  .rel-lado{width:100%;text-align:left;padding-left:26px}
+}
+
+/* O papel: a folha ocupa tudo, sem controles e sem cor de fundo. */
+@media print {
+  .nao-imprime,.side,.tabbar,.topo,.toast{display:none!important}
+  .shell,.main,.conteudo,.wrap{display:block!important;padding:0!important;margin:0!important;
+    max-width:none!important;height:auto!important;overflow:visible!important}
+  .rel{box-shadow:none;border-radius:0;padding:0}
+  .rel-sec{break-inside:avoid}
+}
+.rel-texto{margin-bottom:20px;padding:12px 14px;border-radius:var(--r);background:var(--panel);
+  box-shadow:0 0 0 1.5px var(--ac)}
+.rel-texto-h{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.rel-texto-h b{flex:1;font-size:12.5px;font-weight:600}
+.rel-texto textarea{width:100%;border:0;background:var(--bg);box-shadow:0 0 0 1px var(--line-2);
+  border-radius:var(--r-sm);padding:10px 12px;font-size:11.5px;line-height:1.55;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--tx);resize:vertical}
+.rel-texto textarea:focus{outline:none;box-shadow:0 0 0 1.5px var(--ac)}
