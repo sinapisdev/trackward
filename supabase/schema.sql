@@ -319,7 +319,22 @@ create table if not exists public.canais (
   id          uuid primary key default gen_random_uuid(),
   nome        text not null,
   descricao   text not null default '',
-  tipo        text not null default 'aberto' check (tipo in ('aberto','fechado','direto')),
+  /**
+   * aberto   qualquer pessoa da casa entra e lê
+   * fechado  só quem foi posto dentro
+   * direto   conversa entre duas pessoas
+   * pessoal  o caderno de bolso: uma pessoa só, e ninguém mais entra nunca
+   *
+   * O canal pessoal existe porque falta um lugar para o que ainda não é nada.
+   * Uma ideia às onze da noite não é tarefa, não é compromisso e não é assunto de
+   * canal de equipe: é um pensamento soltoterminando no WhatsApp de recado para si
+   * mesmo. Aqui a pessoa joga tudo e a leitura separa depois: isso é tarefa, isso
+   * é compromisso, isso é ideia para guardar.
+   *
+   * Ele se protege pelo mesmo caminho do fechado, que já é sólido: não sendo
+   * aberto, só entra quem é membro, e membro tem um só. Nem admin lê.
+   */
+  tipo        text not null default 'aberto' check (tipo in ('aberto','fechado','direto','pessoal')),
   area_id     uuid references public.areas on delete set null,
   fluxo_id    uuid references public.fluxos on delete cascade,
   empresa_id  uuid references public.empresas on delete set null,
@@ -368,7 +383,7 @@ create table if not exists public.sugestoes (
   id            uuid primary key default gen_random_uuid(),
   canal_id      uuid not null references public.canais on delete cascade,
   mensagem_id   uuid references public.mensagens on delete set null,
-  tipo          text not null check (tipo in ('tarefa','prazo','concluir','decisao','trava','distribuir','agente')),
+  tipo          text not null check (tipo in ('tarefa','prazo','concluir','decisao','trava','distribuir','agente','nota','compromisso')),
   texto         text not null,
   -- O trecho da conversa que deu origem, para ninguém aceitar no escuro.
   motivo        text not null default '',
@@ -404,6 +419,39 @@ create index if not exists canais_area_idx  on public.canais (area_id);
 --     e não só no texto da linha do tempo, é o que permite mostrar depois
 --     "aprovado com ressalva: faltou o aceite" sem ninguém ter que ler frase.
 -- --------------------------------------------------------------------------
+
+/**
+ * As notas: o que a pessoa quer guardar e achar depois.
+ *
+ * NOTA NÃO É TAREFA, e essa é a distinção que faz a tela valer. Tarefa tem dono e
+ * prazo e cobra. Nota não cobra nada: é a ideia, o insight, o número que alguém
+ * falou numa reunião, o nome do fornecedor que vale lembrar. Botar isso na lista
+ * de tarefas é o jeito mais rápido de entupir a lista e parar de olhar para ela.
+ *
+ * O desenho é o do Obsidian, e de propósito: texto puro, e ligação entre notas
+ * escrita dentro do próprio texto, com [[titulo da outra nota]]. Não tem pasta,
+ * não tem árvore, não tem categoria para manter. Uma nota vira acervo porque
+ * aponta para outras, e é assim que se acha de novo o que se escreveu num dia em
+ * que nem se sabia por quê.
+ *
+ * Nota é sempre de UMA PESSOA. Não existe nota da empresa: para virar assunto da
+ * equipe ela é mandada para um canal, e aí é mensagem, que é outra coisa. Isso
+ * mantém o caderno sendo caderno, o lugar onde dá para escrever besteira.
+ */
+create table if not exists public.notas (
+  id        uuid primary key default gen_random_uuid(),
+  titulo    text not null,
+  texto     text not null default '',
+  dono_id   uuid not null references public.perfis on delete cascade,
+  /** De onde veio, quando veio do despejo: a mensagem que deu origem. */
+  mensagem_id uuid references public.mensagens on delete set null,
+  /** O que ela virou, se virou. Uma ideia que ganhou dono e prazo é as duas coisas. */
+  item_id   uuid references public.itens on delete set null,
+  fixada    boolean not null default false,
+  arquivada boolean not null default false,
+  criado_em timestamptz not null default now(),
+  mexido_em timestamptz not null default now()
+);
 
 create table if not exists public.anexos (
   id        uuid primary key default gen_random_uuid(),
@@ -517,6 +565,60 @@ create table if not exists public.consumo (
   criado_em   timestamptz not null default now()
 );
 
+-- Os conectores que a empresa liga por conta própria.
+--
+-- A ideia: em vez de eu escrever um conector para cada serviço do mundo, o
+-- cliente cadastra o endereço e a chave dele, e pronto. Vale para qualquer API
+-- que aceite uma chave num cabeçalho, que é a grande maioria.
+--
+-- O PROBLEMA QUE DECIDE O DESENHO: a chave de API de uma empresa não pode ficar
+-- legível para os funcionários dela. Uma chave da Twilio na mão de qualquer um é
+-- SMS cobrado no cartão do cliente; uma chave de e-mail é mensagem saindo em nome
+-- da empresa. E a tabela precisa ser lida pelo app inteiro para a tela funcionar.
+--
+-- A solução: o que fica gravado aqui é o segredo CIFRADO, e a chave que abre a
+-- cifra mora só na variável de ambiente do servidor. Quem dumpar o banco leva
+-- texto embaralhado. Quem ler a tabela pelo app também. Só a rota do servidor
+-- abre, e ela nunca devolve o segredo para o navegador: ela faz a chamada.
+--
+-- dica guarda os quatro últimos caracteres, para a tela poder mostrar
+-- "sk-...a1b2" e a pessoa reconhecer qual chave é sem poder usá-la.
+create table if not exists public.conectores (
+  id          uuid primary key default gen_random_uuid(),
+  nome        text not null,
+  -- O endereço base, sem barra no fim. Ex.: https://api.resend.com
+  base_url    text not null,
+  /**
+   * Como autenticar:
+   *   bearer  Authorization: Bearer <segredo>
+   *   header  <auth_nome>: <segredo>
+   *   query   ?<auth_nome>=<segredo>
+   */
+  auth_tipo   text not null default 'bearer' check (auth_tipo in ('bearer','header','query')),
+  auth_nome   text not null default '',
+  segredo_cifrado text not null default '',
+  dica        text not null default '',
+  /**
+   * De quem é este conector.
+   *
+   * null   é da casa: qualquer um da empresa pode usar, só admin mexe.
+   * perfil é de uma pessoa: só ela vê, só ela mexe.
+   *
+   * ISSO EXISTE PORQUE QUEM MAIS USA O APP NÃO É O DONO. É o funcionário, e a
+   * conta do Notion que ele quer ligar é dele, não da empresa. Se ligar um
+   * serviço fosse privilégio de admin, o recurso ficaria parado: a pessoa que
+   * tem a chave na mão não é a pessoa que tem a permissão.
+   *
+   * E o conector pessoal tem que ser PESSOAL de verdade. A chave do Gmail de uma
+   * pessoa não aparece na tela do colega nem na do chefe, nem cifrada. Por isso a
+   * política de leitura filtra por dono, e não só por empresa.
+   */
+  dono_id     uuid references public.perfis on delete cascade,
+  ativo       boolean not null default true,
+  criado_por  uuid references public.perfis on delete set null,
+  criado_em   timestamptz not null default now()
+);
+
 -- Os agentes da empresa.
 --
 -- A descoberta que fez isto caber: o agente que a empresa quer JÁ É UM PROCESSO.
@@ -546,13 +648,18 @@ create table if not exists public.agentes (
   canal_id    uuid references public.canais on delete cascade,
   area_id     uuid references public.areas on delete cascade,
   -- O que faz.
-  faz         text not null check (faz in ('processo','tarefa','webhook')),
+  faz         text not null check (faz in ('processo','tarefa','webhook','conector')),
   processo_id uuid references public.processos on delete set null,
   tarefa_texto text not null default '',
   tarefa_area_id uuid references public.areas on delete set null,
   -- Para 'webhook': a ponte para tudo o que não é o Track. Zapier, Make, n8n,
   -- ou o sistema que a TI do cliente já tem.
   url         text not null default '',
+  -- Para 'conector': qual conector, em que caminho, com que corpo. O corpo é um
+  -- molde de texto com {{situacao}} e {{agente}}, trocados na hora do disparo.
+  conector_id uuid references public.conectores on delete set null,
+  caminho     text not null default '',
+  corpo       text not null default '',
   disparos    int not null default 0,
   disparado_em timestamptz,
   criado_por  uuid references public.perfis on delete set null,
@@ -584,7 +691,7 @@ begin
     'fluxos','fluxo_pessoas','etapas','itens','dependencias','historico','atividades',
     'compromissos','convidados','agendas_externas','ocupacao_externa',
     'canais','canal_membros','mensagens','sugestoes',
-    'anexos','decisoes','pedidos_prazo','memoria','consumo','agentes'
+    'anexos','decisoes','pedidos_prazo','memoria','consumo','agentes','conectores','notas'
   ] loop
     execute format(
       'alter table public.%I add column if not exists org_id uuid references public.organizacoes on delete cascade', t);
@@ -632,7 +739,7 @@ begin
     'fluxos','fluxo_pessoas','etapas','itens','dependencias','historico','atividades',
     'compromissos','convidados','agendas_externas','ocupacao_externa',
     'canais','canal_membros','mensagens','sugestoes',
-    'anexos','decisoes','pedidos_prazo','memoria','consumo','agentes'
+    'anexos','decisoes','pedidos_prazo','memoria','consumo','agentes','conectores','notas'
   ] loop
     execute format('drop trigger if exists ao_inserir_org on public.%I', t);
     execute format(
@@ -1026,6 +1133,8 @@ alter table public.pedidos_prazo enable row level security;
 alter table public.memoria enable row level security;
 alter table public.consumo enable row level security;
 alter table public.agentes enable row level security;
+alter table public.conectores enable row level security;
+alter table public.notas      enable row level security;
 alter table public.fluxo_pessoas enable row level security;
 alter table public.dependencias  enable row level security;
 
@@ -1148,6 +1257,60 @@ create policy anx_ins on public.anexos for insert
 drop policy if exists anx_del on public.anexos;
 create policy anx_del on public.anexos for delete
   using (minha(org_id) and (ativo() and (autor_id = meu_perfil() or manda_no_processo(fluxo_id))));
+
+-- notas: são da pessoa, e ponto.
+--
+-- Sem exceção para admin, sem exceção para gestor, sem exceção para quem é dono
+-- da empresa. Um caderno que o chefe pode abrir não é caderno: a pessoa para de
+-- escrever nele o que importa, e aí a tela não serve para nada.
+drop policy if exists nt_sel on public.notas;
+create policy nt_sel on public.notas for select
+  using (minha(org_id) and dono_id = meu_perfil());
+
+drop policy if exists nt_ins on public.notas;
+create policy nt_ins on public.notas for insert
+  with check (minha(org_id) and ativo() and dono_id = meu_perfil());
+
+drop policy if exists nt_upd on public.notas;
+create policy nt_upd on public.notas for update
+  using (minha(org_id) and dono_id = meu_perfil())
+  with check (minha(org_id) and dono_id = meu_perfil());
+
+drop policy if exists nt_del on public.notas;
+create policy nt_del on public.notas for delete
+  using (minha(org_id) and dono_id = meu_perfil());
+
+-- conectores: cada um vê os seus e os da casa.
+--
+-- O conector da casa (dono_id null) todo mundo lê, porque é bom saber a quais
+-- sistemas o app está ligado, e mexer nele é de admin: ele fala em nome da
+-- empresa. O conector pessoal (dono_id preenchido) some da tela dos outros,
+-- inclusive da do dono da empresa, e quem mexe é só a pessoa.
+--
+-- O segredo em qualquer um dos casos já está cifrado, então ler a linha não dá
+-- acesso a nada: a chave que abre a cifra mora na variável de ambiente do
+-- servidor. O filtro por dono aqui não é sobre a chave, é sobre não expor que o
+-- colega ligou a conta pessoal dele em coisa nenhuma.
+drop policy if exists con_sel on public.conectores;
+create policy con_sel on public.conectores for select
+  using (minha(org_id) and ativo() and (dono_id is null or dono_id = meu_perfil()));
+
+drop policy if exists con_ins on public.conectores;
+create policy con_ins on public.conectores for insert
+  with check (minha(org_id) and ativo()
+    and (case when dono_id is null then eh_admin() else dono_id = meu_perfil() end));
+
+drop policy if exists con_upd on public.conectores;
+create policy con_upd on public.conectores for update
+  using (minha(org_id) and ativo()
+    and (case when dono_id is null then eh_admin() else dono_id = meu_perfil() end))
+  with check (minha(org_id) and ativo()
+    and (case when dono_id is null then eh_admin() else dono_id = meu_perfil() end));
+
+drop policy if exists con_del on public.conectores;
+create policy con_del on public.conectores for delete
+  using (minha(org_id) and ativo()
+    and (case when dono_id is null then eh_admin() else dono_id = meu_perfil() end));
 
 -- agentes: todos da casa leem, porque é bom saber que existe um agente escutando
 -- a conversa. Criar e mexer é de admin e gestor: um agente dispara trabalho em
@@ -2031,6 +2194,22 @@ end $$;
 -- pronto fica sem data. Preencher com um palpite seria pior do que não ter.
 alter table public.itens add column if not exists feito_em timestamptz;
 alter table public.itens add column if not exists prazo_firme boolean not null default false;
+do $$ begin
+  alter table public.agentes drop constraint if exists agentes_faz_check;
+  alter table public.agentes add constraint agentes_faz_check
+    check (faz in ('processo','tarefa','webhook','conector'));
+  alter table public.conectores add column if not exists dono_id uuid references public.perfis on delete cascade;
+  -- O tipo pessoal de canal é novo: a restrição antiga não conhece ele.
+  if exists (select 1 from pg_constraint where conname = 'canais_tipo_check') then
+    alter table public.canais drop constraint canais_tipo_check;
+  end if;
+  alter table public.canais add constraint canais_tipo_check
+    check (tipo in ('aberto','fechado','direto','pessoal'));
+  alter table public.agentes add column if not exists conector_id uuid references public.conectores on delete set null;
+  alter table public.agentes add column if not exists caminho text not null default '';
+  alter table public.agentes add column if not exists corpo text not null default '';
+exception when others then null;
+end $$;
 
 -- A autoria da leitura. Bancos anteriores tinham tudo no nome de quem mandou ler.
 alter table public.atividades add column if not exists por_ia boolean not null default false;
@@ -2044,7 +2223,7 @@ alter table public.sugestoes  add column if not exists desfeita_por uuid referen
 do $$ begin
   alter table public.sugestoes drop constraint if exists sugestoes_tipo_check;
   alter table public.sugestoes add constraint sugestoes_tipo_check
-    check (tipo in ('tarefa','prazo','concluir','decisao','trava','distribuir','agente'));
+    check (tipo in ('tarefa','prazo','concluir','decisao','trava','distribuir','agente','nota','compromisso'));
 exception when others then null;
 end $$;
 
@@ -2070,7 +2249,7 @@ declare t text;
 begin
   foreach t in array array[
     'perfis','areas','fluxos','etapas','itens','historico','atividades',
-    'anexos','decisoes','pedidos_prazo','memoria','consumo','agentes'
+    'anexos','decisoes','pedidos_prazo','memoria','consumo','agentes','conectores','notas'
   ] loop
     begin
       execute format('alter publication supabase_realtime add table public.%I', t);
@@ -2326,7 +2505,7 @@ language sql stable set search_path = public as $$
       'fluxos','fluxo_pessoas','etapas','itens','dependencias','historico','atividades',
       'compromissos','convidados','agendas_externas','ocupacao_externa',
       'canais','canal_membros','mensagens','sugestoes',
-      'anexos','decisoes','pedidos_prazo','memoria','consumo','agentes'
+      'anexos','decisoes','pedidos_prazo','memoria','consumo','agentes','conectores','notas'
     ]) as t
   )
   -- 1. Tabela sem a etiqueta da organização

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { porRegras, podar, type Contexto, type Proposta } from '@/lib/leitor'
+import { doDespejo, porRegras, podar, type Contexto, type Proposta } from '@/lib/leitor'
 import { clienteServidor } from '@/lib/supabase/servidor'
 import { custoMicro } from '@/lib/precos'
 import type { TipoProposta } from '@/lib/tipos'
@@ -19,7 +19,9 @@ export const runtime = 'nodejs'
 export const maxDuration = 30
 
 const MODELO = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5'
-const TIPOS: TipoProposta[] = ['tarefa', 'prazo', 'concluir', 'decisao', 'trava', 'distribuir', 'agente']
+const TIPOS: TipoProposta[] = [
+  'tarefa', 'prazo', 'concluir', 'decisao', 'trava', 'distribuir', 'agente', 'nota', 'compromisso',
+]
 
 const FERRAMENTA = {
   name: 'registrar',
@@ -72,7 +74,7 @@ function instrucoes(ctx: Contexto) {
   const comAgentes = ctx.agentes?.length
     ? `
 AGENTES QUE ESTA EMPRESA ESCREVEU:
-${ctx.agentes.map((a) => `- id ${a.id}, "${a.nome}": dispare quando ${a.reconhecer}. Ao disparar, o app vai propor ${a.faz}.`).join('\n')}
+${ctx.agentes.map((a) => `- id ${a.id}, "${a.nome}": dispare quando ${a.reconhecer}.`).join('\n')}
 
 Quando a conversa indicar uma dessas situações, registre uma proposta de tipo
 agente com o agente_id correspondente, e ponha no motivo o trecho exato que fez
@@ -81,6 +83,47 @@ desligamento mesmo sem a palavra desligamento aparecer. Em dúvida, não dispare
 um agente que dispara errado cria trabalho errado em área que não é sua.
 `
     : ''
+
+  /**
+   * O despejo é outro bicho, e tratar ele como conversa de equipe dá resultado
+   * ruim nos dois sentidos.
+   *
+   * Numa conversa de equipe a leitura tem que ser CONSERVADORA: são várias
+   * pessoas, e criar tarefa que ninguém pediu gera trabalho para gente de
+   * verdade. No despejo é uma pessoa falando sozinha, de propósito, para o app
+   * ouvir. Aqui não registrar é o erro: o pensamento se perde, que é exatamente o
+   * que a pessoa estava tentando evitar ao escrever.
+   *
+   * E tem um tipo a mais, que só existe aqui: nota. O que não é tarefa nem
+   * compromisso não é lixo, é ideia, e ideia tem onde ficar.
+   */
+  if (ctx.despejo) {
+    return `Você lê o caderno de bolso de UMA pessoa e separa o que ela jogou lá dentro.
+
+Hoje é ${ctx.hoje}.${aprendido}
+Ela está falando sozinha, para o app ouvir. Não é conversa de equipe: não tem ninguém
+para quem delegar, e tudo que está escrito ela escreveu de propósito, para não perder.
+
+Três tipos:
+- tarefa: algo que ela precisa fazer. Uma ação, com verbo.
+- compromisso: algo que acontece num dia e possivelmente numa hora. Use quando e, se a
+  pessoa disser, inicio. Reunião, consulta, viagem, entrega marcada, prova, aniversário.
+- nota: todo o resto que valha guardar. Ideia, insight, número que ela ouviu, nome de
+  alguém, link, trecho de raciocínio, dúvida para pensar depois. Em texto, ponha o
+  pensamento dela quase como ela escreveu, sem resumir até virar nada.
+
+Regras:
+- Aqui NÃO REGISTRAR É O ERRO. Se ela escreveu, ela quis guardar. Em dúvida entre nota e
+  ignorar, registre nota.
+- Em dúvida entre tarefa e nota, veja se tem ação: "ligar para o contador" é tarefa,
+  "o contador falou que dá para lançar isso na PJ" é nota.
+- Uma mensagem pode render mais de uma coisa: separe. "Reunião quinta 10h e preciso levar
+  o contrato" é um compromisso e uma tarefa.
+- quando só quando a pessoa disser o dia, mesmo que de jeito solto ("quinta", "amanhã"):
+  traduza para data, contando de hoje. Nunca invente dia.
+- Desabafo e xingamento não são nada. Deixe passar.
+- Escreva em português do Brasil, sem travessão.`
+  }
 
   return `Você lê a conversa de uma equipe e separa o que virou trabalho do que foi só conversa.
 
@@ -120,6 +163,7 @@ type Cru = {
   mensagem_id?: string | null; item_id?: string | null
   resp_id?: string | null; prazo?: string | null
   agente_id?: string | null
+  quando?: string | null; inicio?: string | null
 }
 
 /** O que volta do modelo é texto, não verdade: cada campo é conferido aqui. */
@@ -149,6 +193,13 @@ function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
     // dono é decisão de gente: o modelo não passa por cima disso.
     if (tipo === 'distribuir' && (!resp || (item && item.resp_id))) continue
 
+    // Nota e compromisso só existem no despejo: num canal de equipe seria
+    // guardar nota no caderno de outra pessoa.
+    if ((tipo === 'nota' || tipo === 'compromisso') && !ctx.despejo) continue
+    const quando = /^\d{4}-\d{2}-\d{2}$/.test(String(c.quando)) ? String(c.quando) : null
+    if (tipo === 'compromisso' && !quando) continue
+    const inicio = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(c.inicio)) ? String(c.inicio) : null
+
     saida.push({
       tipo,
       texto: texto.slice(0, 220),
@@ -161,6 +212,8 @@ function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
         resp_id: resp,
         prazo,
         agente_id: tipo === 'agente' ? c.agente_id : null,
+        quando: tipo === 'compromisso' ? quando : null,
+        inicio: tipo === 'compromisso' ? inicio : null,
       },
     })
   }
@@ -296,7 +349,7 @@ export async function POST(req: Request) {
       }
     } else {
       return NextResponse.json({
-        propostas: porRegras(ctx),
+        propostas: semModelo(ctx),
         motor: 'regras',
         // A tela precisa poder dizer por que a leitura saiu mais simples hoje.
         porque: 'teto',
@@ -304,5 +357,13 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({ propostas: porRegras(ctx), motor: 'regras' })
+  return NextResponse.json({ propostas: semModelo(ctx), motor: 'regras' })
 }
+
+/**
+ * A leitura sem modelo.
+ *
+ * Duas regras diferentes, porque são dois problemas diferentes: conversa de
+ * equipe pede desconfiança, despejo pede generosidade. Ver doDespejo.
+ */
+const semModelo = (ctx: Contexto) => (ctx.despejo ? doDespejo(ctx) : porRegras(ctx))

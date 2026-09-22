@@ -50,9 +50,13 @@ export function oQueFaz(
   a: Agente,
   nomeDoProcesso: (id: string | null) => string,
   nomeDaArea: (id: string | null) => string,
+  nomeDoConector: (id: string | null) => string = () => 'um conector',
 ): string {
   if (a.faz === 'processo') return `abrir ${nomeDoProcesso(a.processo_id)}`
   if (a.faz === 'tarefa') return `criar "${a.tarefa_texto}" em ${nomeDaArea(a.tarefa_area_id)}`
+  if (a.faz === 'conector') {
+    return `chamar ${nomeDoConector(a.conector_id)}${a.caminho ? ` em ${a.caminho}` : ''}`
+  }
   return `avisar ${a.url.replace(/^https?:\/\//, '').split('/')[0]}`
 }
 

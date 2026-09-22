@@ -4,18 +4,21 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode,
 } from 'react'
 import { supabase } from '@/lib/supabase/browser'
-import { hojeIso } from '@/lib/datas'
+import { curta, hojeIso, isoDe } from '@/lib/datas'
 import { proxPeriodo } from '@/lib/modelos'
 import type { RascunhoEtapa } from '@/lib/modelos'
 import { etapaAtual } from '@/lib/regras'
-import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta, Anexo, Decisao, TipoDecisao, NaCascata, PedidoPrazo, Agente,
+import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta, Anexo, Decisao, TipoDecisao, NaCascata, PedidoPrazo, Agente, Conector, Nota,
   } from '@/lib/tipos'
 import { chama } from '@/lib/mencao'
+import { MODO_LOCAL } from '@/lib/modo'
 import { nomeLimpo, preparar, LIMITE, tamanhoLegivel } from '@/lib/anexos'
 import { extensaoDe } from '@/lib/voz'
 import { distribuir, type Palpite } from '@/lib/distribuir'
 import { sobrecarga, type Carga } from '@/lib/sobrecarga'
 import { escutaAqui, oQueFaz, porPalavras } from '@/lib/agentes'
+import { preencher } from '@/lib/conectores'
+import { tituloDe } from '@/lib/notas'
 import {
   daDecisao, jaFoiRecusada, paraOModelo, quemCostuma, termosDaConversa, ultimoAprendizado,
   type Aprendizado, type Lembranca,
@@ -108,6 +111,38 @@ type Contexto = {
   agentes: Agente[]
   salvarAgente: (a: Partial<Agente>) => Promise<void>
   excluirAgente: (id: string) => Promise<void>
+
+  /**
+   * Os conectores: os serviços de fora que esta pessoa pode usar.
+   *
+   * Vem sem o segredo, sempre. Guardar a chave é `guardarChave`, que manda o
+   * texto para o servidor cifrar, e a partir daí nem eu nem ninguém lê de volta.
+   */
+  /**
+   * As suas notas. De mais ninguém: o banco não devolve a nota de outra pessoa
+   * nem para quem é dono da empresa.
+   */
+  notas: Nota[]
+  salvarNota: (n: Partial<Nota>) => Promise<string | null>
+  excluirNota: (id: string) => Promise<void>
+  /** O canal de despejo desta pessoa, criado na primeira vez que ela pede. */
+  meuDespejo: Canal | null
+  abrirDespejo: () => Promise<string | null>
+  /**
+   * A esteira onde cai a tarefa que não é de projeto nenhum.
+   *
+   * Sem isto, a tarefa que sai do despejo pede projeto antes de existir, e pedir
+   * projeto para "comprar cabo hdmi" é o tipo de pergunta que faz a pessoa
+   * desistir e voltar para o papel.
+   */
+  minhaLista: Fluxo | null
+  abrirMinhaLista: () => Promise<string | null>
+
+  conectores: Conector[]
+  salvarConector: (c: Partial<Conector>) => Promise<string | null>
+  guardarChave: (id: string, segredo: string) => Promise<boolean>
+  excluirConector: (id: string) => Promise<void>
+  testarConector: (id: string, caminho: string) => Promise<string>
   /** Quanto a IA consumiu neste mês, e qual é o teto. */
   consumo: { leituras: number; gastoMicro: number; limite: number | null; modelo: string }
   /** O que o Track já aprendeu sobre esta empresa. Visível e apagável. */
@@ -120,7 +155,8 @@ type Contexto = {
   salvarEmpresa: (d: { id?: string; nome: string; sigla: string; cor: string }) => Promise<void>
   excluirEmpresa: (id: string) => Promise<void>
   salvarOrg: (d: Partial<Organizacao>) => Promise<void>
-  salvarCompromisso: (d: Partial<Compromisso> & { convidados: string[] }) => Promise<void>
+  /** Devolve o id, para quem criou de dentro de uma proposta poder desfazer. */
+  salvarCompromisso: (d: Partial<Compromisso> & { convidados: string[] }) => Promise<string | null>
   excluirCompromisso: (id: string) => Promise<void>
   ligarAgendaExterna: (url: string) => Promise<{ blocos: number } | null>
   desligarAgendaExterna: () => Promise<void>
@@ -197,6 +233,15 @@ const ORG_PADRAO: Organizacao = {
 }
 const CHAVE_EMPRESA = 'track.empresa'
 
+/**
+ * O nome da lista pessoal.
+ *
+ * Fixo, e reconhecido pelo nome mais o dono, porque o alternativo seria uma
+ * coluna nova em fluxos só para marcar "esta é a lista de alguém". Uma coluna a
+ * mais para guardar o que o nome já diz é peso que não se paga.
+ */
+const NOME_DA_LISTA = 'Minha lista'
+
 export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNode }) {
   const sb = supabase()
   const [eu, setEu] = useState<Perfil>(perfil)
@@ -217,6 +262,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [pedidosPrazo, setPedidosPrazo] = useState<PedidoPrazo[]>([])
   const [memoria, setMemoria] = useState<Lembranca[]>([])
   const [agentes, setAgentes] = useState<Agente[]>([])
+  const [conectores, setConectores] = useState<Conector[]>([])
+  const [notas, setNotas] = useState<Nota[]>([])
   const [consumo, setConsumo] = useState<Contexto['consumo']>(
     { leituras: 0, gastoMicro: 0, limite: null, modelo: '' },
   )
@@ -253,7 +300,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   /** Recolhe tudo que a pessoa pode ver e monta a árvore de fluxos. */
   const carregar = useCallback(async () => {
-    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns, ags] = await Promise.all([
+    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns, ags, cnc, nts] = await Promise.all([
       sb.from('perfis').select('*').order('nome'),
       sb.from('areas').select('*').order('ordem'),
       sb.from('fluxos').select('*').order('criado_em'),
@@ -285,6 +332,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       sb.from('memoria').select('*').order('peso', { ascending: false }),
       sb.from('consumo').select('onde,custo_micro,criado_em'),
       sb.from('agentes').select('*').order('criado_em'),
+      sb.from('conectores').select('id,nome,base_url,auth_tipo,auth_nome,dica,dono_id,ativo,criado_por,criado_em').order('criado_em'),
+      sb.from('notas').select('*').order('mexido_em', { ascending: false }),
     ])
 
     const listaPerfis = (p.data || []) as Perfil[]
@@ -421,6 +470,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     setPedidosPrazo((pz.data || []) as PedidoPrazo[])
     setMemoria((mem.data || []) as Lembranca[])
     setAgentes((ags.data || []) as Agente[])
+    // O segredo cifrado nem é pedido acima: a tela não tem o que fazer com ele.
+    setConectores((cnc.data || []) as Conector[])
+    setNotas((nts.data || []) as Nota[])
 
     // O gasto do mês, contado aqui porque as linhas já chegaram filtradas pela
     // organização. Mês corrente pelo relógio de quem olha, que é o que a pessoa
@@ -747,6 +799,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       tarefa_texto: String(a.tarefa_texto || '').trim(),
       tarefa_area_id: a.tarefa_area_id ?? null,
       url: String(a.url || '').trim(),
+      conector_id: a.conector_id ?? null,
+      caminho: String(a.caminho || '').trim(),
+      corpo: String(a.corpo || '').trim(),
     }
     if (!corpo.nome || !corpo.reconhecer) {
       return toast('Um agente precisa de nome e do que reconhecer.', true)
@@ -765,6 +820,198 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     toast('Agente removido.')
     recarregar()
   }, [sb, falhou, toast, recarregar])
+
+  // ------------------------------------------------------------- notas
+
+  /**
+   * Cria ou salva uma nota. Devolve o id, porque quem acabou de criar uma nota
+   * quase sempre quer abri-la em seguida.
+   *
+   * mexido_em é escrito aqui, e não por gatilho, porque ele serve para ordenar a
+   * lista pelo que a pessoa tocou por último, que é a ordem que faz uma pilha de
+   * notas parecer com uma mesa de trabalho.
+   */
+  const salvarNota: Contexto['salvarNota'] = useCallback(async (n) => {
+    const titulo = String(n.titulo || '').trim()
+    const texto = String(n.texto || '')
+    if (!titulo && !texto.trim()) { toast('Uma nota vazia não tem o que guardar.', true); return null }
+    const corpo = {
+      titulo: titulo || tituloDe(texto),
+      texto,
+      fixada: n.fixada ?? false,
+      arquivada: n.arquivada ?? false,
+      mexido_em: new Date().toISOString(),
+    }
+    if (n.id) {
+      const { error } = await sb.from('notas').update(corpo).eq('id', n.id)
+      if (error) { falhou(error, 'Não deu para salvar a nota.'); return null }
+      recarregar()
+      return n.id
+    }
+    const { data, error } = await sb.from('notas').insert({
+      ...corpo, dono_id: eu.id,
+      mensagem_id: n.mensagem_id ?? null, item_id: n.item_id ?? null,
+    }).select('id').single()
+    if (error) { falhou(error, 'Não deu para guardar a nota.'); return null }
+    recarregar()
+    return (data as { id: string } | null)?.id || null
+  }, [sb, eu.id, falhou, toast, recarregar])
+
+  const excluirNota: Contexto['excluirNota'] = useCallback(async (id) => {
+    const { error } = await sb.from('notas').delete().eq('id', id)
+    if (error) return falhou(error, 'Não deu para apagar a nota.')
+    recarregar()
+  }, [sb, falhou, recarregar])
+
+  /**
+   * O canal de despejo: o caderno de bolso em forma de conversa.
+   *
+   * É um canal como qualquer outro, do tipo pessoal, com um membro só. Ser um
+   * canal de verdade é o que faz ele herdar tudo de graça: áudio com transcrição,
+   * anexo, busca, leitura da conversa, tempo real. Um campo de texto novo em
+   * algum canto da tela não teria nada disso.
+   */
+  const meuDespejo = useMemo(
+    () => canais.find((c) => c.tipo === 'pessoal' && c.criado_por === eu.id) || null,
+    [canais, eu.id],
+  )
+
+  const abrirDespejo: Contexto['abrirDespejo'] = useCallback(async () => {
+    if (meuDespejo) return meuDespejo.id
+    const { data, error } = await sb.from('canais').insert({
+      nome: 'Meu despejo',
+      descricao: 'Só você entra aqui. Jogue tudo dentro e a leitura separa depois.',
+      tipo: 'pessoal', criado_por: eu.id,
+    }).select('id').single()
+    const id = (data as { id: string } | null)?.id
+    if (error || !id) { falhou(error, 'Não deu para abrir o despejo.'); return null }
+    // Sem a linha de membro ninguém entra, nem quem criou: é a mesma regra do
+    // canal fechado, e é ela que mantém o caderno sendo caderno.
+    await sb.from('canal_membros').insert({ canal_id: id, perfil_id: eu.id })
+    recarregar()
+    return id
+  }, [sb, eu.id, meuDespejo, falhou, recarregar])
+
+  /**
+   * A lista pessoal: uma esteira de uma etapa só, visível apenas para o dono.
+   *
+   * Parece contradição ter uma esteira sem checkpoint num app de checkpoint, e
+   * não é: o checkpoint existe para alguém aprovar a saída de uma etapa, e não
+   * tem ninguém para aprovar a sua lista de recados. Uma etapa só, sem
+   * aprovador, é a forma honesta disso dentro do modelo que já existe.
+   */
+  const minhaLista = useMemo(
+    () => todosFluxos.find((f) => f.nome === NOME_DA_LISTA && f.dono_id === eu.id) || null,
+    [todosFluxos, eu.id],
+  )
+
+  const abrirMinhaLista: Contexto['abrirMinhaLista'] = useCallback(async () => {
+    if (minhaLista) return minhaLista.id
+    return salvarFluxo({
+      nome: NOME_DA_LISTA, tipo: 'esteira', area_id: null, empresa_id: empresaAtiva,
+      dono_id: eu.id, autor_id: eu.id, visib: 'so_eu', freq: null, periodo: null,
+      pessoas: [],
+    }, [{ id: null, nome: 'A fazer', criterio: '', aprovador_id: null, prazo: '' }])
+  }, [minhaLista, salvarFluxo, eu.id, empresaAtiva])
+
+  // ------------------------------------------------------------- conectores
+
+  /**
+   * Cria ou edita um conector. Devolve o id, porque quem acabou de criar
+   * precisa dele em seguida para guardar a chave.
+   *
+   * O dono é decidido aqui e vai explícito: sem dono é conector da casa, e a
+   * política do banco só deixa admin criar assim. Com dono sou eu mesmo, e aí
+   * qualquer pessoa da empresa pode, porque a conta ligada é dela.
+   */
+  const salvarConector: Contexto['salvarConector'] = useCallback(async (c) => {
+    const corpo = {
+      nome: String(c.nome || '').trim(),
+      base_url: String(c.base_url || '').trim().replace(/\/+$/, ''),
+      auth_tipo: c.auth_tipo || 'bearer',
+      auth_nome: String(c.auth_nome || '').trim(),
+      ativo: c.ativo ?? true,
+      dono_id: c.dono_id ?? null,
+    }
+    if (!corpo.nome) { toast('O conector precisa de um nome.', true); return null }
+    if (!corpo.base_url.startsWith('https://')) {
+      toast('O endereço precisa começar com https://, senão a chave viaja aberta.', true)
+      return null
+    }
+    if (c.id) {
+      const { error } = await sb.from('conectores').update(corpo).eq('id', c.id)
+      if (error) { falhou(error, 'Conector da empresa é mexido por administrador.'); return null }
+      toast('Conector salvo.')
+      recarregar()
+      return c.id
+    }
+    const { data, error } = await sb.from('conectores')
+      .insert({ ...corpo, criado_por: eu.id, dica: '' }).select('id').single()
+    if (error) { falhou(error, 'Conector da empresa é criado por administrador.'); return null }
+    recarregar()
+    return (data as { id: string } | null)?.id || null
+  }, [sb, eu.id, falhou, toast, recarregar])
+
+  /**
+   * Manda a chave para o servidor cifrar.
+   *
+   * O texto passa por aqui uma vez e só. No modo demonstração não existe
+   * servidor para cifrar, então a chave não é guardada de jeito nenhum: fica só
+   * a dica, e a tela diz isso em voz alta.
+   */
+  const guardarChave: Contexto['guardarChave'] = useCallback(async (id, segredo) => {
+    const limpo = segredo.trim()
+    if (!limpo) { toast('Cole a chave antes de salvar.', true); return false }
+    if (MODO_LOCAL) {
+      const dica = limpo.length <= 4 ? '••••' : `••••${limpo.slice(-4)}`
+      await sb.from('conectores').update({ dica }).eq('id', id)
+      toast('Modo demonstração: a chave não foi guardada, só a dica dela.')
+      recarregar()
+      return true
+    }
+    try {
+      const r = await fetch('/api/conector', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, segredo: limpo }),
+      })
+      const j = await r.json()
+      if (!r.ok) { toast(j.erro || 'Não deu para guardar a chave.', true); return false }
+      toast('Chave guardada, cifrada. Ela não aparece mais em tela nenhuma.')
+      recarregar()
+      return true
+    } catch {
+      toast('Não deu para falar com o servidor.', true)
+      return false
+    }
+  }, [sb, toast, recarregar])
+
+  const excluirConector: Contexto['excluirConector'] = useCallback(async (id) => {
+    const { error } = await sb.from('conectores').delete().eq('id', id)
+    if (error) return falhou(error, 'Conector da empresa é removido por administrador.')
+    toast('Conector removido. Os agentes que usavam ele param de chamar.')
+    recarregar()
+  }, [sb, falhou, toast, recarregar])
+
+  /** Bate na porta do serviço com a chave guardada, para ver se ela funciona. */
+  const testarConector: Contexto['testarConector'] = useCallback(async (id, caminho) => {
+    if (MODO_LOCAL) return 'No modo demonstração a chamada não sai daqui.'
+    try {
+      const r = await fetch('/api/conector', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, caminho, teste: true }),
+      })
+      const j = await r.json()
+      if (j.erro) return j.erro
+      if (j.ok) return `Respondeu ${j.status}. A chave funciona.`
+      if (j.status === 401 || j.status === 403) return `Respondeu ${j.status}: o serviço recusou a chave.`
+      if (j.status === 404) return `Respondeu 404: a chave passou, mas esse caminho não existe lá.`
+      return `Respondeu ${j.status}. ${String(j.resposta || '').slice(0, 160)}`
+    } catch {
+      return 'Não deu para falar com o servidor.'
+    }
+  }, [])
 
   // ------------------------------------------------------------- memória
 
@@ -916,12 +1163,12 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     let id = d.id
     if (id) {
       const { error } = await sb.from('compromissos').update(corpo).eq('id', id)
-      if (error) return falhou(error, 'Só quem organiza o compromisso pode alterá-lo.')
+      if (error) { falhou(error, 'Só quem organiza o compromisso pode alterá-lo.'); return null }
       await sb.from('convidados').delete().eq('compromisso_id', id)
     } else {
       const { data, error } = await sb
         .from('compromissos').insert({ ...corpo, dono_id: eu.id }).select().single()
-      if (error) return falhou(error, 'Não foi possível salvar o compromisso.')
+      if (error) { falhou(error, 'Não foi possível salvar o compromisso.'); return null }
       id = (data as Compromisso).id
     }
     for (const perfil_id of d.convidados) {
@@ -930,6 +1177,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     }
     toast(d.id ? 'Compromisso salvo.' : 'Compromisso marcado.')
     recarregar()
+    return id || null
   }, [sb, eu.id, falhou, toast, recarregar])
 
   const excluirCompromisso: Contexto['excluirCompromisso'] = useCallback(async (id) => {
@@ -1316,6 +1564,40 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
         if (!id) return
         dados.criou_id = id
         contou = `criou "${a.tarefa_texto}" em ${alvo.nome} pelo agente ${a.nome}`
+      } else if (a.faz === 'conector') {
+        /**
+         * Chamar um serviço de fora pelo conector da casa ou da pessoa.
+         *
+         * O navegador manda o id do agente, o caminho e o corpo já preenchidos, e
+         * mais nada: a chave e o endereço do serviço moram no banco e são
+         * resolvidos no servidor. Assim nem quem inspeciona a rede daqui vê a
+         * chave, e nem um pedido alterado consegue mandar a chave do cliente para
+         * outro lugar.
+         */
+        if (!a.conector_id) return toast(`O agente ${a.nome} não diz qual conector chamar.`, true)
+        const cn = conectores.find((x) => x.id === a.conector_id)
+        if (!cn) return toast('O conector desse agente não existe mais.', true)
+        if (!cn.ativo) return toast(`O conector ${cn.nome} está desligado.`, true)
+        if (MODO_LOCAL) {
+          toast(`Modo demonstração: a chamada para ${cn.nome} não sai daqui.`)
+        } else {
+          try {
+            const r = await fetch('/api/conector', {
+              method: 'POST', headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                id: cn.id,
+                caminho: a.caminho,
+                corpo: preencher(a.corpo || '{}', sug.motivo || '', a.nome),
+              }),
+            })
+            const volta = await r.json() as { ok?: boolean; status?: number; erro?: string }
+            if (volta.erro) toast(volta.erro, true)
+            else if (!volta.ok) toast(`${cn.nome} respondeu ${volta.status}.`, true)
+          } catch {
+            toast(`Não consegui chamar ${cn.nome}.`, true)
+          }
+        }
+        contou = `chamou ${cn.nome} pelo agente ${a.nome}`
       } else {
         // O endereço vem do banco, na rota: o navegador só manda o id do agente.
         try {
@@ -1336,6 +1618,39 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
         // demonstração, pode chegar sem o campo, e undefined + 1 é NaN.
         disparos: (a.disparos ?? 0) + 1, disparado_em: new Date().toISOString(),
       }).eq('id', a.id)
+    } else if (sug.tipo === 'nota') {
+      /**
+       * Guardar como nota.
+       *
+       * O texto da nota é o TRECHO que a pessoa escreveu (motivo), não o resumo
+       * que a leitura fez (texto). O resumo serve para ela reconhecer a proposta
+       * numa linha; o que ela quer guardar é o pensamento dela, com as palavras
+       * dela. Guardar o resumo seria jogar fora justamente a parte que valia.
+       */
+      const corpo = sug.motivo?.trim() || sug.texto
+      /**
+       * O título vem do resumo quando existe um resumo de verdade.
+       *
+       * Com modelo, texto é uma frase curta escrita para ser lida, e é o melhor
+       * título possível. Sem modelo, texto é o começo do despejo cortado com
+       * três pontos, e três pontos no título de uma nota fica feio e não ajuda a
+       * achar nada: aí é melhor recortar do texto inteiro.
+       */
+      const resumo = sug.texto?.trim() || ''
+      const titulo = resumo && !resumo.endsWith('...') ? resumo : tituloDe(corpo)
+      const id = await salvarNota({ titulo, texto: corpo, mensagem_id: sug.mensagem_id })
+      if (!id) return
+      dados.nota_id = id
+      contou = `guardou a nota "${titulo}"`
+    } else if (sug.tipo === 'compromisso') {
+      if (!dados.quando) return toast('A proposta não diz o dia.', true)
+      const id = await salvarCompromisso({
+        titulo: sug.texto, quando: dados.quando, inicio: dados.inicio || null,
+        nota: sug.motivo || '', bloqueia: true, visivel: true, convidados: [],
+      })
+      if (!id) return
+      dados.compromisso_id = id
+      contou = `marcou "${sug.texto}" para ${curta(dados.quando)}`
     } else if (sug.tipo === 'distribuir') {
       const achado = itemPorId(dados.item_id)
       if (!achado) return toast('A tarefa não existe mais.', true)
@@ -1374,7 +1689,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     }
     recarregar()
   }, [sb, eu, perfis, todosFluxos, itemPorId, adicionarItem, alternarItem, editarItem, travar,
-      logar, nomeDe, guardar, agentes, processos, areaDe, criarDoProcesso, empresaAtiva, toast, recarregar])
+      logar, nomeDe, guardar, agentes, conectores, processos, areaDe, criarDoProcesso, empresaAtiva, toast, recarregar])
 
   /**
    * Volta atrás no que a leitura fez sozinha.
@@ -1401,8 +1716,12 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
         const achado = itemPorId(d.criou_id)
         if (achado) await excluirItem(achado.item)
       }
-      // Webhook não desfaz: o aviso já saiu, e fingir que dá para voltar seria
-      // pior do que dizer que não dá.
+      // Webhook e conector não desfazem: a chamada já saiu, e fingir que dá para
+      // voltar seria pior do que dizer que não dá.
+    } else if (sug.tipo === 'nota') {
+      if (d.nota_id) await excluirNota(d.nota_id)
+    } else if (sug.tipo === 'compromisso') {
+      if (d.compromisso_id) await excluirCompromisso(d.compromisso_id)
     } else if (sug.tipo === 'distribuir') {
       const achado = itemPorId(d.item_id)
       if (achado) {
@@ -1497,6 +1816,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       // melhora sem ninguém treinar nada.
       memoria: paraOModelo(memoria),
       canal_id: canalId,
+      // Canal pessoal é despejo: uma pessoa falando sozinha para o app ouvir.
+      // Muda o que a leitura procura, e o quanto ela se arrisca.
+      despejo: canal.tipo === 'pessoal',
       // Os agentes que escutam este canal. É o modelo que julga se a conversa
       // fala daquela situação: palavra-chave não entende "o João não vem mais".
       agentes: agentes
@@ -1532,7 +1854,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     // Sem chave de modelo, a rota devolve só o que as regras acharam. Os agentes
     // entram aqui, pelas palavras que a empresa escreveu, que é mais bruto e
     // ainda assim útil: é a diferença entre o agente existir e não existir.
-    if (motor === 'regras') {
+    // No despejo o agente não entra: agente reconhece situação de empresa para
+    // agir, e o caderno de bolso de uma pessoa não é lugar de disparar processo.
+    if (motor === 'regras' && canal.tipo !== 'pessoal') {
       const jaVistasAgente = sugestoesDe(canalId)
       propostas = [...propostas, ...porPalavras(
         agentes, canal, doCanal, null,
@@ -1604,6 +1928,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     anexosDe, anexar, removerAnexo, abrirAnexo, decisoesDe, decidir,
     desfazerSugestao, palpites, distribuirTarefa, cargas, cargaDe,
     memoria, esquecer, consumo, agentes, salvarAgente, excluirAgente,
+    conectores, salvarConector, guardarChave, excluirConector, testarConector,
+    notas, salvarNota, excluirNota, meuDespejo, abrirDespejo, minhaLista, abrirMinhaLista,
     preverCascata, moverPrazo, pedidosPrazo, decidirPrazo,
     enviar, enviarAudio, abrirAudio, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
     lerConversa, aceitarSugestao, recusarSugestao,

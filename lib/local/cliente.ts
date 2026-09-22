@@ -14,14 +14,14 @@ const CHAVE_EU = 'track.local.eu'
 const CHAVE_USUARIO = 'track.local.user'
 const CHAVE_VERSAO = 'track.local.versao'
 /** Sobe quando o exemplo ganha tabelas novas. Ver completar(). */
-const VERSAO = 13
+const VERSAO = 15
 const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], fluxos: [], etapas: [], itens: [],
   dependencias: [], processos: [], processo_etapas: [], processo_itens: [], fluxo_pessoas: [],
   convites: [],
   canais: [], canal_membros: [], mensagens: [], sugestoes: [],
   compromissos: [], convidados: [], agendas_externas: [], ocupacao_externa: [],
   historico: [], atividades: [],
-  anexos: [], decisoes: [], pedidos_prazo: [], memoria: [], consumo: [], agentes: [] }
+  anexos: [], decisoes: [], pedidos_prazo: [], memoria: [], consumo: [], agentes: [], conectores: [], notas: [] }
 
 let base: Base | null = null
 const ouvintes = new Set<() => void>()
@@ -37,9 +37,32 @@ function completar(atual: Base) {
   if (versao >= VERSAO) return false
 
   const nova = semente()
-  // A conversa chegou na versão 2. Só entra em quem ainda não tem nenhuma.
-  for (const t of ['canais', 'canal_membros', 'mensagens', 'sugestoes']) {
+
+  /**
+   * Tabela que a pessoa não tem nenhuma linha recebe as do exemplo.
+   *
+   * Era uma lista escrita à mão, e a lista sempre ficava velha: a tabela nova
+   * entrava no exemplo e não chegava em quem já usava, então o recurso parecia
+   * quebrado justamente para quem estava acompanhando de perto. Genérico assim
+   * nunca mais esquece, e não toca no que a pessoa criou, porque só preenche o
+   * que está vazio.
+   */
+  for (const t of Object.keys(nova)) {
+    if (t === 'organizacoes' || t === 'perfis') continue
     if (!atual[t]?.length) atual[t] = nova[t]
+  }
+
+  /**
+   * O despejo é caso à parte: ele mora dentro de canais, que quem já usava tem
+   * cheia, então a regra acima nunca o traria. Sem ele o canal pessoal só
+   * existiria para conta nova.
+   */
+  if (atual.canais?.length && !atual.canais.some((c) => c.tipo === 'pessoal')) {
+    const pessoais = new Set((nova.canais || []).filter((c) => c.tipo === 'pessoal').map((c) => c.id))
+    for (const t of ['canais', 'canal_membros', 'mensagens']) {
+      const dele = (nova[t] || []).filter((l) => pessoais.has(String(l.canal_id ?? l.id)))
+      atual[t] = [...(atual[t] || []), ...dele]
+    }
   }
   const cfg = atual.organizacoes?.[0]
   if (cfg) {

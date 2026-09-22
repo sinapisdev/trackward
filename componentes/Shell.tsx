@@ -154,7 +154,7 @@ function SeletorEmpresa() {
 }
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { eu, fluxos, areas, org, agenda, processos, canais, naoLidas, aviso, carregando, agentes } = useDados()
+  const { eu, fluxos, areas, org, agenda, processos, canais, naoLidas, aviso, carregando, agentes, conectores, notas } = useDados()
   const { abrir } = useModais()
   const caminho = usePathname()
   const router = useRouter()
@@ -204,6 +204,8 @@ export function Shell({ children }: { children: ReactNode }) {
             ativo={caminho.startsWith('/chat')} conta={porLer} quente />
           <NavItem href="/agenda" icone={<Ic.agenda />} rotulo="Agenda" ativo={caminho === '/agenda'}
             conta={hojeNaAgenda} />
+          <NavItem href="/notas" icone={<Ic.clipe />} rotulo="Notas"
+            ativo={caminho.startsWith('/notas')} conta={notas.filter((n) => !n.arquivada).length} />
 
           <NavItem href="/tracks" icone={<Ic.proj />} rotulo="Tracks"
             ativo={caminho.startsWith('/tracks')} conta={tracks} />
@@ -218,6 +220,8 @@ export function Shell({ children }: { children: ReactNode }) {
           ativo={caminho.startsWith('/processos')} conta={processos.length} />
         <NavItem href="/agentes" icone={<Ic.faisca />} rotulo="Agentes"
           ativo={caminho.startsWith('/agentes')} conta={agentes.filter((a) => a.ativo).length} />
+        <NavItem href="/conectores" icone={<Ic.raio />} rotulo="Conectores"
+          ativo={caminho.startsWith('/conectores')} conta={conectores.filter((c) => c.ativo).length} />
 
         <div className="side-foot">
           <Link className="me" href="/equipe">

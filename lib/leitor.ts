@@ -52,6 +52,16 @@ export type Contexto = {
    * regras só sabem contar palavra. Quem usa é o modelo, em /api/leitor.
    */
   agentes?: { id: string; nome: string; reconhecer: string; faz: string }[]
+  /**
+   * Este canal é o despejo de uma pessoa, não conversa de equipe.
+   *
+   * Muda tudo na leitura, e por um motivo que vale escrever: numa conversa de
+   * equipe, errar para mais cria trabalho para outra gente, então a leitura é
+   * conservadora. No despejo, errar para menos perde o pensamento que a pessoa
+   * escreveu justamente para não perder. As regras deste arquivo não mudam de
+   * comportamento, elas são conservadoras sempre: quem muda é o modelo.
+   */
+  despejo?: boolean
 }
 
 export type Proposta = {
@@ -455,6 +465,102 @@ export function porRegras(ctx: Contexto): Proposta[] {
   }
 
   return podar(saida)
+}
+
+// -------------------------------------------------------------- despejo
+
+/**
+ * O despejo sem chave de modelo.
+ *
+ * Aqui as regras podem ser generosas, e é a única parte do app onde podem. Numa
+ * conversa de equipe, propor errado cria trabalho para outra gente, então as
+ * regras deste arquivo são desconfiadas de propósito. No despejo é uma pessoa
+ * falando sozinha: TUDO que ela escreveu, ela escreveu para guardar. Oferecer
+ * nota demais custa um toque para descartar; oferecer de menos perde o
+ * pensamento, que é o que ela estava tentando evitar.
+ *
+ * Três destinos, na ordem em que são testados:
+ *
+ *   compromisso  tem dia, e fala de coisa que acontece num dia (hora, reunião,
+ *                consulta, viagem, entrega)
+ *   tarefa       começa com verbo no infinitivo, do jeito que se escreve recado
+ *                para si mesmo: "ligar pro contador", "comprar cabo"
+ *   nota         todo o resto
+ *
+ * O modelo faz isso muito melhor, porque entende o sentido. Isto é o que existe
+ * sem ele, e existir sem ele importa: o caderno tem que funcionar no dia em que
+ * a chave não está configurada ou o teto do mês acabou.
+ */
+
+/** Coisa que acontece num dia e numa hora, não coisa que se faz. */
+const NA_AGENDA = /\b(reuniao|reuniao|call|consulta|dentista|medico|viagem|voo|almoco|jantar|entrevista|prova|aula|treinamento|visita|audiencia|apresentacao|aniversario|casamento|show|evento|conselho|assembleia)\b/
+
+/** "preciso ligar", "tenho que mandar", "lembrar de pagar": vira tarefa. */
+const OBRIGACAO = /\b(preciso|tenho que|tenho de|nao esquecer|lembrar de|lembrete|devo|fazer)\b/
+
+/**
+ * Como a pessoa avisa, sem perceber, que está guardando um pensamento e não se
+ * comprometendo com nada.
+ *
+ * Vale mais que o verbo que vem depois, e essa ordem importa: "ideia: cobrar taxa
+ * de implantação" tem o verbo cobrar no começo e não é tarefa nenhuma, é uma
+ * ideia. Quem escreve "ideia:" está parando o pensamento no papel, não se
+ * mandando fazer.
+ *
+ * "lembrar que" é nota e "lembrar de" é tarefa, e a diferença é de uma letra:
+ * lembrar QUE a tarifa é 0,8% é informação, lembrar DE pagar a tarifa é trabalho.
+ */
+const MARCA_DE_NOTA = /^(ideia|ideias|insight|nota|obs|observacao|pensar|pensando|anotar que|lembrar que|reparei|descobri|percebi|aprendi|vale lembrar|duvida)\b/
+
+/** A hora, quando a pessoa disse. "15h", "15h30", "9:30", "as 8". */
+function horaDe(frase: string): string | null {
+  const t = limpo(frase)
+  const m = t.match(/\b(\d{1,2})\s*(?:h|:)\s*(\d{2})?\b/) || t.match(/\bas\s+(\d{1,2})\b/)
+  if (!m) return null
+  const h = Number(m[1])
+  const min = Number(m[2] || 0)
+  if (h > 23 || min > 59) return null
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`
+}
+
+export function doDespejo(ctx: Contexto): Proposta[] {
+  const saida: Proposta[] = []
+
+  for (const m of ctx.mensagens) {
+    const texto = (m.texto || '').trim()
+    if (!texto || texto.startsWith('/')) continue
+
+    const dia = quando(texto, ctx.hoje)
+    const hora = horaDe(texto)
+    const daAgenda = NA_AGENDA.test(limpo(texto))
+
+    // Uma linha só, curta, para a pessoa reconhecer a proposta de relance. O que
+    // vai ser guardado é o texto inteiro, no aceite.
+    const uma = texto.replace(/\s+/g, ' ')
+    const curtinho = uma.length > 90 ? `${uma.slice(0, 88).trimEnd()}...` : uma
+
+    if (dia && (daAgenda || hora)) {
+      saida.push({
+        tipo: 'compromisso', texto: curtinho, motivo: texto, mensagem_id: m.id,
+        dados: { quando: dia, inicio: hora },
+      })
+      continue
+    }
+
+    if (!MARCA_DE_NOTA.test(limpo(texto)) && (comecaComVerbo(texto) || OBRIGACAO.test(limpo(texto)))) {
+      saida.push({
+        tipo: 'tarefa', texto: curtinho, motivo: texto, mensagem_id: m.id,
+        dados: { fluxo_id: ctx.fluxo?.id ?? null, etapa_id: ctx.fluxo?.etapa_id ?? null, prazo: dia },
+      })
+      continue
+    }
+
+    saida.push({ tipo: 'nota', texto: curtinho, motivo: texto, mensagem_id: m.id, dados: {} })
+  }
+
+  // Sem podar por semelhança: no caderno, duas anotações parecidas em dias
+  // diferentes são duas anotações, e apagar uma delas é perder informação.
+  return saida.slice(0, 12)
 }
 
 /** Duas propostas dizendo a mesma coisa viram uma. A última é a que vale. */

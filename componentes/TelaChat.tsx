@@ -21,6 +21,8 @@ const ROTULO: Record<TipoProposta, string> = {
   trava: 'Travou',
   distribuir: 'Quem faz',
   agente: 'Agente',
+  nota: 'Guardar como nota',
+  compromisso: 'Marcar na agenda',
 }
 
 const hora = (ts: string) =>
@@ -36,13 +38,23 @@ function diaDe(iso: string) {
 }
 
 const marca = (c: Canal) =>
-  c.tipo === 'fechado' ? <Ic.lock /> : c.tipo === 'direto' ? <Ic.team /> : <b className="cerquilha">#</b>
+  c.tipo === 'pessoal' ? <Ic.eu />
+    : c.tipo === 'fechado' ? <Ic.lock />
+      : c.tipo === 'direto' ? <Ic.team />
+        : <b className="cerquilha">#</b>
 
 // ------------------------------------------------------------------ lista
 
 function Lista({ atual }: { atual?: string }) {
-  const { canais, mensagens, naoLidas, meChamaram, sugestoesDe, todosFluxos, eu, perfilDe } = useDados()
+  const { canais, mensagens, naoLidas, meChamaram, sugestoesDe, todosFluxos, eu, perfilDe,
+    meuDespejo, abrirDespejo } = useDados()
   const { abrir } = useModais()
+  const router = useRouter()
+
+  const criarDespejo = async () => {
+    const id = await abrirDespejo()
+    if (id) router.push(`/chat/${id}`)
+  }
 
   /** A hora da última mensagem de cada canal, numa passada só. */
   const ultima = useMemo(() => {
@@ -57,9 +69,13 @@ function Lista({ atual }: { atual?: string }) {
   const grupos = useMemo(() => {
     const quando = (id: string) => ultima.get(id) ?? 0
     const ordenar = (lista: Canal[]) => [...lista].sort((a, b) => quando(b.id) - quando(a.id))
+    const comum = (c: Canal) => c.tipo !== 'direto' && c.tipo !== 'pessoal'
     return [
-      { rotulo: 'Canais', itens: ordenar(canais.filter((c) => c.tipo !== 'direto' && !c.fluxo_id)) },
-      { rotulo: 'Projetos', itens: ordenar(canais.filter((c) => c.tipo !== 'direto' && c.fluxo_id)) },
+      // O despejo em cima e sozinho, porque é o canal que se abre mais vezes por
+      // dia e o único onde não tem ninguém do outro lado.
+      { rotulo: 'Só seu', itens: canais.filter((c) => c.tipo === 'pessoal') },
+      { rotulo: 'Canais', itens: ordenar(canais.filter((c) => comum(c) && !c.fluxo_id)) },
+      { rotulo: 'Projetos', itens: ordenar(canais.filter((c) => comum(c) && c.fluxo_id)) },
       { rotulo: 'Conversas', itens: ordenar(canais.filter((c) => c.tipo === 'direto')) },
     ].filter((g) => g.itens.length)
   }, [canais, ultima])
@@ -106,6 +122,19 @@ function Lista({ atual }: { atual?: string }) {
             Nenhum canal ainda. Crie o primeiro no botão acima.
           </div>
         )}
+
+        {/* O despejo não se cria pelo formulário de canal: ele não tem nome para
+            escolher nem gente para convidar, e pedir isso seria atravessar o
+            único lugar do app onde a pessoa não precisa pensar em nada. */}
+        {!meuDespejo && (
+          <button className="chat-despejo" onClick={() => void criarDespejo()}>
+            <span className="mk"><Ic.eu /></span>
+            <span>
+              <b>Abrir meu despejo</b>
+              <i>um canal só seu, para jogar tudo dentro</i>
+            </span>
+          </button>
+        )}
       </div>
     </aside>
   )
@@ -113,21 +142,45 @@ function Lista({ atual }: { atual?: string }) {
 
 // -------------------------------------------------------------- sugestões
 
-function CartaoSugestao({ s }: { s: Sugestao }) {
-  const { todosFluxos, perfis, aceitarSugestao, recusarSugestao, nomeDe } = useDados()
-  const [fluxoId, setFluxoId] = useState(s.dados.fluxo_id || '')
-  const [respId, setRespId] = useState(s.dados.resp_id || '')
+/**
+ * Uma proposta da leitura, esperando um sim.
+ *
+ * `despejo` muda duas coisas, e as duas são sobre não fazer pergunta boba:
+ *
+ *   sem escolher projeto  a tarefa cai na sua lista pessoal, que nasce sozinha
+ *                         na primeira vez. Perguntar "em qual projeto?" para
+ *                         "comprar cabo hdmi" é o tipo de atrito que faz a
+ *                         pessoa desistir e voltar para o papel
+ *   sem escolher quem     é sua
+ */
+function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean }) {
+  const { todosFluxos, perfis, eu, aceitarSugestao, recusarSugestao, nomeDe,
+    minhaLista, abrirMinhaLista } = useDados()
+  const [fluxoId, setFluxoId] = useState(s.dados.fluxo_id || (despejo ? minhaLista?.id || '' : ''))
+  const [respId, setRespId] = useState(s.dados.resp_id || (despejo ? eu.id : ''))
   const [prazo, setPrazo] = useState(s.dados.prazo || '')
   const [ocupado, setOcupado] = useState(false)
 
-  const editavel = s.tipo === 'tarefa'
+  const editavel = s.tipo === 'tarefa' && !despejo
   const abertos = todosFluxos.filter((f) => !f.concluido)
+
+  // A linha de resumo e o trecho de origem, no despejo, são a mesma frase: a
+  // pessoa escreveu uma coisa só. Repetir os dois é ruído.
+  const mostraMotivo = !!s.motivo && s.motivo.trim() !== s.texto.trim()
+    && !s.motivo.trim().startsWith(s.texto.replace(/\.\.\.$/, '').trim())
 
   const aceitar = async () => {
     setOcupado(true)
-    await aceitarSugestao(s, editavel
-      ? { fluxo_id: fluxoId || null, resp_id: respId || null, prazo: prazo || null }
-      : undefined)
+    if (s.tipo === 'tarefa' && despejo) {
+      // A lista pessoal nasce aqui, na primeira tarefa que precisa dela, e não
+      // no cadastro: conta nova não deve começar com uma esteira vazia dentro.
+      const destino = fluxoId || await abrirMinhaLista()
+      await aceitarSugestao(s, { fluxo_id: destino, resp_id: eu.id, prazo: prazo || null })
+    } else {
+      await aceitarSugestao(s, editavel
+        ? { fluxo_id: fluxoId || null, resp_id: respId || null, prazo: prazo || null }
+        : undefined)
+    }
     setOcupado(false)
   }
 
@@ -138,7 +191,7 @@ function CartaoSugestao({ s }: { s: Sugestao }) {
         <span className="sug-txt">{s.texto}</span>
       </div>
 
-      {!!s.motivo && <div className="sug-pq">{s.motivo}</div>}
+      {mostraMotivo && <div className="sug-pq">{s.motivo}</div>}
 
       {editavel && (
         <div className="sug-campos">
@@ -163,6 +216,27 @@ function CartaoSugestao({ s }: { s: Sugestao }) {
         </div>
       )}
 
+      {s.tipo === 'tarefa' && despejo && (
+        <div className="sug-campos">
+          <label>
+            <span>Até</span>
+            <input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} />
+          </label>
+          <p className="hint">
+            Vai para a {minhaLista ? 'sua lista' : 'sua lista, que nasce agora'}, no seu nome.
+          </p>
+        </div>
+      )}
+
+      {s.tipo === 'compromisso' && s.dados.quando && (
+        <div className="sug-campos">
+          <p className="hint">
+            {curta(s.dados.quando)}
+            {s.dados.inicio ? ` às ${s.dados.inicio}` : ', sem hora marcada'}, na sua agenda.
+          </p>
+        </div>
+      )}
+
       {s.tipo === 'prazo' && s.dados.prazo && (
         <div className="sug-campos">
           <label>
@@ -175,7 +249,11 @@ function CartaoSugestao({ s }: { s: Sugestao }) {
       <div className="sug-f">
         <button className="btn ghost" onClick={() => void recusarSugestao(s)}>Dispensar</button>
         <button className="btn pri" disabled={ocupado || (editavel && !fluxoId)} onClick={() => void aceitar()}>
-          <Ic.check />{s.tipo === 'concluir' ? 'Marcar feita' : s.tipo === 'decisao' ? 'Registrar' : 'Aceitar'}
+          <Ic.check />
+          {s.tipo === 'concluir' ? 'Marcar feita'
+            : s.tipo === 'decisao' ? 'Registrar'
+              : s.tipo === 'nota' ? 'Guardar'
+                : s.tipo === 'compromisso' ? 'Marcar' : 'Aceitar'}
         </button>
       </div>
 
@@ -351,6 +429,7 @@ function Conversa({ canal }: { canal: Canal }) {
   }, [canalId, msgs.length, abertas.length])
 
   const fluxo = canal.fluxo_id ? todosFluxos.find((f) => f.id === canal.fluxo_id) : null
+  const despejo = canal.tipo === 'pessoal'
 
   const ler = async () => {
     setLendo(true)
@@ -370,9 +449,13 @@ function Conversa({ canal }: { canal: Canal }) {
   for (const m of msgs) {
     const dia = isoDe(m.criado_em)
     const diaAntes = anterior ? isoDe(anterior.criado_em) : null
-    const junto = !!anterior && !m.sistema && !anterior.sistema
-      && anterior.autor_id === m.autor_id && dia === diaAntes
-      && Date.parse(m.criado_em) - Date.parse(anterior.criado_em) < 6 * 60000
+    // No despejo o cabeçalho com foto e nome nunca aparece: é você falando
+    // sozinho, e ver o próprio nome cinco vezes na tela não informa nada.
+    const junto = despejo
+      ? !!anterior && !m.sistema && !anterior.sistema
+      : !!anterior && !m.sistema && !anterior.sistema
+        && anterior.autor_id === m.autor_id && dia === diaAntes
+        && Date.parse(m.criado_em) - Date.parse(anterior.criado_em) < 6 * 60000
     linhas.push({ m, junto, dia: dia === diaAntes ? null : dia })
     anterior = m
   }
@@ -385,15 +468,18 @@ function Conversa({ canal }: { canal: Canal }) {
         <div className="chat-titulo">
           <b>{nome}</b>
           <span>
-            {fluxo
-              ? <Link href={`/fluxo/${fluxo.id}`}>{fluxo.nome}</Link>
-              : canal.area_id ? areaDe(canal.area_id).nome : canal.descricao || `${canal.membros.length || perfis.length} pessoas`}
+            {canal.tipo === 'pessoal'
+              ? 'só você entra aqui'
+              : fluxo
+                ? <Link href={`/fluxo/${fluxo.id}`}>{fluxo.nome}</Link>
+                : canal.area_id ? areaDe(canal.area_id).nome : canal.descricao || `${canal.membros.length || perfis.length} pessoas`}
           </span>
         </div>
         <div className="chat-acoes">
           {org.ia_ativa && (
             <button className="btn" onClick={() => void ler()} disabled={lendo}>
-              <Ic.faisca />{lendo ? 'Lendo' : 'Ler a conversa'}
+              <Ic.faisca />
+              {lendo ? 'Lendo' : canal.tipo === 'pessoal' ? 'Separar o que tem aqui' : 'Ler a conversa'}
             </button>
           )}
           {canal.criado_por === eu.id && (
@@ -415,10 +501,26 @@ function Conversa({ canal }: { canal: Canal }) {
       <div className="chat-rolo" ref={rolo}>
         {!msgs.length && (
           <div className="chat-vazio">
-            <h3>{canal.tipo === 'direto' ? `Converse com ${nome}` : `Começo de #${canal.nome}`}</h3>
+            <h3>
+              {canal.tipo === 'pessoal' ? 'Jogue tudo aqui dentro'
+                : canal.tipo === 'direto' ? `Converse com ${nome}`
+                  : `Começo de #${canal.nome}`}
+            </h3>
             <p>
-              {canal.descricao || 'Escreva a primeira mensagem.'}
-              {org.ia_ativa && ' Depois, a leitura da conversa transforma o que ficou combinado em tarefa.'}
+              {canal.tipo === 'pessoal' ? (
+                <>
+                  Ideia, recado para você mesmo, o número que alguém falou, o que precisa
+                  fazer amanhã. Escreva sem organizar, ou grave um recado de voz.
+                  {org.ia_ativa
+                    ? ' Depois toque em separar, e cada coisa vai para o lugar dela: tarefa, agenda ou nota.'
+                    : ' A separação automática está desligada em Ajustes, mas o caderno funciona do mesmo jeito.'}
+                </>
+              ) : (
+                <>
+                  {canal.descricao || 'Escreva a primeira mensagem.'}
+                  {org.ia_ativa && ' Depois, a leitura da conversa transforma o que ficou combinado em tarefa.'}
+                </>
+              )}
             </p>
           </div>
         )}
@@ -535,8 +637,8 @@ function Conversa({ canal }: { canal: Canal }) {
               </button>
             )}
           </div>
-          {abertas.map((s) => <CartaoSugestao key={s.id} s={s} />)}
-          {verFechadas && fechadas.map((s) => <CartaoSugestao key={s.id} s={s} />)}
+          {abertas.map((s) => <CartaoSugestao key={s.id} s={s} despejo={despejo} />)}
+          {verFechadas && fechadas.map((s) => <CartaoSugestao key={s.id} s={s} despejo={despejo} />)}
         </div>
       )}
 

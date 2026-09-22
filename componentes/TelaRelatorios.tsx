@@ -57,9 +57,14 @@ export function TelaRelatorios() {
   const {
     eu, perfis, fluxos, areas, canais, mensagens, sugestoes, org,
     decisoesDe, anexosDe, nomeDe, carregando, salvarPerfil, toast,
+    pessoal,
   } = useDados()
 
-  const padrao: Publico = eu.papel === 'admin' ? 'dono' : eu.papel === 'gestor' ? 'gestor' : 'pessoa'
+  // Sozinho, as três perguntas do relatório viram uma: não existe "como está a
+  // minha equipe" nem "como está a empresa" quando a equipe e a empresa são você.
+  const padrao: Publico = pessoal
+    ? 'pessoa'
+    : eu.papel === 'admin' ? 'dono' : eu.papel === 'gestor' ? 'gestor' : 'pessoa'
   const [publico, setPublico] = useState<Publico>(padrao)
   const [janela, setJanela] = useState(7)
   const [cadencia, setCadencia] = useState<Cadencia>('semanal')
@@ -111,6 +116,7 @@ export function TelaRelatorios() {
       </div>
 
       <div className="rel-escolhas nao-imprime">
+        {!pessoal && (
         <div className="fld">
           <span className="lbl">Qual pergunta este relatório responde</span>
           <div className="tpls">
@@ -121,6 +127,7 @@ export function TelaRelatorios() {
           </div>
           <p className="hint">{PUBLICOS.find((p) => p.id === publico)!.pergunta}</p>
         </div>
+        )}
         <div className="fld">
           <span className="lbl">Período</span>
           <div className="tpls">

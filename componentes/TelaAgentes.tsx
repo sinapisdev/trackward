@@ -41,7 +41,7 @@ const EXEMPLOS: { nome: string; reconhecer: string; onde: string }[] = [
 ]
 
 function Cartao({ a }: { a: Agente }) {
-  const { processos, areaDe, canais, salvarAgente, excluirAgente, nomeDe } = useDados()
+  const { processos, areaDe, canais, conectores, salvarAgente, excluirAgente, nomeDe } = useDados()
   const { abrir } = useModais()
   const canal = a.canal_id ? canais.find((c) => c.id === a.canal_id) : null
 
@@ -81,7 +81,8 @@ function Cartao({ a }: { a: Agente }) {
         <span>
           {oQueFaz(a,
             (id) => processos.find((p) => p.id === id)?.nome || 'um processo que não existe mais',
-            (id) => areaDe(id).nome)}
+            (id) => areaDe(id).nome,
+            (id) => conectores.find((c) => c.id === id)?.nome || 'um conector que não existe mais')}
           {a.faz === 'processo' && <i> e a esteira nasce distribuída pelas áreas do processo</i>}
         </span>
       </div>

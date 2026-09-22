@@ -78,10 +78,13 @@ virou departamento. Uma área sem rotina é uma frente recém criada.
 | **Aguardando você** | `/minhas` | Sua fila pessoal | Quantas pendências suas |
 | **Conversa** | `/chat` | Chat por canais | Mensagens não lidas |
 | **Agenda** | `/agenda` | Compromissos e prazos | Quantos são hoje |
+| **Notas** | `/notas` | Seu caderno de bolso, só seu | Quantas notas |
 | **Tracks** | `/tracks` | Todos os projetos e áreas | Quantas tracks existem |
 | **Desempenho** | `/desempenho` | Como a empresa está entregando | |
 | **Relatórios** | `/relatorios` | O período contado, para ler e para mandar | |
 | **Processos** | `/processos` | Os moldes reutilizáveis | Quantos moldes |
+| **Agentes** | `/agentes` | Situações que disparam ação | Quantos ligados |
+| **Conectores** | `/conectores` | Os serviços de fora que o app pode usar | Quantos ligados |
 
 No alto da lateral: a marca **Track.** e, abaixo, o **seletor de espaço** (a
 organização em cima, a empresa em foco embaixo). No rodapé: seu nome, o botão de
@@ -554,6 +557,103 @@ organização (`plano`, `limite_leituras`, `modelo_ia`) em vez de numa tabela de
 para começar a cobrar mexendo em números, e o dia em que virarem tabela de verdade a
 organização passa a apontar para ela.
 
+### 4.6g O despejo, e as notas (`/chat/<seu despejo>` e `/notas`)
+
+**O problema:** hoje, o que não é tarefa não tem lugar. A ideia que veio no banho, o número
+que alguém falou na reunião, o nome de um fornecedor que vale lembrar. Tudo isso termina em
+recado de WhatsApp para si mesmo, e recado de WhatsApp para si mesmo não se acha de novo.
+
+**O despejo** é um canal de conversa de tipo `pessoal`: um membro só, e ninguém mais entra
+nunca, nem admin, nem quem é dono da empresa. Ele se protege pelo mesmo caminho do canal
+fechado, que já era sólido (não sendo aberto, só entra quem é membro). Aparece no alto da
+lista de conversas, no grupo **Só seu**, e quem não tem ainda vê um convite para abrir.
+
+Ser um canal de verdade é o que faz ele herdar tudo de graça: áudio com transcrição, anexo,
+busca, tempo real, e a leitura da conversa.
+
+**A leitura no despejo é outro bicho**, e tratá-la como conversa de equipe daria resultado
+ruim nos dois sentidos:
+
+| | conversa de equipe | despejo |
+| --- | --- | --- |
+| o erro caro | criar trabalho que ninguém pediu, para outra gente | perder o pensamento que a pessoa escreveu para não perder |
+| a leitura é | desconfiada | generosa |
+| tipos | tarefa, prazo, concluir, decisão, trava, quem faz, agente | tarefa, compromisso, **nota** |
+
+Cada mensagem vira uma proposta, que continua pedindo um toque. A tarefa cai na **sua lista**
+sem perguntar projeto (perguntar "em qual projeto?" para "comprar cabo hdmi" é o atrito que
+faz a pessoa voltar para o papel); o compromisso vai para a sua agenda com o dia e a hora que
+a leitura entendeu de "terça 15h"; e o resto vira **nota**.
+
+Sem chave de modelo isto continua funcionando, por regras generosas: tem dia mais coisa de
+agenda vira compromisso, começa com verbo vira tarefa, e o resto vira nota. Quem escreve
+"ideia:" ou "lembrar que" está guardando pensamento, e isso vence o verbo que vier depois.
+O modelo faz muito melhor, porque entende o sentido; o caderno tem que servir no dia em que a
+chave não está configurada ou o teto do mês acabou.
+
+**As notas** são de uma pessoa, e ponto: sem exceção para admin, gestor ou dono. Um caderno
+que o chefe pode abrir não é caderno, porque a pessoa para de escrever nele o que importa.
+
+O desenho é o do Obsidian, por um motivo: **pasta não sobrevive ao uso.** Toda organização
+por categoria funciona nas primeiras trinta notas e desanda nas trezentas, porque a nota nova
+sempre cabe em duas e quem decide decide errado. O que sobrevive é a ligação escrita no meio
+do texto:
+
+- `[[nome de outra nota]]` dentro do texto liga as duas
+- abrir uma nota mostra **quem cita ela**, sem ninguém ter mantido índice
+- `[[uma nota que não existe]]` é um **convite, não um erro**: o link fica vazado e clicar
+  cria a nota já ligada. É assim que alguém escreve "ver [[Fornecedor Alfa]]" no meio de uma
+  ideia e ganha a página do fornecedor sem ter decidido criar página nenhuma
+- **Parece ter a ver** sugere ligação por palavras incomuns em comum. Bruto de propósito: a
+  pessoa precisa olhar e concordar em dois segundos
+
+Busca sem acento e sem caixa, com título pesando mais que corpo. Nota não tem dono, prazo nem
+cobrança, e é isso que a separa de tarefa: ideia na lista de tarefas entope a lista.
+
+### 4.6h Conectores (`/conectores`)
+
+Ligar o Track em qualquer serviço que aceite uma chave, no modelo do Claude: você entra na
+sua conta, copia a chave de API, cola aqui. Não precisa esperar ninguém escrever um conector.
+
+**Duas listas, e a divisão é a parte que importa:**
+
+| | da empresa | seu |
+| --- | --- | --- |
+| `dono_id` | nulo | você |
+| quem usa | todo mundo da casa | você |
+| quem mexe | só admin | só você |
+| quem vê | todo mundo da casa | **só você**, nem o chefe |
+
+O conector pessoal existe porque **quem mais usa o app não é quem é dono da empresa.** É quem
+trabalha nela, e a conta do Notion que essa pessoa quer ligar é dela. Se ligar um serviço
+fosse privilégio de admin, o recurso ficaria parado: quem tem a chave na mão não seria quem
+tem a permissão.
+
+**A chave entra e não sai.** Ela é cifrada no servidor (AES-256-GCM, chave derivada de
+`TRACK_SEGREDO`, que mora só na variável de ambiente) e o que fica no banco é texto
+embaralhado. Quem dumpar o banco leva embaralhado; quem ler a tabela pelo app também. A rota
+decifra na hora da chamada e **faz a chamada**, em vez de devolver o segredo para o navegador.
+A tela mostra os quatro últimos caracteres, para reconhecer qual chave é sem poder usá-la.
+
+O endereço base vem do banco e só o caminho vem do pedido: se o navegador escolhesse o
+endereço, bastaria alterar o pedido para o app falar com qualquer lugar do mundo usando a
+chave do cliente. Endereço precisa ser https e público, com a mesma lista de recusa do webhook
+(localhost, faixas internas, `.internal`).
+
+**Quinze moldes** para serviços que vivem de chave, de setores diferentes de propósito (Resend,
+SendGrid, Telegram, Notion, GitHub, Linear, Trello, ClickUp, Airtable, Pipedrive, HubSpot,
+Twilio, Discord, Higgsfield, ponte Make/Zapier/n8n) mais **outro serviço**. No molde, o caminho
+e o formato da chamada já vêm prontos e a chave basta.
+
+**O detalhe honesto, dito na própria tela:** o Claude vive só com a chave porque do outro lado
+existe um servidor MCP que se descreve. Uma API comum não descreve nada. Então, fora da lista,
+alguém diz uma vez qual caminho chamar e o que mandar. É uma linha de configuração, não é
+programar, e fica no agente.
+
+**No agente**, a ação `conector` completa as outras três: `{{situacao}}` vira o trecho da
+conversa que disparou e `{{agente}}` vira o nome dele. Como o webhook, **não desfaz**: chamada
+feita é chamada feita.
+
 ### 4.7 Agenda (`/agenda`)
 
 Compromissos e prazos no mesmo lugar. Modo **semana** ou **mês**; no celular, um dia
@@ -746,9 +846,31 @@ Por dentro: o perfil deixou de usar o id do login como chave (se usasse, cada pe
 existiria em um lugar). Agora tem id próprio, um `user_id` que aponta para o login, e a
 tabela `sessoes` diz qual perfil está em uso agora.
 
+### Uso pessoal: o mesmo app, sem a parte de equipe
+
+O Track é vendido para empresa e **também para uma pessoa só**: autônomo, prestador, quem
+quer o app de produtividade sem ter empresa nenhuma. Isso não é uma segunda versão do produto,
+é um campo: `organizacoes.tipo` vale `pessoal` ou `equipe`, e virar de um para o outro é
+ligar uma chave, sem migrar nada.
+
+O que muda com `pessoal`:
+
+| tela | com equipe | sozinho |
+| --- | --- | --- |
+| lateral | nome da empresa | Pessoal |
+| Equipe | lista, convite, papel | "Só você", com o botão de virar conta de equipe |
+| tarefa | responsável e aprovador | sai dos formulários, é sua |
+| Desempenho | bloco **Por pessoa** | sai, porque a tabela teria uma linha só |
+| Relatórios | três perguntas (pessoa, supervisor, dono) | uma, a sua |
+| Conectores | **Da empresa** e **Seus** | uma lista, **Ligados** |
+| Tracks | Projetos e Áreas | mais o grupo **Só seu**, com a sua lista |
+
+O que **não** muda, e é o coração do uso pessoal: o despejo, as notas, a agenda, a lista
+pessoal e a leitura que separa tudo isso. Ver 4.6g.
+
 ### Multi-organização
 
-Cada empresa cliente é uma **organização**. Todas as 22 tabelas têm `org_id`, e todas as
+Cada empresa cliente é uma **organização**. Todas as 30 tabelas têm `org_id`, e todas as
 políticas exigem que a linha seja da sua organização.
 
 A analogia: um **prédio**. Cada empresa tem seu apartamento, com fechadura própria. O
@@ -787,7 +909,8 @@ O que já está construído, da forma que grandes empresas de tecnologia fazem:
   pasta de outra empresa
 
 O schema é validado rodando num Postgres local antes de ir para produção. Hoje passam
-9 testes de privacidade de chat, 10 de multi-organização e 7 de multi-espaço.
+9 testes de privacidade de chat, 10 de multi-organização, 7 de multi-espaço e 11 de
+conectores (um conector pessoal não aparece nem para quem é dono da empresa).
 
 ---
 
@@ -863,11 +986,24 @@ A lista para o UX cobrir.
 12. **As três telas de segurança**: log de acesso, exportar tudo, excluir organização.
     São o que um cliente grande pede antes de assinar
 13. **App nativo de celular**
+14. **Conectores nativos de provedor** (Google Calendar nos dois sentidos, Calendly,
+    Google Meet, Zoom) dependem de conta e aprovação do lado do Leo: projeto no Google
+    Cloud com revisão de consentimento (semanas) e plano pago no Calendly. O Slack está
+    fora de propósito, é concorrente. Chamada de vídeo por Jitsi num compromisso é a
+    única que não precisa de conta de provedor, e está oferecida e não escolhida
+15. **O layout do uso pessoal** foi resolvido no que estava errado (ver 6, Uso pessoal),
+    mas a pergunta maior fica aberta: sozinho, o Painel devia começar pela lista e pelo
+    despejo em vez de pelos checkpoints? É decisão de UX, não de código
 
 ### Pendências fora do código
 
-14. Criar o projeto no Supabase (região São Paulo), rodar o `schema.sql`, desligar
+16. Criar o projeto no Supabase (região São Paulo), rodar o `schema.sql`, desligar
     "Confirm email" e trazer a Project URL e a anon key
-15. Criar as contas de GitHub e Vercel para publicar
-16. Configurar a `ANTHROPIC_API_KEY` para a leitura da conversa sair das regras e passar
+17. Criar as contas de GitHub e Vercel para publicar
+18. Configurar a `ANTHROPIC_API_KEY` para a leitura da conversa sair das regras e passar
     para o modelo
+19. Configurar a `TRACK_SEGREDO` (qualquer texto longo e aleatório) para os conectores
+    poderem guardar chave. **Trocar essa variável depois cega todas as chaves já
+    guardadas**, e cada cliente teria que colar a dele de novo
+20. Nada foi testado com microfone de verdade: o navegador embutido aqui bloqueia a
+    captura, então gravar e transcrever recado de voz precisa de um teste seu

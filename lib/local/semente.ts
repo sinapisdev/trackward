@@ -593,6 +593,12 @@ export function semente(): Base {
       area_id: null, fluxo_id: null, empresa_id: null, criado_por: 'leo', criado_em: criado, arquivado: false },
     { id: 'k-leo-carlos', nome: 'Carlos', descricao: '', tipo: 'direto',
       area_id: null, fluxo_id: null, empresa_id: null, criado_por: 'leo', criado_em: criado, arquivado: false },
+    // O despejo: um membro só, e nem admin entra. O que faz ele ser privado é a
+    // mesma regra do canal fechado, que já é sólida.
+    { id: 'k-despejo-leo', nome: 'Meu despejo',
+      descricao: 'Só você entra aqui. Jogue tudo dentro e a leitura separa depois.',
+      tipo: 'pessoal', area_id: null, fluxo_id: null, empresa_id: null,
+      criado_por: 'leo', criado_em: criado, arquivado: false },
   ]
 
   const canal_membros: Linha[] = [
@@ -602,6 +608,7 @@ export function semente(): Base {
     { canal_id: 'k-leo-carlos', perfil_id: 'carlos', lido_em: min(60) },
     { canal_id: 'k-erp', perfil_id: 'leo', lido_em: min(300) },
     { canal_id: 'k-geral', perfil_id: 'leo', lido_em: min(15) },
+    { canal_id: 'k-despejo-leo', perfil_id: 'leo', lido_em: min(5) },
   ]
 
   let nm = 0
@@ -636,6 +643,15 @@ export function semente(): Base {
 
     msg('k-leo-carlos', 'carlos', 'Leo, o comparativo da quinzena fecha sexta. Consigo te mandar na quinta à noite.', 70),
     msg('k-leo-carlos', 'leo', 'Perfeito, obrigado.', 60),
+
+    // O despejo. De propósito escrito torto, do jeito que se escreve para si
+    // mesmo: sem pontuação, sem ordem, três coisas diferentes na mesma frase. É
+    // exatamente o material que a separação tem que dar conta.
+    msg('k-despejo-leo', 'leo', 'ligar pro contador sobre a distribuição de lucros antes do fim do mês', 300),
+    msg('k-despejo-leo', 'leo', 'ideia: se a gente cobrasse uma taxa de implantação no primeiro mês em vez de dar desconto, o cliente entenderia melhor o valor. pensar nisso com calma', 250),
+    msg('k-despejo-leo', 'leo', 'reunião com o Renato terça 15h, levar o comparativo dos planos', 180),
+    msg('k-despejo-leo', 'leo', 'o Renato falou que o difícil não é a ferramenta, é tirar a galera do WhatsApp. isso vale para qualquer sistema novo, não só chat', 120),
+    msg('k-despejo-leo', 'leo', 'comprar cabo hdmi', 30),
   ]
 
   // Duas propostas já abertas, para a leitura da conversa aparecer de cara.
@@ -659,9 +675,36 @@ export function semente(): Base {
     { id: 'a4', fluxo_id: 'f-gerente', quem_id: 'marina', texto: 'concluiu Publicar a vaga nos canais', criado_em: new Date(Date.now() - 864e5 * 8).toISOString() },
   )
 
+  /**
+   * Duas notas já ligadas entre si, e uma solta.
+   *
+   * Duas ligadas é o mínimo para a tela mostrar o que ela faz: abrir uma e ver a
+   * outra em "citada em", sem ninguém ter mantido índice. A solta existe para o
+   * aviso do pé da lista ter sentido.
+   */
+  const notas: Linha[] = [
+    { id: 'nt1', titulo: 'Taxa de implantação em vez de desconto',
+      texto: 'Se a gente cobrasse uma taxa de implantação no primeiro mês em vez de dar desconto, '
+        + 'o cliente entenderia melhor o valor do que está comprando. Desconto ensina que o preço '
+        + 'era inflado.\n\nTem a ver com [[Tirar a equipe do WhatsApp]]: a implantação é justamente '
+        + 'o trabalho de fazer a equipe usar.',
+      dono_id: 'leo', mensagem_id: null, item_id: null, fixada: true, arquivada: false,
+      criado_em: min(250), mexido_em: min(60) },
+    { id: 'nt2', titulo: 'Tirar a equipe do WhatsApp',
+      texto: 'O Renato falou que o difícil não é a ferramenta, é tirar a galera do WhatsApp.\n\n'
+        + 'Vale para qualquer sistema novo, não só chat. O que ganha é o que dá menos trabalho '
+        + 'no primeiro dia, não o que tem mais recurso.',
+      dono_id: 'leo', mensagem_id: null, item_id: null, fixada: false, arquivada: false,
+      criado_em: min(120), mexido_em: min(120) },
+    { id: 'nt3', titulo: 'Fornecedor de crachá cobra por lote',
+      texto: 'Mínimo de 50 unidades. Abaixo disso sai mais caro por peça do que na gráfica da esquina.',
+      dono_id: 'leo', mensagem_id: null, item_id: null, fixada: false, arquivada: false,
+      criado_em: min(900), mexido_em: min(900) },
+  ]
+
   return { organizacoes, empresas, perfis, areas, fluxos, etapas, itens, dependencias,
     processos, processo_etapas, processo_itens,
     canais, canal_membros, mensagens, sugestoes,
     compromissos, convidados, agendas_externas, ocupacao_externa, fluxo_pessoas: [], convites: [],
-    historico, atividades, anexos, decisoes, pedidos_prazo: [], memoria: [], consumo: [], agentes: [] }
+    historico, atividades, anexos, decisoes, pedidos_prazo: [], memoria: [], consumo: [], agentes: [], conectores: [], notas }
 }

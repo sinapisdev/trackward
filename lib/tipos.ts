@@ -248,6 +248,53 @@ export type PedidoPrazo = {
 }
 
 /**
+ * Uma nota: o que a pessoa quer guardar e achar depois.
+ *
+ * Nota não é tarefa. Tarefa tem dono e prazo e cobra. Nota não cobra nada, e é
+ * por isso que ela precisa de um lugar próprio: ideia na lista de tarefas entope
+ * a lista e a pessoa para de olhar para ela.
+ *
+ * As ligações vivem dentro do texto, escritas [[assim]]. Ver lib/notas.ts.
+ */
+export type Nota = {
+  id: string
+  titulo: string
+  texto: string
+  dono_id: string
+  /** A mensagem do despejo que deu origem, quando veio de lá. */
+  mensagem_id: string | null
+  /** A tarefa que saiu dela, quando a ideia ganhou dono e prazo. */
+  item_id: string | null
+  fixada: boolean
+  arquivada: boolean
+  criado_em: string
+  mexido_em: string
+}
+
+/**
+ * Um conector: o endereço de um serviço de fora, e a chave para falar com ele.
+ *
+ * dono_id nulo é conector da casa, que todo mundo pode usar e só admin mexe.
+ * dono_id preenchido é conector pessoal, que só a própria pessoa vê.
+ *
+ * O segredo não está aqui de propósito. Ele mora cifrado no banco e abre só no
+ * servidor. O que a tela recebe é a dica, os quatro últimos caracteres.
+ */
+export type Conector = {
+  id: string
+  nome: string
+  base_url: string
+  auth_tipo: 'bearer' | 'header' | 'query'
+  auth_nome: string
+  /** Os quatro últimos caracteres da chave, para reconhecer qual é. */
+  dica: string
+  dono_id: string | null
+  ativo: boolean
+  criado_por: string | null
+  criado_em: string
+}
+
+/**
  * Um agente da empresa: o que reconhecer, e o que fazer quando reconhecer.
  *
  * A ação nunca é direta, sempre vira proposta. Ver lib/agentes.ts.
@@ -262,12 +309,16 @@ export type Agente = {
   /** Onde escuta. Nulo nos dois é escutar em todo canal. */
   canal_id: string | null
   area_id: string | null
-  faz: 'processo' | 'tarefa' | 'webhook'
+  faz: 'processo' | 'tarefa' | 'webhook' | 'conector'
   processo_id: string | null
   tarefa_texto: string
   tarefa_area_id: string | null
   /** A ponte para o que não é o Track: Zapier, Make, n8n, o sistema do cliente. */
   url: string
+  /** Quando faz é conector: qual conector, e o que chamar nele. */
+  conector_id: string | null
+  caminho: string
+  corpo: string
   disparos: number
   disparado_em: string | null
   criado_por: string | null
@@ -382,7 +433,7 @@ export type Pendencia =
  *  - fechado: só quem foi posto dentro. Nem o administrador lê de fora.
  *  - direto:  conversa entre duas pessoas.
  */
-export type TipoCanal = 'aberto' | 'fechado' | 'direto'
+export type TipoCanal = 'aberto' | 'fechado' | 'direto' | 'pessoal'
 
 export type Canal = {
   id: string
@@ -422,7 +473,10 @@ export type Mensagem = {
   editado_em: string | null
 }
 
-export type TipoProposta = 'tarefa' | 'prazo' | 'concluir' | 'decisao' | 'trava' | 'distribuir' | 'agente'
+export type TipoProposta =
+  | 'tarefa' | 'prazo' | 'concluir' | 'decisao' | 'trava' | 'distribuir' | 'agente'
+  /** Do canal de despejo: guardar como nota, ou marcar na agenda. */
+  | 'nota' | 'compromisso'
 
 /** O que a leitura da conversa propõe. Nada acontece antes de alguém aceitar. */
 export type Alvo = {
@@ -439,6 +493,13 @@ export type Alvo = {
   agente_id?: string | null
   /** A esteira que o agente abriu, para desfazer poder fechá-la. */
   abriu_id?: string | null
+  /** A nota que nasceu do despejo, para desfazer poder apagá-la. */
+  nota_id?: string | null
+  /** O compromisso que nasceu do despejo, pelo mesmo motivo. */
+  compromisso_id?: string | null
+  /** Quando é compromisso: o dia e a hora que a leitura entendeu. */
+  quando?: string | null
+  inicio?: string | null
 }
 
 export type Sugestao = {

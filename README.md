@@ -50,7 +50,22 @@ Estas duas chaves são públicas por natureza. Quem protege os dados é o RLS do
 não o segredo da chave. Assim que as duas estiverem preenchidas, o modo demonstração
 desliga sozinho e o app passa a pedir login.
 
-**3. Primeira conta**
+**3. As duas chaves que ficam só no servidor**
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+TRACK_SEGREDO=<texto longo e aleatório, gere com: openssl rand -base64 48>
+```
+
+A primeira liga a leitura das conversas no modelo, em vez das regras embutidas. Sem ela o
+app continua funcionando, só mais bruto.
+
+A segunda é o que cifra a chave de API que cada pessoa cola em **Conectores**. Sem ela o
+app **se recusa a guardar chave**, em vez de guardar aberta. Trocar esse valor depois cega
+todas as chaves já guardadas, e cada pessoa teria que colar a dela de novo: gere uma vez e
+guarde em lugar seguro.
+
+**4. Primeira conta**
 
 Rode `npm run dev` de novo e crie sua conta. **A primeira conta criada vira
 administradora e já entra liberada.** Se quiser ver as telas cheias antes de cadastrar

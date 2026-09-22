@@ -41,12 +41,17 @@ function estadoDa(f: Fluxo, i: number): EstadoNo {
 // ---------------------------------------------------------------- lateral
 
 function Lista({ atual, aoNovo }: { atual?: string; aoNovo: (t: 'projeto' | 'area') => void }) {
-  const { fluxos, areas, todosFluxos } = useDados()
+  const { fluxos, areas, todosFluxos, minhaLista } = useDados()
   const [busca, setBusca] = useState('')
 
+  // A lista pessoal sai de Projetos e vira um grupo dela. Ela não é um projeto:
+  // não tem checkpoint, não tem quem aprove, e ninguém mais a enxerga. Deixá-la
+  // no meio dos projetos da empresa faria a coluna mentir.
   const projetos = useMemo(
-    () => fluxos.filter((f) => f.tipo === 'esteira').sort((a, b) => ORD[status(a)] - ORD[status(b)]),
-    [fluxos],
+    () => fluxos
+      .filter((f) => f.tipo === 'esteira' && f.id !== minhaLista?.id)
+      .sort((a, b) => ORD[status(a)] - ORD[status(b)]),
+    [fluxos, minhaLista],
   )
 
   const filtrar = <T extends { nome: string }>(lista: T[]) => {
@@ -79,7 +84,22 @@ function Lista({ atual, aoNovo }: { atual?: string; aoNovo: (t: 'projeto' | 'are
         }
       }),
     },
-  ].filter((g) => g.itens.length)
+  ]
+
+  if (minhaLista) {
+    const abertas = minhaLista.etapas.flatMap((e) => e.itens).filter((i) => !i.feito).length
+    grupos.unshift({
+      rotulo: 'Só seu',
+      itens: filtrar([minhaLista]).map((f) => ({
+        id: f.id,
+        nome: f.nome,
+        sub: abertas ? `${abertas} ${abertas === 1 ? 'tarefa aberta' : 'tarefas abertas'}` : 'nada em aberto',
+        marca: <span className="tk-eu"><Ic.eu /></span>,
+      })),
+    })
+  }
+
+  const cheios = grupos.filter((g) => g.itens.length)
 
   return (
     <aside className="tk-lista">
@@ -93,7 +113,7 @@ function Lista({ atual, aoNovo }: { atual?: string; aoNovo: (t: 'projeto' | 'are
       </div>
 
       <div className="tk-rolagem">
-        {grupos.map((g) => (
+        {cheios.map((g) => (
           <div key={g.rotulo}>
             <div className="tk-grupo">{g.rotulo}</div>
             {g.itens.map((i) => (
@@ -108,7 +128,7 @@ function Lista({ atual, aoNovo }: { atual?: string; aoNovo: (t: 'projeto' | 'are
             ))}
           </div>
         ))}
-        {!grupos.length && (
+        {!cheios.length && (
           <div className="mode" style={{ padding: '10px 12px' }}>
             {busca ? 'Nada com esse nome.' : 'Nenhuma track ainda.'}
           </div>

@@ -99,7 +99,8 @@ function LinhaCarga({ c }: { c: Carga }) {
 }
 
 export function TelaDesempenho() {
-  const { fluxos, areas, perfis, decisoesDe, anexosDe, nomeDe, carregando, todosFluxos, cargas } = useDados()
+  const { fluxos, areas, perfis, decisoesDe, anexosDe, nomeDe, carregando, todosFluxos, cargas,
+    pessoal } = useDados()
   const [janela, setJanela] = useState<Periodo>(30)
 
   const dados = useMemo(() => {
@@ -232,6 +233,9 @@ export function TelaDesempenho() {
             </div>
           </div>
 
+          {/* Espaço de uma pessoa não tem "por pessoa": a tabela teria uma linha
+              e repetiria o que os números do topo já disseram. */}
+          {!pessoal && (
           <div className="blk">
             <div className="bh">
               <h2>Por pessoa</h2>
@@ -264,6 +268,7 @@ export function TelaDesempenho() {
               )) : <div className="empty" style={{ padding: 0 }}>Ninguém com tarefa no período.</div>}
             </div>
           </div>
+          )}
 
           {!!dados.orfas && (
             <p className="rodape-honesto">

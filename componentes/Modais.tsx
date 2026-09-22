@@ -12,6 +12,7 @@ import { dias, hojeIso } from '@/lib/datas'
 import { podeMexerNoPrazo } from '@/lib/acesso'
 import { faixa, minutos, ocupados } from '@/lib/agenda'
 import { esqueletoEmBranco, periodoAtual, type RascunhoEtapa } from '@/lib/modelos'
+import { MOLDES, servico } from '@/lib/conectores'
 import type {
   Agente, Area, Canal, Compromisso, Empresa, Etapa, Fluxo, Freq, Item, Tipo, TipoCanal, Visibilidade,
 } from '@/lib/tipos'
@@ -1106,7 +1107,7 @@ function MCanal({ canal, fechar }: { canal?: Canal; fechar: () => void }) {
  * ação: a ação é consequência.
  */
 function MAgente({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'agente' }>; fechar: () => void }) {
-  const { processos, areas, canais, salvarAgente } = useDados()
+  const { processos, areas, canais, conectores, salvarAgente } = useDados()
   const a = pedido.agente
 
   const [nome, setNome] = useState(a?.nome || pedido.inicial?.nome || '')
@@ -1116,11 +1117,24 @@ function MAgente({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'agente' 
   )
   const [canalId, setCanalId] = useState(a?.canal_id || '')
   const [areaOuvida, setAreaOuvida] = useState(a?.area_id || areas[0]?.id || '')
-  const [faz, setFaz] = useState<'processo' | 'tarefa' | 'webhook'>(a?.faz || 'tarefa')
+  const [faz, setFaz] = useState<Agente['faz']>(a?.faz || 'tarefa')
   const [processoId, setProcessoId] = useState(a?.processo_id || processos[0]?.id || '')
   const [tarefaTexto, setTarefaTexto] = useState(a?.tarefa_texto || '')
   const [tarefaArea, setTarefaArea] = useState(a?.tarefa_area_id || areas[0]?.id || '')
   const [url, setUrl] = useState(a?.url || '')
+  const [conectorId, setConectorId] = useState(a?.conector_id || '')
+  const [caminho, setCaminho] = useState(a?.caminho || '')
+  const [corpo, setCorpo] = useState(a?.corpo || '')
+
+  // Ao escolher um conector novo, o caminho e o corpo do molde já vêm prontos, se
+  // a pessoa ainda não escreveu nada. Se escreveu, o que ela escreveu manda.
+  const escolherConector = (id: string) => {
+    setConectorId(id)
+    const c = conectores.find((x) => x.id === id)
+    const m = c && MOLDES.find((x) => servico(c).includes(x.id))
+    if (m && !caminho) setCaminho(m.caminho)
+    if (m && !corpo) setCorpo(m.corpo)
+  }
 
   const salvar = async () => {
     await salvarAgente({
@@ -1133,6 +1147,9 @@ function MAgente({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'agente' 
       tarefa_texto: faz === 'tarefa' ? tarefaTexto : '',
       tarefa_area_id: faz === 'tarefa' ? tarefaArea || null : null,
       url: faz === 'webhook' ? url : '',
+      conector_id: faz === 'conector' ? conectorId || null : null,
+      caminho: faz === 'conector' ? caminho : '',
+      corpo: faz === 'conector' ? corpo : '',
     })
     fechar()
   }
@@ -1202,8 +1219,12 @@ function MAgente({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'agente' 
               disabled={!processos.length}>
               Abrir um processo inteiro
             </button>
+            <button className={`tpl ${faz === 'conector' ? 'on' : ''}`} onClick={() => setFaz('conector')}
+              disabled={!conectores.length}>
+              Chamar um conector
+            </button>
             <button className={`tpl ${faz === 'webhook' ? 'on' : ''}`} onClick={() => setFaz('webhook')}>
-              Avisar um sistema de fora
+              Avisar um endereço solto
             </button>
           </div>
         </div>
@@ -1242,6 +1263,44 @@ function MAgente({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'agente' 
               uma situação atravessa dois ou três setores sem ninguém encaminhar nada à mão.
             </p>
           </div>
+        )}
+
+        {faz === 'conector' && (
+          <>
+            <div className="fld">
+              <label htmlFor="ag-c">Qual conector</label>
+              <select className="inp" id="ag-c" value={conectorId}
+                onChange={(e) => escolherConector(e.target.value)}>
+                <option value="">Escolha o conector</option>
+                {conectores.filter((c) => c.ativo).map((c) => (
+                  <option key={c.id} value={c.id}>{c.nome} ({servico(c)})</option>
+                ))}
+              </select>
+              <p className="hint">
+                A chave fica guardada no conector, cifrada. Ela não passa por aqui e não
+                aparece em tela nenhuma depois de salva.
+              </p>
+            </div>
+            <div className="fld">
+              <label htmlFor="ag-cm">O que chamar lá</label>
+              <input className="inp" id="ag-cm" value={caminho}
+                onChange={(e) => setCaminho(e.target.value)} placeholder="Ex.: emails" />
+              <p className="hint">
+                É o pedaço depois do endereço do serviço. Nos serviços da lista isto já vem
+                preenchido.
+              </p>
+            </div>
+            <div className="fld">
+              <label htmlFor="ag-cb">O que mandar</label>
+              <textarea className="inp mono" id="ag-cb" rows={4} value={corpo}
+                onChange={(e) => setCorpo(e.target.value)} />
+              <p className="hint">
+                <code>{'{{situacao}}'}</code> vira o trecho da conversa que disparou o agente e{' '}
+                <code>{'{{agente}}'}</code> vira o nome dele. <b>Isto não desfaz</b>: a chamada,
+                uma vez feita, foi feita.
+              </p>
+            </div>
+          </>
         )}
 
         {faz === 'webhook' && (
