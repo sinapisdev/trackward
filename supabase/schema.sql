@@ -2673,13 +2673,16 @@ end $$;
 --     ficaram guardadas: organizações segurando um domínio que não pode mais
 --     reservar nada, e gente parada esperando liberação de uma empresa em que
 --     caiu sem escolher. Este bloco limpa as duas, e roda quantas vezes for.
+--
+--     Repare que ele não desliga trigger nenhum, de propósito. O caminho óbvio
+--     seria desligar `ao_alterar_perfil`, porque ele recusa mudança de papel e
+--     de ativo quando quem manda não é administrador, e no SQL Editor não há
+--     ninguém logado. Só que `alter table ... disable trigger` exige ser dono da
+--     tabela, e nem todo projeto do Supabase dá isso ao papel que roda o editor.
+--     Em vez de brigar com a proteção, este bloco usa a regra que ela já tem:
+--     quem é `dono_id` da organização é forçado a admin e ativo pelo próprio
+--     trigger. Então basta apontar a titularidade e encostar na linha.
 -- --------------------------------------------------------------------------
-
--- O trigger de proteção de perfil recusa mudança de papel e de ativo quando
--- quem manda não é administrador, e no SQL Editor não existe ninguém logado:
--- eh_admin() é falso e a alteração seria revertida em silêncio. Por isso ele
--- sai do caminho aqui, e volta logo abaixo.
-alter table public.perfis disable trigger ao_alterar_perfil;
 
 -- 1. Nenhum domínio reserva empresa. A coluna fica, porque ainda identifica a
 --    casa na hora de convidar, mas para de abrir porta sozinha.
@@ -2688,36 +2691,24 @@ update public.organizacoes
  where dominio is not null or entrada_por_dominio;
 
 -- 2. Empresa sem nenhum administrador ativo é empresa sem saída: ninguém libera
---    ninguém e ninguém convida ninguém. O perfil mais antigo dela assume.
-with orfas as (
-  select o.id
-    from public.organizacoes o
-   where not exists (
-     select 1 from public.perfis p
-      where p.org_id = o.id and p.ativo and p.papel = 'admin'
-   )
-), primeiro as (
-  select distinct on (p.org_id) p.id, p.org_id
-    from public.perfis p
-    join orfas f on f.id = p.org_id
-   order by p.org_id, p.criado_em, p.id
-)
-update public.perfis p
-   set papel = 'admin', ativo = true, ve_area = true
-  from primeiro d
- where p.id = d.id;
-
--- 3. Quem assumiu vira dona, para não poder ser rebaixada nem desativada depois.
+--    ninguém e ninguém convida ninguém. O perfil mais antigo dela vira o dono.
 update public.organizacoes o
    set dono_id = (
      select p.id from public.perfis p
-      where p.org_id = o.id and p.ativo and p.papel = 'admin'
-      order by p.criado_em, p.id limit 1
+      where p.org_id = o.id order by p.criado_em, p.id limit 1
    )
- where o.dono_id is null
-   and exists (select 1 from public.perfis p where p.org_id = o.id and p.ativo and p.papel = 'admin');
+ where not exists (
+         select 1 from public.perfis p
+          where p.org_id = o.id and p.ativo and p.papel = 'admin'
+       )
+   and exists (select 1 from public.perfis p where p.org_id = o.id);
 
-alter table public.perfis enable trigger ao_alterar_perfil;
+-- 3. Encostar na linha do dono basta: ao_alterar_perfil vê que ela é a titular
+--    da organização e força papel de administrador e acesso ligado. Vale para
+--    quem acabou de assumir acima e para qualquer titular que tenha derivado.
+update public.perfis p
+   set nome = p.nome
+ where exists (select 1 from public.organizacoes o where o.dono_id = p.id);
 
 do $$
 declare n int;

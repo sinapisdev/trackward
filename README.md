@@ -74,6 +74,21 @@ cadastrar o real, rode `supabase/exemplo.sql` no SQL Editor.
 Para voltar ao modo demonstração a qualquer momento, esvazie as duas linhas do
 `.env.local`, ou acrescente `NEXT_PUBLIC_MODO=local`.
 
+### Se alguém ficar preso na tela de acesso suspenso
+
+Até 22/09/2026 o domínio do e-mail colocava gente dentro de empresa, e isso deixou dois
+tipos de sujeira: empresa segurando um domínio, e gente parada esperando liberação de uma
+empresa em que caiu sem escolher. Se a conta que abriu aquela empresa sumiu do
+Authentication, não sobra nem quem libere.
+
+Rodar o `supabase/schema.sql` atualizado já limpa isso. Para resolver só o acesso, sem
+mexer no resto, rode `supabase/destravar.sql` no SQL Editor: ele solta os domínios, põe o
+perfil mais antigo no comando de quem ficou sem administrador, e mostra antes e depois.
+
+Os dois podem ser rodados mais de uma vez, e nenhum dos dois desliga trigger, porque
+`alter table ... disable trigger` exige ser dono da tabela e nem todo projeto do Supabase
+dá isso ao papel que roda o editor.
+
 ## Como a equipe entra
 
 **O convite é a única porta.** Quem se cadastra sem convite não cai na sua empresa: ele
