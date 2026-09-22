@@ -515,6 +515,45 @@ Períodos de 1, 7, 15 ou 30 dias. Sai em tela, em **texto** para colar em e-mail
 escolhe na tela, mas **o envio automático ainda não funciona**: ele precisa de uma tarefa
 rodando no servidor todo dia, e isso só existe depois de publicar.
 
+### 4.6f O consumo da IA, o teto e os planos
+
+Existe por motivo comercial, não técnico: **sem medidor não há como cobrar, e sem teto não
+há como dormir.**
+
+**Só um lugar do app consome modelo pago:** a leitura da conversa. A transcrição do áudio é
+o navegador, e a sobrecarga, o Desempenho, os relatórios e a distribuição são conta feita no
+navegador. É uma superfície pequena e controlável.
+
+**O medidor.** Uma linha por chamada, com os tokens que a **própria API informou ter
+cobrado**, não estimados. O custo em milionésimos de dólar, em inteiro, porque dinheiro em
+ponto flutuante erra no centavo quando se soma muita linha. E o nome do modelo gravado
+junto do custo já calculado: preço que mudar amanhã não mexe no que já foi medido.
+
+**O teto.** Batendo o limite do mês, a leitura passa a usar as **regras de português
+embutidas**, que não custam nada e continuam achando tarefa, prazo e decisão. O teto corta
+o gasto, não o produto.
+
+Quem confere é o **banco**, na rota que fala com o modelo. Teto conferido no navegador não
+seria teto. E **o medido não pode zerar o medidor**: a tabela tem política de leitura e mais
+nada, e quem grava é uma função do banco.
+
+**A alavanca de custo é o modelo**, e ele é escolhido por empresa:
+
+| Modelo | Por leitura |
+|---|---|
+| Haiku 4.5 | US$ 0,0043 |
+| Sonnet 5 | US$ 0,0086 |
+| Opus 5 | US$ 0,02 |
+
+Uma leitura carrega as instruções, o esquema da resposta, as pessoas, as tarefas da
+esteira, a memória da empresa e até 40 mensagens: cerca de 2.800 tokens de entrada e 300 de
+saída.
+
+**Os planos** ainda não estão definidos, e por isso os limites moram em três campos da
+organização (`plano`, `limite_leituras`, `modelo_ia`) em vez de numa tabela de planos. Dá
+para começar a cobrar mexendo em números, e o dia em que virarem tabela de verdade a
+organização passa a apontar para ela.
+
 ### 4.7 Agenda (`/agenda`)
 
 Compromissos e prazos no mesmo lugar. Modo **semana** ou **mês**; no celular, um dia
@@ -569,6 +608,8 @@ Numa conta pessoal a tela inteira vira um convite para trabalhar junto com algu�
 |---|---|
 | **Organização** | O nome que aparece no alto da lateral |
 | **Leitura da conversa** | Liga ou desliga a IA, e escolhe entre sugerir e aplicar sozinho |
+| **Consumo da IA** | O gasto do mês, o teto de leituras e qual modelo esta empresa usa |
+| **O que o Track aprendeu** | A memória da empresa, com o peso de cada lição e o botão de esquecer |
 | **Mais de um negócio** | Liga a divisão por empresa e escolhe o rótulo (Empresa, Negócio, Unidade, Centro de custo) |
 | **Empresas** | A lista delas, com sigla e cor |
 | **Minha agenda externa** | Cola o link iCal, mostra quantos blocos vieram, desliga |
