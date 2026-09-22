@@ -837,6 +837,24 @@ nasceram daquele**, porque foram calculados supondo que ele andaria.
 
 ## 6. Conta, espaços e organizações
 
+### Como a conta nasce
+
+Dois caminhos, e só dois. Está em `novo_usuario()`, no `supabase/schema.sql`.
+
+| Caminho | O que acontece |
+| --- | --- |
+| **Tem convite**, por código ou pelo próprio e-mail | Entra na empresa de quem convidou, com o papel, a área e o gestor que o superior definiu. Já liberado. |
+| **Não tem convite** | Abre a própria empresa e é a administradora dela. |
+
+**O domínio do e-mail não coloca ninguém em empresa nenhuma.** Até 22/09/2026 colocava, e
+produzia dois problemas. Quem se cadastrava com e-mail da casa caía calado numa empresa
+que talvez nem fosse a dele, bloqueado, com o nome de empresa que digitou descartado. E se
+a conta que abriu aquela empresa sumisse do Authentication, o perfil ia junto por cascata,
+mas a organização ficava, segurando o domínio, sem nenhum administrador: ninguém mais
+entrava e ninguém podia liberar ninguém. Era um beco sem saída permanente, por domínio.
+
+As colunas `organizacoes.dominio` e `entrada_por_dominio` continuam lá, sem abrir porta.
+
 ### Um login, vários Tracks
 
 A mesma pessoa pode ter o **Track pessoal** e o **Track da empresa**, com o mesmo
@@ -846,9 +864,19 @@ Por dentro: o perfil deixou de usar o id do login como chave (se usasse, cada pe
 existiria em um lugar). Agora tem id próprio, um `user_id` que aponta para o login, e a
 tabela `sessoes` diz qual perfil está em uso agora.
 
-### Uso pessoal: o mesmo app, sem a parte de equipe
+### Uso pessoal: guardado, fora da porta de entrada
 
-O Track é vendido para empresa e **também para uma pessoa só**: autônomo, prestador, quem
+> **Desde 22/09/2026 o Track é só para empresa.** O uso pessoal saiu da tela de criar
+> conta: sobraram dois caminhos, abrir a própria empresa ou entrar com um convite. A
+> decisão foi nichar o produto primeiro no B2B e repensar o uso pessoal depois.
+>
+> O que segue descrito aqui **continua existindo no código e no banco**, e não foi
+> desmontado: `organizacoes.tipo` ainda aceita `pessoal`, e uma organização criada antes
+> desta data abre normal, com todas as telas se comportando como a tabela abaixo. O que
+> não existe mais é o jeito de criar uma nova. Voltar a oferecer é devolver a opção ao
+> formulário, não reconstruir nada.
+
+O Track era vendido para empresa e **também para uma pessoa só**: autônomo, prestador, quem
 quer o app de produtividade sem ter empresa nenhuma. Isso não é uma segunda versão do produto,
 é um campo: `organizacoes.tipo` vale `pessoal` ou `equipe`, e virar de um para o outro é
 ligar uma chave, sem migrar nada.

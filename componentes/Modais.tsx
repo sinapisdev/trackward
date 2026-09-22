@@ -33,6 +33,7 @@ export type Pedido =
       /** Um exemplo escolhido na tela, para o formulário nascer preenchido. */
       inicial?: { nome: string; reconhecer: string }
     }
+  | { tipo: 'espaco' }
   | { tipo: 'excluir'; titulo: string; texto: string; acao: () => void | Promise<void> }
 
 const Ctx = createContext<{ abrir: (p: Pedido) => void; fechar: () => void } | null>(null)
@@ -68,6 +69,7 @@ export function Modais({ children }: { children: ReactNode }) {
           {pedido.tipo === 'compromisso' && <MCompromisso pedido={pedido} fechar={fechar} />}
           {pedido.tipo === 'canal' && <MCanal canal={pedido.canal} fechar={fechar} />}
           {pedido.tipo === 'agente' && <MAgente pedido={pedido} fechar={fechar} />}
+          {pedido.tipo === 'espaco' && <MEspaco fechar={fechar} />}
           {pedido.tipo === 'excluir' && <MExcluir pedido={pedido} fechar={fechar} />}
         </div>
       )}
@@ -149,6 +151,46 @@ function MArea({ area, fechar }: { area?: Area; fechar: () => void }) {
 }
 
 // ---------------------------------------------------------------- empresa
+
+/**
+ * Abrir outra empresa no mesmo login. Ela nasce vazia e você é a administradora
+ * dela: é o caminho de quem responde por mais de uma, como num grupo ou numa
+ * holding. Não mistura nada com a empresa de agora, é outro espaço inteiro, e o
+ * seletor no alto da lateral troca entre eles.
+ */
+function MEspaco({ fechar }: { fechar: () => void }) {
+  const { abrirEspaco } = useDados()
+  const [nome, setNome] = useState('')
+  const [indo, setIndo] = useState(false)
+
+  const criar = async () => {
+    if (!nome.trim() || indo) return
+    setIndo(true)
+    await abrirEspaco(nome.trim(), 'equipe')
+  }
+
+  return (
+    <div className="dlg" role="dialog" aria-modal="true" aria-labelledby="esp-t">
+      <div className="dlg-h">
+        <h3 id="esp-t">Abrir outra empresa</h3>
+        <p>
+          Ela nasce vazia, e você entra como administradora. Nada da empresa de agora
+          vai junto: são espaços separados, e o seletor da lateral troca entre eles.
+        </p>
+      </div>
+      <div className="dlg-b">
+        <div className="fld">
+          <label htmlFor="esp-nome">Nome da empresa</label>
+          <input className="inp" id="esp-nome" value={nome} autoFocus placeholder="Ex.: Simoneto"
+            onChange={(e) => setNome(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void criar() }} />
+          <p className="hint">Dá para trocar depois em Ajustes.</p>
+        </div>
+      </div>
+      <Rodape fechar={fechar} rotulo={indo ? 'Abrindo…' : 'Abrir empresa'} acao={() => void criar()} />
+    </div>
+  )
+}
 
 function MEmpresa({ empresa, fechar }: { empresa?: Empresa; fechar: () => void }) {
   const { salvarEmpresa, org } = useDados()

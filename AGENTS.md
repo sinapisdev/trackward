@@ -46,8 +46,17 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
   Colaborador vê o que é dele e o que trava o que é dele. Gestor vê também tudo de quem
   está abaixo, em qualquer profundidade. Admin vê tudo.
 - **Papel nunca é escolhido por quem se cadastra.** Vem do convite (tabela `convites`, resolvida
-  pelo trigger `novo_usuario`) ou de um administrador em Equipe. O primeiro cadastro do banco
-  vira admin porque é quem está montando a casa.
+  pelo trigger `novo_usuario`) ou de um administrador em Equipe. Quem abre a empresa vira admin
+  dela porque não há mais ninguém ali para dizer que pode.
+- **Entrar numa empresa é só por convite.** O domínio do e-mail não coloca ninguém para dentro:
+  quem se cadastra sem convite abre a empresa dele, não cai na sua. `organizacoes.dominio` e
+  `entrada_por_dominio` continuam no banco sem abrir porta, e não voltar a usá-las para isso.
+- **O mesmo login vive em várias empresas**, uma por convite aceito mais a que ele abriu. São
+  perfis distintos do mesmo `user_id`, e `sessoes` guarda em qual ele está. É o caso do grupo e
+  da holding, então nada pode assumir que uma pessoa tem um perfil só.
+- **Uso pessoal está guardado, não removido.** `organizacoes.tipo` ainda aceita `pessoal` e as
+  telas ainda sabem se comportar assim, mas a tela de criar conta não oferece mais. O foco é
+  empresa. Não apagar o caminho: ele volta depois, repensado.
 - **Permissão por campo, não só por tela**: o executor muda o texto e o responsável da
   tarefa dele, mas prazo, checkpoints e critério de saída são de quem responde pelo
   processo (`manda_no_processo`). No banco isso é um trigger, não só uma policy, porque

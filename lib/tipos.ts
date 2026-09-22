@@ -127,13 +127,18 @@ export type Organizacao = {
   id: string
   nome: string
   /**
-   * pessoal: uma pessoa só. Equipe, convite, responsável e aprovador somem da tela.
-   * equipe:  várias pessoas, com hierarquia e distribuição de tarefa.
+   * equipe:  o único tipo que nasce hoje. Várias pessoas, com hierarquia.
+   * pessoal: uma pessoa só, sem equipe nem convite na tela. Não é mais possível
+   *          criar uma assim, mas quem já tem continua abrindo normalmente: o
+   *          uso pessoal volta depois, pensado de novo.
    */
   tipo: 'pessoal' | 'equipe'
-  /** Domínio de e-mail da empresa, para quem tem e-mail da casa cair aqui. */
+  /**
+   * Domínio de e-mail da empresa. Não coloca mais ninguém para dentro: quem
+   * entra, entra por convite. Ficou só como identificação da casa.
+   */
   dominio: string | null
-  /** Quem tem e-mail do domínio entra liberado, sem esperar um sim. */
+  /** Sem uso. O domínio não abre porta desde que o cadastro virou por convite. */
   entrada_por_dominio: boolean
   /** Quem abriu a conta. Não pode ser desativado nem rebaixado. */
   dono_id: string | null

@@ -864,18 +864,16 @@ function cadastrarLocal(email: string, dados: Linha): { erro?: string } {
 
   const nome = String(dados.nome || '').trim() || e.split('@')[0]
   const codigo = String(dados.convite || '').trim().toUpperCase()
-  const dominio = e.split('@')[1] || ''
-  const pessoal = dados.tipo === 'pessoal'
-  const publico = ['gmail.com','hotmail.com','outlook.com','yahoo.com','yahoo.com.br',
-    'icloud.com','bol.com.br','uol.com.br','terra.com.br','live.com'].includes(dominio)
-  const guardar = pessoal || publico ? null : dominio
 
-  let orgId: string | null = null
+  let orgId: string
   let papel = 'colaborador'
   let ativo = false
   let area: string | null = null
   let gestor: string | null = null
+  let veArea = false
 
+  // Espelha novo_usuario() no banco: convite, ou empresa nova. O domínio do
+  // e-mail não coloca ninguém dentro de empresa nenhuma.
   const cv = codigo
     ? b.convites.find((c) => String(c.codigo).toUpperCase() === codigo && !c.usado_em)
     : b.convites.find((c) => String(c.email).toLowerCase() === e && !c.usado_em)
@@ -885,25 +883,21 @@ function cadastrarLocal(email: string, dados: Linha): { erro?: string } {
     papel = (cv.papel as string) || 'colaborador'
     area = (cv.area_id as string) || null
     gestor = (cv.gestor_id as string) || null
+    veArea = !!cv.ve_area
     ativo = true
     cv.usado_em = agora()
   } else {
-    const daCasa = guardar ? b.organizacoes.find((o) => o.dominio === guardar) : null
-    if (daCasa) {
-      orgId = daCasa.id as string
-      ativo = !!daCasa.entrada_por_dominio
-    } else {
-      orgId = uid('org')
-      b.organizacoes.push({
-        id: orgId, nome: String(dados.organizacao || nome).trim(),
-        tipo: pessoal ? 'pessoal' : 'equipe', dominio: guardar,
-        entrada_por_dominio: false, dono_id: null,
-        multi: false, rotulo: 'Empresa', rotulo_plural: 'Empresas',
-        ia_ativa: true, ia_modo: 'sugerir', criado_em: agora(),
-      })
-      papel = 'admin'
-      ativo = true
-    }
+    orgId = uid('org')
+    b.organizacoes.push({
+      id: orgId, nome: String(dados.organizacao || nome).trim(),
+      tipo: 'equipe', dominio: null,
+      entrada_por_dominio: false, dono_id: null,
+      multi: false, rotulo: 'Empresa', rotulo_plural: 'Empresas',
+      ia_ativa: true, ia_modo: 'sugerir', criado_em: agora(),
+    })
+    papel = 'admin'
+    ativo = true
+    veArea = true
   }
 
   const id = uid('u')
@@ -911,7 +905,7 @@ function cadastrarLocal(email: string, dados: Linha): { erro?: string } {
   const n = b.perfis.filter((x) => x.org_id === orgId).length
   b.perfis.push({
     id, user_id: id, org_id: orgId, nome, email: e, cor: paleta[n % 8], papel,
-    area_id: area, gestor_id: gestor, ve_area: papel !== 'colaborador',
+    area_id: area, gestor_id: gestor, ve_area: veArea,
     ativo, criado_em: agora(),
   })
   const org = b.organizacoes.find((o) => o.id === orgId)
@@ -1023,7 +1017,7 @@ function montarCliente() {
         }
         if (nome === 'abrir_espaco') {
           return {
-            data: abrirEspacoLocal(String(args.p_nome || ''), String(args.p_tipo || 'pessoal')),
+            data: abrirEspacoLocal(String(args.p_nome || ''), String(args.p_tipo || 'equipe')),
             error: null,
           }
         }
@@ -1105,9 +1099,18 @@ function montarCliente() {
       },
       async signUp(dados?: { email?: string; password?: string; options?: { data?: Linha } }) {
         const r = cadastrarLocal(String(dados?.email || ''), dados?.options?.data || {})
-        if (r.erro) return { data: { session: null }, error: { message: r.erro } }
+        // `user` vem junto porque o app olha `identities` para saber se o e-mail
+        // já tem conta: no Supabase de verdade o cadastro repetido não dá erro,
+        // devolve um usuário sem identidade nenhuma. Aqui o e-mail repetido é
+        // erro mesmo, então a identidade vai preenchida.
+        if (r.erro) {
+          return { data: { session: null, user: null }, error: { message: r.erro } }
+        }
         // Sessão preenchida: a tela entra direto, sem passo de confirmar e-mail.
-        return { data: { session: { ok: true } }, error: null }
+        return {
+          data: { session: { ok: true }, user: { identities: [{ id: 'local' }] } },
+          error: null,
+        }
       },
       async updateUser(_dados?: unknown) { return { data: null, error: { message: SO_REAL } } },
       async resetPasswordForEmail(_email?: string, _opcoes?: unknown) { return { data: null, error: { message: SO_REAL } } },
