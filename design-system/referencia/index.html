@@ -1,0 +1,78 @@
+<!doctype html>
+<html data-ds="trackward" lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Referência visual do design system</title>
+<link rel="stylesheet" href="../styles.css">
+<style>
+  body{margin:0;padding:40px var(--gutter-page) 80px;max-width:1080px}
+  header{display:grid;gap:12px;margin-bottom:38px}
+  h1{font:var(--type-title);letter-spacing:var(--ls-title)}
+  h2{font:var(--type-h3);letter-spacing:var(--ls-h3);margin:34px 0 14px}
+  p{color:var(--ink-2);font:var(--fw-regular) var(--fs-body-lg)/var(--lh-body-lg) var(--font-ui);max-width:62ch}
+  .aviso{border:1px solid var(--border-hairline);border-radius:var(--r-lg);padding:16px 18px;
+    color:var(--ink-2);font:var(--type-meta);max-width:62ch}
+  .aviso code{color:var(--ink-1)}
+  .grade{list-style:none;margin:0;padding:0;display:grid;gap:10px;
+    grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+  .grade a{display:grid;gap:4px;padding:14px 16px;border:1px solid var(--border-hairline);
+    border-radius:var(--r-lg);text-decoration:none;transition:var(--t-hover)}
+  .grade a:hover{background:var(--white-04);border-color:var(--border-default);text-decoration:none}
+  .grade strong{color:var(--ink-0);font:var(--type-ui)}
+  .grade span{color:var(--ink-3);font:var(--type-micro)}
+</style>
+</head><body>
+<header>
+  <span class="tw-kicker">Referência visual</span>
+  <h1>Design system, para olhar</h1>
+  <p>As páginas que vieram do export, guardadas para consulta. Elas não fazem parte do
+  app: desenham com os mesmos tokens de <code>styles.css</code>, e é só.</p>
+  <div class="aviso">
+    Precisam de servidor, porque montam os componentes buscando as fontes de
+    <code>components/</code>. Na raiz do projeto: <code>npm run ds:referencia</code>,
+    e abra <code>http://localhost:4321/referencia/</code>. Abrir por
+    <code>file://</code> não funciona, o navegador barra a leitura dos arquivos vizinhos.
+  </div>
+</header>
+<h2>Fundamentos</h2>
+<ul class="grade">
+<li><a href="fundamentos/brand-logo.card.html"><strong>Logo lockups</strong><span>Two done checkpoints and one open — never redraw or re-space it</span></a></li>
+<li><a href="fundamentos/brand-voice.card.html"><strong>Voice</strong><span>Portuguese, second person, one next step at a time</span></a></li>
+<li><a href="fundamentos/colors-alpha.card.html"><strong>White alphas</strong><span>Hairlines, hovers and glass are white at 4–20%</span></a></li>
+<li><a href="fundamentos/colors-brand.card.html"><strong>Brand lime</strong><span>One accent, used for the single forward action</span></a></li>
+<li><a href="fundamentos/colors-ink.card.html"><strong>Ink ramp</strong><span>Five steps of text on dark — body copy sits at --ink-1</span></a></li>
+<li><a href="fundamentos/colors-semantic.card.html"><strong>Situação colours</strong><span>Atrasado, vence em breve, em dia — colour never travels alone</span></a></li>
+<li><a href="fundamentos/colors-surfaces.card.html"><strong>Dark surfaces</strong><span>Near-black page up to the folder-card body</span></a></li>
+<li><a href="fundamentos/elevation.card.html"><strong>Elevation</strong><span>Shadows are deep and soft; borders are 1px inner light</span></a></li>
+<li><a href="fundamentos/glass.card.html"><strong>Glass &amp; focus</strong><span>18px backdrop blur on folders; lime 2px focus ring</span></a></li>
+<li><a href="fundamentos/iconography.card.html"><strong>Iconography</strong><span>Lucide, 1.75 stroke — the only glyph set</span></a></li>
+<li><a href="fundamentos/motion.card.html"><strong>Motion</strong><span>120ms hovers, 280ms reveals, one easing curve</span></a></li>
+<li><a href="fundamentos/radius.card.html"><strong>Corner radii</strong><span>Pills for controls, 10px fields, 18px folders</span></a></li>
+<li><a href="fundamentos/spacing-frame.card.html"><strong>Layout frame</strong><span>Fixed chrome: 66px bar, 296px rail, 456px panel, 34px gutters</span></a></li>
+<li><a href="fundamentos/spacing-scale.card.html"><strong>Spacing scale</strong><span>4px base; 12 / 16 / 24 carry most layouts</span></a></li>
+<li><a href="fundamentos/type-body.card.html"><strong>Body, UI &amp; meta</strong><span>15px body, 14px controls, 13px meta</span></a></li>
+<li><a href="fundamentos/type-display.card.html"><strong>Display &amp; title</strong><span>44 / 40px, bold, tight tracking — greetings and page titles</span></a></li>
+<li><a href="fundamentos/type-headings.card.html"><strong>Headings</strong><span>Section, panel and card headings</span></a></li>
+<li><a href="fundamentos/type-kicker.card.html"><strong>Kickers &amp; metrics</strong><span>Uppercase type labels and the big progress figure</span></a></li>
+<li><a href="fundamentos/type-weights.card.html"><strong>Figtree weights</strong><span>Substitution for the unshipped brand face — 400/500/600/700</span></a></li>
+</ul>
+<h2>Componentes, estado por estado</h2>
+<ul class="grade">
+<li><a href="componentes/agenda.card.html"><strong>Agenda — week grid</strong><span>Deadlines band, events, and hatched external busy time</span></a></li>
+<li><a href="componentes/core.card.html"><strong>Core — buttons, chips, avatars</strong><span>Lime pill for the forward move; outline and chip for everything else</span></a></li>
+<li><a href="componentes/forms.card.html"><strong>Forms — fields and choices</strong><span>Lime focus ring, 46px controls, white selection states</span></a></li>
+<li><a href="componentes/nav.card.html"><strong>Navigation — top bar, tabs, rails</strong><span>Routes live in the top bar; rails only hold areas and channels</span></a></li>
+<li><a href="componentes/status.card.html"><strong>Status — trilha, progress, situações</strong><span>The trilha plus the fixed vocabulary of work states</span></a></li>
+<li><a href="componentes/surfaces.card.html"><strong>Surfaces — folders, tables, panels</strong><span>Glass folder cards and hairline tables</span></a></li>
+<li><a href="componentes/work.card.html"><strong>Work — tasks, conversa, propostas da IA</strong><span>Task rows, messages and the AI review hand-off</span></a></li>
+</ul>
+<h2>Telas inteiras</h2>
+<ul class="grade">
+<li><a href="ui_kits/app/index.html"><strong>App</strong><span>As 17 telas do produto, navegáveis</span></a></li>
+<li><a href="ui_kits/auth/index.html"><strong>Entrar</strong><span>Entrar, criar conta e recuperar acesso</span></a></li>
+<li><a href="ui_kits/mobile/index.html"><strong>Celular</strong><span>O painel em 430 por 932</span></a></li>
+</ul>
+<h2>Ponto de partida</h2>
+<ul class="grade">
+<li><a href="templates/app-screen/AppScreen.dc.html"><strong>Tela de app</strong><span>Esqueleto para copiar: topo, cabeçalho, trilha, tabela e lateral</span></a></li>
+</ul>
+</body></html>

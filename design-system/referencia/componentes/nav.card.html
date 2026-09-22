@@ -1,0 +1,45 @@
+<!-- @dsCard group="Components" viewport="700x330" name="Navigation — top bar, tabs, rails" subtitle="Routes live in the top bar; rails only hold areas and channels" -->
+<!doctype html><html data-ds="trackward" lang="pt-BR"><head><meta charset="utf-8"><title>TrackWard</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.454.0/dist/umd/lucide.min.js"></script>
+<script src="../../ds-boot.js"></script>
+<script>/* preview shim: this sandbox only serves subresources with the page's ?t= token */
+(function(){var t=new URL(location.href).searchParams.get("t");if(!t)return;var q="?t="+t;
+var l=document.createElement("link");l.rel="stylesheet";l.href="../../styles.css"+q;document.head.appendChild(l);
+["../../ds-boot.js"].forEach(function(s){var e=document.createElement("script");e.src=s+q;e.async=false;document.head.appendChild(e)});})();</script>
+<style>html,body{margin:0;background:var(--bg-page)}#root{padding:22px 24px}.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.col{display:grid;gap:16px}.lbl{color:var(--ink-3);font:var(--type-micro);letter-spacing:.06em;text-transform:uppercase}</style>
+</head><body><div id="root"></div>
+<script type="text/babel" data-presets="react">
+(function wait(){ if (!window.DSBoot) return setTimeout(wait, 40);
+DSBoot().then(NS => {
+  const { TopNav, Tabs, SegmentedControl, Breadcrumbs, SideRail, AppFooter, MobileTabBar, Input, Icon } = NS;
+  const Card = () => {
+    const [tab, setTab] = React.useState("Trilha");
+    const [view, setView] = React.useState("Pastas");
+    return (
+      <div className="col" style={{gap:18,margin:"-22px -24px"}}>
+        <TopNav active="Projetos" items={["Visão geral",{label:"Meu trabalho",count:5},"Projetos","Rotinas","Processos","Conversa","Agenda"]} />
+        <div style={{padding:"0 24px",display:"grid",gap:16}}>
+          <Breadcrumbs items={["Projetos","Implantação do ERP"]} />
+          <div className="row" style={{justifyContent:"space-between"}}>
+            <Tabs items={["Trilha","Conversa","Atividade"]} active={tab} onChange={setTab} />
+            <SegmentedControl options={["Pastas","Lista"]} value={view} onChange={setView} />
+          </div>
+          <Tabs variant="underline" items={[{label:"Em andamento",count:6},{label:"Concluídos",count:2}]} active="Em andamento" />
+          <div className="row" style={{alignItems:"flex-start",gap:24}}>
+            <SideRail width={250} active="Financeiro"
+              groups={[{items:[{label:"Financeiro",icon:"bar-chart-3",count:3},{label:"Operações",icon:"settings",count:4},{label:"Comercial",icon:"users",count:2}]}]} />
+            <MobileTabBar style={{flex:1,borderRadius:"var(--r-lg)",border:"1px solid var(--border-hairline)"}} active="Painel"
+              items={[{label:"Painel",icon:"home"},{label:"Você",icon:"user",count:5},{label:"Conversa",icon:"message-square"},{label:"Tracks",icon:"folder"},{label:"Mais",icon:"more-horizontal"}]} />
+          </div>
+        </div>
+        <AppFooter />
+      </div>
+    );
+  };
+  ReactDOM.createRoot(document.getElementById("root")).render(<Card />);
+}).catch(e => { document.getElementById("root").innerHTML = '<pre style="color:#FF5A5A;font:13px/1.5 monospace">'+e.message+'</pre>'; }); })();
+</script></body></html>

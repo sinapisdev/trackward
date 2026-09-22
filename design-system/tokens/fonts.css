@@ -1,0 +1,11 @@
+/* TrackWard type — the product art uses a geometric grotesque in the Circular / Google Sans
+   family. No binaries were supplied, so Figtree (Google Fonts) is the substitution: same
+   double-storey 'a', single-storey 'g', tall x-height, near-circular bowls.
+   Swap the @import + --font-sans for the licensed family when the files arrive. */
+@import url("https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap");
+
+[data-ds="trackward"]{
+  --font-sans:"Figtree","Helvetica Neue",Arial,system-ui,sans-serif;
+  --font-display:var(--font-sans);
+  --font-ui:var(--font-sans);
+}

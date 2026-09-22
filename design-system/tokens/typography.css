@@ -1,0 +1,55 @@
+[data-ds="trackward"]{
+  /* sizes measured off the 1586px-wide product art */
+  --fs-display:44px;
+  --lh-display:1.04; /* @kind other */
+  --ls-display:-.022em; /* @kind other */
+  --fs-title:40px;
+  --lh-title:1.06; /* @kind other */
+  --ls-title:-.02em; /* @kind other */
+  --fs-h2:28px;
+  --lh-h2:1.14; /* @kind other */
+  --ls-h2:-.014em; /* @kind other */
+  --fs-h3:22px;
+  --lh-h3:1.2; /* @kind other */
+  --ls-h3:-.01em; /* @kind other */
+  --fs-h4:18px;
+  --lh-h4:1.25; /* @kind other */
+  --ls-h4:-.006em; /* @kind other */
+  --fs-card:24px;
+  --lh-card:1.16; /* @kind other */
+  --ls-card:-.014em; /* @kind other */
+  --fs-body:15px;
+  --lh-body:1.5; /* @kind other */
+  --ls-body:0; /* @kind other */
+  --fs-body-lg:17px;
+  --lh-body-lg:1.45; /* @kind other */
+  --fs-ui:14px;
+  --lh-ui:1.35; /* @kind other */
+  --fs-meta:13px;
+  --lh-meta:1.4; /* @kind other */
+  --fs-micro:12px;
+  --lh-micro:1.35; /* @kind other */
+  --fs-kicker:11px;
+  --lh-kicker:1.2; /* @kind other */
+  --ls-kicker:.16em; /* @kind other */
+  --fs-metric:34px;
+  --lh-metric:1; /* @kind other */
+  --ls-metric:-.02em; /* @kind other */
+
+  --fw-regular:400; /* @kind other */
+  --fw-medium:500; /* @kind other */
+  --fw-semibold:600; /* @kind other */
+  --fw-bold:700; /* @kind other */
+  --fw-black:800; /* @kind other */
+
+  /* composed shortcuts */
+  --type-display:var(--fw-bold) var(--fs-display)/var(--lh-display) var(--font-display); /* @kind font */
+  --type-title:var(--fw-bold) var(--fs-title)/var(--lh-title) var(--font-display); /* @kind font */
+  --type-h2:var(--fw-semibold) var(--fs-h2)/var(--lh-h2) var(--font-display); /* @kind font */
+  --type-h3:var(--fw-semibold) var(--fs-h3)/var(--lh-h3) var(--font-display); /* @kind font */
+  --type-body:var(--fw-regular) var(--fs-body)/var(--lh-body) var(--font-ui); /* @kind font */
+  --type-ui:var(--fw-medium) var(--fs-ui)/var(--lh-ui) var(--font-ui); /* @kind font */
+  --type-meta:var(--fw-regular) var(--fs-meta)/var(--lh-meta) var(--font-ui); /* @kind font */
+  --type-micro:var(--fw-regular) var(--fs-micro)/var(--lh-micro) var(--font-ui); /* @kind font */
+  --type-kicker:var(--fw-semibold) var(--fs-kicker)/var(--lh-kicker) var(--font-ui); /* @kind font */
+}

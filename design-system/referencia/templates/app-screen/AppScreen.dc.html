@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html data-ds="trackward">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<!-- @template name="App screen" description="TrackWard signed-in screen scaffold: top bar, page header, trilha, table and context rail." -->
+<helmet><script src="./ds-base.js"></script></helmet>
+<div style="min-height:100vh;display:grid;grid-template-rows:auto 1fr auto;background:#0A0B0A;font-family:Figtree,Helvetica Neue,Arial,sans-serif">
+<x-import component-from-global-scope="TrackWardDesignSystem_3f3083.TopNav" items="{{ routes }}" active="Projetos" org="Grupo Meridiano" hint-size="100%,66px"></x-import>
+<main style="padding:26px 34px 34px;display:grid;grid-template-columns:minmax(0,1fr) 456px;align-items:start;gap:0;min-width:0">
+<div style="display:grid;gap:26px;align-content:start;min-width:0;padding-right:30px">
+<header style="display:flex;align-items:flex-start;justify-content:space-between;gap:32px;flex-wrap:wrap">
+<div style="display:grid;gap:10px">
+<span style="font:600 11px/1.2 Figtree,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#9EA2A4">Sua fila</span>
+<h1 style="margin:0;font:700 40px/1.06 Figtree,sans-serif;letter-spacing:-.02em;color:#FFFFFF">Título da página</h1>
+<p style="margin:0;color:#9EA2A4;font:400 17px/1.4 Figtree,sans-serif">Uma frase que diz para que esta página serve.</p>
+</div>
+<x-import component-from-global-scope="TrackWardDesignSystem_3f3083.Button" hint-size="180px,40px">Ação principal</x-import>
+</header>
+<span style="height:1px;background:rgba(255,255,255,.08)"></span>
+<section style="display:grid;gap:18px">
+<h2 style="margin:0;font:600 28px/1.14 Figtree,sans-serif;letter-spacing:-.014em;color:#FFFFFF">Trilha</h2>
+<x-import component-from-global-scope="TrackWardDesignSystem_3f3083.CheckpointTrail" steps="{{ trail }}" current="{{ current }}" hint-size="100%,90px"></x-import>
+</section>
+<span style="height:1px;background:rgba(255,255,255,.08)"></span>
+<section style="display:grid;gap:18px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:20px">
+<h2 style="margin:0;font:600 28px/1.14 Figtree,sans-serif;letter-spacing:-.014em;color:#FFFFFF">Tracks</h2>
+<span style="color:#9EA2A4;font:400 13px/1.4 Figtree,sans-serif">5 de 6 em andamento</span>
+</div>
+<x-import component-from-global-scope="TrackWardDesignSystem_3f3083.DataTable" columns="{{ columns }}" rows="{{ rows }}" hint-size="100%,240px"></x-import>
+</section>
+</div>
+<aside style="border-left:1px solid rgba(255,255,255,.08);padding:0 0 0 30px;display:grid;gap:22px;align-content:start;min-width:0">
+<h3 style="margin:0;font:600 22px/1.2 Figtree,sans-serif;letter-spacing:-.01em;color:#FFFFFF">Radar da operação</h3>
+<div style="display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:18px">
+<x-import component-from-global-scope="TrackWardDesignSystem_3f3083.MetricStat" icon="alert-circle" tone="danger" value="2" label="Atrasadas" hint-size="100%,70px"></x-import>
+<x-import component-from-global-scope="TrackWardDesignSystem_3f3083.MetricStat" icon="lock" value="1" label="Travada" hint-size="100%,70px"></x-import>
+<x-import component-from-global-scope="TrackWardDesignSystem_3f3083.MetricStat" icon="clock" tone="warn" value="3" label="Vencem em breve" hint-size="100%,70px"></x-import>
+</div>
+<span style="height:1px;background:rgba(255,255,255,.08)"></span>
+<h3 style="margin:0;font:600 22px/1.2 Figtree,sans-serif;letter-spacing:-.01em;color:#FFFFFF">Aguardando você</h3>
+<p style="margin:0;color:#D4D7D8;font:400 15px/1.5 Figtree,sans-serif">Troque este bloco por ListRow, InfoRow ou ActivityItem do sistema.</p>
+</aside>
+</main>
+<x-import component-from-global-scope="TrackWardDesignSystem_3f3083.AppFooter" org="Grupo Meridiano" hint-size="100%,54px"></x-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;current&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:1,&quot;min&quot;:0,&quot;max&quot;:3,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Trilha&quot;},&quot;rowCount&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:4,&quot;min&quot;:1,&quot;max&quot;:5,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Tabela&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const NS = window.TrackWardDesignSystem_3f3083 || {};
+    const { StatusPill, ProgressBar, Avatar } = NS;
+    const el = React.createElement;
+    const trailLabels = ["Preparação", "Cadastro", "Validação", "Entrega"];
+    const current = this.props.current ?? 1;
+    const people = [["Ana Nunes", "Ana"], ["Mariana Costa", "Mariana"], ["Leonardo Esteves", "Leonardo"]];
+    const statuses = ["late", "blocked", "soon", "onTrack"];
+    const rows = Array.from({ length: this.props.rowCount ?? 4 }, (_, i) => {
+      const [name, short] = people[i % people.length];
+      return {
+        n: ["Proposta comercial", "Nova unidade", "Implantação do ERP", "Contratação de analista", "Expansão comercial"][i % 5],
+        c: trailLabels[i % trailLabels.length],
+        r: Avatar ? el("span", { style: { display: "inline-flex", alignItems: "center", gap: 10 } }, el(Avatar, { name, size: "md" }), short) : short,
+        s: StatusPill ? el(StatusPill, { status: statuses[i % statuses.length] }) : null,
+        p: ProgressBar ? el(ProgressBar, { value: [45, 20, 33, 65, 15][i % 5], width: 150 }) : null,
+      };
+    });
+    return {
+      routes: ["Visão geral", { label: "Meu trabalho", count: 5 }, "Projetos", "Rotinas", "Processos", "Conversa", "Agenda"],
+      trail: trailLabels.map((label, i) => ({ label, meta: i === current ? "1 de 3 tarefas" : i < current ? "Aprovado" : "Próximo" })),
+      current,
+      columns: [
+        { key: "n", label: "Track", sortable: true, width: "minmax(0,1.4fr)" },
+        { key: "c", label: "Checkpoint atual" },
+        { key: "r", label: "Responsável" },
+        { key: "s", label: "Situação" },
+        { key: "p", label: "Progresso", width: "minmax(0,1.1fr)" },
+      ],
+      rows,
+    };
+  }
+}
+</script>
+</body>
+</html>

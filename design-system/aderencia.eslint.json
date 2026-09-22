@@ -1,0 +1,346 @@
+{
+  "_": [
+    "Regras de aderência ao design system, saídas do _adherence.oxlintrc.json do export",
+    "do Claude Design. Ficam aqui, dentro do próprio sistema, porque são parte do contrato",
+    "dele: reexportou o design system, troca este arquivo. Quem consome é o eslint.config.mjs.",
+    "",
+    "Uma alteração foi feita sobre o que veio do export: os seletores de props declaradas",
+    "ganharam a lista de atributos HTML padrão (onClick, placeholder, href, aria-*, data-*).",
+    "O gerador só tinha listado as props próprias de cada componente e ignorado as herdadas",
+    "de React.*HTMLAttributes, que os componentes repassam com {...rest}. Sem esse acréscimo",
+    "a regra reprovava uso legítimo, inclusive dentro do próprio design system.",
+    "Os seletores de valor de enum (tone, variant, status) ficaram como vieram.",
+    "As mensagens foram passadas para português, que é a língua do projeto."
+  ],
+  "importacao": {
+    "mensagem": "Importe o design system de '@/design-system', nunca de dentro dele.",
+    "grupos": [
+      "@/design-system/components/*",
+      "@/design-system/components/**",
+      "@/design-system/referencia/**",
+      "@/design-system/ds-boot*",
+      "design-system/components/**",
+      "design-system/referencia/**"
+    ]
+  },
+  "valorCru": [
+    {
+      "selector": "Literal[value=/#[0-9a-fA-F]{3,8}\\b/]",
+      "message": "Cor crua em hexadecimal. Use um token de cor do design system, com var()."
+    },
+    {
+      "selector": "Literal[value=/\\b\\d+px\\b/]",
+      "message": "Medida crua em px. Use um token de espaçamento do design system, com var()."
+    },
+    {
+      "selector": "Literal[value=/font-family\\s*:\\s*(?!['\\\"]?(?:Figtree))/i]",
+      "message": "Fonte fora do design system. A disponível é a Figtree."
+    }
+  ],
+  "contratoDeProps": [
+    {
+      "selector": "JSXOpeningElement[name.name='ActivityItem'] > JSXAttribute > JSXIdentifier[name!=/^(?:who|action|target|time|icon|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<ActivityItem> não aceita essa prop. As declaradas são: who, action, target, time, icon, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='AiBanner'] > JSXAttribute > JSXIdentifier[name!=/^(?:title|subtitle|action|onAction|note|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<AiBanner> não aceita essa prop. As declaradas são: title, subtitle, action, onAction, note, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='AppFooter'] > JSXAttribute > JSXIdentifier[name!=/^(?:org|note|tagline|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<AppFooter> não aceita essa prop. As declaradas são: org, note, tagline, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Avatar'] > JSXAttribute > JSXIdentifier[name!=/^(?:name|initials|src|size|ring|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<Avatar> não aceita essa prop. As declaradas são: name, initials, src, size, ring, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Badge'] > JSXAttribute > JSXIdentifier[name!=/^(?:children|tone|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<Badge> não aceita essa prop. As declaradas são: children, tone, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Badge'] > JSXAttribute[name.name='tone'] > Literal[value!=/^(?:neutral|accent|danger|outline)$/]",
+      "message": "<Badge> aceita em tone só um destes: 'neutral' | 'accent' | 'danger' | 'outline'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Breadcrumbs'] > JSXAttribute > JSXIdentifier[name!=/^(?:items|onNavigate|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<Breadcrumbs> não aceita essa prop. As declaradas são: items, onNavigate, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute > JSXIdentifier[name!=/^(?:variant|size|shape|iconLeft|iconRight|block|disabled|loading|as|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<Button> não aceita essa prop. As declaradas são: variant, size, shape, iconLeft, iconRight, block, disabled, loading, as."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute[name.name='variant'] > Literal[value!=/^(?:primary|secondary|quiet|ghost|danger)$/]",
+      "message": "<Button> aceita em variant só um destes: 'primary' | 'secondary' | 'quiet' | 'ghost' | 'danger'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute[name.name='size'] > Literal[value!=/^(?:sm|md|lg)$/]",
+      "message": "<Button> aceita em size só um destes: 'sm' | 'md' | 'lg'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute[name.name='shape'] > Literal[value!=/^(?:pill|rounded)$/]",
+      "message": "<Button> aceita em shape só um destes: 'pill' | 'rounded'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute[name.name='as'] > Literal[value!=/^(?:button|a)$/]",
+      "message": "<Button> aceita em as só um destes: 'button' | 'a'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='ChatMessage'] > JSXAttribute > JSXIdentifier[name!=/^(?:author|time|children|quote|mention|actions|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<ChatMessage> não aceita essa prop. As declaradas são: author, time, children, quote, mention, actions, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Checkbox'] > JSXAttribute > JSXIdentifier[name!=/^(?:checked|onChange|label|sublabel|disabled|size|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<Checkbox> não aceita essa prop. As declaradas são: checked, onChange, label, sublabel, disabled, size, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='CheckpointTrailStep'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|meta|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<CheckpointTrailStep> não aceita essa prop. As declaradas são: label, meta."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Chip'] > JSXAttribute > JSXIdentifier[name!=/^(?:children|count|selected|icon|onClick|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<Chip> não aceita essa prop. As declaradas são: children, count, selected, icon, onClick, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Composer'] > JSXAttribute > JSXIdentifier[name!=/^(?:placeholder|onSend|mention|value|onChange|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<Composer> não aceita essa prop. As declaradas são: placeholder, onSend, mention, value, onChange, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='DataTableColumn'] > JSXAttribute > JSXIdentifier[name!=/^(?:key|label|width|align|sortable|sorted|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<DataTableColumn> não aceita essa prop. As declaradas são: key, label, width, align, sortable, sorted."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='DataTableColumn'] > JSXAttribute[name.name='align'] > Literal[value!=/^(?:left|right)$/]",
+      "message": "<DataTableColumn> aceita em align só um destes: 'left' | 'right'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='DataTableColumn'] > JSXAttribute[name.name='sorted'] > Literal[value!=/^(?:asc|desc)$/]",
+      "message": "<DataTableColumn> aceita em sorted só um destes: 'asc' | 'desc'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Divider'] > JSXAttribute > JSXIdentifier[name!=/^(?:vertical|inset|tone|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<Divider> não aceita essa prop. As declaradas são: vertical, inset, tone, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Divider'] > JSXAttribute[name.name='tone'] > Literal[value!=/^(?:hairline|strong)$/]",
+      "message": "<Divider> aceita em tone só um destes: 'hairline' | 'strong'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Field'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|hint|optional|error|layout|htmlFor|children|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<Field> não aceita essa prop. As declaradas são: label, hint, optional, error, layout, htmlFor, children, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Field'] > JSXAttribute[name.name='layout'] > Literal[value!=/^(?:stack|row)$/]",
+      "message": "<Field> aceita em layout só um destes: 'stack' | 'row'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='FolderCard'] > JSXAttribute > JSXIdentifier[name!=/^(?:kicker|title|children|footer|width|tone|dim|elevated|onClick|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<FolderCard> não aceita essa prop. As declaradas são: kicker, title, children, footer, width, tone, dim, elevated, onClick, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='FolderCard'] > JSXAttribute[name.name='tone'] > Literal[value!=/^(?:default|muted)$/]",
+      "message": "<FolderCard> aceita em tone só um destes: 'default' | 'muted'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='FolderStack'] > JSXAttribute > JSXIdentifier[name!=/^(?:items|active|onActiveChange|render|gap|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<FolderStack> não aceita essa prop. As declaradas são: items, active, onActiveChange, render, gap, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Icon'] > JSXAttribute > JSXIdentifier[name!=/^(?:name|size|stroke|color|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<Icon> não aceita essa prop. As declaradas são: name, size, stroke, color, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='IconButton'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|active|size|shape|children|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<IconButton> não aceita essa prop. As declaradas são: label, active, size, shape, children."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='IconButton'] > JSXAttribute[name.name='shape'] > Literal[value!=/^(?:rounded|circle)$/]",
+      "message": "<IconButton> aceita em shape só um destes: 'rounded' | 'circle'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='InfoRow'] > JSXAttribute > JSXIdentifier[name!=/^(?:icon|label|value|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<InfoRow> não aceita essa prop. As declaradas são: icon, label, value, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Input'] > JSXAttribute > JSXIdentifier[name!=/^(?:leading|trailing|size|invalid|revealable|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<Input> não aceita essa prop. As declaradas são: leading, trailing, size, invalid, revealable."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Input'] > JSXAttribute[name.name='size'] > Literal[value!=/^(?:sm|md|lg)$/]",
+      "message": "<Input> aceita em size só um destes: 'sm' | 'md' | 'lg'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Kbd'] > JSXAttribute > JSXIdentifier[name!=/^(?:children|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<Kbd> não aceita essa prop. As declaradas são: children, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='ListRow'] > JSXAttribute > JSXIdentifier[name!=/^(?:leading|title|subtitle|meta|trailing|chevron|active|tone|onClick|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<ListRow> não aceita essa prop. As declaradas são: leading, title, subtitle, meta, trailing, chevron, active, tone, onClick, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='ListRow'] > JSXAttribute[name.name='tone'] > Literal[value!=/^(?:default|danger)$/]",
+      "message": "<ListRow> aceita em tone só um destes: 'default' | 'danger'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Logo'] > JSXAttribute > JSXIdentifier[name!=/^(?:size|wordmark|tone|accent|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<Logo> não aceita essa prop. As declaradas são: size, wordmark, tone, accent, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Logo'] > JSXAttribute[name.name='tone'] > Literal[value!=/^(?:light|ink)$/]",
+      "message": "<Logo> aceita em tone só um destes: 'light' | 'ink'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='MetricStat'] > JSXAttribute > JSXIdentifier[name!=/^(?:icon|value|label|tone|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<MetricStat> não aceita essa prop. As declaradas são: icon, value, label, tone, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='MetricStat'] > JSXAttribute[name.name='tone'] > Literal[value!=/^(?:neutral|danger|warn)$/]",
+      "message": "<MetricStat> aceita em tone só um destes: 'neutral' | 'danger' | 'warn'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='MobileHeader'] > JSXAttribute > JSXIdentifier[name!=/^(?:org|user|onOrgClick|onSearch|statusBar|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<MobileHeader> não aceita essa prop. As declaradas são: org, user, onOrgClick, onSearch, statusBar, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='MobileTabItem'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|icon|count|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<MobileTabItem> não aceita essa prop. As declaradas são: label, icon, count."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='PageHeader'] > JSXAttribute > JSXIdentifier[name!=/^(?:kicker|title|subtitle|meta|actions|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<PageHeader> não aceita essa prop. As declaradas são: kicker, title, subtitle, meta, actions, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Panel'] > JSXAttribute > JSXIdentifier[name!=/^(?:title|actions|children|variant|padding|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<Panel> não aceita essa prop. As declaradas são: title, actions, children, variant, padding, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Panel'] > JSXAttribute[name.name='variant'] > Literal[value!=/^(?:rail|card|drawer|plain)$/]",
+      "message": "<Panel> aceita em variant só um destes: 'rail' | 'card' | 'drawer' | 'plain'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='ProgressBar'] > JSXAttribute > JSXIdentifier[name!=/^(?:value|height|width|tone|label|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<ProgressBar> não aceita essa prop. As declaradas são: value, height, width, tone, label, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='ProgressBar'] > JSXAttribute[name.name='tone'] > Literal[value!=/^(?:ink|accent)$/]",
+      "message": "<ProgressBar> aceita em tone só um destes: 'ink' | 'accent'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='ProgressRing'] > JSXAttribute > JSXIdentifier[name!=/^(?:value|size|stroke|tone|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<ProgressRing> não aceita essa prop. As declaradas são: value, size, stroke, tone, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='ProgressRing'] > JSXAttribute[name.name='tone'] > Literal[value!=/^(?:ink|accent)$/]",
+      "message": "<ProgressRing> aceita em tone só um destes: 'ink' | 'accent'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='ProposalDiff'] > JSXAttribute > JSXIdentifier[name!=/^(?:fromLabel|from|toLabel|to|icon|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<ProposalDiff> não aceita essa prop. As declaradas são: fromLabel, from, toLabel, to, icon, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='ProposalItem'] > JSXAttribute > JSXIdentifier[name!=/^(?:kind|title|meta|status|selected|onClick|icon|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<ProposalItem> não aceita essa prop. As declaradas são: kind, title, meta, status, selected, onClick, icon, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='ProposalItem'] > JSXAttribute[name.name='status'] > Literal[value!=/^(?:pending|done|late)$/]",
+      "message": "<ProposalItem> aceita em status só um destes: 'pending' | 'done' | 'late'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Radio'] > JSXAttribute > JSXIdentifier[name!=/^(?:checked|onChange|label|sublabel|name|disabled|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<Radio> não aceita essa prop. As declaradas são: checked, onChange, label, sublabel, name, disabled, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='RadioCard'] > JSXAttribute > JSXIdentifier[name!=/^(?:checked|onChange|title|description|icon|media|radioSide|name|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<RadioCard> não aceita essa prop. As declaradas são: checked, onChange, title, description, icon, media, radioSide, name, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='RadioCard'] > JSXAttribute[name.name='radioSide'] > Literal[value!=/^(?:left|right)$/]",
+      "message": "<RadioCard> aceita em radioSide só um destes: 'left' | 'right'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='SectionHeader'] > JSXAttribute > JSXIdentifier[name!=/^(?:title|count|subtitle|action|controls|size|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<SectionHeader> não aceita essa prop. As declaradas são: title, count, subtitle, action, controls, size, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='SectionHeader'] > JSXAttribute[name.name='size'] > Literal[value!=/^(?:h2|h3)$/]",
+      "message": "<SectionHeader> aceita em size só um destes: 'h2' | 'h3'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='SegmentedControl'] > JSXAttribute > JSXIdentifier[name!=/^(?:options|value|onChange|size|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<SegmentedControl> não aceita essa prop. As declaradas são: options, value, onChange, size, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='SegmentedControl'] > JSXAttribute[name.name='size'] > Literal[value!=/^(?:sm|md)$/]",
+      "message": "<SegmentedControl> aceita em size só um destes: 'sm' | 'md'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Select'] > JSXAttribute > JSXIdentifier[name!=/^(?:options|leading|size|placeholder|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<Select> não aceita essa prop. As declaradas são: options, leading, size, placeholder."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Select'] > JSXAttribute[name.name='size'] > Literal[value!=/^(?:sm|md|lg)$/]",
+      "message": "<Select> aceita em size só um destes: 'sm' | 'md' | 'lg'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='SideRailItem'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|icon|count|prefix|trailing|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<SideRailItem> não aceita essa prop. As declaradas são: label, icon, count, prefix, trailing."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='StatusDot'] > JSXAttribute > JSXIdentifier[name!=/^(?:tone|size|pulse|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<StatusDot> não aceita essa prop. As declaradas são: tone, size, pulse, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='StatusDot'] > JSXAttribute[name.name='tone'] > Literal[value!=/^(?:danger|warn|ok|neutral|idle)$/]",
+      "message": "<StatusDot> aceita em tone só um destes: 'danger' | 'warn' | 'ok' | 'neutral' | 'idle'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='StatusPill'] > JSXAttribute > JSXIdentifier[name!=/^(?:status|label|variant|icon|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<StatusPill> não aceita essa prop. As declaradas são: status, label, variant, icon, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='StatusPill'] > JSXAttribute[name.name='status'] > Literal[value!=/^(?:late|soon|blocked|onTrack|done|todo|pending)$/]",
+      "message": "<StatusPill> aceita em status só um destes: 'late' | 'soon' | 'blocked' | 'onTrack' | 'done' | 'todo' | 'pending'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='StatusPill'] > JSXAttribute[name.name='variant'] > Literal[value!=/^(?:text|chip)$/]",
+      "message": "<StatusPill> aceita em variant só um destes: 'text' | 'chip'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Switch'] > JSXAttribute > JSXIdentifier[name!=/^(?:checked|onChange|label|sublabel|disabled|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<Switch> não aceita essa prop. As declaradas são: checked, onChange, label, sublabel, disabled, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='TabItem'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|count|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<TabItem> não aceita essa prop. As declaradas são: label, count."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='TaskRow'] > JSXAttribute > JSXIdentifier[name!=/^(?:title|description|done|onToggle|assignee|assigneeLabel|due|dueTone|action|blocked|onOverflow|style|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<TaskRow> não aceita essa prop. As declaradas são: title, description, done, onToggle, assignee, assigneeLabel, due, dueTone, action, blocked, onOverflow, style."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='TaskRow'] > JSXAttribute[name.name='dueTone'] > Literal[value!=/^(?:default|warn|danger)$/]",
+      "message": "<TaskRow> aceita em dueTone só um destes: 'default' | 'warn' | 'danger'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='Textarea'] > JSXAttribute > JSXIdentifier[name!=/^(?:rows|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<Textarea> não aceita essa prop. As declaradas são: rows."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='TextLink'] > JSXAttribute > JSXIdentifier[name!=/^(?:underline|tone|children|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<TextLink> não aceita essa prop. As declaradas são: underline, tone, children."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='TextLink'] > JSXAttribute[name.name='tone'] > Literal[value!=/^(?:default|muted)$/]",
+      "message": "<TextLink> aceita em tone só um destes: 'default' | 'muted'."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='TopNavItem'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|count|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<TopNavItem> não aceita essa prop. As declaradas são: label, count."
+    },
+    {
+      "selector": "JSXOpeningElement[name.name='WeekGridDay'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|date|today|key|ref|className|style|children|onClick|onChange|onInput|onSubmit|onKeyDown|onKeyUp|onFocus|onBlur|onMouseEnter|onMouseLeave|onMouseDown|onMouseUp|onPointerDown|onScroll|href|target|rel|download|type|name|value|defaultValue|placeholder|checked|defaultChecked|rows|cols|min|max|step|pattern|maxLength|inputMode|id|title|alt|src|width|height|disabled|readOnly|required|autoFocus|autoComplete|tabIndex|role|hidden|aria-[\\w-]+|data-[\\w-]+)$/]",
+      "message": "<WeekGridDay> não aceita essa prop. As declaradas são: label, date, today."
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+[data-ds="trackward"]{
+  /* ---- brand ---- */
+  --lime-400:#DCFF5E;         /* hover / glow */
+  --lime-500:#D0FA3C;         /* primary fill, active checkpoint ring */
+  --lime-600:#B7FF1A;         /* logo mark stroke (from TrackWard_Logo.svg) */
+  --lime-700:#A8CE2F;         /* pressed */
+  --lime-glow:rgba(208,250,60,.24);
+
+  /* ---- neutral ink (on dark) ---- */
+  --ink-0:#FFFFFF;
+  --ink-1:#D4D7D8;
+  --ink-2:#9EA2A4;
+  --ink-3:#74797B;
+  --ink-4:#4A4E50;
+  --ink-on-lime:#0A0B0A;      /* text sitting on a lime fill */
+
+  /* ---- neutral surfaces (dark, the product default) ---- */
+  --n-950:#0A0B0A;            /* page */
+  --n-900:#0E1011;            /* top bar, footer */
+  --n-880:#121516;            /* rail / panel */
+  --n-850:#171A1A;            /* raised row, chip */
+  --n-800:#1E2223;            /* input, hover row */
+  --n-750:#232726;            /* folder card body */
+  --n-700:#2A2F30;            /* border strong */
+  --n-600:#393D3E;            /* avatar fill */
+
+  /* ---- semantic ---- */
+  --danger:#FF4B4B;
+  --danger-text:#FF5A5A;
+  --warn:#FFB224;
+  --warn-text:#FFA81E;
+  --neutral-status:#A9ADB3;
+  --ok:#D0FA3C;
+
+  /* ---- alpha utilities ---- */
+  --white-04:rgba(255,255,255,.04);
+  --white-06:rgba(255,255,255,.06);
+  --white-08:rgba(255,255,255,.08);
+  --white-12:rgba(255,255,255,.12);
+  --white-20:rgba(255,255,255,.20);
+  --black-40:rgba(0,0,0,.40);
+
+  /* ---- semantic aliases: use these in components ---- */
+  --bg-page:var(--n-950);
+  --bg-bar:var(--n-900);
+  --bg-rail:var(--n-880);
+  --bg-panel:var(--n-880);
+  --bg-row:transparent;
+  --bg-row-hover:var(--white-04);
+  --bg-row-active:var(--n-850);
+  --bg-input:var(--n-800);
+  --bg-chip:var(--n-850);
+  --bg-avatar:var(--n-600);
+  --bg-scrim:rgba(6,7,6,.72);
+
+  --surface-card:linear-gradient(158deg,#2B2F2F 0%,#1A1E1E 46%,#141717 100%);
+  --surface-card-flat:var(--n-750);
+  --surface-glass:rgba(255,255,255,.05);
+
+  --text-body:var(--ink-1);
+  --text-strong:var(--ink-0);
+  --text-muted:var(--ink-2);
+  --text-faint:var(--ink-3);
+  --text-link:var(--ink-0);
+
+  --border-hairline:var(--white-08);
+  --border-default:var(--white-12);
+  --border-strong:var(--n-700);
+  --border-focus:var(--lime-500);
+
+  --accent:var(--lime-500);
+  --accent-hover:var(--lime-400);
+  --accent-press:var(--lime-700);
+  --accent-ink:var(--ink-on-lime);
+}
+
+/* Light appearance exists in Ajustes → Aparência (Escuro / Claro / Automático).
+   Only the dark theme is documented in the supplied art; these light values are a
+   minimal, flagged inference — verify before shipping light mode. */
+[data-ds="trackward"][data-tema="claro"],[data-ds="trackward"][data-theme="light"]{
+  --ink-0:#0A0B0A; --ink-1:#26292A; --ink-2:#5C6062; --ink-3:#83878A; --ink-4:#B4B8BA;
+  --bg-page:#FAFAF8; --bg-bar:#FFFFFF; --bg-rail:#F2F3F0; --bg-panel:#FFFFFF;
+  --bg-input:#FFFFFF; --bg-chip:#EDEEEA; --bg-avatar:#D7D9D4;
+  --surface-card:linear-gradient(158deg,#FFFFFF 0%,#F4F5F1 100%);
+  --surface-card-flat:#FFFFFF;
+  --border-hairline:rgba(10,11,10,.08); --border-default:rgba(10,11,10,.14);
+  --border-strong:rgba(10,11,10,.22);
+  --bg-row-hover:rgba(10,11,10,.04); --bg-row-active:#EDEEEA;
+}

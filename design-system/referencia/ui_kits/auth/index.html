@@ -1,0 +1,27 @@
+<!-- @dsCard group="Auth" viewport="1440x900" name="Entrar · Criar conta · Recuperar" subtitle="The three unauthenticated screens, click-through" -->
+<!doctype html><html data-ds="trackward" lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TrackWard — acesso</title>
+<link rel="stylesheet" href="../../../styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/lucide@0.454.0/dist/umd/lucide.min.js"></script>
+<script src="../../../ds-boot.js"></script>
+<script src="../kit-boot.js"></script>
+<script>/* sandbox preview: subresources are only served with the page's ?t= token */
+(function(){var t=new URL(location.href).searchParams.get("t");if(!t)return;var q="?t="+t;
+["../../../ds-boot.js","../kit-boot.js"].forEach(function(s){var e=document.createElement("script");e.src=s+q;e.async=false;document.head.appendChild(e)});})();</script>
+<style>html,body{margin:0;background:var(--bg-page);min-height:100%}</style>
+</head><body><div id="root"></div>
+<script type="text/babel" data-presets="react">
+(function wait(){
+  if (!window.KitBoot) return setTimeout(wait, 40);
+  KitBoot(["Signin","Signup","Recover"]).then(S => {
+    function Auth() {
+      const [route, setRoute] = React.useState("Entrar");
+      const go = r => { setRoute(r); window.scrollTo({ top: 0 }); };
+      return route === "Criar conta" ? <S.Signup go={go} /> : route === "Recuperar" ? <S.Recover go={go} /> : <S.Signin go={go} />;
+    }
+    ReactDOM.createRoot(document.getElementById("root")).render(<Auth />);
+  }).catch(e => { document.getElementById("root").innerHTML = '<pre style="color:#FF5A5A;padding:20px;font:13px/1.6 monospace">'+e.message+'</pre>'; });
+})();
+</script></body></html>
