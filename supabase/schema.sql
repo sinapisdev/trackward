@@ -206,6 +206,9 @@ create table if not exists public.itens (
   -- Quando ficou pronta. Sem isto dá para saber que a tarefa está feita, mas não
   -- em que semana ela saiu, e aí nenhum número de produtividade é verdade.
   feito_em  timestamptz,
+  -- Data que não se move: prazo legal, data de cliente, evento marcado. Quando o
+  -- que vem antes atrasa, esta não anda: alguém tem que dar um jeito.
+  prazo_firme boolean not null default false,
   criado_em timestamptz not null default now()
 );
 
@@ -405,6 +408,30 @@ create table if not exists public.decisoes (
   criado_em timestamptz not null default now()
 );
 
+-- O prazo de uma tarefa não anda sozinho porque outra atrasou. Vira um pedido,
+-- e quem responde pela tarefa aceita ou recusa. É a mesma ideia da leitura da
+-- conversa: a máquina propõe, a gente decide.
+create table if not exists public.pedidos_prazo (
+  id         uuid primary key default gen_random_uuid(),
+  item_id    uuid not null references public.itens on delete cascade,
+  fluxo_id   uuid not null references public.fluxos on delete cascade,
+  de         date,
+  para       date not null,
+  motivo     text not null default '',
+  -- A tarefa que atrasou e puxou esta. Nulo quando o pedido é manual.
+  origem_id  uuid references public.itens on delete set null,
+  pedido_por uuid references public.perfis on delete set null,
+  estado     text not null default 'aberto' check (estado in ('aberto','aceito','recusado')),
+  decidido_por uuid references public.perfis on delete set null,
+  decidido_em  timestamptz,
+  criado_em  timestamptz not null default now(),
+  -- Um pedido aberto por tarefa. O segundo substitui o primeiro.
+  unique (item_id, estado) deferrable initially deferred
+);
+
+create index if not exists pz_item_idx  on public.pedidos_prazo (item_id);
+create index if not exists pz_abertos_idx on public.pedidos_prazo (fluxo_id) where estado = 'aberto';
+
 create index if not exists anexos_item_idx  on public.anexos (item_id);
 create index if not exists anexos_fluxo_idx on public.anexos (fluxo_id);
 create index if not exists dec_etapa_idx    on public.decisoes (etapa_id, criado_em desc);
@@ -429,7 +456,7 @@ begin
     'fluxos','fluxo_pessoas','etapas','itens','dependencias','historico','atividades',
     'compromissos','convidados','agendas_externas','ocupacao_externa',
     'canais','canal_membros','mensagens','sugestoes',
-    'anexos','decisoes'
+    'anexos','decisoes','pedidos_prazo'
   ] loop
     execute format(
       'alter table public.%I add column if not exists org_id uuid references public.organizacoes on delete cascade', t);
@@ -477,7 +504,7 @@ begin
     'fluxos','fluxo_pessoas','etapas','itens','dependencias','historico','atividades',
     'compromissos','convidados','agendas_externas','ocupacao_externa',
     'canais','canal_membros','mensagens','sugestoes',
-    'anexos','decisoes'
+    'anexos','decisoes','pedidos_prazo'
   ] loop
     execute format('drop trigger if exists ao_inserir_org on public.%I', t);
     execute format(
@@ -853,6 +880,7 @@ alter table public.atividades enable row level security;
 -- valia nada. Achado pela vistoria da seção 11, não por leitura minha.
 alter table public.anexos   enable row level security;
 alter table public.decisoes enable row level security;
+alter table public.pedidos_prazo enable row level security;
 alter table public.fluxo_pessoas enable row level security;
 alter table public.dependencias  enable row level security;
 
@@ -975,6 +1003,13 @@ create policy anx_ins on public.anexos for insert
 drop policy if exists anx_del on public.anexos;
 create policy anx_del on public.anexos for delete
   using (minha(org_id) and (ativo() and (autor_id = meu_perfil() or manda_no_processo(fluxo_id))));
+
+-- pedidos de prazo: quem enxerga a tarefa enxerga o pedido. Criar é de quem
+-- manda no processo de onde o atraso veio, e por isso passa pela função; decidir
+-- é de quem manda na esteira da tarefa que ia se mexer, e nunca de quem pediu.
+drop policy if exists pz_sel on public.pedidos_prazo;
+create policy pz_sel on public.pedidos_prazo for select
+  using (minha(org_id) and (ativo() and ve_item(item_id)));
 
 -- decisões: quem enxerga a esteira enxerga o que foi decidido nela. Escrever é
 -- só pela função decidir_etapa(), que confere se você é o aprovador da vez.
@@ -1535,6 +1570,188 @@ returns text language sql security definer set search_path = public as $$
 $$;
 
 -- --------------------------------------------------------------------------
+-- 7b. Quando um prazo anda, o que depende dele anda junto (mas com aceite)
+--
+--     Três regras, e elas existem por causa de uma situação concreta: nem todo
+--     prazo pode andar. Tem data de cliente, prazo legal, evento marcado.
+--
+--     1. Só anda o que quebrou. Se a tarefa de baixo tem folga que absorve o
+--        atraso, ela fica onde está. Mexer no que não precisa seria barulho.
+--     2. Data firme não anda, nunca. Ela aparece no aviso como conflito, e
+--        alguém tem que dar um jeito de a coisa acontecer do mesmo jeito.
+--     3. O que é de outra esteira não anda sozinho: vira pedido, e quem responde
+--        por aquela esteira aceita ou recusa. Prazo é compromisso com quem
+--        espera, e ninguém remarca o compromisso de outra pessoa.
+--
+--     O que decide entre mexer e pedir é a ESTEIRA, não o cargo. Dentro da sua
+--     esteira você remarca, porque você responde por ela inteira. Fora dela é
+--     pedido, inclusive para o administrador: ele pode tudo, e é exatamente por
+--     isso que o aceite existe, senão a cascata passaria por cima de uma data
+--     que alguém prometeu para um cliente sem ninguém olhar.
+-- --------------------------------------------------------------------------
+
+/**
+ * O que andaria se o prazo desta tarefa passasse a ser p_novo.
+ *
+ * Só leitura. É isto que a tela mostra ANTES de qualquer coisa acontecer, porque
+ * quem vai mexer precisa ver o estrago antes de causá-lo.
+ */
+create or replace function public.cascata(p_item uuid, p_novo date)
+returns table (
+  item_id uuid, fluxo_id uuid, fluxo text, texto text,
+  de date, para date, firme boolean, meu boolean, resp_id uuid, nivel int
+)
+language sql stable security definer set search_path = public as $$
+  with recursive anda as (
+    select i.id, i.fluxo_id, i.texto, i.prazo as de, p_novo as para,
+           i.prazo_firme as firme, i.resp_id, 0 as nivel
+    from itens i
+    where i.id = p_item and minha(i.org_id)
+
+    union all
+
+    -- Uma tarefa não pode vencer antes da que a trava. Quando quebra, ela anda
+    -- guardando a folga que tinha, que é o tempo de trabalho dela.
+    select b.id, b.fluxo_id, b.texto, b.prazo,
+           (a.para + greatest(0, b.prazo - a.de))::date,
+           b.prazo_firme, b.resp_id, a.nivel + 1
+    from anda a
+    join dependencias d on d.depende_de = a.id
+    join itens b on b.id = d.item_id and minha(b.org_id)
+    where not a.firme            -- firme não anda, então não empurra ninguém
+      and not b.feito
+      and b.prazo is not null
+      and a.de is not null
+      and b.prazo < a.para
+      and a.nivel < 20           -- rede contra dependência circular
+  )
+  select a.id, a.fluxo_id, f.nome, a.texto, a.de, a.para, a.firme,
+         -- "meu" é estar na mesma esteira da tarefa que mudou, e não ter cargo.
+         a.fluxo_id = (select i.fluxo_id from itens i where i.id = p_item),
+         a.resp_id, a.nivel
+  from anda a join fluxos f on f.id = a.fluxo_id
+  where ve_item(a.id)
+  order by a.nivel, a.para;
+$$;
+
+/**
+ * Aplica o que dá para aplicar e pede o resto.
+ *
+ * Devolve um resumo do que aconteceu, para a tela poder contar em uma frase.
+ */
+create or replace function public.aplicar_cascata(
+  p_item uuid, p_novo date, p_motivo text default ''
+)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  uid     uuid := meu_perfil();
+  raiz    itens%rowtype;
+  linha   record;
+  n_mexi  int := 0;
+  n_pedi  int := 0;
+  n_presa int := 0;
+begin
+  if not ativo() then raise exception 'Sem acesso.'; end if;
+
+  select * into raiz from itens where id = p_item;
+  if not found then raise exception 'Tarefa não encontrada.'; end if;
+  if not manda_no_processo(raiz.fluxo_id) then
+    raise exception 'Só quem responde por esta esteira pode mexer no prazo.';
+  end if;
+  if raiz.prazo_firme then
+    raise exception 'Esta data é firme. Para mudá-la, tire a marca de data firme primeiro.';
+  end if;
+
+  for linha in select * from cascata(p_item, p_novo) loop
+    if linha.nivel = 0 then
+      update itens set prazo = p_novo where id = linha.item_id;
+      continue;
+    end if;
+
+    if linha.firme then
+      n_presa := n_presa + 1;          -- não se mexe, e a tela avisa
+    elsif linha.meu then
+      update itens set prazo = linha.para where id = linha.item_id;
+      n_mexi := n_mexi + 1;
+    else
+      -- Um pedido aberto por tarefa: o novo substitui o que estava esperando.
+      delete from pedidos_prazo where item_id = linha.item_id and estado = 'aberto';
+      insert into pedidos_prazo (item_id, fluxo_id, de, para, motivo, origem_id, pedido_por)
+      values (linha.item_id, linha.fluxo_id, linha.de, linha.para,
+              btrim(coalesce(p_motivo, '')), p_item, uid);
+      n_pedi := n_pedi + 1;
+    end if;
+  end loop;
+
+  insert into atividades (fluxo_id, quem_id, texto)
+  values (raiz.fluxo_id, uid,
+    'mudou o prazo de ' || raiz.texto || ' para ' || to_char(p_novo, 'DD/MM')
+    || case when n_mexi + n_pedi + n_presa > 0
+       then ', e ' || (n_mexi + n_pedi + n_presa) || ' tarefa(s) sentiram' else '' end);
+
+  return jsonb_build_object('mexi', n_mexi, 'pedi', n_pedi, 'presas', n_presa);
+end $$;
+
+/**
+ * Aceitar ou recusar um pedido de prazo.
+ *
+ * Decide quem responde pela esteira da tarefa que ia se mexer, e nunca quem
+ * pediu: senão bastaria pedir para si mesmo e o aceite não valeria nada.
+ *
+ * Recusar derruba os pedidos que nasceram deste, porque eles foram calculados
+ * supondo que este andaria. Deixá-los de pé seria propor data que não fecha.
+ */
+create or replace function public.decidir_prazo(p_pedido uuid, p_aceita boolean)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := meu_perfil();
+  pd  pedidos_prazo%rowtype;
+begin
+  if not ativo() then raise exception 'Sem acesso.'; end if;
+
+  select * into pd from pedidos_prazo where id = p_pedido for update;
+  if not found then raise exception 'Pedido não encontrado.'; end if;
+  if pd.estado <> 'aberto' then raise exception 'Este pedido já foi decidido.'; end if;
+  if not manda_no_processo(pd.fluxo_id) then
+    raise exception 'Só quem responde por esta esteira decide o prazo dela.';
+  end if;
+  -- Quem pediu pode aceitar quando responde pelas duas esteiras, e isso é de
+  -- propósito: o que o aceite garante não é que outra pessoa olhe, é que alguém
+  -- olhe e diga sim de novo, num ato separado. Sem isso a cascata voltaria a ser
+  -- automática justamente para quem tem mais poder de estragar.
+
+  if p_aceita then
+    update itens set prazo = pd.para where id = pd.item_id and not prazo_firme;
+    update pedidos_prazo set estado = 'aceito', decidido_por = uid, decidido_em = now()
+    where id = pd.id;
+    insert into atividades (fluxo_id, quem_id, texto)
+    select pd.fluxo_id, uid, 'aceitou mover ' || i.texto || ' para ' || to_char(pd.para, 'DD/MM')
+    from itens i where i.id = pd.item_id;
+    return 'aceito';
+  end if;
+
+  update pedidos_prazo set estado = 'recusado', decidido_por = uid, decidido_em = now()
+  where id = pd.id;
+
+  -- Em cadeia: o que nasceu deste pedido não faz mais sentido.
+  with recursive queda as (
+    select id, item_id from pedidos_prazo where origem_id = pd.item_id and estado = 'aberto'
+    union all
+    select p.id, p.item_id from pedidos_prazo p
+    join queda q on p.origem_id = q.item_id
+    where p.estado = 'aberto'
+  )
+  update pedidos_prazo set estado = 'recusado', decidido_por = uid, decidido_em = now(),
+    motivo = motivo || ' (caiu junto: o pedido que veio antes foi recusado)'
+  where id in (select id from queda);
+
+  insert into atividades (fluxo_id, quem_id, texto)
+  select pd.fluxo_id, uid, 'recusou mover ' || i.texto || ': a data fica onde está'
+  from itens i where i.id = pd.item_id;
+  return 'recusado';
+end $$;
+
+-- --------------------------------------------------------------------------
 -- 8. Conserta bancos criados por uma versão anterior deste arquivo
 -- --------------------------------------------------------------------------
 
@@ -1547,6 +1764,7 @@ end $$;
 -- Bancos anteriores à coluna feito_em: ela entra vazia, e o que já estava
 -- pronto fica sem data. Preencher com um palpite seria pior do que não ter.
 alter table public.itens add column if not exists feito_em timestamptz;
+alter table public.itens add column if not exists prazo_firme boolean not null default false;
 
 do $$
 begin
@@ -1569,7 +1787,8 @@ do $$
 declare t text;
 begin
   foreach t in array array[
-    'perfis','areas','fluxos','etapas','itens','historico','atividades','anexos','decisoes'
+    'perfis','areas','fluxos','etapas','itens','historico','atividades',
+    'anexos','decisoes','pedidos_prazo'
   ] loop
     begin
       execute format('alter publication supabase_realtime add table public.%I', t);
@@ -1815,7 +2034,7 @@ language sql stable set search_path = public as $$
       'fluxos','fluxo_pessoas','etapas','itens','dependencias','historico','atividades',
       'compromissos','convidados','agendas_externas','ocupacao_externa',
       'canais','canal_membros','mensagens','sugestoes',
-      'anexos','decisoes'
+      'anexos','decisoes','pedidos_prazo'
     ]) as t
   )
   -- 1. Tabela sem a etiqueta da organização
