@@ -143,14 +143,15 @@ export const Ic = {
    *
    * Os traços seguem a cor do texto, então ficam pretos no tema claro e brancos
    * no escuro sozinhos. O anel é a única peça com cor própria, porque é a que
-   * representa o que ainda pede ação. Sem fundo e sem moldura: o logo oficial,
+   * representa o que ainda pede ação. Ele usa a tinta do acento, e não o lima
+   * cheio, senão some sobre o fundo claro. Sem fundo e sem moldura: o logo oficial,
    * com o quadrado preto, mora só no ícone do aplicativo.
    */
   logo: () => (
     <svg width="38" height="11" viewBox="0 0 32 9" fill="none" aria-hidden="true">
       <rect x="0.5" y="2.5" width="8" height="4" rx="2" fill="currentColor" />
       <rect x="11" y="2.5" width="8" height="4" rx="2" fill="currentColor" />
-      <circle cx="27" cy="4.5" r="3.3" fill="none" stroke="var(--warn-forte)" strokeWidth="2.6" />
+      <circle cx="27" cy="4.5" r="3.3" fill="none" stroke="var(--ac-tinta)" strokeWidth="2.6" />
     </svg>
   ),
   sol: () => (

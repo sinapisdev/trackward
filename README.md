@@ -373,17 +373,24 @@ com seu próprio ciclo e seu próprio histórico.
 
 ## Aparência
 
-A linguagem visual vem de uma referência escolhida pelo Leo (o projeto Harbor, no
-Behance): tipografia **Urbanist**, fundo off-white quente, preto como ação, cinza
-quente no secundário e **um único acento laranja** para o que pede atenção. Rótulos de seção em caixa alta espaçada, formas arredondadas, respiro generoso.
+A linguagem visual é a do design system, descrita em `design-system/DESIGN.md`:
+tipografia **Figtree**, chão quase preto, tudo construído com branco a 4 a 20% de alfa
+em vez de cinzas novos, e **um único acento lima** (#D0FA3C) para o que faz o trabalho
+andar. Rótulos de seção em caixa alta espaçada, formas arredondadas, respiro generoso.
 
-Cor continua sendo informação, não decoração: laranja para o que vence, vermelho para o
-que atrasou, e nada mais. Em dia, travado e concluído ficam em neutro e se distinguem
-pela forma do ícone. As cores de área, pessoa e empresa são tons terrosos dessaturados,
-para conviverem com o off-white sem competir.
+Cor continua sendo informação, não decoração, e o lima é **racionado**: ele marca a uma
+ação que faz o trabalho andar, o checkpoint corrente, o ponto de hoje e o anel de foco.
+Dois lima na mesma tela é defeito. Âmbar para o que vence, vermelho para o que atrasou,
+e nada mais. Em dia, travado e concluído ficam em neutro e se distinguem pela forma do
+ícone. As cores de área, pessoa e empresa são dessaturadas, para não competirem.
 
-Temas em **Ajustes > Aparência**: Claro (fiel à referência), Escuro (a mesma linguagem
-invertida, em preto quente) e Automático. O botão no rodapé da lateral percorre os três.
+Temas em **Ajustes > Aparência**: Escuro (o tema que o sistema especifica, medido da
+arte), Claro (uma derivação: o próprio DESIGN.md marca modo claro como inferência) e
+Automático. O botão no rodapé da lateral percorre os três.
+
+No claro há uma diferença que vale conhecer: lima puro não se lê como letra sobre fundo
+claro, então letra, ícone e fio fino usam o mesmo acento escurecido (`--ac-tinta`),
+enquanto fundo de botão e brilho seguem no lima cheio.
 
 ## O design system
 

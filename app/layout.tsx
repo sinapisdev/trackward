@@ -1,13 +1,15 @@
 import type { Metadata, Viewport } from 'next'
-import { Urbanist } from 'next/font/google'
+import { Figtree } from 'next/font/google'
 import './globals.css'
 
-// Urbanist, a mesma da referência do ClauseOS: geométrica, sem serifa, e
-// desenhada para interface. Palavras do próprio projeto: passa confiança,
-// clareza e profissionalismo moderno.
-const sans = Urbanist({
+// Figtree, a tipografia do design system (ver design-system/DESIGN.md). A arte
+// de origem usa uma geométrica da família Circular, da qual não veio binário,
+// e a Figtree entrou no lugar: mesmo 'a' de dois andares, mesmo 'g' de um só,
+// altura de x alta e bojos quase circulares. Se a licenciada chegar um dia, a
+// troca é aqui e no tokens/fonts.css do sistema.
+const sans = Figtree({
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700'],
+  weight: ['300', '400', '500', '600', '700', '800'],
   variable: '--fonte-sans',
   display: 'swap',
 })
@@ -28,8 +30,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#FAFAFA' },
-    { media: '(prefers-color-scheme: dark)', color: '#080808' },
+    { media: '(prefers-color-scheme: light)', color: '#FAFAF8' },
+    { media: '(prefers-color-scheme: dark)', color: '#0A0B0A' },
   ],
 }
 

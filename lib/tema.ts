@@ -1,12 +1,12 @@
 export type Tema = 'escuro' | 'claro' | 'sistema'
 
 export const TEMAS: { id: Tema; nome: string; sobre: string; amostra: [string, string, string, string] }[] = [
-  { id: 'escuro', nome: 'Escuro', sobre: 'O padrão. Feito para longas horas de tela.',
-    amostra: ['#151514', '#F7F7F5', '#F98B05', '#F0645A'] },
+  { id: 'escuro', nome: 'Escuro', sobre: 'O padrão, e o tema que o design system especifica.',
+    amostra: ['#0A0B0A', '#FFFFFF', '#D0FA3C', '#FF5A5A'] },
   { id: 'claro', nome: 'Claro', sobre: 'Para quem trabalha com muita luz na sala.',
-    amostra: ['#FFFFFF', '#111111', '#F98B05', '#D2402F'] },
+    amostra: ['#FAFAF8', '#0A0B0A', '#D0FA3C', '#D2402F'] },
   { id: 'sistema', nome: 'Automático', sobre: 'Segue a preferência do seu computador.',
-    amostra: ['#151514', '#F98B05', '#9B9B94', '#FFFFFF'] },
+    amostra: ['#0A0B0A', '#D0FA3C', '#9EA2A4', '#FFFFFF'] },
 ]
 
 export const CHAVE_TEMA = 'track.tema'

@@ -74,35 +74,53 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
 
 ## Regras visuais
 
-A linguagem visual segue a referência escolhida pelo Leo (projeto Harbor, Behance):
-**Urbanist** (é ela que `app/layout.tsx` carrega), off-white quente de fundo, preto como
-ação, cinza quente no secundário, laranja como único acento de atenção. Rótulos de seção em caixa
-alta espaçada, cantos generosos (`--r-lg` 18px), pílulas para segmentos e badges.
+**A fonte da verdade é `design-system/DESIGN.md`.** Ele descreve cor, tipo, espaço,
+movimento, iconografia e voz, e foi medido da arte do produto. O `app/globals.css` não
+inventa cor: ele traduz aqueles tokens para os nomes que as telas já usam, e foi isso que
+permitiu virar a identidade inteira sem reescrever 40 componentes.
 
-Não introduzir: emoji, faixas coloridas laterais em cards, blocos grandes de KPI,
-neon, vidro, glow. Manter interface densa, ícones de status pequenos e datas relativas.
+Sistema de **acento único**: chão quase preto (`#0A0B0A`), tudo construído com branco a
+4 a 20% de alfa em vez de cinzas novos, e uma cor saturada, o lima `#D0FA3C`. Tipografia
+**Figtree**. Rótulos de seção em caixa alta espaçada, pílulas para segmento e selo, cantos
+generosos (`--r-lg` 18px na pasta e na gaveta, `--r` 14px no painel, `--r-sm` 8px no campo).
 
-**Cor é informação, não decoração.** Um acento (`--ac`) e dois alertas (`--late`,
-`--warn`). Em dia, travado e concluído são neutros e se distinguem pela forma do ícone.
-Não introduzir cor nova sem que ela signifique algo que o usuário precise agir.
+**O lima é racionado.** Ele marca a *uma* ação que faz o trabalho andar, o checkpoint
+corrente, o brilho da IA, o ponto de hoje e o anel de foco. **Dois lima na mesma tela é
+defeito.** Por isso caixa marcada é branca com o visto quase preto, e a pasta em foco é
+vidro grafite com fio lima, não lima cheio: gastar o acento no recipiente tira dele o
+único trabalho que ele tem.
+
+Semântica é estreita e sempre acompanhada de palavra: vermelho para atrasado, âmbar para
+vence em breve. Em dia, travado e concluído são neutros e se distinguem pela forma do
+ícone. Não introduzir cor nova sem que ela signifique algo que o usuário precise agir.
 Cores de área, pessoa e empresa são dessaturadas de propósito e aparecem em pontos
 pequenos ou como tinta (ver `.av`, que usa `color-mix` em vez de fundo chapado).
+
+Não introduzir: emoji, faixas coloridas laterais em cards, blocos grandes de KPI, neon,
+glow forte, fotografia ou ilustração. O produto não tem imagem nenhuma, de propósito: se
+uma superfície precisa de corpo, ela ganha uma pasta, não uma foto.
+
+**O escuro é o tema especificado**, medido da arte. O claro é derivação, e o próprio
+DESIGN.md marca modo claro como inferência. A diferença que ele exige é o `--ac-tinta`:
+lima puro não se lê como letra sobre fundo claro (1,6:1), então tudo que é letra, ícone e
+fio fino usa a tinta, enquanto fundo de botão e brilho seguem no lima cheio. Ao mexer no
+acento, mexer nos dois.
 
 Cores vivem só em `app/globals.css`, sobre `:root[data-tema="..."]`. Nenhuma tela conhece
 o tema no ar. Ao criar um token, defini-lo no escuro e no claro.
 
 ## Design system TrackWard
 
-Em `design-system/` mora um segundo sistema visual, vindo do Claude Design. **Ele não é
-a linguagem do app** e não está substituindo nada: é escuro, com Figtree e acento lima,
-e serve para desenhar e prototipar. As telas de `componentes/` e `app/(app)/` continuam
-com o `app/globals.css` e não estão sendo migradas.
+Em `design-system/` mora o sistema de peças completo vindo do Claude Design, e desde
+22/09/2026 **ele é a linguagem do app**: o `app/globals.css` adotou os tokens dele, e
+todas as telas viraram de uma vez.
 
-A regra acima, de cor viver só em `app/globals.css`, continua valendo para o app. O
-design system é a exceção, e ela se sustenta num detalhe: **todo token dele desce de
-`[data-ds="trackward"]`, nunca de `:root`**. Sem isso haveria colisão de verdade, porque
-`--r-lg`, `--r-sm` e `--warn` existem nos dois lados com valores diferentes. Mexeu nos
-tokens de `design-system/tokens/`, mantenha o escopo.
+O que as telas usam hoje ainda são as classes e os componentes de `componentes/`, não os
+50 componentes React do sistema. A troca peça por peça é o trabalho seguinte, e é por
+isso que o sistema segue com escopo próprio: **todo token dentro de `design-system/`
+desce de `[data-ds="trackward"]`, nunca de `:root`**. Os dois mundos ainda têm nome de
+token repetido com valor diferente (`--r-lg`, `--r-sm`, `--warn`), então manter o escopo
+é o que evita a colisão enquanto a migração não termina.
 
 - Importe sempre pelo barril `@/design-system`, nunca por dentro de `components/`.
 - O que usar o sistema precisa de um pai com `data-ds="trackward"`, e de `window.lucide`

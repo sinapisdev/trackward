@@ -957,15 +957,15 @@ falar com o banco de verdade, sem mudar uma linha de tela.
 
 Para o UX manter coerência.
 
-**Paleta**: preto (#080808), branco e laranja (#FF7A1A no escuro, #E8620A no claro).
-Vermelho é a única exceção, e existe só porque atraso precisa gritar diferente do que
-apenas pede atenção.
+**Paleta**: quase preto (#0A0B0A), branco e lima (#D0FA3C). Vermelho e âmbar são as
+exceções, e existem só porque atraso precisa gritar diferente do que apenas pede atenção.
 
-**Tipografia**: Urbanist.
+**Tipografia**: Figtree.
 
-**A regra que vale acima de tudo: cor é informação, não decoração.** Laranja marca onde
-a coisa está agora. Vermelho marca o que passou do prazo. Tudo o mais é neutro e se
-distingue pela forma, não pela cor.
+**A regra que vale acima de tudo: cor é informação, não decoração.** Lima marca a uma
+ação que faz o trabalho andar, e onde a coisa está agora. Vermelho marca o que passou do
+prazo, âmbar o que vence em breve. Tudo o mais é neutro e se distingue pela forma, não
+pela cor. **Dois lima na mesma tela é defeito.**
 
 **Datas são sempre relativas** na interface: "Hoje", "Amanhã", "em 4 dias", "há 2 dias".
 
@@ -979,19 +979,18 @@ não "no ritmo dela".
 **Elementos recorrentes**: ícones de status pequenos, avatares com iniciais e cor por
 pessoa, bolinha que enche, selo de visto, cadeado para travado e para privado.
 
-### O design system, que é outra coisa
+### De onde vem esse vocabulário
 
-Desde 22/09/2026 existe `design-system/` no repositório: um sistema de peças completo
-(50 componentes, tokens, contratos de props e a especificação escrita), vindo do Claude
-Design. **Ele não descreve o app que este documento mapeia.** A paleta dele é escura com
-acento lima, a tipografia é Figtree, e nada disso está nas telas de hoje.
+De `design-system/DESIGN.md`, que é a fonte da verdade e descreve cor, tipo, espaço,
+movimento, iconografia e voz, medidos da arte do produto. O `app/globals.css` traduz
+aqueles tokens para os nomes que as telas já usam.
 
-Ele existe para desenhar e prototipar, e por isso não conflita com o que está escrito
-acima: todo token dele vive sob `[data-ds="trackward"]`, então nenhuma tela do app muda.
-A vitrine fica em `/design-system`, fora do grupo `(app)`, sem Shell e fora da navegação.
+A troca aconteceu em 22/09/2026 e foi feita pela base: as telas continuam com as classes
+e os componentes de `componentes/`, e o que mudou foram os valores por trás delas. Trocar
+as peças pelos 50 componentes React do sistema é o trabalho seguinte, tela por tela.
 
-Quem for desenhar UX olhando este mapa tem duas fontes, e elas não são a mesma: o
-vocabulário acima é o que o app usa hoje; `design-system/DESIGN.md` é o sistema à parte.
+A vitrine dos componentes fica em `/design-system`, fora do grupo `(app)`, sem Shell e
+fora da navegação.
 
 ---
 
