@@ -133,8 +133,6 @@ export function TelaFluxo({ id }: { id: string }) {
         </div>
       )}
 
-      <Trilha f={f} sel={idx} aoEscolher={setSel} decisoes={decisoesDe(f.id)} />
-
       <QuemFaz f={f} />
 
       {f.tipo === 'ciclo' && (
@@ -144,7 +142,15 @@ export function TelaFluxo({ id }: { id: string }) {
         </div>
       )}
 
-      <div className="grid2">
+      {/* A trilha é vertical e vive à esquerda, como uma lateral: com sete
+          checkpoints ela não caberia deitada, e deitada obrigava a arrastar
+          para descobrir onde a esteira está. */}
+      <div className="fluxo-corpo">
+        <aside className="fluxo-trilha">
+          <div className="bh"><h2>Trilha</h2><span className="c num">{f.etapas.length}</span></div>
+          <Trilha f={f} sel={idx} aoEscolher={setSel} decisoes={decisoesDe(f.id)} />
+        </aside>
+        <div className="grid2">
         <div>
           <div className="card">
             <div className="cp-h">
@@ -303,6 +309,7 @@ export function TelaFluxo({ id }: { id: string }) {
             </div>
           </div>
         </aside>
+        </div>
       </div>
 
       {decidindo && naAtual && (

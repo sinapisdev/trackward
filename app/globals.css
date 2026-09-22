@@ -235,6 +235,17 @@ svg{display:block;flex:none}
 .wrap{max-width:1240px;margin:0 auto}
 .grid2{display:grid;grid-template-columns:minmax(0,1fr) 304px;gap:26px;align-items:start}
 
+/* A track aberta: trilha vertical à esquerda, o checkpoint e o contexto à
+   direita. A largura da lateral é a do sistema. */
+.fluxo-corpo{display:grid;grid-template-columns:264px minmax(0,1fr);gap:30px;align-items:start}
+.fluxo-trilha{position:sticky;top:18px;min-width:0;
+  border-right:1px solid var(--line);padding-right:26px}
+@media (max-width:1180px){
+  .fluxo-corpo{grid-template-columns:1fr;gap:24px}
+  .fluxo-trilha{position:static;border-right:0;border-bottom:1px solid var(--line);
+    padding:0 0 22px}
+}
+
 /* -------------------------------------------------------------- cabeçalho */
 /* PageHeader do sistema: rótulo em caixa alta espaçada, título grande e uma
    frase que diz para que a página serve. */
@@ -864,83 +875,77 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
    estação corrente enche conforme o checklist anda.
    -------------------------------------------------------------------------- */
 
-.trilho-linha{position:relative;margin:0 0 24px;padding:16px 0 4px;border-radius:var(--r-lg);
-  background:var(--vidro);backdrop-filter:blur(10px) saturate(1.15);
-  box-shadow:inset 0 0 0 1px var(--vidro-linha)}
-.trilho-rolo{overflow-x:auto;overflow-y:hidden;padding:0 18px 12px;scrollbar-width:thin}
+/* --------------------------------------------------------------- trilha
+   O CheckpointTrail do sistema, na orientação de coluna. Aprovado é disco
+   cheio com o visto, o corrente é anel do acento com halo fraco, o que ainda
+   não chegou é contorno apagado com o número dentro. O fio que liga acende
+   até onde a esteira andou.
 
-.estacoes{list-style:none;margin:0;padding:0;position:relative;display:flex;
-  align-items:flex-start;min-width:max-content}
+   O anel do corrente enche conforme o checklist anda: é o que deixa ver o
+   progresso de dentro do checkpoint sem abrir o checkpoint. */
+.trilha{min-width:0}
+.trilha-rolo{overflow-y:auto;overflow-x:hidden;max-height:min(560px,60vh);
+  padding-right:4px;scrollbar-width:thin}
+.estacoes{list-style:none;margin:0;padding:0;display:grid}
 
-/* o trilho por baixo: o sulco inteiro, e por cima a parte andada, acesa */
-.estacoes::before,.estacoes::after{content:'';position:absolute;top:13px;height:3px;
-  border-radius:2px;pointer-events:none}
-.estacoes::before{left:calc(50% / var(--n,4));right:calc(50% / var(--n,4));background:var(--line-2)}
-.estacoes::after{left:calc(50% / var(--n,4));
-  width:calc((100% - 100% / var(--n,4)) * var(--andado,0));
-  background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 55%,transparent),var(--ac));
-  box-shadow:0 0 14px -1px color-mix(in srgb,var(--ac) 70%,transparent);
-  transition:width .5s cubic-bezier(.22,1,.36,1)}
-.trilho-linha.travado .estacoes::after{background:var(--late);box-shadow:none}
-.trilho-linha.fim .estacoes::after{width:calc(100% - 100% / var(--n,4))}
+.est{min-width:0}
+.est>button,.est.chegada{display:grid;grid-template-columns:28px minmax(0,1fr);gap:16px;
+  width:100%;text-align:left;align-items:start}
+.est>button{cursor:pointer;border-radius:var(--r-sm);transition:var(--t)}
+.est>button:hover .est-txt b{color:var(--tx)}
 
-.est{flex:1;min-width:112px;display:flex;flex-direction:column;align-items:center;position:relative}
-.est > button,.est.chegada{display:flex;flex-direction:column;align-items:center;gap:8px;
-  width:100%;padding:0 6px;color:inherit;transition:var(--t)}
-.est-marca{position:relative;display:grid;place-items:center;width:30px;height:30px;
-  border-radius:50%;background:var(--bg);box-shadow:0 0 0 5px var(--bg)}
+/* a coluna do nó: a bolinha e o fio que desce dela */
+.est-col{display:grid;justify-items:center;gap:6px;height:100%}
+.est-marca{position:relative;width:28px;height:28px;display:grid;place-items:center;flex:none}
+.est-fio{width:1px;flex:1;min-height:26px;background:var(--line-3);border-radius:1px}
+.est.chegada .est-fio,.est:last-of-type .est-fio{display:none}
+.est.feita .est-fio{background:var(--ac)}
 
-/* aprovada: selo cheio */
-.est-ok{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;
-  background:var(--ac);color:var(--ac-tx)}
-.est-ok svg{width:13px;height:13px}
+/* aprovado: disco cheio com o visto */
+.est-ok{width:28px;height:28px;border-radius:var(--r-pill);display:grid;place-items:center;
+  background:var(--line-3);color:var(--tx)}
+.est-ok svg{width:14px;height:14px;stroke-width:3}
 
-/* da vez: anel que enche, com halo */
-.est-anel{width:30px;height:30px;overflow:visible}
-.trilho-vazio{fill:var(--panel);stroke:var(--line-2);stroke-width:2.4}
-.trilho-cheio{fill:none;stroke:var(--ac-tinta);stroke-width:2.6;stroke-linecap:round;
-  transition:stroke-dasharray .5s cubic-bezier(.22,1,.36,1)}
-.trilho-miolo{fill:var(--ac-tinta)}
-.trilho-linha.travado .trilho-cheio,.trilho-linha.travado .trilho-miolo{stroke:var(--late);fill:var(--late)}
-.est.vez .est-marca::after{content:'';position:absolute;inset:-6px;border-radius:50%;
-  background:radial-gradient(closest-side,color-mix(in srgb,var(--ac) 30%,transparent),transparent 72%);
-  animation:respira 2.8s ease-in-out infinite;pointer-events:none}
-.trilho-linha.travado .est.vez .est-marca::after{
-  background:radial-gradient(closest-side,color-mix(in srgb,var(--late) 30%,transparent),transparent 72%)}
-@keyframes respira{0%,100%{opacity:.55;transform:scale(.94)}50%{opacity:1;transform:scale(1.06)}}
+/* o corrente: anel do acento que enche, com halo fraco */
+.est-anel{width:28px;height:28px;overflow:visible}
+.trilha-vazio{fill:none;stroke:var(--line-3);stroke-width:2.5}
+.trilha-cheio{fill:none;stroke:var(--ac);stroke-width:2.5;stroke-linecap:round;
+  transition:stroke-dasharray 280ms cubic-bezier(.22,.61,.36,1)}
+.est.vez .est-marca{border-radius:var(--r-pill);box-shadow:0 0 0 5px var(--ac-soft)}
 
-/* ainda não chegou */
-.est-oca{width:13px;height:13px;border-radius:50%;background:var(--panel);
-  box-shadow:0 0 0 2.2px var(--line-2)}
+/* o que ainda não chegou: contorno apagado com o número dentro */
+.est-oca{width:28px;height:28px;border-radius:var(--r-pill);display:grid;place-items:center;
+  border:2px solid var(--line-2);color:var(--tx-3);
+  font:var(--fw-semibold) var(--fs-micro)/1 var(--sans)}
 
-/* já voltou atrás uma vez */
-.est-voltou{position:absolute;top:0;right:0;width:9px;height:9px;border-radius:50%;
-  background:var(--late);box-shadow:0 0 0 2.5px var(--bg)}
+/* já voltou atrás uma vez: um ponto, sem cor nova */
+.est-voltou{position:absolute;right:-1px;top:-1px;width:7px;height:7px;border-radius:var(--r-pill);
+  background:var(--warn);box-shadow:0 0 0 2px var(--bg)}
 
-.est-bandeira{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;
-  color:var(--tx-3);box-shadow:0 0 0 2px var(--line-2)}
-.est-bandeira svg{width:12px;height:12px}
-.est-bandeira.on{background:var(--ac);color:var(--ac-tx);box-shadow:none}
+.est-bandeira{width:28px;height:28px;border-radius:var(--r-pill);display:grid;place-items:center;
+  border:2px dashed var(--line-2);color:var(--tx-3)}
+.est-bandeira svg{width:13px;height:13px}
+.est-bandeira.on{border-style:solid;border-color:transparent;background:var(--line-3);color:var(--tx)}
 
-.est-txt{text-align:center;min-width:0;width:100%;line-height:1.3}
-.est-txt b{display:block;font-size:12.5px;font-weight:500;color:var(--tx-3);transition:var(--t);
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.012em}
-.est-txt small{display:block;font-size:10.5px;color:var(--tx-3);margin-top:1px;
-  font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.est-txt{display:grid;gap:3;padding-bottom:22px;min-width:0}
+.est-txt b{font:var(--fw-medium) var(--fs-body-lg)/1.25 var(--sans);color:var(--tx-2);
+  overflow:hidden;text-overflow:ellipsis;transition:var(--t)}
+.est-txt small{font:var(--fw-regular) var(--fs-meta)/var(--lh-meta) var(--sans);color:var(--tx-3)}
+/* depois de .est-txt small, senão perde por especificidade e o "Agora" some */
+.est-txt small.est-agora{font-weight:var(--fw-medium);color:var(--ac-tinta)}
 .est.feita .est-txt b{color:var(--tx-2)}
-.est.vez .est-txt b{color:var(--tx);font-weight:700;font-size:13px}
-.est > button:hover .est-txt b{color:var(--tx)}
-.est > button:hover .est-marca{transform:translateY(-1px)}
-.est > button:focus-visible{outline:2px solid var(--ac-tinta);outline-offset:3px;border-radius:10px}
-
-/* o aberto embaixo ganha um traço, que é o que liga o trilho ao conteúdo */
-.est.sel .est-txt::after{content:'';display:block;width:18px;height:2px;border-radius:2px;
-  background:var(--ac);margin:7px auto 0}
+.est.vez .est-txt b{color:var(--tx);font-weight:var(--fw-semibold)}
 .est.sel .est-txt b{color:var(--tx)}
+.est.sel>button{background:var(--brilho)}
+.est.chegada .est-txt{padding-bottom:0}
 
-@media (max-width:620px){
-  .trilho-rolo{padding-inline:12px}
-  .est{min-width:96px}
+/* travado: o fio que andou para de ser acento e vira o vermelho do atraso */
+.trilha.travado .est.feita .est-fio{background:var(--late)}
+.trilha.travado .trilha-cheio{stroke:var(--late)}
+
+@media (max-width:840px){
+  .trilha-rolo{max-height:none;overflow:visible}
+  .est-txt{padding-bottom:18px}
 }
 
 .loopnote{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--tx-3);margin:-14px 0 20px 2px}

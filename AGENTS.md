@@ -162,10 +162,20 @@ TabBar, quem aparece no desktop é a `Shell`. Telas novas precisam caber nas dua
 A agenda usa `matchMedia` para mostrar um dia por vez no celular; grade de sete colunas
 não cabe em 375px.
 
-A esteira é desenhada como **trilha vertical** (`.trilha` em `TelaFluxo`), no estilo da
-tela Trace da referência: linha fina, uma bolinha por checkpoint, vazada no que ainda não
-chegou, enchendo conforme o checklist do corrente anda, e sólida depois de aprovada.
-Não voltar para stepper horizontal: com sete checkpoints ele não caberia.
+A esteira é desenhada como **trilha vertical** (`componentes/Trilha.tsx`, classe `.trilha`),
+que é o CheckpointTrail do design system na orientação de coluna. Ela vive numa lateral de
+264px à esquerda do checkpoint aberto, em `.fluxo-corpo`. Aprovado é disco cheio com o
+visto, o corrente é anel do acento com halo fraco, o que ainda não chegou é contorno
+apagado com o número dentro, e o fio que liga acende até onde a esteira andou.
+
+**Não voltar para stepper horizontal**: com sete checkpoints ele não cabe, e foi o que
+aconteceu. Até 22/09/2026 o código tinha um trilho deitado que rolava de lado, apesar
+desta regra já estar escrita aqui, e descobrir onde a esteira estava exigia arrastar.
+
+O anel do corrente **enche conforme o checklist anda**, e isso o design system não tem:
+é acréscimo do produto, para ver o progresso de dentro do checkpoint sem abrir o
+checkpoint. Ao trocar a trilha por outra coisa, não perder isso, nem o ponto de quem já
+voltou atrás, nem a bandeira de chegada que distingue projeto de rotina.
 
 ## Modo demonstração
 
