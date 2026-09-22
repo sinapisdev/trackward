@@ -57,6 +57,24 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
    * outra. O índice inteiro, que o resto do app usa, é o arredondamento disto.
    */
   const [pos, setPos] = useState(atual)
+  /**
+   * O mesmo valor de pos, guardado num ref.
+   *
+   * Existe por um motivo específico: a mola e o encaixe da roda precisam LER
+   * onde a fila está agora, e o lugar errado de fazer isso é dentro da função
+   * que atualiza o estado. Essa função tem que ser pura, porque o React pode
+   * chamá-la duas vezes para conferir, e avisar o Painel lá de dentro é avisar
+   * no meio do desenho de outro componente. Era exatamente essa a reclamação.
+   *
+   * Com o ref, ler a posição atual não custa nada e não depende de render.
+   */
+  const posRef = useRef(atual)
+
+  /** O único lugar que mexe na posição, para o ref nunca ficar para trás. */
+  const irPara = useCallback((v: number) => {
+    posRef.current = v
+    setPos(v)
+  }, [])
 
   const total = itens.length
   const limitar = useCallback((i: number) => Math.max(0, Math.min(total - 1, i)), [total])
@@ -65,21 +83,23 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
   const assentar = useCallback((destino: number) => {
     if (quadro.current) cancelAnimationFrame(quadro.current)
     const passo = () => {
-      setPos((p) => {
-        const falta = destino - p
-        if (Math.abs(falta) < 0.004) { quadro.current = null; return destino }
-        quadro.current = requestAnimationFrame(passo)
-        return p + falta * 0.24
-      })
+      const falta = destino - posRef.current
+      if (Math.abs(falta) < 0.004) {
+        quadro.current = null
+        irPara(destino)
+        return
+      }
+      irPara(posRef.current + falta * 0.24)
+      quadro.current = requestAnimationFrame(passo)
     }
     quadro.current = requestAnimationFrame(passo)
-  }, [])
+  }, [irPara])
 
   const andar = useCallback((n: number) => {
-    const destino = limitar(Math.round(pos) + n)
+    const destino = limitar(Math.round(posRef.current) + n)
     aoTrocar(destino)
     assentar(destino)
-  }, [pos, limitar, aoTrocar, assentar])
+  }, [limitar, aoTrocar, assentar])
 
   useEffect(() => () => { if (quadro.current) cancelAnimationFrame(quadro.current) }, [])
 
@@ -95,33 +115,32 @@ export function Pastas({ itens, atual, aoTrocar, aoAbrir, rotulo }: {
       if (!d) return
       e.preventDefault()
       if (quadro.current) { cancelAnimationFrame(quadro.current); quadro.current = null }
-      setPos((p) => limitar(p + d / 90))
+      irPara(limitar(posRef.current + d / 90))
       if (parar) clearTimeout(parar)
+      // Parou de rolar: encaixa na pasta mais perto e conta para o Painel. Aqui
+      // fora do updater, que é o lugar certo de um efeito colateral.
       parar = setTimeout(() => {
-        setPos((p) => {
-          const destino = limitar(Math.round(p))
-          aoTrocar(destino)
-          assentar(destino)
-          return p
-        })
+        const destino = limitar(Math.round(posRef.current))
+        aoTrocar(destino)
+        assentar(destino)
       }, 110)
     }
     el.addEventListener('wheel', naRoda, { passive: false })
     return () => { el.removeEventListener('wheel', naRoda); if (parar) clearTimeout(parar) }
-  }, [limitar, aoTrocar, assentar])
+  }, [limitar, aoTrocar, assentar, irPara])
 
   const pegar = (x: number) => {
     if (quadro.current) { cancelAnimationFrame(quadro.current); quadro.current = null }
-    inicio.current = { x, pos }
+    inicio.current = { x, pos: posRef.current }
     setArrastando(true)
   }
   const mover = (x: number) => {
     if (!inicio.current) return
-    setPos(limitar(inicio.current.pos + (inicio.current.x - x) / 86))
+    irPara(limitar(inicio.current.pos + (inicio.current.x - x) / 86))
   }
   const soltar = () => {
     if (inicio.current) {
-      const destino = limitar(Math.round(pos))
+      const destino = limitar(Math.round(posRef.current))
       aoTrocar(destino)
       assentar(destino)
     }
