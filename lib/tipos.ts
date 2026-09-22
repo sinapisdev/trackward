@@ -149,6 +149,16 @@ export type Organizacao = {
    *          sozinho, porque prazo é compromisso com quem espera.
    */
   ia_modo: 'sugerir' | 'aplicar'
+  /**
+   * O plano desta empresa. Os limites moram nas colunas abaixo, e não numa
+   * tabela de planos, porque os planos ainda não estão definidos: assim dá para
+   * começar a cobrar mexendo em números, sem mexer em código.
+   */
+  plano: string
+  /** Leituras com modelo por mês. Nulo é sem teto. */
+  limite_leituras: number | null
+  /** Qual modelo esta empresa usa. Vazio é o padrão do servidor. */
+  modelo_ia: string | null
   criado_em: string
 }
 

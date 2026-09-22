@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Memoria } from './Memoria'
+import { Consumo } from './Consumo'
 import { useDados } from './Dados'
 import { useModais } from './Modais'
 import { Carregando } from './Shell'
@@ -101,6 +102,8 @@ export function TelaAjustes() {
             </p>
           </div>
         </div>
+
+        {org.ia_ativa && <Consumo />}
 
         {org.ia_ativa && <Memoria />}
 

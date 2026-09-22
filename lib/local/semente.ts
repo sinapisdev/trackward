@@ -104,6 +104,7 @@ export function semente(): Base {
     dominio: 'meridiano.com.br', entrada_por_dominio: false, dono_id: 'leo',
     multi: true, rotulo: 'Empresa', rotulo_plural: 'Empresas',
     ia_ativa: true, ia_modo: 'sugerir', criado_em: criado,
+    plano: 'padrao', limite_leituras: null, modelo_ia: null,
   }]
 
   const empresas = [
@@ -662,5 +663,5 @@ export function semente(): Base {
     processos, processo_etapas, processo_itens,
     canais, canal_membros, mensagens, sugestoes,
     compromissos, convidados, agendas_externas, ocupacao_externa, fluxo_pessoas: [], convites: [],
-    historico, atividades, anexos, decisoes, pedidos_prazo: [], memoria: [] }
+    historico, atividades, anexos, decisoes, pedidos_prazo: [], memoria: [], consumo: [] }
 }

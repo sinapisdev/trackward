@@ -43,6 +43,8 @@ export type Contexto = {
    * daria falso positivo. Quem aproveita é o modelo, em /api/leitor.
    */
   memoria?: string
+  /** De qual canal veio, para o medidor saber onde o gasto aconteceu. */
+  canal_id?: string | null
 }
 
 export type Proposta = {

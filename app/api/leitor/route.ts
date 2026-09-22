@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { porRegras, podar, type Contexto, type Proposta } from '@/lib/leitor'
+import { clienteServidor } from '@/lib/supabase/servidor'
+import { custoMicro } from '@/lib/precos'
 import type { TipoProposta } from '@/lib/tipos'
 
 /**
@@ -135,7 +137,17 @@ function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
   return podar(saida)
 }
 
-async function porModelo(ctx: Contexto, chave: string): Promise<Proposta[] | null> {
+type Medida = {
+  modelo: string
+  entrada: number
+  saida: number
+  cacheLeitura: number
+  cacheEscrita: number
+}
+
+async function porModelo(
+  ctx: Contexto, chave: string, modelo: string, medida: { valor: Medida | null },
+): Promise<Proposta[] | null> {
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -144,7 +156,7 @@ async function porModelo(ctx: Contexto, chave: string): Promise<Proposta[] | nul
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: MODELO,
+      model: modelo,
       max_tokens: 2000,
       system: instrucoes(ctx),
       tools: [FERRAMENTA],
@@ -154,7 +166,24 @@ async function porModelo(ctx: Contexto, chave: string): Promise<Proposta[] | nul
   })
   if (!r.ok) return null
 
-  const corpo = await r.json() as { content?: { type: string; name?: string; input?: { propostas?: Cru[] } }[] }
+  const corpo = await r.json() as {
+    content?: { type: string; name?: string; input?: { propostas?: Cru[] } }[]
+    usage?: {
+      input_tokens?: number; output_tokens?: number
+      cache_read_input_tokens?: number; cache_creation_input_tokens?: number
+    }
+  }
+
+  // O que a própria API diz ter cobrado. Estimar tokens por conta seria chutar a
+  // conta do cliente; aqui a medida vem de quem cobra.
+  medida.valor = {
+    modelo,
+    entrada: corpo.usage?.input_tokens ?? 0,
+    saida: corpo.usage?.output_tokens ?? 0,
+    cacheLeitura: corpo.usage?.cache_read_input_tokens ?? 0,
+    cacheEscrita: corpo.usage?.cache_creation_input_tokens ?? 0,
+  }
+
   const uso = corpo.content?.find((b) => b.type === 'tool_use' && b.name === 'registrar')
   if (!uso?.input?.propostas) return null
   return conferir(uso.input.propostas, ctx)
@@ -177,13 +206,71 @@ export async function POST(req: Request) {
   ctx.pessoas = (ctx.pessoas || []).slice(0, 60)
 
   const chave = process.env.ANTHROPIC_API_KEY
+
+  /**
+   * O teto é conferido AQUI, e não na tela.
+   *
+   * Teto conferido no navegador não é teto: bastaria abrir as ferramentas do
+   * navegador e chamar a rota direto. Aqui quem responde se pode gastar é o
+   * banco, com a identidade de quem pediu, e não há como passar por cima.
+   *
+   * Sem Supabase (modo demonstração) não há chave nem cobrança, então não há
+   * nada a conferir: cai nas regras embutidas e o app segue igual.
+   */
   if (chave) {
+    let modelo = MODELO
+    let podeGastar = false
+    let sb: Awaited<ReturnType<typeof clienteServidor>> | null = null
+
     try {
-      const propostas = await porModelo(ctx, chave)
-      if (propostas) return NextResponse.json({ propostas, motor: 'ia' })
+      sb = await clienteServidor()
+      const [{ data: pode }, { data: daOrg }] = await Promise.all([
+        sb.rpc('pode_chamar_modelo'),
+        sb.rpc('modelo_da_org'),
+      ])
+      podeGastar = pode === true
+      if (typeof daOrg === 'string' && daOrg) modelo = daOrg
     } catch {
-      // Cai nas regras logo abaixo, de propósito: um modelo fora do ar não pode
-      // deixar o app sem ler a conversa.
+      // Sem sessão ou sem banco: não dá para medir, então não se gasta. Preferir
+      // as regras a gastar sem saber de quem é a conta.
+      podeGastar = false
+    }
+
+    if (podeGastar && sb) {
+      const medida: { valor: Medida | null } = { valor: null }
+      try {
+        const propostas = await porModelo(ctx, chave, modelo, medida)
+
+        // Grava o gasto mesmo quando a resposta não serviu: o token foi cobrado
+        // de qualquer jeito, e medidor que só conta acerto mede errado.
+        if (medida.valor) {
+          const m = medida.valor
+          await sb.rpc('registrar_consumo', {
+            p_onde: 'leitor',
+            p_modelo: m.modelo,
+            p_entrada: m.entrada,
+            p_saida: m.saida,
+            p_cache_leitura: m.cacheLeitura,
+            p_cache_escrita: m.cacheEscrita,
+            p_custo_micro: custoMicro(m.modelo, {
+              entrada: m.entrada, saida: m.saida,
+              cacheLeitura: m.cacheLeitura, cacheEscrita: m.cacheEscrita,
+            }),
+            p_canal: ctx.canal_id ?? null,
+          })
+        }
+
+        if (propostas) return NextResponse.json({ propostas, motor: 'ia', modelo })
+      } catch {
+        // Modelo fora do ar não pode deixar o app sem ler a conversa.
+      }
+    } else {
+      return NextResponse.json({
+        propostas: porRegras(ctx),
+        motor: 'regras',
+        // A tela precisa poder dizer por que a leitura saiu mais simples hoje.
+        porque: 'teto',
+      })
     }
   }
 

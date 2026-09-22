@@ -2003,3 +2003,52 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
   border-radius:var(--r-sm);padding:10px 12px;font-size:11.5px;line-height:1.55;
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--tx);resize:vertical}
 .rel-texto textarea:focus{outline:none;box-shadow:0 0 0 1.5px var(--ac)}
+
+/* ======================================================================
+   O relógio de luz da IA. Existe por motivo comercial: sem medidor não há
+   como cobrar, e sem teto não há como dormir.
+   ====================================================================== */
+
+.cns{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;
+  margin-bottom:14px}
+.cns-n{padding:11px 13px;border-radius:var(--r-sm);background:var(--bg)}
+.cns-n b{display:block;font-size:23px;font-weight:700;letter-spacing:-.035em;line-height:1}
+.cns-n > span{display:block;font-size:11.5px;font-weight:600;margin-top:4px}
+.cns-n small{display:block;font-size:10.5px;color:var(--tx-3);line-height:1.4;margin-top:2px}
+
+.cns-barra{height:7px;border-radius:4px;background:var(--line);overflow:hidden;margin-bottom:14px}
+.cns-barra span{display:block;height:100%;border-radius:4px;background:var(--ac);
+  transition:width .4s cubic-bezier(.22,1,.36,1)}
+.cns-barra.quase span{background:var(--warn-forte)}
+.cns-barra.cheia span{background:var(--late)}
+
+.cns-estourou{display:flex;align-items:flex-start;gap:8px;margin:0 0 14px;padding:10px 12px;
+  border-radius:var(--r-sm);background:color-mix(in srgb,var(--late) 10%,transparent);
+  font-size:11.5px;line-height:1.55;color:var(--tx-2)}
+.cns-estourou svg{flex:none;margin-top:1px;color:var(--late)}
+.cns-estourou b{color:var(--late);font-weight:700}
+
+.cns-campos{display:grid;grid-template-columns:200px minmax(0,1fr);gap:18px;align-items:start}
+.cns-campos .inp{max-width:140px}
+.cns-modelos{display:flex;flex-wrap:wrap;gap:6px}
+.cns-modelos .tpl{display:inline-flex;align-items:baseline;gap:6px}
+.cns-modelos .tpl i{font-style:normal;font-size:10px;opacity:.7;font-variant-numeric:tabular-nums}
+
+.cns-conta{margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
+.cns-conta summary{font-size:11.5px;color:var(--tx-3);cursor:pointer}
+.cns-conta summary:hover{color:var(--tx-2)}
+.cns-conta p{margin:10px 0 0;font-size:11.5px;line-height:1.6;color:var(--tx-3)}
+.cns-conta b{color:var(--tx-2);font-weight:600}
+.cns-tab{width:100%;border-collapse:collapse;font-size:11.5px;margin-top:10px}
+.cns-tab th{text-align:right;padding:0 0 6px 8px;font-size:10px;font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--tx-3);
+  box-shadow:inset 0 -1px 0 var(--line)}
+.cns-tab th:first-child,.cns-tab td:first-child{text-align:left;padding-left:0}
+.cns-tab td{text-align:right;padding:6px 0 6px 8px;box-shadow:inset 0 -1px 0 var(--line);
+  font-variant-numeric:tabular-nums;color:var(--tx-3)}
+.cns-tab tr.on td{color:var(--tx)}
+.cns-tab tr.on td:first-child{font-weight:600}
+
+@media (max-width:760px){
+  .cns-campos{grid-template-columns:1fr}
+}

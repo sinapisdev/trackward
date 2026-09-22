@@ -14,14 +14,14 @@ const CHAVE_EU = 'track.local.eu'
 const CHAVE_USUARIO = 'track.local.user'
 const CHAVE_VERSAO = 'track.local.versao'
 /** Sobe quando o exemplo ganha tabelas novas. Ver completar(). */
-const VERSAO = 11
+const VERSAO = 12
 const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], fluxos: [], etapas: [], itens: [],
   dependencias: [], processos: [], processo_etapas: [], processo_itens: [], fluxo_pessoas: [],
   convites: [],
   canais: [], canal_membros: [], mensagens: [], sugestoes: [],
   compromissos: [], convidados: [], agendas_externas: [], ocupacao_externa: [],
   historico: [], atividades: [],
-  anexos: [], decisoes: [], pedidos_prazo: [], memoria: [] }
+  anexos: [], decisoes: [], pedidos_prazo: [], memoria: [], consumo: [] }
 
 let base: Base | null = null
 const ouvintes = new Set<() => void>()
@@ -1020,6 +1020,11 @@ function montarCliente() {
           }
           return { data: saida, error: null }
         }
+        if (nome === 'leituras_do_mes') return { data: 0, error: null }
+        if (nome === 'gasto_do_mes') return { data: 0, error: null }
+        if (nome === 'pode_chamar_modelo') return { data: false, error: null }
+        if (nome === 'modelo_da_org') return { data: '', error: null }
+        if (nome === 'registrar_consumo') return { data: null, error: null }
         if (nome === 'cascata') {
           return { data: cascataLocal(args.p_item as string, args.p_novo as string), error: null }
         }

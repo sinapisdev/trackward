@@ -103,6 +103,8 @@ type Contexto = {
   preverCascata: (item: Item, novo: string) => Promise<NaCascata[]>
   /** Aplica o que é da mesma esteira e pede o resto. */
   moverPrazo: (item: Item, novo: string, motivo: string) => Promise<boolean>
+  /** Quanto a IA consumiu neste mês, e qual é o teto. */
+  consumo: { leituras: number; gastoMicro: number; limite: number | null; modelo: string }
   /** O que o Track já aprendeu sobre esta empresa. Visível e apagável. */
   memoria: Lembranca[]
   esquecer: (id: string) => Promise<void>
@@ -186,6 +188,7 @@ const ORG_PADRAO: Organizacao = {
   id: '', nome: 'Track', tipo: 'equipe', dominio: null, entrada_por_dominio: false,
   dono_id: null, multi: false, rotulo: 'Empresa', rotulo_plural: 'Empresas',
   ia_ativa: true, ia_modo: 'sugerir', criado_em: '',
+  plano: 'padrao', limite_leituras: null, modelo_ia: null,
 }
 const CHAVE_EMPRESA = 'track.empresa'
 
@@ -208,6 +211,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [decisoes, setDecisoes] = useState<Decisao[]>([])
   const [pedidosPrazo, setPedidosPrazo] = useState<PedidoPrazo[]>([])
   const [memoria, setMemoria] = useState<Lembranca[]>([])
+  const [consumo, setConsumo] = useState<Contexto['consumo']>(
+    { leituras: 0, gastoMicro: 0, limite: null, modelo: '' },
+  )
   const [canais, setCanais] = useState<Canal[]>([])
   const [mensagens, setMensagens] = useState<Mensagem[]>([])
   const [sugestoes, setSugestoes] = useState<Sugestao[]>([])
@@ -241,7 +247,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   /** Recolhe tudo que a pessoa pode ver e monta a árvore de fluxos. */
   const carregar = useCallback(async () => {
-    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem] = await Promise.all([
+    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns] = await Promise.all([
       sb.from('perfis').select('*').order('nome'),
       sb.from('areas').select('*').order('ordem'),
       sb.from('fluxos').select('*').order('criado_em'),
@@ -271,6 +277,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       sb.from('decisoes').select('*').order('criado_em', { ascending: false }),
       sb.from('pedidos_prazo').select('*').order('criado_em', { ascending: false }),
       sb.from('memoria').select('*').order('peso', { ascending: false }),
+      sb.from('consumo').select('onde,custo_micro,criado_em'),
     ])
 
     const listaPerfis = (p.data || []) as Perfil[]
@@ -406,6 +413,21 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     setDecisoes((dec.data || []) as Decisao[])
     setPedidosPrazo((pz.data || []) as PedidoPrazo[])
     setMemoria((mem.data || []) as Lembranca[])
+
+    // O gasto do mês, contado aqui porque as linhas já chegaram filtradas pela
+    // organização. Mês corrente pelo relógio de quem olha, que é o que a pessoa
+    // espera ver quando abre "este mês".
+    const inicioDoMes = new Date()
+    inicioDoMes.setDate(1)
+    inicioDoMes.setHours(0, 0, 0, 0)
+    const linhas = ((cns.data || []) as { onde: string; custo_micro: number; criado_em: string }[])
+      .filter((l) => new Date(l.criado_em) >= inicioDoMes)
+    setConsumo({
+      leituras: linhas.filter((l) => l.onde === 'leitor').length,
+      gastoMicro: linhas.reduce((n, l) => n + Number(l.custo_micro || 0), 0),
+      limite: cfg?.limite_leituras ?? null,
+      modelo: cfg?.modelo_ia || '',
+    })
     setEspacos((esp.data || []) as Espaco[])
 
     // Canal: a lista de membros vem junto, e com ela a minha marca de leitura.
@@ -1351,6 +1373,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       // O que a casa já ensinou vai junto no pedido: é assim que a leitura
       // melhora sem ninguém treinar nada.
       memoria: paraOModelo(memoria),
+      canal_id: canalId,
     }
 
     let propostas: Proposta[] = []
@@ -1359,9 +1382,12 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       const r = await fetch('/api/leitor', {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo),
       })
-      const volta = await r.json() as { propostas?: Proposta[]; motor?: string }
+      const volta = await r.json() as { propostas?: Proposta[]; motor?: string; porque?: string }
       propostas = volta.propostas || []
       motor = volta.motor || 'regras'
+      if (volta.porque === 'teto') {
+        toast('O teto de leituras com IA do mês foi atingido. A leitura usou as regras embutidas.')
+      }
     } catch {
       toast('Não consegui ler a conversa agora.', true)
       return null
@@ -1430,7 +1456,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     canais, mensagens, sugestoes, mensagensDe, sugestoesDe, naoLidas, meChamaram,
     anexosDe, anexar, removerAnexo, abrirAnexo, decisoesDe, decidir,
     desfazerSugestao, palpites, distribuirTarefa, cargas, cargaDe,
-    memoria, esquecer,
+    memoria, esquecer, consumo,
     preverCascata, moverPrazo, pedidosPrazo, decidirPrazo,
     enviar, enviarAudio, abrirAudio, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
     lerConversa, aceitarSugestao, recusarSugestao,

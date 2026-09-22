@@ -490,6 +490,33 @@ create table if not exists public.memoria (
   criado_em timestamptz not null default now()
 );
 
+-- O relógio de luz de cada empresa.
+--
+-- Uma linha por chamada paga ao modelo. Sem isto não há como precificar, não há
+-- como pôr teto e não há como saber qual cliente está caro: é um prédio com um
+-- relógio só, no nome de quem vende.
+--
+-- O custo fica em MILIONÉSIMOS de dólar, em inteiro. Dinheiro em ponto flutuante
+-- erra no centavo quando se soma muita linha, e conta de cliente não pode errar.
+--
+-- O nome do modelo fica gravado junto: preço muda com o tempo, e a linha de
+-- ontem tem que continuar valendo o que valia ontem.
+create table if not exists public.consumo (
+  id          uuid primary key default gen_random_uuid(),
+  -- Onde foi gasto. Hoje só 'leitor'; a coluna existe para o próximo uso pago
+  -- não precisar de tabela nova.
+  onde        text not null default 'leitor',
+  modelo      text not null default '',
+  entrada     int  not null default 0,
+  saida       int  not null default 0,
+  cache_leitura int not null default 0,
+  cache_escrita int not null default 0,
+  custo_micro bigint not null default 0,
+  perfil_id   uuid references public.perfis on delete set null,
+  canal_id    uuid references public.canais on delete set null,
+  criado_em   timestamptz not null default now()
+);
+
 create index if not exists anexos_item_idx  on public.anexos (item_id);
 create index if not exists msg_audio_idx on public.mensagens (audio_caminho) where audio_caminho is not null;
 create index if not exists anexos_fluxo_idx on public.anexos (fluxo_id);
@@ -515,7 +542,7 @@ begin
     'fluxos','fluxo_pessoas','etapas','itens','dependencias','historico','atividades',
     'compromissos','convidados','agendas_externas','ocupacao_externa',
     'canais','canal_membros','mensagens','sugestoes',
-    'anexos','decisoes','pedidos_prazo','memoria'
+    'anexos','decisoes','pedidos_prazo','memoria','consumo'
   ] loop
     execute format(
       'alter table public.%I add column if not exists org_id uuid references public.organizacoes on delete cascade', t);
@@ -563,7 +590,7 @@ begin
     'fluxos','fluxo_pessoas','etapas','itens','dependencias','historico','atividades',
     'compromissos','convidados','agendas_externas','ocupacao_externa',
     'canais','canal_membros','mensagens','sugestoes',
-    'anexos','decisoes','pedidos_prazo','memoria'
+    'anexos','decisoes','pedidos_prazo','memoria','consumo'
   ] loop
     execute format('drop trigger if exists ao_inserir_org on public.%I', t);
     execute format(
@@ -573,6 +600,17 @@ begin
 end $$;
 
 create unique index if not exists memoria_uk on public.memoria (org_id, tipo, chave);
+create index if not exists consumo_mes_idx on public.consumo (org_id, criado_em desc);
+
+-- Os campos de plano. Ficam na organização, e não em tabela de planos, porque os
+-- planos ainda não estão definidos: assim dá para começar a cobrar mexendo em
+-- números, e o dia em que virarem tabela de verdade, a organização passa a
+-- apontar para ela sem nada aqui mudar de significado.
+alter table public.organizacoes add column if not exists plano text not null default 'padrao';
+-- Quantas leituras com modelo por mês. Nulo é sem teto.
+alter table public.organizacoes add column if not exists limite_leituras int;
+-- Qual modelo esta empresa usa. Vazio é o padrão do servidor.
+alter table public.organizacoes add column if not exists modelo_ia text;
 create index if not exists memoria_peso_idx on public.memoria (org_id, tipo, peso desc);
 
 -- Uma pessoa, um perfil por espaço. A restrição entra aqui porque depende da
@@ -944,6 +982,7 @@ alter table public.anexos   enable row level security;
 alter table public.decisoes enable row level security;
 alter table public.pedidos_prazo enable row level security;
 alter table public.memoria enable row level security;
+alter table public.consumo enable row level security;
 alter table public.fluxo_pessoas enable row level security;
 alter table public.dependencias  enable row level security;
 
@@ -1066,6 +1105,13 @@ create policy anx_ins on public.anexos for insert
 drop policy if exists anx_del on public.anexos;
 create policy anx_del on public.anexos for delete
   using (minha(org_id) and (ativo() and (autor_id = meu_perfil() or manda_no_processo(fluxo_id))));
+
+-- consumo: todos leem o próprio gasto, e ninguém escreve à mão. Quem grava é a
+-- função registrar_consumo, chamada pela rota que fala com o modelo. Sem update
+-- nem delete de propósito: medidor que o medido pode zerar não mede nada.
+drop policy if exists cons_sel on public.consumo;
+create policy cons_sel on public.consumo for select
+  using (minha(org_id) and ativo());
 
 -- memória: é da organização inteira, e quem trabalha nela lê e corrige. Apagar
 -- é de todo mundo de propósito: quem viu a máquina aprender errado tem que poder
@@ -1834,6 +1880,77 @@ begin
 end $$;
 
 -- --------------------------------------------------------------------------
+-- 7c. O medidor e o teto
+--
+--     Duas coisas, e as duas rodam no servidor de propósito. Teto conferido no
+--     navegador não é teto: bastaria abrir as ferramentas do navegador para
+--     passar por cima. Aqui quem confere é o banco, e quem grava é o banco.
+-- --------------------------------------------------------------------------
+
+/** Quantas leituras com modelo esta empresa já fez no mês corrente. */
+create or replace function public.leituras_do_mes()
+returns int language sql stable security definer set search_path = public as $$
+  select coalesce(count(*), 0)::int
+  from consumo
+  where minha(org_id) and onde = 'leitor'
+    and criado_em >= date_trunc('month', now());
+$$;
+
+/** O gasto do mês em milionésimos de dólar. */
+create or replace function public.gasto_do_mes()
+returns bigint language sql stable security definer set search_path = public as $$
+  select coalesce(sum(custo_micro), 0)::bigint
+  from consumo
+  where minha(org_id) and criado_em >= date_trunc('month', now());
+$$;
+
+/**
+ * Esta empresa pode chamar o modelo agora?
+ *
+ * Não podendo, a leitura cai nas regras embutidas e o app segue funcionando. É
+ * por isso que o teto é seguro de ligar: ele corta o gasto, não o produto.
+ */
+create or replace function public.pode_chamar_modelo()
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce(
+    (select o.ia_ativa and (o.limite_leituras is null or leituras_do_mes() < o.limite_leituras)
+       from organizacoes o where o.id = minha_org()),
+    false);
+$$;
+
+/** O modelo desta empresa, ou vazio para o servidor escolher. */
+create or replace function public.modelo_da_org()
+returns text language sql stable security definer set search_path = public as $$
+  select coalesce(
+    (select nullif(btrim(o.modelo_ia), '') from organizacoes o where o.id = minha_org()), '');
+$$;
+
+/**
+ * Grava uma chamada paga. Só por aqui: a tabela não aceita escrita direta.
+ *
+ * O custo vem calculado de fora porque a tabela de preços mora no código do
+ * servidor, junto de quem sabe qual modelo foi chamado de verdade.
+ */
+create or replace function public.registrar_consumo(
+  p_onde text, p_modelo text,
+  p_entrada int, p_saida int, p_cache_leitura int, p_cache_escrita int,
+  p_custo_micro bigint, p_canal uuid default null
+)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not ativo() then raise exception 'Sem acesso.'; end if;
+  insert into consumo (
+    org_id, onde, modelo, entrada, saida, cache_leitura, cache_escrita,
+    custo_micro, perfil_id, canal_id
+  ) values (
+    minha_org(), coalesce(nullif(btrim(p_onde), ''), 'leitor'), p_modelo,
+    greatest(0, coalesce(p_entrada, 0)), greatest(0, coalesce(p_saida, 0)),
+    greatest(0, coalesce(p_cache_leitura, 0)), greatest(0, coalesce(p_cache_escrita, 0)),
+    greatest(0, coalesce(p_custo_micro, 0)), meu_perfil(), p_canal
+  );
+end $$;
+
+-- --------------------------------------------------------------------------
 -- 8. Conserta bancos criados por uma versão anterior deste arquivo
 -- --------------------------------------------------------------------------
 
@@ -1886,7 +2003,7 @@ declare t text;
 begin
   foreach t in array array[
     'perfis','areas','fluxos','etapas','itens','historico','atividades',
-    'anexos','decisoes','pedidos_prazo','memoria'
+    'anexos','decisoes','pedidos_prazo','memoria','consumo'
   ] loop
     begin
       execute format('alter publication supabase_realtime add table public.%I', t);
@@ -2142,7 +2259,7 @@ language sql stable set search_path = public as $$
       'fluxos','fluxo_pessoas','etapas','itens','dependencias','historico','atividades',
       'compromissos','convidados','agendas_externas','ocupacao_externa',
       'canais','canal_membros','mensagens','sugestoes',
-      'anexos','decisoes','pedidos_prazo','memoria'
+      'anexos','decisoes','pedidos_prazo','memoria','consumo'
     ]) as t
   )
   -- 1. Tabela sem a etiqueta da organização
