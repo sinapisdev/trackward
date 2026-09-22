@@ -67,14 +67,28 @@ guarde em lugar seguro.
 
 **4. Primeira conta**
 
-Rode `npm run dev` de novo e crie sua conta. **A primeira conta criada vira
-administradora e já entra liberada.** Se quiser ver as telas cheias antes de cadastrar
-o real, rode `supabase/exemplo.sql` no SQL Editor.
+Rode `npm run dev` de novo e crie sua conta escolhendo **Abrir a minha empresa**. Quem
+abre a empresa é a administradora dela, sempre. Se quiser ver as telas cheias antes de
+cadastrar o real, rode `supabase/exemplo.sql` no SQL Editor.
 
 Para voltar ao modo demonstração a qualquer momento, esvazie as duas linhas do
 `.env.local`, ou acrescente `NEXT_PUBLIC_MODO=local`.
 
 ## Como a equipe entra
+
+**O convite é a única porta.** Quem se cadastra sem convite não cai na sua empresa: ele
+abre a empresa dele. Isso é de propósito, e resolve o problema clássico de quem vende
+software por assinatura ao contrário do jeito ingênuo. O jeito ingênuo é deixar o
+domínio do e-mail decidir, e aí duas coisas quebram: quem se cadastra com e-mail da casa
+cai calado dentro de uma empresa que talvez nem seja a dele, bloqueado, e se a conta que
+abriu aquela empresa some, o domínio fica reservado por uma organização sem nenhum
+administrador, onde ninguém mais entra nem é liberado.
+
+O mesmo e-mail pode estar em **várias empresas ao mesmo tempo**: a que ele abriu, mais
+cada uma em que aceitou um convite. São perfis diferentes do mesmo login, e o seletor no
+alto da lateral troca entre eles. É o caso do grupo e da holding, em que a mesma pessoa
+responde por mais de uma empresa. Para abrir mais uma, use o seletor, **Abrir outra
+empresa**.
 
 O caminho normal é o **convite**, porque a conta já nasce pronta:
 
@@ -85,11 +99,15 @@ O caminho normal é o **convite**, porque a conta já nasce pronta:
 3. A pessoa abre o app, escolhe **Criar conta**, informa o código, e **entra direto**, já com o
    papel, a área e a hierarquia que você definiu.
 
-Quem se cadastra **sem** convite fica barrado, sem enxergar nada, até um administrador liberar
-em Equipe. O código só vale uma vez e pode ser cancelado enquanto não for usado.
+O código só vale uma vez e pode ser cancelado enquanto não for usado.
 
 Deixar a pessoa escolher o próprio papel no cadastro seria um convite a todo mundo virar
-administrador, por isso quem define é quem convida.
+administrador, por isso quem define é quem convida. Quem abre a empresa é administrador
+dela porque não há mais ninguém ali para dizer que pode.
+
+Um administrador pode **desligar** o acesso de alguém em Equipe. A pessoa continua com a
+conta, mas para de enxergar tudo e vê um aviso até alguém religar. É o único caminho que
+leva a essa tela hoje.
 
 Administrador cria e edita areas e pode liberar, promover ou tirar o acesso de alguém.
 Tirar o acesso devolve a pessoa para a fila de liberação, não apaga nada: os projetos,

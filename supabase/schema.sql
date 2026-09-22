@@ -933,12 +933,14 @@ $$;
 
 -- --------------------------------------------------------------------------
 -- 3. Cadastro de pessoas
---    A primeira pessoa que se cadastrar vira admin e já entra liberada.
---    As demais entram aguardando liberação (não enxergam dado nenhum).
+--    Quem se cadastra sem convite abre a própria empresa e é a administradora
+--    dela. Quem chega por convite entra na empresa de quem convidou, com o
+--    papel que o superior escolheu, e já liberada.
 -- --------------------------------------------------------------------------
 
--- Domínios de e-mail pessoal. Ninguém "reserva" o gmail.com para a empresa dele,
--- senão a primeira pessoa a se cadastrar com gmail sequestraria todo mundo depois.
+-- Domínios de e-mail pessoal. Não é mais usada no cadastro, que passou a ser por
+-- convite: ficou porque o domínio ainda serve para sugerir gente ao convidar, e
+-- apagar função que outro lugar possa chamar custa mais do que deixá-la parada.
 create or replace function public.dominio_publico(d text)
 returns boolean language sql immutable as $$
   select lower(d) = any (array[
@@ -948,18 +950,29 @@ returns boolean language sql immutable as $$
   ]);
 $$;
 
--- Cadastro. São quatro caminhos, nesta ordem de prioridade:
+-- Cadastro. São dois caminhos, e só dois:
 --
---   1. Tem convite válido: entra na organização de quem convidou, já com o papel,
---      a área e o gestor que o superior definiu. Nasce pronta para trabalhar.
---   2. Informou o nome de uma empresa: abre a organização e vira a dona dela.
---   3. E-mail do mesmo domínio de uma organização que aceita entrada por domínio:
---      entra ali, mas aguardando liberação de um administrador.
---   4. Nada bateu: abre a organização com o nome do domínio e vira a dona.
+--   1. Tem convite válido, por código ou pelo próprio e-mail: entra na
+--      organização de quem convidou, já com o papel, a área e o gestor que o
+--      superior definiu. Nasce pronta para trabalhar.
+--   2. Não tem convite: abre a própria organização e é a administradora dela.
 --
--- O papel NUNCA vem do formulário. Quem se cadastra sozinho é dono da própria
--- empresa; quem entra por convite recebe o papel que o superior escolheu. Deixar
--- a pessoa escolher seria um convite a todo mundo virar administrador.
+-- Não existe terceiro caminho. O domínio do e-mail NÃO coloca ninguém dentro de
+-- empresa nenhuma: quem decide quem entra é quem convida, pelo e-mail da pessoa.
+-- Antes era por domínio, e isso produzia dois problemas. Quem se cadastrava com
+-- e-mail da casa caía calado numa empresa que talvez nem fosse a dele, bloqueado,
+-- com o nome de empresa que digitou jogado fora. E se a conta que abriu aquela
+-- empresa sumisse, o domínio continuava reservado por uma organização sem nenhum
+-- administrador, e ninguém mais conseguia entrar nem ser liberado, para sempre.
+--
+-- O mesmo e-mail pode estar em várias organizações ao mesmo tempo, uma por
+-- convite aceito mais a que ele abriu. São perfis diferentes do mesmo login, e
+-- o seletor no alto da lateral troca entre eles. É o caso do grupo e da holding,
+-- em que a mesma pessoa responde por mais de uma empresa.
+--
+-- O papel NUNCA vem do formulário. Quem se cadastra sozinho é administrador da
+-- própria empresa; quem entra por convite recebe o papel que o superior escolheu.
+-- Deixar a pessoa escolher seria um convite a todo mundo virar administrador.
 create or replace function public.novo_usuario()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare
@@ -967,13 +980,9 @@ declare
   v_org     uuid;
   v_nome    text := nullif(btrim(new.raw_user_meta_data->>'organizacao'), '');
   v_codigo  text := upper(btrim(coalesce(new.raw_user_meta_data->>'convite', '')));
-  v_dominio text := lower(split_part(new.email, '@', 2));
-  v_tipo    text := case when new.raw_user_meta_data->>'tipo' = 'pessoal' then 'pessoal' else 'equipe' end;
-  v_guardar text;
   v_papel   text := 'colaborador';
   v_ativo   boolean := false;
   v_dono    boolean := false;
-  v_auto    boolean;
   v_perfil  uuid;
   v_ve_area boolean := false;
   v_area    uuid;
@@ -981,14 +990,6 @@ declare
   n int;
   paleta text[] := array['#8A8A8A','#B0B0B0','#C9884A','#6F6F6F','#A0704A','#9A9A9A','#7A6A5E','#B5A08C'];
 begin
-  -- Conta pessoal nunca reserva o domínio da empresa. Se reservasse, o colega
-  -- que se cadastrasse depois cairia dentro do espaço pessoal de quem chegou
-  -- primeiro, o que é exatamente o contrário do que ele pediu.
-  v_guardar := case
-    when v_tipo = 'pessoal' or dominio_publico(v_dominio) then null
-    else v_dominio
-  end;
-
   select * into cv from convites
   where usado_em is null
     and (vence_em is null or vence_em > now())
@@ -1008,32 +1009,18 @@ begin
     v_ve_area := coalesce(cv.ve_area, false);
     v_ativo := true;
   else
-    -- 2. Sem convite: o domínio do e-mail diz se a empresa já está aqui dentro.
-    if v_guardar is not null then
-      select id, entrada_por_dominio into v_org, v_auto
-      from organizacoes where dominio = v_guardar;
-    end if;
-
-    if v_org is not null then
-      -- A empresa existe. A pessoa entra nela como colaboradora, e só entra
-      -- liberada se a empresa tiver aberto a porta para o próprio domínio.
-      -- Fechada, que é o padrão, ela aparece na tela Equipe aguardando um sim.
-      v_papel := 'colaborador';
-      v_ativo := coalesce(v_auto, false);
-    else
-      -- 3. Empresa nova. Quem abre é a dona, e é o único jeito de virar dona.
-      insert into organizacoes (nome, tipo, dominio)
-      values (
-        coalesce(v_nome, initcap(split_part(coalesce(v_guardar, split_part(new.email,'@',1)), '.', 1))),
-        v_tipo,
-        v_guardar
-      )
-      returning id into v_org;
-      v_papel := 'admin';
-      v_ativo := true;
-      v_dono := true;
-      v_ve_area := true;
-    end if;
+    -- 2. Empresa nova, e quem abre é a administradora. É o único jeito de a
+    --    conta nascer admin sem alguém ter dito que pode.
+    insert into organizacoes (nome, tipo)
+    values (
+      coalesce(v_nome, initcap(split_part(new.email, '@', 1))),
+      'equipe'
+    )
+    returning id into v_org;
+    v_papel := 'admin';
+    v_ativo := true;
+    v_dono := true;
+    v_ve_area := true;
   end if;
 
   select count(*) into n from perfis where org_id = v_org;
@@ -2624,9 +2611,10 @@ begin
   end;
 end $$;
 
--- Abrir mais um espaço sem sair da conta: o Track pessoal de quem já usa o da
--- empresa, ou o contrário. Nasce vazio, e quem abre é o dono.
-create or replace function public.abrir_espaco(p_nome text, p_tipo text default 'pessoal')
+-- Abrir mais uma empresa sem sair da conta. Nasce vazia, e quem abre é a dona.
+-- É o caminho do grupo e da holding: o mesmo login responde por mais de uma
+-- empresa e troca entre elas pelo seletor no alto da lateral.
+create or replace function public.abrir_espaco(p_nome text, p_tipo text default 'equipe')
 returns uuid language plpgsql security definer set search_path = public as $$
 declare v_org uuid; v_perfil uuid; u uuid := auth.uid(); v_email text; v_nome text;
 begin
@@ -2676,4 +2664,71 @@ begin
   insert into sessoes (user_id, perfil_id) values (u, v_perfil)
   on conflict (user_id) do update set perfil_id = excluded.perfil_id, trocado_em = now();
   return v_perfil;
+end $$;
+
+-- --------------------------------------------------------------------------
+-- 13. Sair do cadastro por domínio
+--
+--     Enquanto o domínio colocava gente dentro de empresa, duas sujeiras
+--     ficaram guardadas: organizações segurando um domínio que não pode mais
+--     reservar nada, e gente parada esperando liberação de uma empresa em que
+--     caiu sem escolher. Este bloco limpa as duas, e roda quantas vezes for.
+-- --------------------------------------------------------------------------
+
+-- O trigger de proteção de perfil recusa mudança de papel e de ativo quando
+-- quem manda não é administrador, e no SQL Editor não existe ninguém logado:
+-- eh_admin() é falso e a alteração seria revertida em silêncio. Por isso ele
+-- sai do caminho aqui, e volta logo abaixo.
+alter table public.perfis disable trigger ao_alterar_perfil;
+
+-- 1. Nenhum domínio reserva empresa. A coluna fica, porque ainda identifica a
+--    casa na hora de convidar, mas para de abrir porta sozinha.
+update public.organizacoes
+   set dominio = null, entrada_por_dominio = false
+ where dominio is not null or entrada_por_dominio;
+
+-- 2. Empresa sem nenhum administrador ativo é empresa sem saída: ninguém libera
+--    ninguém e ninguém convida ninguém. O perfil mais antigo dela assume.
+with orfas as (
+  select o.id
+    from public.organizacoes o
+   where not exists (
+     select 1 from public.perfis p
+      where p.org_id = o.id and p.ativo and p.papel = 'admin'
+   )
+), primeiro as (
+  select distinct on (p.org_id) p.id, p.org_id
+    from public.perfis p
+    join orfas f on f.id = p.org_id
+   order by p.org_id, p.criado_em, p.id
+)
+update public.perfis p
+   set papel = 'admin', ativo = true, ve_area = true
+  from primeiro d
+ where p.id = d.id;
+
+-- 3. Quem assumiu vira dona, para não poder ser rebaixada nem desativada depois.
+update public.organizacoes o
+   set dono_id = (
+     select p.id from public.perfis p
+      where p.org_id = o.id and p.ativo and p.papel = 'admin'
+      order by p.criado_em, p.id limit 1
+   )
+ where o.dono_id is null
+   and exists (select 1 from public.perfis p where p.org_id = o.id and p.ativo and p.papel = 'admin');
+
+alter table public.perfis enable trigger ao_alterar_perfil;
+
+do $$
+declare n int;
+begin
+  select count(*) into n from public.organizacoes o
+   where not exists (
+     select 1 from public.perfis p where p.org_id = o.id and p.ativo and p.papel = 'admin'
+   );
+  if n > 0 then
+    raise notice 'Atenção: % organização(ões) continuam sem administrador ativo, e estão vazias de perfil. Podem ser apagadas.', n;
+  else
+    raise notice 'Cadastro por convite: nenhuma organização ficou sem administrador.';
+  end if;
 end $$;

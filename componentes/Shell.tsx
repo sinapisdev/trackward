@@ -50,7 +50,7 @@ function Ponto({ st }: { st: string }) {
  */
 function SeletorEmpresa() {
   const { eu, org, pessoal, empresas, empresaAtiva, focarEmpresa, empresaDe, todosFluxos,
-    espacos, trocarEspaco, abrirEspaco } = useDados()
+    espacos, trocarEspaco } = useDados()
   const { abrir } = useModais()
   const [aberto, setAberto] = useState(false)
   const caixa = useRef<HTMLDivElement>(null)
@@ -107,13 +107,11 @@ function SeletorEmpresa() {
               {x.atual && <Ic.check />}
             </button>
           ))}
-          {/* Abrir o Track pessoal de quem só tem o da empresa, e o contrário. */}
-          {!espacos.some((x) => x.tipo === 'pessoal') && (
-            <button onClick={() => { setAberto(false); void abrirEspaco('Meu Track', 'pessoal') }}>
-              <span className="sigla" style={{ background: 'transparent', color: 'var(--tx-3)' }}><Ic.plus /></span>
-              Abrir um espaço pessoal
-            </button>
-          )}
+          {/* Mais de uma empresa no mesmo login: o caso do grupo e da holding. */}
+          <button onClick={() => { setAberto(false); abrir({ tipo: 'espaco' }) }}>
+            <span className="sigla" style={{ background: 'transparent', color: 'var(--tx-3)' }}><Ic.plus /></span>
+            Abrir outra empresa
+          </button>
 
           {org.multi && !!empresas.length && (
             <>

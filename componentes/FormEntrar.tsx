@@ -6,16 +6,14 @@ import { supabase } from '@/lib/supabase/browser'
 import { Ic } from './Icones'
 
 type Modo = 'entrar' | 'escolher' | 'criar' | 'esqueci'
-/** Os três jeitos de a conta nascer. Ver novo_usuario() em supabase/schema.sql. */
-type Jeito = 'pessoal' | 'equipe' | 'convite'
+/** Os dois jeitos de a conta nascer. Ver novo_usuario() em supabase/schema.sql. */
+type Jeito = 'equipe' | 'convite'
 
 const ESCOLHAS: { id: Jeito; titulo: string; texto: string }[] = [
-  { id: 'equipe', titulo: 'Para a minha equipe',
-    texto: 'Você abre o espaço da empresa e convida as pessoas por e-mail.' },
-  { id: 'pessoal', titulo: 'Só para mim',
-    texto: 'Suas áreas, seus projetos e suas rotinas. Dá para convidar alguém depois, sem recomeçar.' },
+  { id: 'equipe', titulo: 'Abrir a minha empresa',
+    texto: 'Você cria a empresa no Track e convida as pessoas por e-mail. Quem abre é a administradora.' },
   { id: 'convite', titulo: 'Tenho um convite',
-    texto: 'Alguém já abriu o espaço da empresa e te mandou um código.' },
+    texto: 'Alguém já abriu a empresa e te mandou um código. Você entra direto, já liberado.' },
 ]
 
 function Formulario() {
@@ -67,11 +65,19 @@ function Formulario() {
               // Um campo por jeito. O banco decide o resto, e o papel nunca vem daqui.
               ...(jeito === 'convite' ? { convite: convite.trim().toUpperCase() } : {}),
               ...(jeito === 'equipe' ? { organizacao: empresa.trim() } : {}),
-              ...(jeito === 'pessoal' ? { organizacao: nome.trim(), tipo: 'pessoal' } : {}),
             },
           },
         })
         if (error) throw error
+        // Com a confirmação de e-mail ligada, o Supabase não acusa e-mail repetido:
+        // devolve um usuário sem identidade nenhuma e sem sessão, para não contar a
+        // estranhos quem tem conta aqui. Sem esta checagem o app mandava a pessoa
+        // esperar um e-mail que nunca sai.
+        if (data.user && (data.user.identities?.length ?? 0) === 0) {
+          setErro('Este e-mail já tem cadastro. Use "entrar", ou recupere a senha.')
+          setModo('entrar')
+          return
+        }
         if (!data.session) {
           setOk('Cadastro criado. Confirme o e-mail pelo link que enviamos e depois entre por aqui.')
           setModo('entrar')
@@ -107,7 +113,7 @@ function Formulario() {
         </h1>
         <p className="sub">
           {modo === 'entrar' && 'Cada projeto e cada rotina com checkpoints: o que precisa ser feito, quem responde e até quando.'}
-          {modo === 'escolher' && 'O Track serve para uma pessoa e para uma empresa inteira. Comece por onde fizer sentido hoje.'}
+          {modo === 'escolher' && 'O Track é da empresa. Abra a sua, ou entre na de quem te convidou.'}
           {modo === 'criar' && ESCOLHAS.find((x) => x.id === jeito)!.texto}
           {modo === 'esqueci' && 'Digite o e-mail da sua conta e enviamos um link para escolher uma senha nova.'}
         </p>
@@ -143,7 +149,8 @@ function Formulario() {
                     onChange={(e) => setEmpresa(e.target.value)} />
                   <p className="hint">
                     É o nome que aparece no alto do app para todo mundo da sua equipe.
-                    Dá para trocar depois em Ajustes.
+                    Dá para trocar depois em Ajustes, e dá para abrir outra empresa
+                    no mesmo login quando precisar.
                   </p>
                 </div>
               )}

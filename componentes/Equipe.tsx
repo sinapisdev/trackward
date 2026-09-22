@@ -44,8 +44,8 @@ export function Equipe() {
               : MODO_LOCAL
               ? 'Pessoas de exemplo. Com o app ligado ao banco, cada uma cria a própria conta e você libera o acesso por aqui.'
               : admin
-                ? 'Cada pessoa cria a própria conta e você libera o acesso aqui. Quem não está liberado não enxerga dado nenhum.'
-                : 'Estas são as pessoas com acesso. Só um administrador libera novos acessos.'}
+                ? 'Quem entra aqui, entra por convite seu. Ninguém chega sozinho, e quem você desativar para de enxergar tudo na hora.'
+                : 'Estas são as pessoas com acesso. Só um administrador convida e libera.'}
           </p>
         </div>
       </div>
@@ -167,8 +167,8 @@ export function Equipe() {
                 </div>
                 <p className="hint" style={{ marginTop: 12 }}>
                   Você recebe um código para mandar à pessoa. Ela se cadastra com ele e entra já com o
-                  papel, a área e a hierarquia que você escolheu, sem esperar liberação. Quem se cadastra
-                  sem convite fica barrado até você liberar.
+                  papel, a área e a hierarquia que você escolheu, sem esperar liberação. O convite é a
+                  única porta: quem se cadastra por fora abre a empresa dele, nunca cai dentro da sua.
                 </p>
               </div>
             )}
