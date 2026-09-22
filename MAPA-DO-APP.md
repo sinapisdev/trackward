@@ -36,6 +36,7 @@ Sete peças. Tudo no app é combinação delas.
 | **Anexo** | A prova de que a tarefa saiu. Fica preso à tarefa. | O comprovante grampeado |
 | **Decisão** | O que o aprovador respondeu num checkpoint, e por quê. | O carimbo com a rubrica |
 | **Pedido de prazo** | A proposta de mover uma data, esperando o sim de quem responde. | O pedido de prorrogação |
+| **Memória** | O que o app aprendeu sobre esta empresa. Visível e apagável. | O caderninho do funcionário antigo |
 
 ### Track: os dois tipos
 
@@ -79,6 +80,7 @@ virou departamento. Uma área sem rotina é uma frente recém criada.
 | **Agenda** | `/agenda` | Compromissos e prazos | Quantos são hoje |
 | **Tracks** | `/tracks` | Todos os projetos e áreas | Quantas tracks existem |
 | **Desempenho** | `/desempenho` | Como a empresa está entregando | |
+| **Relatórios** | `/relatorios` | O período contado, para ler e para mandar | |
 | **Processos** | `/processos` | Os moldes reutilizáveis | Quantos moldes |
 
 No alto da lateral: a marca **Track.** e, abaixo, o **seletor de espaço** (a
@@ -446,6 +448,72 @@ sugestão e avisa: às vezes só uma pessoa sabe fazer aquilo, e esconder isso n
 
 Duas regras: **só preenche o que está vazio**, porque tirar uma tarefa de quem já a tem é
 decisão de gente; e **pessoa inativa não recebe nada**.
+
+### 4.6d O que a IA aprendeu desta empresa
+
+Fica em Ajustes, e existe só porque a máquina aprende: se ela guarda conhecimento
+sobre a casa e usa isso para propor trabalho, alguém precisa poder abrir, ler e apagar
+o que está errado.
+
+**Primeiro o que isto não é: não é treinar modelo.** Ninguém treina um modelo por
+cliente. Aprender aqui é o app acumular o que a casa ensinou e mandar isso junto em cada
+leitura, o que na prática funciona melhor: vale desde a primeira correção, não depois de
+mil exemplos.
+
+Três coisas, em ordem de valor:
+
+| | O que é, e de onde vem |
+|---|---|
+| **Recusa** | Propostas que a empresa já recusou. É o único sinal inequívoco que existe, e sem ele a leitura repete o mesmo erro toda semana |
+| **Pessoa** | Quem a casa põe em cada assunto, tirado de quem aceitou o quê e, principalmente, de quando alguém corrigiu a máquina |
+| **Termo** | A palavra da casa e a frente a que ela se refere. "Homologação" apontando para a Implantação do ERP |
+
+Duas regras que fazem isso ser honesto:
+
+**Peso é confirmação, não palpite.** Nada com menos de **3 confirmações** muda decisão
+nenhuma. E só conta o que foi dito **depois** da última vez que se aprendeu ali: reler a
+mesma conversa não soma peso, senão bastaria clicar três vezes para uma palavra solta
+virar regra da casa.
+
+**Tudo é visível e apagável.** Cada linha mostra o peso, o que falta para valer, quando
+foi visto e **o trecho que ensinou aquilo**. Esquecer tira do ar na hora.
+
+A memória é por organização e passa pela mesma parede das outras tabelas: o vocabulário
+de um cliente nunca aparece para outro.
+
+### 4.6e Relatórios (`/relatorios`)
+
+Três decisões definem o que sai aqui.
+
+**Cada relatório responde uma pergunta, não um cargo.** "Relatório do CEO" não quer dizer
+nada sozinho:
+
+| | A pergunta |
+|---|---|
+| **Para mim** | O que eu entreguei e o que está comigo |
+| **Para quem coordena** | O time está dando conta, e onde travou |
+| **Para quem responde pelo negócio** | As frentes andaram, e o que foi decidido |
+
+O cargo só escolhe o padrão. Qualquer um pode pedir qualquer um dos três, e o que muda são
+as seções: quem executa não recebe a tabela do time nem os gargalos.
+
+**O relatório não vê nada além do que a pessoa já vê.** Ele nasce dos mesmos dados da
+tela, que já vieram filtrados pelo banco. Um relatório que mostrasse mais seria um
+vazamento com capa de PDF. Conferido: quem não é do canal fechado não vê aquele canal no
+relatório, nem pedindo o de dono.
+
+**O relatório de conversa conta o que a conversa PRODUZIU, não o que foi dito.** Copiar
+mensagem por mensagem transformaria bate-papo em vigilância, e o chat morreria em uma
+semana. Vai o volume, quem participou, quantos recados de voz, o que virou trabalho e o
+que foi decidido, com marca no que foi a leitura que fez.
+
+**O que a leitura fez sozinha vai em todo relatório**, inclusive no de quem só executa:
+ninguém deve descobrir depois que a máquina mexeu em algo.
+
+Períodos de 1, 7, 15 ou 30 dias. Sai em tela, em **texto** para colar em e-mail e em
+**PDF** pela impressão do navegador. A cadência (todo dia, semana, quinze dias, mês) se
+escolhe na tela, mas **o envio automático ainda não funciona**: ele precisa de uma tarefa
+rodando no servidor todo dia, e isso só existe depois de publicar.
 
 ### 4.7 Agenda (`/agenda`)
 
