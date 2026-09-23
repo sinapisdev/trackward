@@ -181,13 +181,17 @@ Três coisas que o `.app` tem e os outros não:
 - Não precisa de CPF nem CNPJ, e a conta é em dólar.
 - Não dá para usar `.local` nem IP no DNS por causa do item acima.
 
+Os dois foram registrados em 23/09/2026 na **GoDaddy**, que também é quem responde pelo
+DNS deles (`ns15` e `ns16.domaincontrol.com`).
+
 Para publicar nele, na ordem:
 
 1. Na Vercel, em **Settings > Domains** do projeto, adicione `trackward.app`.
 2. Ela mostra ou dois servidores de nome, ou um par de registros (`A` na raiz e
-   `CNAME` no `www`). Apontar os servidores de nome é mais simples e deixa a Vercel
-   cuidar do resto; ficar com o DNS no registrador é melhor se algum dia o e-mail do
-   domínio for morar em outro lugar.
+   `CNAME` no `www`). Apontar os servidores de nome na GoDaddy é mais simples e deixa a
+   Vercel cuidar do resto; ficar com o DNS na GoDaddy é melhor se algum dia o e-mail do
+   domínio for morar em outro lugar. **Copie os valores da tela da Vercel**, não de
+   documentação: o endereço que ela pede mudou mais de uma vez.
 3. `NEXT_PUBLIC_URL=https://trackward.app` nas variáveis da Vercel. Sem ela, o link do
    aviso de push aponta para o endereço que a requisição por acaso tinha, e a prévia de
    compartilhamento sai sem imagem.
