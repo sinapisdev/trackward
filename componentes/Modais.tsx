@@ -692,7 +692,8 @@ function MAvulsa({ fechar }: { fechar: () => void }) {
   const [texto, setTexto] = useState('')
   const [descricao, setDescricao] = useState('')
   const [prazo, setPrazo] = useState('')
-  /** Vazio é livre. Preenchido é o id da track em que ela vai morar. */
+  /** A primeira escolha: pertencer a quê. A segunda só existe depois dela. */
+  const [onde, setOnde] = useState<'livre' | Tipo>('livre')
   const [ondeId, setOndeId] = useState('')
   const [etapaId, setEtapaId] = useState('')
   const [resp, setResp] = useState(eu.id)
@@ -702,7 +703,10 @@ function MAvulsa({ fechar }: { fechar: () => void }) {
   // A lista pessoal não entra: ela É o "livre", e aparecer como opção faria a
   // mesma escolha existir duas vezes com nomes diferentes.
   const tracks = fluxos.filter((f) => !f.concluido && f.id !== minhaLista?.id && f.etapas.length)
-  const track = tracks.find((f) => f.id === ondeId) || null
+  const doTipo = onde === 'livre' ? [] : tracks.filter((f) => f.tipo === onde)
+  // Sem escolha explícita vale a primeira da lista: o campo nunca fica num
+  // estado em que a pessoa escolheu "objetivo" e não há objetivo nenhum selecionado.
+  const track = onde === 'livre' ? null : (doTipo.find((f) => f.id === ondeId) || doTipo[0] || null)
   const etapa = track?.etapas.find((e) => e.id === etapaId) || track?.etapas[track.atual] || null
 
   const salvar = async () => {
@@ -750,22 +754,47 @@ function MAvulsa({ fechar }: { fechar: () => void }) {
           <span className="lbl">Onde ela vive</span>
           {/* A escolha é entre pertencer e não pertencer, e ela muda quem vê a
               tarefa: dentro de uma track ela é da equipe, livre ela é só sua.
-              Por isso a frase abaixo troca junto com a escolha. */}
-          <select className="inp" aria-label="Onde a tarefa vive" value={ondeId}
-            onChange={(e) => { setOndeId(e.target.value); setEtapaId('') }}>
-            <option value="">Livre, sem objetivo e sem rotina</option>
-            {tracks.map((f) => (
-              <option key={f.id} value={f.id}>
-                {rotuloTipo(f.tipo)}: {f.nome}{f.area_id ? ` · ${areaDe(f.area_id).nome}` : ''}
-              </option>
-            ))}
-          </select>
+              Por isso a frase abaixo troca junto com a escolha.
+
+              Duas escolhas em vez de uma lista só: primeiro a que muda o
+              significado, depois qual. Uma lista misturando "Livre" com trinta
+              tracks obriga a ler trinta linhas para achar a única que não é
+              track. */}
+          <div className="seg" role="group" aria-label="Onde a tarefa vive">
+            <button className={onde === 'livre' ? 'on' : ''}
+              onClick={() => { setOnde('livre'); setOndeId(''); setEtapaId('') }}>Livre</button>
+            <button className={onde === 'esteira' ? 'on' : ''}
+              onClick={() => { setOnde('esteira'); setOndeId(''); setEtapaId('') }}>Objetivo</button>
+            <button className={onde === 'ciclo' ? 'on' : ''}
+              onClick={() => { setOnde('ciclo'); setOndeId(''); setEtapaId('') }}>Rotina</button>
+          </div>
           <p className="hint">
-            {track
-              ? 'Ela entra na trilha, conta para a saída do checkpoint e a equipe enxerga.'
-              : 'Ela não pertence a nada e só você enxerga. Não conta para checkpoint nenhum.'}
+            {onde === 'livre'
+              ? 'Ela não pertence a nada e só você enxerga. Não conta para checkpoint nenhum.'
+              : 'Ela entra na trilha, conta para a saída do checkpoint e a equipe enxerga.'}
           </p>
         </div>
+
+        {onde !== 'livre' && (
+          <div className="fld">
+            <label htmlFor="av-onde">Qual {rotuloTipo(onde).toLowerCase()}</label>
+            {doTipo.length ? (
+              <select className="inp" id="av-onde" value={track?.id || ''}
+                onChange={(e) => { setOndeId(e.target.value); setEtapaId('') }}>
+                {doTipo.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.nome}{f.area_id ? ` · ${areaDe(f.area_id).nome}` : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="hint">
+                Não existe {rotuloTipo(onde).toLowerCase()} em andamento ainda. Crie{' '}
+                {onde === 'ciclo' ? 'uma' : 'um'} em Tracks, ou deixe a tarefa livre por enquanto.
+              </p>
+            )}
+          </div>
+        )}
 
         {track && (
           <div className="fgrid">
