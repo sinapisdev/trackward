@@ -1,0 +1,513 @@
+-- ==========================================================================
+-- TrackWard, atualização de 22/09/2026
+--
+-- Este arquivo é um RECORTE do `schema.sql`: só as seções 14 e 15, que são as
+-- novas. Ele existe para você não precisar colar 3200 linhas no SQL Editor
+-- quando só duas coisas mudaram.
+--
+--   Seção 14   Avisos. Cria a caixa de aviso de cada pessoa, os gatilhos que
+--              escrevem nela e as políticas que fazem a caixa ser só sua.
+--
+--   Seção 15   Quem assina a linha é o servidor. É esta que corrige o erro
+--              "new row violates row-level security policy" ao criar canal,
+--              tarefa ou nota.
+--
+-- Pode rodar quantas vezes quiser: nada aqui apaga dado nenhum, e tudo é
+-- escrito para ser aplicado de novo sem reclamar. Se um dia você rodar o
+-- `schema.sql` inteiro, ele já contém estas duas seções; este arquivo é só o
+-- atalho.
+--
+-- COMO USAR: SQL Editor do Supabase, New query, colar tudo, Run.
+-- ==========================================================================
+
+-- --------------------------------------------------------------------------
+-- 14. Avisos: o app para de ficar em silêncio
+--
+--     Um app de prazo que não avisa é um caderno: só serve para quem lembra de
+--     abrir. O aviso é o que faz o trabalho andar quando ninguém está olhando.
+--
+--     Três decisões que valem explicar.
+--
+--     **O aviso nasce no banco, não na tela.** Quem muda um responsável, aprova
+--     um checkpoint ou manda uma mensagem pode ser outra pessoa, em outro
+--     navegador, ou o próprio servidor. Se o aviso nascesse no cliente, só
+--     avisaria quem já estava com o app aberto, que é justamente quem não
+--     precisa. Por isso são gatilhos, e por isso eles são `security definer`:
+--     quem escreve o aviso é o banco, e o destinatário quase nunca é quem agiu.
+--
+--     **Todo aviso tem uma chave, e a chave é única por pessoa.** É ela que
+--     garante que gerar os avisos do dia duas vezes não avise duas vezes, e que
+--     trocar o responsável de uma tarefa de volta não encha a caixa de ninguém.
+--     `on conflict do nothing` é a regra inteira.
+--
+--     **O aviso é sempre de uma pessoa.** Não existe aviso da empresa nem do
+--     grupo: existe o aviso que é seu, que só você lê (a política abaixo recusa
+--     o de qualquer outra pessoa, inclusive para o administrador) e que só você
+--     marca como lido. Telefone e assinatura de push moram em tabela separada
+--     pelo mesmo motivo: em `perfis` a organização inteira leria o número de
+--     celular de todo mundo, porque RLS trabalha por linha, não por coluna.
+-- --------------------------------------------------------------------------
+
+create table if not exists public.avisos (
+  id         uuid primary key default gen_random_uuid(),
+  org_id     uuid not null references public.organizacoes on delete cascade,
+  -- De quem é o aviso. Nunca de um grupo: aviso sem dono ninguém responde.
+  perfil_id  uuid not null references public.perfis on delete cascade,
+  tipo       text not null check (tipo in (
+               'tarefa','aprovacao','prazo','travou','destravou','citacao','pedido_prazo')),
+  titulo     text not null,
+  corpo      text not null default '',
+  -- Urgente é o que justifica tocar o celular de alguém: o que já venceu, o que
+  -- trava outra pessoa, e o que só você pode destravar. O resto espera.
+  urgente    boolean not null default false,
+  -- Para onde o aviso leva. Tudo opcional, porque nem todo aviso tem endereço.
+  fluxo_id   uuid references public.fluxos  on delete cascade,
+  item_id    uuid references public.itens   on delete cascade,
+  etapa_id   uuid references public.etapas  on delete cascade,
+  canal_id   uuid references public.canais  on delete cascade,
+  -- A chave que impede o mesmo aviso duas vezes. Ver o comentário acima.
+  chave      text not null,
+  lido_em    timestamptz,
+  -- Quando saiu daqui para o push e para o WhatsApp. Nulo é o que ainda não saiu.
+  entregue_em timestamptz,
+  criado_em  timestamptz not null default now()
+);
+
+create unique index if not exists avisos_uk on public.avisos (perfil_id, chave);
+create index if not exists avisos_caixa_idx on public.avisos (perfil_id, criado_em desc);
+create index if not exists avisos_na_fila_idx on public.avisos (criado_em) where entregue_em is null;
+
+-- Como quem recebe quer ser avisado, e por onde. Fora de `perfis` de propósito:
+-- aqui a política é por pessoa, e o número de celular de alguém não é assunto da
+-- organização inteira.
+create table if not exists public.avisos_contato (
+  perfil_id  uuid primary key references public.perfis on delete cascade,
+  org_id     uuid not null references public.organizacoes on delete cascade,
+  -- No formato internacional, com o mais na frente: +5511999999999.
+  telefone   text not null default '',
+  whats      boolean not null default false,
+  push       boolean not null default true,
+  -- Só o que é urgente sai daqui para o celular. O resto fica no sino.
+  so_urgente boolean not null default false,
+  -- Não perturbe, no fuso de quem recebe. Vazio é sempre pode.
+  calado_de  time,
+  calado_ate time,
+  mexido_em  timestamptz not null default now()
+);
+
+-- Um aparelho que aceitou receber push. Uma pessoa costuma ter dois ou três.
+create table if not exists public.push_assinaturas (
+  id        uuid primary key default gen_random_uuid(),
+  perfil_id uuid not null references public.perfis on delete cascade,
+  org_id    uuid not null references public.organizacoes on delete cascade,
+  -- O endereço que o navegador deu. É ele que identifica o aparelho.
+  endpoint  text not null unique,
+  p256dh    text not null,
+  auth      text not null,
+  -- Para a pessoa reconhecer qual aparelho é, na hora de desligar um.
+  aparelho  text not null default '',
+  criado_em timestamptz not null default now(),
+  usado_em  timestamptz
+);
+
+create index if not exists push_perfil_idx on public.push_assinaturas (perfil_id);
+
+-- --------------------------------------------------------------------------
+-- Quem escreve o aviso
+--
+-- Uma porta só, e ela é `security definer` porque o destinatário quase nunca é
+-- quem agiu: quem troca o responsável de uma tarefa escreve na caixa de outra
+-- pessoa, e nenhuma política deixaria isso passar, com razão.
+-- --------------------------------------------------------------------------
+
+-- A versão antiga devolvia void. Trocar o retorno exige derrubar antes, porque
+-- `create or replace` não muda assinatura.
+drop function if exists public.avisar(uuid, text, text, text, text, boolean, uuid, uuid, uuid, uuid);
+
+create or replace function public.avisar(
+  p_perfil uuid, p_tipo text, p_titulo text, p_corpo text, p_chave text,
+  p_urgente boolean default false,
+  p_fluxo uuid default null, p_item uuid default null,
+  p_etapa uuid default null, p_canal uuid default null
+) returns boolean language plpgsql security definer set search_path = public as $$
+declare v_org uuid; v_id uuid;
+begin
+  if p_perfil is null or coalesce(btrim(p_chave), '') = '' then return false; end if;
+  -- Quem está desativado não recebe: acesso suspenso é acesso suspenso.
+  select org_id into v_org from perfis where id = p_perfil and ativo;
+  if v_org is null then return false; end if;
+
+  insert into avisos (org_id, perfil_id, tipo, titulo, corpo, chave, urgente,
+                      fluxo_id, item_id, etapa_id, canal_id)
+  values (v_org, p_perfil, p_tipo, p_titulo, coalesce(p_corpo, ''), p_chave,
+          coalesce(p_urgente, false), p_fluxo, p_item, p_etapa, p_canal)
+  on conflict (perfil_id, chave) do nothing
+  returning id into v_id;
+  -- Devolve se escreveu de verdade, e não se tentou: é isso que deixa quem
+  -- gera os avisos do dia dizer quantos são novos em vez de quantos existem.
+  return v_id is not null;
+end $$;
+
+-- --------------------------------------------------------------------------
+-- Os gatilhos
+--
+-- Cada um responde a uma pergunta que alguém faria em voz alta: "quem me deu
+-- essa tarefa", "já posso aprovar", "destravou", "por que parou", "me chamaram".
+-- --------------------------------------------------------------------------
+
+-- Passaram uma tarefa para você. Pegar uma tarefa para si mesmo não avisa nada.
+create or replace function public.aviso_tarefa()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_fluxo text;
+begin
+  if new.resp_id is null then return new; end if;
+  if tg_op = 'UPDATE' and new.resp_id is not distinct from old.resp_id then return new; end if;
+  if new.resp_id = meu_perfil() then return new; end if;
+
+  select nome into v_fluxo from fluxos where id = new.fluxo_id;
+  perform avisar(
+    new.resp_id, 'tarefa', 'Nova tarefa com você',
+    new.texto || coalesce(' · ' || v_fluxo, ''),
+    'tarefa:' || new.id::text || ':' || new.resp_id::text,
+    false, new.fluxo_id, new.id, new.etapa_id, null);
+  return new;
+end $$;
+
+drop trigger if exists ao_dar_tarefa on public.itens;
+create trigger ao_dar_tarefa after insert or update of resp_id on public.itens
+  for each row execute function public.aviso_tarefa();
+
+-- Saiu uma tarefa. Duas perguntas ficam em aberto: quem estava esperando por ela,
+-- e o checkpoint já pode ser aprovado.
+create or replace function public.aviso_ao_concluir()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare r record; v_etapa record; v_fluxo record; v_faltam int;
+begin
+  if not new.feito or old.feito then return new; end if;
+
+  -- 1. Quem dependia desta tarefa e não depende de mais nada em aberto.
+  for r in
+    select i.id, i.resp_id, i.texto, i.fluxo_id, i.etapa_id
+      from dependencias d join itens i on i.id = d.item_id
+     where d.depende_de = new.id and not i.feito
+  loop
+    if not exists (
+      select 1 from dependencias d2 join itens i2 on i2.id = d2.depende_de
+       where d2.item_id = r.id and not i2.feito
+    ) then
+      perform avisar(
+        r.resp_id, 'destravou', 'Destravou: já dá para tocar',
+        r.texto, 'destravou:' || r.id::text || ':' || new.id::text,
+        true, r.fluxo_id, r.id, r.etapa_id, null);
+    end if;
+  end loop;
+
+  -- 2. O checkpoint da vez ficou completo: quem aprova precisa saber.
+  select * into v_etapa from etapas where id = new.etapa_id;
+  select * into v_fluxo from fluxos where id = new.fluxo_id;
+  if v_etapa.id is null or v_fluxo.id is null or v_fluxo.concluido then return new; end if;
+  if v_etapa.ordem is distinct from v_fluxo.atual then return new; end if;
+
+  select count(*) into v_faltam from itens where etapa_id = v_etapa.id and not feito;
+  if v_faltam = 0 then
+    perform avisar(
+      v_etapa.aprovador_id, 'aprovacao', 'Checkpoint pronto para aprovar',
+      v_etapa.nome || ' · ' || v_fluxo.nome,
+      'aprovacao:' || v_etapa.id::text,
+      true, v_fluxo.id, null, v_etapa.id, null);
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists ao_concluir_item on public.itens;
+create trigger ao_concluir_item after update of feito on public.itens
+  for each row execute function public.aviso_ao_concluir();
+
+-- A esteira andou ou travou.
+create or replace function public.aviso_de_fluxo()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_etapa record; v_faltam int; r record;
+begin
+  -- Travou: quem tem tarefa aberta aqui para de conseguir andar, e precisa
+  -- saber por quê antes de bater na porta de alguém.
+  if new.travado_motivo is not null and old.travado_motivo is null then
+    for r in
+      select distinct i.resp_id
+        from itens i join etapas e on e.id = i.etapa_id
+       where i.fluxo_id = new.id and not i.feito and e.ordem = new.atual and i.resp_id is not null
+      union
+      select new.dono_id
+    loop
+      perform avisar(
+        r.resp_id, 'travou', 'Track travada: ' || new.nome,
+        new.travado_motivo,
+        'travou:' || new.id::text || ':' || extract(epoch from now())::bigint::text,
+        false, new.id, null, null, null);
+    end loop;
+    return new;
+  end if;
+
+  -- Andou para um checkpoint que já nasce sem tarefa nenhuma: quem aprova é o
+  -- único que pode mexer, então o aviso vai direto.
+  if new.atual is distinct from old.atual and not new.concluido then
+    select * into v_etapa from etapas where fluxo_id = new.id and ordem = new.atual;
+    if v_etapa.id is not null then
+      select count(*) into v_faltam from itens where etapa_id = v_etapa.id and not feito;
+      if v_faltam = 0 then
+        perform avisar(
+          v_etapa.aprovador_id, 'aprovacao', 'Checkpoint pronto para aprovar',
+          v_etapa.nome || ' · ' || new.nome,
+          'aprovacao:' || v_etapa.id::text,
+          true, new.id, null, v_etapa.id, null);
+      end if;
+    end if;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists ao_mexer_no_fluxo on public.fluxos;
+create trigger ao_mexer_no_fluxo after update on public.fluxos
+  for each row execute function public.aviso_de_fluxo();
+
+-- Te chamaram na conversa. O campo escreve "@Primeiro", e é isso que se procura.
+create or replace function public.aviso_de_citacao()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare r record; v_canal text; v_quem text;
+begin
+  if new.texto is null or position('@' in new.texto) = 0 then return new; end if;
+  select nome into v_canal from canais where id = new.canal_id;
+  select nome into v_quem  from perfis where id = new.autor_id;
+
+  for r in
+    select p.id, split_part(btrim(p.nome), ' ', 1) as primeiro
+      from perfis p
+     where p.org_id = new.org_id and p.ativo
+       and p.id is distinct from new.autor_id
+       -- Nome com caractere fora do alfabeto viraria expressão regular inválida.
+       and btrim(p.nome) ~ '^[[:alpha:]]'
+  loop
+    if new.texto ~* ('@' || r.primeiro || '($|[^[:alpha:]])') then
+      perform avisar(
+        r.id, 'citacao',
+        coalesce(v_quem, 'Alguém') || ' te chamou em #' || coalesce(v_canal, 'conversa'),
+        left(new.texto, 180),
+        'citacao:' || new.id::text || ':' || r.id::text,
+        false, null, null, null, new.canal_id);
+    end if;
+  end loop;
+  return new;
+end $$;
+
+drop trigger if exists ao_citar on public.mensagens;
+create trigger ao_citar after insert on public.mensagens
+  for each row execute function public.aviso_de_citacao();
+
+-- Pediram para mexer num prazo. Quem responde pela track decide.
+create or replace function public.aviso_de_pedido_prazo()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_fluxo record; v_item text;
+begin
+  if new.estado <> 'aberto' then return new; end if;
+  select * into v_fluxo from fluxos where id = new.fluxo_id;
+  select texto into v_item from itens where id = new.item_id;
+  if v_fluxo.dono_id is null or v_fluxo.dono_id = new.pedido_por then return new; end if;
+
+  perform avisar(
+    v_fluxo.dono_id, 'pedido_prazo', 'Pedido de prazo esperando você',
+    coalesce(v_item, 'Uma tarefa') || ' · para ' || to_char(new.para, 'DD/MM'),
+    'pedido_prazo:' || new.id::text,
+    false, new.fluxo_id, new.item_id, null, null);
+  return new;
+end $$;
+
+drop trigger if exists ao_pedir_prazo on public.pedidos_prazo;
+create trigger ao_pedir_prazo after insert on public.pedidos_prazo
+  for each row execute function public.aviso_de_pedido_prazo();
+
+-- --------------------------------------------------------------------------
+-- O aviso de prazo
+--
+-- Este não tem gatilho, porque o fato dele é a passagem do tempo, e tempo não
+-- dispara `insert`. Ele é gerado por esta função, que é idempotente: rodar dez
+-- vezes no mesmo dia escreve o mesmo aviso uma vez só, porque a chave carrega a
+-- data. Ver no README as três formas de chamá-la todo dia.
+-- --------------------------------------------------------------------------
+
+create or replace function public.gerar_avisos_de_prazo()
+returns int language plpgsql security definer set search_path = public as $$
+declare r record; n int := 0; hoje date := current_date;
+begin
+  for r in
+    select i.id, i.texto, i.resp_id, i.prazo, i.fluxo_id, i.etapa_id, f.nome as fluxo
+      from itens i
+      join etapas e on e.id = i.etapa_id
+      join fluxos f on f.id = i.fluxo_id
+     where not i.feito
+       and i.resp_id is not null
+       and i.prazo is not null
+       and i.prazo <= hoje
+       and not f.concluido
+       and f.travado_motivo is null
+       -- Só o checkpoint da vez cobra prazo: o que ainda não chegou não atrasa.
+       and e.ordem = f.atual
+  loop
+    if avisar(
+      r.resp_id, 'prazo',
+      case when r.prazo < hoje then 'Venceu: ' || r.texto else 'Vence hoje: ' || r.texto end,
+      r.fluxo || case when r.prazo < hoje
+                      then ' · venceu em ' || to_char(r.prazo, 'DD/MM') else '' end,
+      'prazo:' || r.id::text || ':' || hoje::text,
+      r.prazo < hoje, r.fluxo_id, r.id, r.etapa_id, null) then
+      n := n + 1;
+    end if;
+  end loop;
+  return n;
+end $$;
+
+-- Marcar como lido. Vale só para os seus, e a política abaixo é quem garante.
+create or replace function public.ler_avisos(p_ids uuid[] default null)
+returns int language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  update avisos set lido_em = now()
+   where perfil_id = meu_perfil() and lido_em is null
+     and (p_ids is null or id = any(p_ids));
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
+-- --------------------------------------------------------------------------
+-- Políticas
+--
+-- O aviso é seu e de mais ninguém. Administrador não lê a caixa de aviso da
+-- equipe, e isso é de propósito: ali dentro aparece o texto de tarefa privada e
+-- de mensagem de canal fechado, e o aviso não pode ser a porta dos fundos das
+-- regras de visibilidade que o resto do banco defende.
+-- --------------------------------------------------------------------------
+
+alter table public.avisos            enable row level security;
+alter table public.avisos_contato    enable row level security;
+alter table public.push_assinaturas  enable row level security;
+
+drop policy if exists avisos_sel on public.avisos;
+create policy avisos_sel on public.avisos for select using (perfil_id = meu_perfil());
+
+drop policy if exists avisos_upd on public.avisos;
+create policy avisos_upd on public.avisos for update
+  using (perfil_id = meu_perfil()) with check (perfil_id = meu_perfil());
+
+drop policy if exists avisos_del on public.avisos;
+create policy avisos_del on public.avisos for delete using (perfil_id = meu_perfil());
+
+-- Sem política de insert de propósito: quem escreve aviso é `avisar()`, que é
+-- security definer. Cliente nenhum escreve na caixa de ninguém, nem na própria.
+
+drop policy if exists contato_tudo on public.avisos_contato;
+create policy contato_tudo on public.avisos_contato for all
+  using (perfil_id = meu_perfil())
+  with check (perfil_id = meu_perfil() and minha(org_id));
+
+drop policy if exists push_tudo on public.push_assinaturas;
+create policy push_tudo on public.push_assinaturas for all
+  using (perfil_id = meu_perfil())
+  with check (perfil_id = meu_perfil() and minha(org_id));
+
+do $$
+begin
+  begin
+    execute 'alter publication supabase_realtime add table public.avisos';
+  exception when duplicate_object then null;
+  end;
+end $$;
+
+-- O WhatsApp da casa. Fica na organização porque o número que assina a mensagem
+-- é da empresa, não da pessoa: quem recebe precisa reconhecer de quem é.
+-- O conector guarda a chave; aqui ficam só os dois dados que não são segredo.
+alter table public.organizacoes add column if not exists whats_conector uuid
+  references public.conectores on delete set null;
+-- O Account SID da Twilio, que entra no caminho da chamada.
+alter table public.organizacoes add column if not exists whats_sid text not null default '';
+-- O remetente aprovado, no formato que a Twilio espera: whatsapp:+14155238886
+alter table public.organizacoes add column if not exists whats_de text not null default '';
+
+-- --------------------------------------------------------------------------
+-- 15. Quem assina é o servidor, não o navegador
+--
+--     Três tabelas guardam quem criou a linha, e três políticas exigem que esse
+--     campo seja igual a `meu_perfil()`: `itens.autor_id`, `canais.criado_por` e
+--     `notas.dono_id`. Até aqui o valor vinha do navegador, e a política só
+--     conferia. Isso tem dois defeitos, e o segundo é o que apareceu em uso.
+--
+--     O primeiro é de desenho: a verdade passa a existir em dois lugares. O app
+--     precisa saber qual é o perfil dele em uso, e o banco precisa concordar. São
+--     duas contas do mesmo número, e a hora em que elas discordarem é uma hora
+--     que ninguém escolheu.
+--
+--     O segundo é de conserto: quando discordam, o banco responde "new row
+--     violates row-level security policy", que não diz qual das condições caiu.
+--     A pessoa lê que não pode criar um canal na própria empresa, sendo dona
+--     dela, e não há nada na tela que explique.
+--
+--     A correção é a mesma que a organização já usava desde o começo, em
+--     `carimbar_org()`: **o servidor carimba**. O campo passa a ser escrito pelo
+--     banco com `meu_perfil()`, e o que o navegador mandar naquele campo é
+--     ignorado. Com isso a política vira uma tautologia para quem está logado, e
+--     continua impossível assinar em nome de outra pessoa, que era o objetivo
+--     dela desde sempre.
+--
+--     Repare no `coalesce`: quando não há ninguém logado (o servidor agindo com
+--     a chave de serviço, uma migração), o valor enviado continua valendo. Sem
+--     isso, uma carga de dados nasceria sem autor.
+-- --------------------------------------------------------------------------
+
+create or replace function public.carimbar_autor()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_eu uuid := meu_perfil();
+begin
+  if v_eu is null then return new; end if;
+  if tg_table_name = 'itens'  then new.autor_id   := v_eu; end if;
+  if tg_table_name = 'canais' then new.criado_por := v_eu; end if;
+  if tg_table_name = 'notas'  then new.dono_id    := v_eu; end if;
+  return new;
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['itens','canais','notas'] loop
+    execute format('drop trigger if exists ao_assinar on public.%I', t);
+    execute format(
+      'create trigger ao_assinar before insert on public.%I
+         for each row execute function public.carimbar_autor()', t);
+  end loop;
+end $$;
+
+-- --------------------------------------------------------------------------
+-- Um login pode ter perfil em mais de uma empresa, e `perfis_sel` devolve
+-- todos, de propósito: é o que alimenta o seletor de espaço. Só que uma lista
+-- de gente para escolher responsável não pode misturar quem é de outra empresa:
+-- escolher alguém de fora cria uma tarefa que o dono dela nunca vai enxergar,
+-- porque toda outra política filtra por organização.
+--
+-- Esta função é a lista certa para qualquer escolha de pessoa dentro do app.
+-- --------------------------------------------------------------------------
+
+create or replace function public.gente_daqui()
+returns setof public.perfis language sql stable security definer set search_path = public as $$
+  select * from perfis where org_id = minha_org() order by nome;
+$$;
+
+
+-- ==========================================================================
+-- Conferência: as três contas abaixo têm que dar 3, 3 e 3.
+-- ==========================================================================
+select
+  (select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid
+    where t.tgname = 'ao_assinar' and c.relname in ('itens','canais','notas'))
+    as "carimbos (tem que dar 3)",
+  (select count(*) from pg_tables where schemaname = 'public'
+    and tablename in ('avisos','avisos_contato','push_assinaturas'))
+    as "tabelas de aviso (tem que dar 3)",
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname in ('avisar','gerar_avisos_de_prazo','gente_daqui'))
+    as "funcoes novas (tem que dar 3)";

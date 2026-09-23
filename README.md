@@ -77,10 +77,14 @@ Para voltar ao modo demonstração a qualquer momento, esvazie as duas linhas do
 ### Se o banco recusar criar tarefa, canal ou nota
 
 Se aparecer **"new row violates row-level security policy"**, rode o
-`supabase/schema.sql` inteiro de novo no SQL Editor. A **seção 15** é a que resolve: ela
-faz o servidor carimbar quem assina a linha, em vez de o navegador mandar esse campo e o
-banco conferir. Enquanto os dois precisavam concordar, qualquer diferença virava essa
-mensagem, que não diz qual das três condições caiu.
+`supabase/atualizar.sql` no SQL Editor. Ele é um recorte do schema com as seções 14 e 15,
+para você não colar 3200 linhas quando só duas coisas mudaram, e termina conferindo
+sozinho se entrou. Rodar o `supabase/schema.sql` inteiro faz o mesmo: ele já contém as
+duas seções.
+
+A **seção 15** é a que resolve: ela faz o servidor carimbar quem assina a linha, em vez de
+o navegador mandar esse campo e o banco conferir. Enquanto os dois precisavam concordar,
+qualquer diferença virava essa mensagem, que não diz qual das três condições caiu.
 
 Se continuar depois disso, rode o `supabase/diagnostico.sql`, trocando o e-mail da
 primeira linha pelo seu. Ele não altera nada, e termina dizendo em português o que achou.
