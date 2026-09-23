@@ -9,6 +9,7 @@ import { Ic } from './Icones'
 import { Av } from './atomos'
 import { Radar } from './Radar'
 import { Conversa } from './ConversaTrack'
+import { ListaCanais } from './Canais'
 import { classePrazo } from './partes'
 import { AVULSA } from '@/lib/rotulos'
 import { dias, DSEM_LONGO, hoje, isoDe, MES_LONGO, rel } from '@/lib/datas'
@@ -249,7 +250,10 @@ export function Painel() {
           porque é o lugar por onde uma coisa vira a outra. */}
       <section className="forward-conversa">
         {canal ? (
-          <Conversa canal={canal} titulo="Conversa" quantas={8} aoTrocar={setCanalAberto} />
+          <>
+            <ListaCanais atual={canal.id} aoEscolher={setCanalAberto} />
+            <Conversa canal={canal} titulo="Conversa" quantas={8} />
+          </>
         ) : (
           <div className="ct">
             <div className="ct-topo"><h2>Conversa</h2></div>

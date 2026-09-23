@@ -67,6 +67,15 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
 - O canal que o Forward abre sozinho é o que tem mais coisa por ler, e a escolha **fica
   presa depois da primeira vez**. "Por ler" muda no instante em que você lê: sem prender,
   responder uma mensagem jogava a pessoa para outro canal no meio da frase.
+- Ao lado da conversa fica a **coluna de canais**, com o despejo em cima. Ela pertence ao
+  chat, e não é uma quarta coluna do Forward: sem ela, responder a alguém que não é o canal
+  aberto exigia trocar de tela. A classe é `.cnx` e não `.cn` porque `.cn` já é o cartão de
+  conector, e **classe curta repetida é o jeito mais silencioso de uma tela quebrar a
+  outra**: já aconteceu com `.trk` e com `.ag-linha`. Ao criar classe nova, conferir antes.
+- **O Forward é onde o dia inteiro cabe.** Criar objetivo e criar rotina ficam de fora de
+  propósito, porque são decisão, não operação: a pessoa senta para fazer isso. O resto
+  precisa caber aqui, e toda coisa nova que exigir sair da tela para uma ação corriqueira é
+  um defeito de desenho, não uma escolha.
 - Com vários negócios em foco, rotinas e projetos são separados em blocos por empresa,
   um bloco por empresa, não uma lista só com etiqueta.
 - Tudo tem responsável e prazo: item (quem executa), checkpoint (quem aprova), fluxo (dono).

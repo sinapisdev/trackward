@@ -3403,7 +3403,12 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
   min-height:calc(100dvh - var(--alt-topo) - var(--alt-rodape))}
 .forward>.corpo{min-width:0;padding:26px var(--gutter) 40px}
 .forward>.forward-conversa{min-width:0;border-left:1px solid var(--line);
-  padding:26px var(--gutter) 40px}
+  padding:26px var(--gutter) 40px;
+  /* a coluninha dos canais fica colada na conversa, e não é uma quarta coluna
+     do Forward: ela pertence ao chat, e não ao resto da tela.
+     Chama-se cnx e não cn porque .cn já é o cartão de conector, e classe curta
+     repetida é o jeito mais silencioso de uma tela quebrar a outra. */
+  display:grid;grid-template-columns:172px minmax(0,1fr);gap:22px;align-items:start}
 .forward>.rail{border-left:1px solid var(--line);padding:26px var(--gutter) 40px;min-width:0}
 
 /* a conversa acompanha a rolagem: ela é o lugar onde se responde, e responder
@@ -3452,3 +3457,45 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .tf.f .tf-desc{text-decoration:none}
 .gaveta-desc{margin:14px 0 0;font-size:var(--fs-ui);color:var(--tx-2);line-height:1.5}
+
+/* ------------------------------------------------- a coluninha dos canais */
+.cnx{position:sticky;top:calc(var(--alt-topo) + 22px);min-width:0;
+  border-right:1px solid var(--line);padding-right:16px;margin-right:-6px}
+.cnx-topo{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:0 6px 10px}
+.cnx-topo b{font:var(--fw-semibold) var(--fs-ui)/1.3 var(--sans)}
+.cnx-rolo{display:grid;gap:1px;max-height:min(58vh,520px);overflow-y:auto;scrollbar-width:thin}
+.cnx-grupo{font:var(--fw-semibold) var(--fs-kicker)/1.2 var(--sans);letter-spacing:var(--ls-kicker);
+  text-transform:uppercase;color:var(--tx-3);padding:14px 6px 5px}
+.cnx-item{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:9px;align-items:center;
+  width:100%;text-align:left;padding:7px 8px;border-radius:var(--r-sm);color:var(--tx-2);
+  font-size:var(--fs-ui);transition:var(--t);min-height:34px}
+.cnx-item:hover{background:var(--hover);color:var(--tx)}
+.cnx-item.on{background:var(--alto);color:var(--tx);font-weight:var(--fw-medium)}
+.cnx-item.novo{color:var(--tx);font-weight:var(--fw-medium)}
+.cnx-mk{display:grid;place-items:center;color:var(--tx-3);font-size:var(--fs-meta)}
+.cnx-item.on .cnx-mk{color:var(--tx-2)}
+.cnx-nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cnx-ct{font-size:var(--fs-micro);font-style:normal;color:var(--tx-2);background:var(--line-3);
+  border-radius:var(--r-pill);padding:1px 7px}
+.cnx-ct.hot{background:var(--late);color:var(--late-tx)}
+.cnx-despejo{display:grid;grid-template-columns:18px minmax(0,1fr);gap:10px;align-items:center;
+  width:100%;text-align:left;padding:10px 8px;border-radius:var(--r-sm);
+  border:1px dashed var(--line-2);color:var(--tx-2);transition:var(--t);margin-bottom:6px}
+.cnx-despejo:hover{border-style:solid;color:var(--tx)}
+.cnx-despejo b{display:block;font:var(--fw-medium) var(--fs-ui)/1.3 var(--sans)}
+.cnx-despejo small{display:block;font-size:var(--fs-meta);color:var(--tx-3);margin-top:2px}
+
+@media (max-width:1400px){
+  .forward>.forward-conversa{grid-template-columns:160px minmax(0,1fr);gap:18px}
+}
+@media (max-width:1100px){
+  .forward>.forward-conversa{grid-template-columns:1fr;gap:0}
+  .cnx{position:static;border-right:0;border-bottom:1px solid var(--line);
+    padding:0 0 14px;margin:0 0 18px}
+  .cnx-rolo{grid-auto-flow:column;grid-auto-columns:max-content;gap:6px;overflow-x:auto;
+    max-height:none;padding-bottom:4px}
+  .cnx-grupo{display:none}
+  .cnx-rolo>div{display:flex;gap:6px}
+  .cnx-item{width:auto;border:1px solid var(--line);border-radius:var(--r-pill);padding:7px 14px}
+}
