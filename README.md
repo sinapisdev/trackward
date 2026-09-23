@@ -166,6 +166,49 @@ recusa, mesmo que a chamada não venha pela tela.
    coloque o endereço da Vercel em **Site URL** (é o endereço usado no link de
    recuperação de senha).
 
+## O domínio
+
+O endereço é **trackward.app**, na raiz, sem `app.` na frente: a palavra já está no fim.
+O `.com` estava tomado desde 2021 e parado, segurado por quem não usa, e comprar de quem
+segura nome é caro, lento e sem garantia.
+
+Três coisas que o `.app` tem e os outros não:
+
+- **HTTPS é obrigatório.** O TLD inteiro está na lista de HSTS pré-carregada dos
+  navegadores, então `http://` não existe ali, nem para teste. A Vercel emite o
+  certificado sozinha, mas até ele sair o endereço não abre de jeito nenhum, e isso
+  parece defeito quando na verdade é a regra do domínio.
+- Não precisa de CPF nem CNPJ, e a conta é em dólar.
+- Não dá para usar `.local` nem IP no DNS por causa do item acima.
+
+Para publicar nele, na ordem:
+
+1. Na Vercel, em **Settings > Domains** do projeto, adicione `trackward.app`.
+2. Ela mostra ou dois servidores de nome, ou um par de registros (`A` na raiz e
+   `CNAME` no `www`). Apontar os servidores de nome é mais simples e deixa a Vercel
+   cuidar do resto; ficar com o DNS no registrador é melhor se algum dia o e-mail do
+   domínio for morar em outro lugar.
+3. `NEXT_PUBLIC_URL=https://trackward.app` nas variáveis da Vercel. Sem ela, o link do
+   aviso de push aponta para o endereço que a requisição por acaso tinha, e a prévia de
+   compartilhamento sai sem imagem.
+4. No Supabase, em **Authentication > URL Configuration**: `https://trackward.app` em
+   **Site URL** e também em **Redirect URLs**. É daí que sai o link de recuperação de
+   senha, e enquanto ele apontar para o endereço antigo da Vercel a pessoa cai na tela
+   errada depois de trocar a senha.
+
+### E o segundo endereço
+
+Vale registrar **trackward.com.br** também, no registro.br, por volta de R$ 40 por ano.
+Não é para servir o app: é porque quem ouve o nome numa reunião no Brasil digita
+`.com.br` por reflexo, e porque nome de produto que o concorrente pode registrar não é
+nome, é empréstimo.
+
+Ele fica como **redirecionamento** para `trackward.app`, e não como cópia. Servir o mesmo
+app em dois endereços quebra três coisas de uma vez: a sessão fica presa a um domínio e a
+pessoa parece deslogada no outro, o link de recuperação de senha do Supabase só vale para
+o **Site URL** configurado, e a busca passa a ver duas versões da mesma coisa. Na Vercel
+isso é um clique: adicione o domínio e marque **Redirect to trackward.app**.
+
 ## Avisos
 
 O app avisa quando alguém te passa uma tarefa, quando um prazo seu vence, quando um
@@ -191,7 +234,7 @@ ir atrás da pessoa.
    VAPID_CHAVE_PUBLICA=B...
    NEXT_PUBLIC_VAPID_CHAVE=B...
    VAPID_CHAVE_PRIVADA=...
-   VAPID_CONTATO=mailto:avisos@trackward.com.br
+   VAPID_CONTATO=mailto:leo.silverios22@gmail.com
    ```
 
 3. Cada pessoa liga o próprio aparelho em **Ajustes > Como quero ser avisado**.
@@ -233,7 +276,7 @@ Depois, uma das três:
   ```sql
   select cron.schedule('avisos-do-dia', '0 11 * * *', $$
     select net.http_post(
-      url := 'https://app.trackward.com.br/api/avisar',
+      url := 'https://trackward.app/api/avisar',
       headers := '{"authorization":"Bearer SEU_TRACK_AVISOS_SEGREDO"}'::jsonb
     );
   $$);
