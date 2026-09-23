@@ -62,6 +62,19 @@ export type Contexto = {
    * comportamento, elas são conservadoras sempre: quem muda é o modelo.
    */
   despejo?: boolean
+  /**
+   * O que já está guardado no caderno e tem a ver com o que está sendo lido.
+   *
+   * É isto que faz o despejo somar em vez de só acumular. A pessoa escreve
+   * sobre uma ideia hoje e sobre outra daqui a um mês; sem isto, a leitura
+   * trata as duas como se nunca tivessem se encontrado, e quem tinha que
+   * lembrar da primeira era a pessoa, que foi justamente quem escreveu para
+   * não precisar lembrar.
+   *
+   * As regras deste arquivo não usam: ligar assunto com assunto é julgamento.
+   * Quem usa é o modelo, em /api/leitor.
+   */
+  caderno?: { titulo: string; trecho: string }[]
 }
 
 export type Proposta = {

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDados } from './Dados'
 import { Ic } from './Icones'
+import { Anexos } from './Anexos'
 import { tituloDe } from '@/lib/notas'
 import { rotuloTipo } from '@/lib/rotulos'
 import { isoDe, rel } from '@/lib/datas'
@@ -172,6 +173,11 @@ export function Despejo() {
               </select>
               <Ic.chev />
             </label>
+          </div>
+
+          <div className="dp-anexos">
+            <span className="lbl">Arquivos</span>
+            <Anexos nota={aberta} podeAnexar />
           </div>
 
           <div className="dp-a-acoes">

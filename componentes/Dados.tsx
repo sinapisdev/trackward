@@ -19,7 +19,7 @@ import { distribuir, type Palpite } from '@/lib/distribuir'
 import { sobrecarga, type Carga } from '@/lib/sobrecarga'
 import { escutaAqui, oQueFaz, porPalavras } from '@/lib/agentes'
 import { preencher } from '@/lib/conectores'
-import { tituloDe } from '@/lib/notas'
+import { parecidas, tituloDe } from '@/lib/notas'
 import { novoId } from '@/lib/id'
 import {
   daDecisao, jaFoiRecusada, paraOModelo, quemCostuma, termosDaConversa, ultimoAprendizado,
@@ -104,8 +104,9 @@ type Contexto = {
   alternarItem: (item: Item, porIa?: boolean) => Promise<void>
   aprovar: (f: Fluxo) => Promise<void>
   /** Os anexos de uma tarefa, que são a prova de que ela saiu. */
-  anexosDe: (itemId: string) => Anexo[]
-  anexar: (item: Item, arquivos: FileList | File[]) => Promise<void>
+  /** Os anexos de uma tarefa ou de uma nota, pelo id de uma das duas. */
+  anexosDe: (id: string) => Anexo[]
+  anexar: (dono: Item | Nota, arquivos: FileList | File[]) => Promise<void>
   removerAnexo: (a: Anexo) => Promise<void>
   /** URL temporária para abrir o arquivo. Vale poucos minutos, de propósito. */
   abrirAnexo: (a: Anexo) => Promise<string | null>
@@ -810,19 +811,27 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   // ------------------------------------------------------------- anexos
 
-  const porItem = useMemo(() => {
+  /** Os anexos indexados pelo dono, que hoje pode ser tarefa ou nota. */
+  const porDono = useMemo(() => {
     const m = new Map<string, Anexo[]>()
     for (const a of anexos) {
-      const lista = m.get(a.item_id)
+      const chave = a.item_id || a.nota_id
+      if (!chave) continue
+      const lista = m.get(chave)
       if (lista) lista.push(a)
-      else m.set(a.item_id, [a])
+      else m.set(chave, [a])
     }
     return m
   }, [anexos])
 
-  const anexosDe = useCallback((itemId: string) => porItem.get(itemId) || [], [porItem])
+  const anexosDe = useCallback((id: string) => porDono.get(id) || [], [porDono])
 
-  const anexar: Contexto['anexar'] = useCallback(async (item, arquivos) => {
+  const anexar: Contexto['anexar'] = useCallback(async (dono, arquivos) => {
+    // Tarefa tem etapa; nota não. É o que distingue as duas sem precisar de um
+    // sinalizador a mais na chamada.
+    const ehItem = 'etapa_id' in dono
+    const item = ehItem ? (dono as Item) : null
+    const nota = ehItem ? null : (dono as Nota)
     const lista = Array.from(arquivos)
     if (!lista.length) return
     if (!org.id) return falhou(null, 'Organização ainda carregando. Tente de novo.')
@@ -836,12 +845,18 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       }
       // O caminho começa pelo id da organização: é o que a política do Storage
       // confere no envio, antes de olhar qualquer outra coisa.
-      const caminho = `${org.id}/${item.fluxo_id}/${item.id}/${Date.now()}-${nomeLimpo(arquivo.name)}`
+      const caminho = item
+        ? `${org.id}/${item.fluxo_id}/${item.id}/${Date.now()}-${nomeLimpo(arquivo.name)}`
+        : `${org.id}/notas/${nota!.id}/${Date.now()}-${nomeLimpo(arquivo.name)}`
       const { error: erroArquivo } = await sb.storage.from('anexos').upload(caminho, arquivo)
       if (erroArquivo) { falhou(erroArquivo, `Não foi possível enviar ${cru.name}.`); continue }
 
       const { error } = await sb.from('anexos').insert({
-        item_id: item.id, fluxo_id: item.fluxo_id, nome: arquivo.name,
+        id: novoId(),
+        item_id: item?.id ?? null,
+        fluxo_id: item?.fluxo_id ?? null,
+        nota_id: nota?.id ?? null,
+        nome: arquivo.name,
         tipo: arquivo.type, tamanho: arquivo.size, caminho, autor_id: eu.id,
       })
       if (error) {
@@ -1042,13 +1057,18 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   const abrirDespejo: Contexto['abrirDespejo'] = useCallback(async () => {
     if (meuDespejo) return meuDespejo.id
-    const { data, error } = await sb.from('canais').insert({
+    // O id nasce aqui, e não do RETURNING. Ver lib/id.ts: pedir a linha de volta
+    // faz o Postgres rodar a política de leitura, e `ve_canal` consulta a própria
+    // tabela pelo id, coisa que função estável não enxerga no meio do insert.
+    // Era isto que impedia o despejo de nascer.
+    const id = novoId()
+    const { error } = await sb.from('canais').insert({
+      id,
       nome: 'Meu despejo',
       descricao: 'Só você entra aqui. Jogue tudo dentro e a leitura separa depois.',
       tipo: 'pessoal', criado_por: eu.id,
-    }).select('id').single()
-    const id = (data as { id: string } | null)?.id
-    if (error || !id) { falhou(error, 'Não deu para abrir o despejo.'); return null }
+    })
+    if (error) { falhou(error, 'Não deu para abrir o despejo.'); return null }
     // Sem a linha de membro ninguém entra, nem quem criou: é a mesma regra do
     // canal fechado, e é ela que mantém o caderno sendo caderno.
     await sb.from('canal_membros').insert({ canal_id: id, perfil_id: eu.id })
@@ -1146,11 +1166,12 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       recarregar()
       return c.id
     }
-    const { data, error } = await sb.from('conectores')
-      .insert({ ...corpo, criado_por: eu.id, dica: '' }).select('id').single()
+    const novo = novoId()
+    const { error } = await sb.from('conectores')
+      .insert({ ...corpo, id: novo, criado_por: eu.id, dica: '' })
     if (error) { falhou(error, 'Conector da empresa é criado por administrador.'); return null }
     recarregar()
-    return (data as { id: string } | null)?.id || null
+    return novo
   }, [sb, eu.id, falhou, toast, recarregar])
 
   /**
@@ -2021,6 +2042,21 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       // leitura procura e o quanto ela se arrisca.
       despejo: true,
       agentes: [],
+      /**
+       * O caderno vai junto, e é isto que faz ele somar em vez de só acumular.
+       * Entram as notas parecidas e as do mesmo endereço: a pessoa escreve sobre
+       * uma ideia hoje e sobre outra daqui a um mês, e quem tinha que lembrar da
+       * primeira era ela, que escreveu justamente para não precisar lembrar.
+       */
+      caderno: [
+        ...parecidas(nota, notas, 4),
+        ...notas.filter((n) => n.id !== nota.id && !n.arquivada
+          && ((nota.area_id && n.area_id === nota.area_id)
+            || (nota.fluxo_id && n.fluxo_id === nota.fluxo_id))),
+      ]
+        .filter((n, i, todas) => todas.findIndex((x) => x.id === n.id) === i)
+        .slice(0, 6)
+        .map((n) => ({ titulo: n.titulo, trecho: n.texto.replace(/\s+/g, ' ').slice(0, 220) })),
     }
 
     let propostas: Proposta[] = []
@@ -2047,6 +2083,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
     for (const p of novas) {
       await sb.from('sugestoes').insert({
+        id: novoId(),
         canal_id: canalId,
         // A nota não é mensagem, e a coluna aponta para mensagens. Nulo aqui é
         // a resposta honesta: a origem está no texto que a proposta cita.
@@ -2157,11 +2194,23 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
     const gravadas: Sugestao[] = []
     for (const p of novas) {
-      const { data } = await sb.from('sugestoes').insert({
-        canal_id: canalId, mensagem_id: p.mensagem_id, tipo: p.tipo,
+      // O id sai daqui e a linha não volta. Ver lib/id.ts: `RETURNING` passa
+      // pela política de leitura, e a recusa de lá é indistinguível da recusa
+      // de escrita. Com o id em mãos, a proposta já pode ser aplicada sozinha.
+      const id = novoId()
+      const { error } = await sb.from('sugestoes').insert({
+        id, canal_id: canalId, mensagem_id: p.mensagem_id, tipo: p.tipo,
         texto: p.texto, motivo: p.motivo, dados: p.dados, estado: 'aberta',
-      }).select().single()
-      if (data) gravadas.push({ ...(data as Sugestao), dados: p.dados })
+      })
+      if (!error) {
+        gravadas.push({
+          id, canal_id: canalId, mensagem_id: p.mensagem_id, tipo: p.tipo,
+          texto: p.texto, motivo: p.motivo, dados: p.dados, estado: 'aberta',
+          criado_em: new Date().toISOString(),
+          decidido_por: null, decidido_em: null, por_ia: false,
+          desfeita_em: null, desfeita_por: null,
+        })
+      }
     }
 
     if (org.ia_modo === 'aplicar') {

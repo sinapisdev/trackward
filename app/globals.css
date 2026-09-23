@@ -3564,3 +3564,6 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
   background:var(--alto);border-radius:4px;padding:1px 5px}
 .nt-onde{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 0}
 .nt-onde .sel-quem select{max-width:170px}
+.dp-anexos{margin-top:18px}
+.dp-anexos .lbl{display:block;margin-bottom:8px}
+.nt-anexos{margin-top:22px}

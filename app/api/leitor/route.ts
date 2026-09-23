@@ -71,6 +71,22 @@ function instrucoes(ctx: Contexto) {
    * cancelamento, e nenhuma palavra-chave pega isso. Reconhecer situação é
    * entender contexto, e é por isso que o agente vale mais com chave de modelo.
    */
+  /**
+   * O caderno da pessoa. Entra só quando há coisa parecida guardada, e entra
+   * como contexto, nunca como ordem: a leitura pode citar a nota antiga e
+   * propor juntar as duas, mas não decide nada sozinha.
+   */
+  const comCaderno = ctx.caderno?.length
+    ? `
+O QUE ESTA PESSOA JÁ GUARDOU NO CADERNO E PARECE TER A VER:
+${ctx.caderno.map((n) => `- "${n.titulo}": ${n.trecho}`).join('\n')}
+
+Se o que está sendo lido agora conversar com alguma dessas, diga isso no motivo
+da proposta, citando o título entre colchetes duplos, assim: [[título da nota]].
+Não invente ligação: só aponte quando a relação for evidente no texto.
+`
+    : ''
+
   const comAgentes = ctx.agentes?.length
     ? `
 AGENTES QUE ESTA EMPRESA ESCREVEU:
@@ -100,7 +116,7 @@ um agente que dispara errado cria trabalho errado em área que não é sua.
   if (ctx.despejo) {
     return `Você lê o caderno de bolso de UMA pessoa e separa o que ela jogou lá dentro.
 
-Hoje é ${ctx.hoje}.${aprendido}
+Hoje é ${ctx.hoje}.${aprendido}${comCaderno}
 Ela está falando sozinha, para o app ouvir. Não é conversa de equipe: não tem ninguém
 para quem delegar, e tudo que está escrito ela escreveu de propósito, para não perder.
 

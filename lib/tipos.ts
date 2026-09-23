@@ -220,8 +220,9 @@ export type Etapa = {
  */
 export type Anexo = {
   id: string
-  item_id: string
-  fluxo_id: string
+  /** De quem ele é. Uma das duas, nunca as duas. */
+  item_id: string | null
+  fluxo_id: string | null
   nome: string
   tipo: string
   tamanho: number
@@ -229,6 +230,7 @@ export type Anexo = {
   caminho: string
   autor_id: string | null
   criado_em: string
+  nota_id: string | null
 }
 
 /** Uma tarefa que a cascata quer mover, e o que aconteceria com ela. */

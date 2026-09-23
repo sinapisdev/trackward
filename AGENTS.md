@@ -258,6 +258,18 @@ O que organiza o caderno continua sendo a ligação escrita no meio do texto,
 são etiquetas por cima disso, para o eixo do trabalho, e a maioria das notas não
 vai ter nenhuma das duas: isso é o certo, não uma lacuna a preencher.
 
+**O caderno soma, não só acumula.** Ao ler uma nota, `lerNota()` manda junto as
+notas parecidas e as do mesmo endereço, no campo `caderno` do contexto. É isso
+que faz a ideia de hoje encontrar a de um mês atrás: sem isso, quem tinha que
+lembrar da primeira era a pessoa, que escreveu justamente para não precisar
+lembrar. A leitura pode apontar a ligação no motivo da proposta, e nunca decide
+sozinha.
+
+**O anexo pertence a uma tarefa ou a uma nota, nunca às duas**, e um `check` no
+banco garante isso em vez da boa vontade de quem escreve o insert: anexo
+pendurado em nada é arquivo que ninguém acha e ninguém apaga. Quem vê segue a
+coisa a que ele pertence, e anexo de nota abre só para o dono dela.
+
 ## Quem assina a linha é o servidor
 
 Três tabelas guardam quem criou a linha e três políticas exigem que o campo seja

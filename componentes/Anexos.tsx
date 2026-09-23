@@ -5,7 +5,7 @@ import { useDados } from '@/componentes/Dados'
 import { useModais } from '@/componentes/Modais'
 import { Ic } from '@/componentes/Icones'
 import { ehImagem, tamanhoLegivel } from '@/lib/anexos'
-import type { Anexo, Item } from '@/lib/tipos'
+import type { Anexo, Item, Nota } from '@/lib/tipos'
 
 /**
  * A prova de que a tarefa saiu.
@@ -48,17 +48,27 @@ function Ficha({ a, podeTirar }: { a: Anexo; podeTirar: boolean }) {
   )
 }
 
-export function Anexos({ item, podeAnexar }: { item: Item; podeAnexar: boolean }) {
+/**
+ * O bloco de anexos. Serve à tarefa e à nota, porque o documento que importa
+ * nem sempre nasce preso a uma tarefa: a proposta que chegou por e-mail, o PDF
+ * que alguém mandou e que você ainda não sabe em que vai dar.
+ */
+export function Anexos({ item, nota, podeAnexar }: {
+  item?: Item
+  nota?: Nota
+  podeAnexar: boolean
+}) {
   const { anexosDe, anexar, eu } = useDados()
   const [enviando, setEnviando] = useState(false)
   const [sobre, setSobre] = useState(false)
   const campo = useRef<HTMLInputElement>(null)
-  const lista = anexosDe(item.id)
+  const dono = item || nota
+  const lista = dono ? anexosDe(dono.id) : []
 
   const mandar = async (arquivos: FileList | File[] | null) => {
-    if (!arquivos || !arquivos.length) return
+    if (!arquivos || !arquivos.length || !dono) return
     setEnviando(true)
-    await anexar(item, arquivos)
+    await anexar(dono, arquivos)
     setEnviando(false)
     if (campo.current) campo.current.value = ''
   }

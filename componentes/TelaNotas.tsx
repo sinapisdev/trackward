@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDados } from '@/componentes/Dados'
 import { Carregando } from '@/componentes/Shell'
 import { Ic } from '@/componentes/Icones'
+import { Anexos } from '@/componentes/Anexos'
 import { rel, isoDe } from '@/lib/datas'
 import {
   buscar, entradas, ligar, LIGACAO, mesmaChave, ordenar, parecidas, porTitulo, saidas, solta,
@@ -127,6 +128,10 @@ function Aberta({ nota, ir }: { nota: Nota; ir: (titulo: string) => void }) {
       ) : (
         <>
           <Corpo texto={nota.texto} ir={ir} />
+          <div className="nt-anexos">
+            <span className="nt-rot">Arquivos</span>
+            <Anexos nota={nota} podeAnexar />
+          </div>
           <div className="nt-onde">
             <label className="sel-quem">
               <select value={nota.area_id || ''} aria-label="Área desta nota"

@@ -22,6 +22,8 @@
 --
 --   6. Seção 17                   A nota ganha área e track.
 --
+--   7. Seção 18                   O anexo deixa de ser só de tarefa.
+--
 -- COMO USAR: SQL Editor do Supabase, New query, colar tudo, Run.
 -- ==========================================================================
 
@@ -633,8 +635,110 @@ alter table public.notas add column if not exists fluxo_id uuid references publi
 create index if not exists notas_area_idx  on public.notas (area_id)  where area_id  is not null;
 create index if not exists notas_fluxo_idx on public.notas (fluxo_id) where fluxo_id is not null;
 
+-- --------------------------------------------------------------------------
+-- 18. O anexo deixa de ser só de tarefa
+--
+--     O anexo nasceu como prova de tarefa: o comprovante, o contrato assinado,
+--     a foto do serviço. Por isso ele exigia tarefa e track, e por isso não
+--     cabia no caderno. Só que o documento que importa nem sempre nasce preso a
+--     uma tarefa: a proposta que chegou por e-mail, o print de uma conversa, o
+--     PDF que alguém mandou e que você ainda não sabe em que vai dar.
+--
+--     Agora o anexo pertence a **uma** das duas coisas, nunca às duas: uma
+--     tarefa ou uma nota. O `check` abaixo é quem garante isso, e não a boa
+--     vontade de quem escreve o insert: anexo pendurado em nada é arquivo que
+--     ninguém acha e ninguém apaga.
+--
+--     A regra de quem vê segue a coisa a que ele pertence. Anexo de tarefa abre
+--     quando a tarefa abre; anexo de nota abre para o dono da nota e mais
+--     ninguém, porque a nota é dele e ponto.
+-- --------------------------------------------------------------------------
+
+alter table public.anexos add column if not exists nota_id uuid references public.notas on delete cascade;
+alter table public.anexos alter column item_id  drop not null;
+alter table public.anexos alter column fluxo_id drop not null;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'anexos_de_uma_coisa') then
+    alter table public.anexos add constraint anexos_de_uma_coisa
+      check ((item_id is not null and nota_id is null)
+          or (item_id is null and nota_id is not null));
+  end if;
+end $$;
+
+create index if not exists anexos_nota_idx on public.anexos (nota_id) where nota_id is not null;
+
+-- --------------------------------------------------------------------------
+-- As políticas, agora com os dois caminhos
+-- --------------------------------------------------------------------------
+
+drop policy if exists anx_sel on public.anexos;
+create policy anx_sel on public.anexos for select using (
+  minha(org_id) and ativo() and (
+    (item_id is not null and ve_item(item_id))
+    or (nota_id is not null and exists (
+      select 1 from notas n where n.id = nota_id and n.dono_id = meu_perfil()))
+  ));
+
+drop policy if exists anx_ins on public.anexos;
+create policy anx_ins on public.anexos for insert with check (
+  minha(org_id) and ativo() and autor_id = meu_perfil() and (
+    (item_id is not null and ve_item(item_id))
+    or (nota_id is not null and exists (
+      select 1 from notas n where n.id = nota_id and n.dono_id = meu_perfil()))
+  ));
+
+drop policy if exists anx_del on public.anexos;
+create policy anx_del on public.anexos for delete using (
+  minha(org_id) and ativo() and (
+    autor_id = meu_perfil()
+    or (fluxo_id is not null and manda_no_processo(fluxo_id))
+  ));
+
+-- --------------------------------------------------------------------------
+-- E o balde de arquivos, que é quem de fato guarda o documento
+-- --------------------------------------------------------------------------
+
+create or replace function public.posso_ver_anexo(p_caminho text)
+returns boolean language sql stable security definer set search_path = public as $$
+  -- Prova de tarefa: abre quando a tarefa abre.
+  select exists (
+    select 1 from anexos a
+    where a.caminho = p_caminho and minha(a.org_id)
+      and a.item_id is not null and ve_item(a.item_id)
+  )
+  -- Documento de nota: abre para o dono da nota, e mais ninguém.
+  or exists (
+    select 1 from anexos a join notas n on n.id = a.nota_id
+    where a.caminho = p_caminho and minha(a.org_id) and n.dono_id = meu_perfil()
+  )
+  -- Recado de voz: abre quando o canal abre. Canal fechado continua fechado, e
+  -- é por isso que a conta passa por ve_canal e não pelo caminho do arquivo.
+  or exists (
+    select 1 from mensagens m
+    where m.audio_caminho = p_caminho and minha(m.org_id) and ve_canal(m.canal_id)
+  );
+$$;
+
+create or replace function public.posso_apagar_anexo(p_caminho text)
+returns boolean language sql stable security definer set search_path = public as $$
+  -- Com linha: manda a regra da linha. Sem linha (arquivo órfão, de um envio que
+  -- falhou no meio), basta ser da sua organização, para dar para limpar.
+  select coalesce(
+    (select minha(a.org_id) and (
+        a.autor_id = meu_perfil()
+        or (a.fluxo_id is not null and manda_no_processo(a.fluxo_id)))
+       from anexos a where a.caminho = p_caminho),
+    -- Recado de voz: apaga quem escreveu, igual à mensagem de texto.
+    (select minha(m.org_id) and m.autor_id = meu_perfil()
+       from mensagens m where m.audio_caminho = p_caminho),
+    split_part(p_caminho, '/', 1) = minha_org()::text
+  );
+$$;
+
 -- ==========================================================================
--- Conferência. As sete contas abaixo têm que dar 29, 3, 3, 3, true, 1 e 2.
+-- Conferência. As oito contas abaixo têm que dar 29, 3, 3, 3, true, 1, 2 e 1.
 -- ==========================================================================
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
@@ -662,4 +766,7 @@ select
     as "descricao na tarefa (1)",
   (select count(*) from information_schema.columns
     where table_schema = 'public' and table_name = 'notas' and column_name in ('area_id','fluxo_id'))
-    as "endereco na nota (2)";
+    as "endereco na nota (2)",
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'anexos' and column_name = 'nota_id')
+    as "anexo em nota (1)";
