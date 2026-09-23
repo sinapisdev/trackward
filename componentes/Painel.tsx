@@ -11,7 +11,7 @@ import { AgendaCurta, Radar } from './Radar'
 import { Conversa } from './ConversaTrack'
 import { ListaCanais } from './Canais'
 import { Caderno } from './Caderno'
-import { classePrazo } from './partes'
+import { classePrazo, useCelular } from './partes'
 import { AVULSA } from '@/lib/rotulos'
 import { dias, DSEM_LONGO, hoje, isoDe, MES_LONGO, rel } from '@/lib/datas'
 import { etapaAtual } from '@/lib/regras'
@@ -46,6 +46,7 @@ export function Painel() {
   const [pessoa, setPessoa] = useState('')
   const [canalAberto, setCanalAberto] = useState<string | null>(null)
   const [face, setFace] = useState<Face>('conversa')
+  const celular = useCelular()
 
   /** Toda tarefa aberta que eu enxergo, com o endereço dela. */
   const tarefas = useMemo<Linha[]>(() => {
@@ -258,39 +259,59 @@ export function Painel() {
           As notas dividem esta coluna com ela, e não a de canais, porque são
           outra coisa: canal é falar com alguém, nota é pensar. Ficam lado a
           lado por serem as duas superfícies onde se escreve, e é para cá que a
-          pessoa volta o dia inteiro. */}
-      <section className="forward-conversa">
-        <div className="seg fwd-face" role="group" aria-label="O que mostrar aqui">
-          <button className={face === 'conversa' ? 'on' : ''} onClick={() => setFace('conversa')}>
-            Conversa
-            {!!porLer && <span className="num">{porLer > 9 ? '9+' : porLer}</span>}
-          </button>
-          <button className={face === 'notas' ? 'on' : ''} onClick={() => setFace('notas')}>
-            Notas
-          </button>
-        </div>
+          pessoa volta o dia inteiro.
 
-        {face === 'notas' ? <Caderno /> : canal ? (
-          <>
-            <ListaCanais atual={canal.id} aoEscolher={setCanalAberto} />
-            <Conversa canal={canal} titulo="Conversa" quantas={8} />
-          </>
-        ) : (
-          <div className="ct">
-            <div className="ct-topo"><h2>Conversa</h2></div>
-            <p className="ct-vazio">
-              Nenhum canal ainda. A conversa é onde o trabalho começa: alguém combina uma
-              coisa, e ela vira tarefa sem ninguém copiar nada.
-            </p>
-            <button className="btn larga" onClick={() => abrir({ tipo: 'canal' })}>
-              <Ic.plus />Criar o primeiro canal
+          No celular esta coluna inteira sai, e não é para "caber": três colunas
+          empilhadas viram três telas de rolagem, e a conversa ficava na segunda,
+          onde ninguém chega. Lá ela é uma aba da TabBar, a um toque de distância,
+          e o que fica aqui é um atalho que diz quanto tem por ler. */}
+      {!celular && (
+        <section className="forward-conversa">
+          <div className="seg fwd-face" role="group" aria-label="O que mostrar aqui">
+            <button className={face === 'conversa' ? 'on' : ''} onClick={() => setFace('conversa')}>
+              Conversa
+              {!!porLer && <span className="num">{porLer > 9 ? '9+' : porLer}</span>}
+            </button>
+            <button className={face === 'notas' ? 'on' : ''} onClick={() => setFace('notas')}>
+              Notas
             </button>
           </div>
-        )}
-      </section>
+
+          {face === 'notas' ? <Caderno /> : canal ? (
+            <>
+              <ListaCanais atual={canal.id} aoEscolher={setCanalAberto} />
+              <Conversa canal={canal} titulo="Conversa" quantas={8} />
+            </>
+          ) : (
+            <div className="ct">
+              <div className="ct-topo"><h2>Conversa</h2></div>
+              <p className="ct-vazio">
+                Nenhum canal ainda. A conversa é onde o trabalho começa: alguém combina uma
+                coisa, e ela vira tarefa sem ninguém copiar nada.
+              </p>
+              <button className="btn larga" onClick={() => abrir({ tipo: 'canal' })}>
+                <Ic.plus />Criar o primeiro canal
+              </button>
+            </div>
+          )}
+        </section>
+      )}
 
       <aside className="rail">
-        <Radar lista={fluxos.filter((f) => f.id !== minhaLista?.id)} />
+        {celular && (
+          <div className="fwd-atalhos">
+            <Link className="fwd-at" href="/chat">
+              <Ic.chat />
+              <b>Conversa</b>
+              {!!porLer && <i className="num">{porLer > 9 ? '9+' : porLer}</i>}
+            </Link>
+            <Link className="fwd-at" href="/notas">
+              <Ic.faisca />
+              <b>Notas</b>
+            </Link>
+          </div>
+        )}
+        <Radar lista={fluxos.filter((f) => f.id !== minhaLista?.id)} compacto={celular} />
         <div className="rail-sep" />
         <AgendaCurta />
       </aside>

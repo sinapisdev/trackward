@@ -16,6 +16,26 @@ export async function proxy(req: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const chave = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!url || !chave) return res
+  // Modo demonstração ligado na mão: não existe sessão para renovar.
+  if (process.env.NEXT_PUBLIC_MODO === 'local') return res
+
+  /**
+   * O endereço tem que ser o da API, `https://<ref>.supabase.co`, e não a
+   * string de conexão do Postgres, que é o que o painel do Supabase mostra
+   * primeiro e é fácil de copiar por engano.
+   *
+   * Sem esta conferência, o cliente estoura aqui dentro e o Next devolve 500 em
+   * TODA página, sem dizer o que aconteceu: a tela fica branca e o erro real
+   * mora no terminal, que é justamente onde quem está configurando não olha.
+   */
+  if (!/^https?:\/\//.test(url)) {
+    console.error(
+      'NEXT_PUBLIC_SUPABASE_URL não é um endereço http. '
+      + 'Use a Project URL (https://<ref>.supabase.co), não a string de conexão do banco. '
+      + 'Enquanto isso, a porta da frente fica aberta e quem barra é o banco.',
+    )
+    return res
+  }
 
   const supabase = createServerClient(url, chave, {
     cookies: {

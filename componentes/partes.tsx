@@ -1,13 +1,37 @@
 'use client'
 
 import Link from 'next/link'
-import { Fragment, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useDados } from './Dados'
 import { Ic } from './Icones'
 import { Av, IconeStatus, Trilha } from './atomos'
 import { dias, DSEM, hoje, iso, rel } from '@/lib/datas'
 import { etapaAtual, LBL, motivo, ORD, progresso, proxPrazo, status } from '@/lib/regras'
 import type { Fluxo, Pendencia, Status } from '@/lib/tipos'
+
+/**
+ * Estamos num celular?
+ *
+ * É a mesma linha de corte da TabBar, 840px, e ela mora aqui para não virar
+ * três cópias com três valores diferentes. Serve para o caso em que CSS não
+ * resolve: quando o celular não precisa do mesmo conteúdo em outro tamanho, e
+ * sim de conteúdo diferente. Esconder com `display:none` seria montar e baixar
+ * a conversa inteira para escondê-la, que é o pior dos dois mundos.
+ *
+ * Começa falso e corrige no primeiro efeito, de propósito: o servidor não sabe
+ * a largura da tela, e chutar aqui daria remontagem visível.
+ */
+export function useCelular() {
+  const [celular, setCelular] = useState(false)
+  useEffect(() => {
+    const mq = matchMedia('(max-width: 840px)')
+    const ver = () => setCelular(mq.matches)
+    ver()
+    mq.addEventListener('change', ver)
+    return () => mq.removeEventListener('change', ver)
+  }, [])
+  return celular
+}
 
 /** Classe de cor de um prazo: vencido, no limite ou normal. */
 export function classePrazo(prazo: string | null | undefined) {

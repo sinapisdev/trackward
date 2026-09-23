@@ -3649,3 +3649,80 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 .nt-grupo .num{margin-left:6px}
 .nt-aberta .cnv{margin-top:26px}
 .nt-aberta .cnv-rolo{max-height:none}
+
+/* ==========================================================================
+   O Forward no celular
+
+   No computador ele é três colunas. Empilhar as três num aparelho de 390px dá
+   três telas e meia de rolagem, com a conversa na segunda e o radar na terceira,
+   que é o mesmo que não ter nenhum dos dois. Aqui ele vira uma coisa só: o que
+   você tem para fazer, com o resto a um toque.
+   ========================================================================== */
+
+@media (max-width:840px){
+  /* A linha de tarefa estava com duas coisas na MESMA célula, uma por cima da
+     outra: a regra de coluna estreita mandava o último span ocupar a coluna 2
+     inteira, e a regra do Forward mandava ele para a linha 1, onde o nome já
+     estava. Título e prazo se sobrepunham, e parecia texto embaralhado. */
+  .forward .ib{grid-template-columns:22px minmax(0,1fr) auto;gap:3px 12px;
+    padding:13px 4px;align-items:start}
+  .forward .ib-nm{grid-column:2;grid-row:1}
+  .forward .ib>span:last-child.ib-fim{grid-column:3;grid-row:1;width:auto;margin-top:0;
+    display:flex;justify-content:flex-end;align-items:center;gap:8px}
+  .forward .ib-onde{grid-column:2/-1;grid-row:2;margin-top:1px}
+  /* o nome respira em duas linhas em vez de virar reticências no meio */
+  .forward .ib-nm>span{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;
+    -webkit-box-orient:vertical;overflow:hidden}
+
+  /* O cabeçalho ocupava um terço da primeira tela para dar bom dia. */
+  .forward .hdr{gap:10px;margin-bottom:14px}
+  .forward .hdr h1{font-size:var(--fs-h3)}
+  .forward .hdr .lede{font-size:var(--fs-meta)}
+  /* O botão de criar tarefa sai: o botão redondo da TabBar faz a mesma coisa,
+     está sempre na tela e não rola junto. Dois botões para a mesma ação em
+     390px é gastar a largura que falta. */
+  .forward .hdr-actions{display:none}
+
+  .forward>.rail{padding-top:20px}
+  .forward .filtros{gap:10px}
+  .forward .sec{margin-bottom:18px}
+
+  /* Cinto junto com o suspensório: quem tira a conversa daqui é o React, mas o
+     servidor não sabe a largura da tela e pinta a página uma vez antes disso.
+     Sem esta linha, o celular via o chat inteiro aparecer e sumir. */
+  .forward>.forward-conversa{display:none}
+
+  /* Os atalhos do que saiu da tela: dizem quanto tem por ler, e levam lá. */
+  .fwd-atalhos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:22px}
+  .fwd-at{display:flex;align-items:center;gap:8px;padding:12px 14px;border-radius:var(--r);
+    border:1px solid var(--line);background:var(--brilho);color:var(--tx);transition:var(--t)}
+  .fwd-at:active{background:var(--hover)}
+  .fwd-at>svg{color:var(--tx-3);flex:none}
+  .fwd-at b{font:var(--fw-medium) var(--fs-ui)/1 var(--sans);flex:1;min-width:0}
+  /* A contagem é neutra de propósito: o acento marca a ação que faz o trabalho
+     andar, e "tem gente falando" não é ação, é informação. */
+  .fwd-at .num{font-style:normal;background:var(--alto);color:var(--tx-2);
+    border-radius:var(--r-pill);padding:2px 8px;font-size:var(--fs-micro)}
+
+  /* O cadeado da tarefa privada vinha esmagado pelo recorte de duas linhas:
+     ele é irmão do texto num flex, e sem `flex:none` o navegador espreme o
+     ícone antes de quebrar a frase. */
+  .forward .ib-nm{align-items:flex-start}
+  .forward .ib-nm .lk{flex:none;margin-top:3px}
+  .forward .ib-nm .lk svg{width:13px;height:13px}
+
+  /* "Ver as tracks" quebrava em duas linhas ao lado do segmento. Tracks é uma
+     aba da TabBar, então o atalho aqui é repetição que custa largura. */
+  .forward .filtros .sec-ver{display:none}
+
+  /* A atividade recente cabe em duas linhas em vez de virar reticências, e
+     ganha chão para não ficar embaixo do botão redondo. */
+  .forward .atv-recente{flex-wrap:wrap;gap:8px;padding-bottom:8px}
+  .forward .atv-recente .txt{white-space:normal;overflow:visible}
+  .forward .atv-recente .quando{margin-left:0}
+
+  /* O radar curto: as três contas continuam, as listas encolhem. */
+  .radar.curto .rd-topo h2{font-size:var(--fs-h3)}
+  .radar.curto .rd-contas{padding-block:12px}
+  .radar.curto .rd-bloco{margin-top:14px}
+}

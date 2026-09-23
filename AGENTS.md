@@ -79,6 +79,16 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
   propósito, porque são decisão, não operação: a pessoa senta para fazer isso. O resto
   precisa caber aqui, e toda coisa nova que exigir sair da tela para uma ação corriqueira é
   um defeito de desenho, não uma escolha.
+- **No celular o Forward é só a fila, e isso não é a mesma tela menor.** A conversa e as
+  notas saem (viram atalho com a contagem do que está por ler) e o radar encolhe para as
+  três contas mais duas linhas. Empilhar as três colunas dava três telas e meia de rolagem,
+  com a conversa na segunda e o radar na terceira, que é o mesmo que não ter nenhum dos
+  dois. Quem decide é `useCelular()` em `componentes/partes.tsx`, e não `display:none`:
+  esconder por CSS baixaria e montaria a conversa inteira para escondê-la. O CSS esconde
+  junto, só para não piscar entre a pintura do servidor e a do navegador.
+- **Uma ação de criar por tela.** No celular quem cria é o botão redondo da TabBar, que no
+  Forward e em Meu trabalho abre **tarefa**, não objetivo. O botão do cabeçalho some ali:
+  dois botões para a mesma coisa em 390px é gastar a largura que falta.
 - Com vários negócios em foco, rotinas e projetos são separados em blocos por empresa,
   um bloco por empresa, não uma lista só com etiqueta.
 - Tudo tem responsável e prazo: item (quem executa), checkpoint (quem aprova), fluxo (dono).

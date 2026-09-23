@@ -18,7 +18,8 @@ import { aplicarTema, temaAtual, TEMAS, type Tema } from '@/lib/tema'
  * Aparece só em tela estreita; no desktop quem manda é a lateral.
  */
 export function TabBar() {
-  const { eu, fluxos, areas, agenda, org, empresas, empresaAtiva, focarEmpresa, canais, naoLidas, pessoal } = useDados()
+  const { eu, fluxos, areas, agenda, org, empresas, empresaAtiva, focarEmpresa, canais, naoLidas, pessoal,
+    notas } = useDados()
   const { abrir } = useModais()
   const caminho = usePathname()
   const [mais, setMais] = useState(false)
@@ -33,6 +34,7 @@ export function TabBar() {
     (c) => c.quando === hojeIso() && [c.dono_id, ...c.convidados].includes(eu.id),
   ).length
   const porLer = canais.reduce((n, c) => n + naoLidas(c.id), 0)
+  const notasVivas = notas.filter((n) => !n.arquivada).length
 
   const sair = async () => {
     await supabase().auth.signOut()
@@ -109,10 +111,15 @@ export function TabBar() {
               {!!hoje && <span className="ct num" style={{ marginLeft: 'auto' }}>{hoje} hoje</span>}
             </Link>
             <Link className="folha-item" href="/avisos"><Ic.sino />Avisos</Link>
+            <Link className="folha-item" href="/notas">
+              <Ic.faisca />Notas
+              {!!notasVivas && <span className="ct num" style={{ marginLeft: 'auto' }}>{notasVivas}</span>}
+            </Link>
             <Link className="folha-item" href="/desempenho"><Ic.grafico />Desempenho</Link>
             <Link className="folha-item" href="/relatorios"><Ic.processo />Relatórios</Link>
             <Link className="folha-item" href="/processos"><Ic.processo />Processos</Link>
             <Link className="folha-item" href="/agentes"><Ic.faisca />Agentes</Link>
+            <Link className="folha-item" href="/conectores"><Ic.raio />Conectores</Link>
             {!pessoal && <Link className="folha-item" href="/equipe"><Ic.team />Equipe</Link>}
             <Link className="folha-item" href="/ajustes"><Ic.ajustes />Ajustes</Link>
             <button className="folha-item" onClick={() => {
@@ -135,7 +142,12 @@ export function TabBar() {
           onClick={() => abrir(
             caminho === '/chat' ? { tipo: 'canal' }
               : caminho === '/agenda' ? { tipo: 'compromisso', quando: hojeIso() }
-                : { tipo: 'fluxo', tipoFluxo: 'esteira' })}>
+                // No Forward e na sua fila o que se cria é tarefa. Objetivo e
+                // rotina são decisão, e decisão se toma em Tracks: o botão
+                // redondo é da operação do dia, e abrir um formulário de
+                // objetivo ali era oferecer a coisa errada no lugar certo.
+                : caminho === '/' || caminho === '/minhas' ? { tipo: 'avulsa' }
+                  : { tipo: 'fluxo', tipoFluxo: 'esteira' })}>
           <Ic.plus />
         </button>
       )}

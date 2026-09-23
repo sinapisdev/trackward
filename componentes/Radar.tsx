@@ -21,8 +21,14 @@ import type { Compromisso, Fluxo, Item } from '@/lib/tipos'
 
 type Achado = { item?: Item; fluxo: Fluxo; texto: string; onde: string; quando: string; href: string }
 
-function Bloco({ titulo, itens, k, verTudo }: {
-  titulo: string; itens: Achado[]; k: 'late' | 'hold' | 'soon'; verTudo: string
+/**
+ * @param quantas Quantas linhas cabem aqui. O número no título continua sendo o
+ *   TOTAL, e não o que coube: bloco que conta só o que mostra diz "2" quando são
+ *   cinco, e aí o radar passa a tranquilizar em vez de avisar, que é o oposto
+ *   do trabalho dele.
+ */
+function Bloco({ titulo, itens, k, verTudo, quantas }: {
+  titulo: string; itens: Achado[]; k: 'late' | 'hold' | 'soon'; verTudo: string; quantas: number
 }) {
   if (!itens.length) return null
   return (
@@ -31,7 +37,7 @@ function Bloco({ titulo, itens, k, verTudo }: {
         <h3>{titulo} <span className="num">({itens.length})</span></h3>
         <Link href={verTudo}>Ver todas</Link>
       </div>
-      {itens.map((a, i) => (
+      {itens.slice(0, quantas).map((a, i) => (
         <Link className="rd-linha" key={i} href={a.href}>
           <span className="rd-ic"><IconeStatus st={k} p={0.6} /></span>
           <span className="rd-txt">
@@ -46,7 +52,13 @@ function Bloco({ titulo, itens, k, verTudo }: {
   )
 }
 
-export function Radar({ lista }: { lista: Fluxo[] }) {
+/**
+ * @param compacto No celular o radar é a manchete, não a matéria: três números
+ *   que se toca e duas linhas de cada bloco. A lista inteira empilhada ali
+ *   custava mil pixels de rolagem para dizer o que os três números já dizem, e
+ *   quem quer a lista toca no número.
+ */
+export function Radar({ lista, compacto = false }: { lista: Fluxo[]; compacto?: boolean }) {
   const { areaDe, nomeDe } = useDados()
 
   const { atrasadas, travadas, embreve } = useMemo(() => {
@@ -85,7 +97,7 @@ export function Radar({ lista }: { lista: Fluxo[] }) {
   }, [lista, areaDe, nomeDe])
 
   return (
-    <div className="radar">
+    <div className={`radar ${compacto ? 'curto' : ''}`}>
       <div className="rd-topo">
         <h2>Radar da operação</h2>
         <Link className="iconbtn" href="/tracks" title="Ver todas as tracks" aria-label="Ver todas as tracks">
@@ -108,9 +120,10 @@ export function Radar({ lista }: { lista: Fluxo[] }) {
         </Link>
       </div>
 
-      <Bloco titulo="Atrasadas" itens={atrasadas.slice(0, 3)} k="late" verTudo="/minhas" />
-      <Bloco titulo={travadas.length === 1 ? 'Travada' : 'Travadas'} itens={travadas.slice(0, 2)} k="hold" verTudo="/tracks" />
-      <Bloco titulo="Vencem em breve" itens={embreve.slice(0, 3)} k="soon" verTudo="/minhas" />
+      <Bloco titulo="Atrasadas" itens={atrasadas} quantas={compacto ? 2 : 3} k="late" verTudo="/minhas" />
+      <Bloco titulo={travadas.length === 1 ? 'Travada' : 'Travadas'} itens={travadas}
+        quantas={compacto ? 1 : 2} k="hold" verTudo="/tracks" />
+      {!compacto && <Bloco titulo="Vencem em breve" itens={embreve} quantas={3} k="soon" verTudo="/minhas" />}
 
       {!atrasadas.length && !travadas.length && !embreve.length && (
         <p className="rd-vazio">Nada fora do lugar. A operação está em dia.</p>
