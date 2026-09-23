@@ -888,7 +888,14 @@ returns boolean language sql stable security definer set search_path = public as
     or exists (
       select 1 from itens i join etapas e on e.id = i.etapa_id
       where i.id = p_id and e.aprovador_id = meu_perfil()
-    ));
+    )
+    -- Quem escreveu a tarefa enxerga a tarefa. Sem esta linha, delegar era
+    -- perder de vista: a pessoa criava uma tarefa para outra e ela sumia da
+    -- tela no mesmo instante. Pior, como o app pede a linha de volta logo
+    -- depois de gravar, o Postgres recusava o RETURNING e devolvia "new row
+    -- violates row-level security policy", que faz parecer que a gravação
+    -- falhou quando ela tinha passado.
+    or exists (select 1 from itens i where i.id = p_id and i.autor_id = meu_perfil()));
 $$;
 
 -- Fluxo que a pessoa logada pode enxergar (privado só aparece para quem criou).
@@ -2294,6 +2301,12 @@ returns boolean language sql stable security definer set search_path = public as
       and (
         (k.tipo = 'aberto' and ativo() and (k.fluxo_id is null or ve_fluxo(k.fluxo_id)))
         or sou_membro(k.id)
+        -- Quem abriu o canal enxerga o canal, membro ou não. A entrada de
+        -- membro é gravada logo DEPOIS da linha do canal, então sem esta
+        -- condição criar um canal fechado era impossível: o banco aceitava a
+        -- escrita e recusava a leitura da linha recém-criada, com a mesma
+        -- mensagem de política violada.
+        or k.criado_por = meu_perfil()
       )
   );
 $$;

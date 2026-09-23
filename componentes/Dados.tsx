@@ -20,6 +20,7 @@ import { sobrecarga, type Carga } from '@/lib/sobrecarga'
 import { escutaAqui, oQueFaz, porPalavras } from '@/lib/agentes'
 import { preencher } from '@/lib/conectores'
 import { tituloDe } from '@/lib/notas'
+import { novoId } from '@/lib/id'
 import {
   daDecisao, jaFoiRecusada, paraOModelo, quemCostuma, termosDaConversa, ultimoAprendizado,
   type Aprendizado, type Lembranca,
@@ -641,9 +642,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     }
     const { data, error } = await sb
       .from('areas')
-      .insert({ ...corpo, ordem: areas.length })
+      .insert({ ...corpo, id: novoId(), ordem: areas.length })
       .select()
-      .single()
+      .maybeSingle()
     if (error) { falhou(error, 'Só quem é administrador pode criar areas.'); return null }
     toast(`Area ${d.nome} pronto.`)
     recarregar()
@@ -712,7 +713,12 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   }, [sb, falhou, toast, recarregar, logar])
 
   const adicionarItem: Contexto['adicionarItem'] = useCallback(async (et, d, porIa = false) => {
-    const { data, error } = await sb.from('itens').insert({
+    // O id vem daqui, e não do RETURNING. Ver lib/id.ts: pedir a linha de volta
+    // faz o Postgres rodar a política de leitura, e quando ela recusa a linha
+    // recém-criada a mensagem é igual à de escrita recusada.
+    const id = novoId()
+    const { error } = await sb.from('itens').insert({
+      id,
       etapa_id: et.id,
       fluxo_id: et.fluxo_id,
       texto: d.texto,
@@ -722,12 +728,12 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       prazo_firme: !!d.firme,
       autor_id: eu.id,
       ordem: et.itens.length,
-    }).select().single()
+    })
     if (error) { falhou(error, 'Não foi possível adicionar o item.'); return null }
     if (!d.priv) await logar(et.fluxo_id, `adicionou ${d.texto}`, porIa)
     if (!porIa) toast('Item adicionado.')
     recarregar()
-    return (data as Item | null)?.id ?? null
+    return id
   }, [sb, eu.id, falhou, toast, recarregar, logar])
 
   const editarItem: Contexto['editarItem'] = useCallback(async (item, d) => {
@@ -987,13 +993,14 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       recarregar()
       return n.id
     }
-    const { data, error } = await sb.from('notas').insert({
-      ...corpo, dono_id: eu.id,
+    const id = novoId()
+    const { error } = await sb.from('notas').insert({
+      ...corpo, id, dono_id: eu.id,
       mensagem_id: n.mensagem_id ?? null, item_id: n.item_id ?? null,
-    }).select('id').single()
+    })
     if (error) { falhou(error, 'Não deu para guardar a nota.'); return null }
     recarregar()
-    return (data as { id: string } | null)?.id || null
+    return id
   }, [sb, eu.id, falhou, toast, recarregar])
 
   const excluirNota: Contexto['excluirNota'] = useCallback(async (id) => {
@@ -1306,7 +1313,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       await sb.from('convidados').delete().eq('compromisso_id', id)
     } else {
       const { data, error } = await sb
-        .from('compromissos').insert({ ...corpo, dono_id: eu.id }).select().single()
+        .from('compromissos').insert({ ...corpo, id: novoId(), dono_id: eu.id })
+        .select().maybeSingle()
       if (error) { falhou(error, 'Não foi possível salvar o compromisso.'); return null }
       id = (data as Compromisso).id
     }
@@ -1570,10 +1578,10 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       const { error } = await sb.from('canais').update(corpo).eq('id', id)
       if (error) { falhou(error, 'Não foi possível salvar o canal.'); return null }
     } else {
-      const { data, error } = await sb.from('canais')
-        .insert({ ...corpo, criado_por: eu.id }).select().single()
+      id = novoId()
+      const { error } = await sb.from('canais')
+        .insert({ ...corpo, id, criado_por: eu.id })
       if (error) { falhou(error, 'Não foi possível criar o canal.'); return null }
-      id = (data as Canal).id
     }
     // Quem cria entra junto, senão criaria um canal fechado que nem ele abre.
     const querem = new Set([...d.membros, eu.id])

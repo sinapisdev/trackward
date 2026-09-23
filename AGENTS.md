@@ -162,6 +162,29 @@ Quem decide a pessoa é `areas.responsavel_id`, e o formulário de criação dei
 Não voltar a embutir trilhos em `lib/modelos.ts`: ele ficou só com o cálculo de período e
 o esqueleto em branco.
 
+## Nunca peça a linha de volta num insert
+
+`insert(...).select()` no supabase-js vira `INSERT ... RETURNING`, e o RETURNING
+passa pela política de **leitura**. Quando ela recusa a linha recém-criada, o
+Postgres devolve **exatamente a mesma frase** de quando a escrita é recusada:
+"new row violates row-level security policy". A linha entrou e a tela diz que não
+entrou, o que é praticamente impossível de depurar de fora.
+
+E não adianta afrouxar a política: `ve_canal` e `ve_item` consultam a própria
+tabela pelo id, e função estável não enxerga a linha que está sendo inserida na
+mesma instrução. **O RETURNING sempre vai falhar nessas tabelas.**
+
+Por isso o id nasce no cliente, em `lib/id.ts`, e os inserts não pedem nada de
+volta. Ao escrever um insert novo, seguir isso. Foi assim que criar canal e criar
+tarefa pararam.
+
+## Quem cria, enxerga
+
+`ve_canal` inclui quem abriu o canal e `ve_item` inclui quem escreveu a tarefa.
+Não é conveniência: sem isso, abrir um canal fechado ou delegar uma tarefa era
+perder a coisa de vista no mesmo instante, porque a entrada de membro é gravada
+depois do canal e quem delega não é responsável nem aprovador.
+
 ## O carimbo da organização não pode ficar pela metade
 
 `carimbar_org()` preenche `org_id` em toda tabela que tem etiqueta, e **toda**

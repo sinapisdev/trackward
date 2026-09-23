@@ -1,28 +1,28 @@
 -- ==========================================================================
--- TrackWard, atualização de 22/09/2026
+-- TrackWard, atualização de 23/09/2026
 --
--- Este arquivo é um RECORTE do `schema.sql`, para você não colar 3200 linhas
--- quando só o que mudou importa. Ele traz três coisas:
---
---   O carimbo da organização   Recria o gatilho `ao_inserir_org` em todas as
---                              tabelas. É ele que preenche `org_id`, e toda
---                              política pergunta `minha(org_id)`. Faltando em
---                              alguma tabela, o banco recusa criar linha lá com
---                              "new row violates row-level security policy",
---                              sem dizer que o que falta é o carimbo.
---
---   Seção 14   Avisos. A caixa de aviso de cada pessoa, os gatilhos que
---              escrevem nela e as políticas que fazem a caixa ser só sua.
---
---   Seção 15   Quem assina a linha é o servidor, e não o navegador.
---
+-- Recorte do `schema.sql` com o que mudou, para você não colar 3200 linhas.
 -- Pode rodar quantas vezes quiser: nada aqui apaga dado nenhum.
+--
+--   1. O carimbo da organização   Recria `ao_inserir_org` em todas as tabelas.
+--                                 É ele que preenche `org_id`, e toda política
+--                                 pergunta `minha(org_id)`.
+--
+--   2. Quem cria, enxerga         `ve_canal` e `ve_item` passam a incluir quem
+--                                 abriu o canal e quem escreveu a tarefa. Sem
+--                                 isso, criar um canal fechado ou delegar uma
+--                                 tarefa era perder a coisa de vista na hora.
+--
+--   3. Seção 14                   Avisos: a caixa de cada pessoa, os gatilhos
+--                                 que escrevem nela e as políticas dela.
+--
+--   4. Seção 15                   Quem assina a linha é o servidor.
 --
 -- COMO USAR: SQL Editor do Supabase, New query, colar tudo, Run.
 -- ==========================================================================
 
 -- --------------------------------------------------------------------------
--- O carimbo da organização, em toda tabela que tem etiqueta
+-- 1. O carimbo da organização, em toda tabela que tem etiqueta
 -- --------------------------------------------------------------------------
 
 -- O `continue when` não é zelo exagerado: sem ele, uma tabela que ainda não
@@ -52,6 +52,63 @@ begin
   end loop;
   raise notice 'Carimbo de organização em % tabelas.', n;
 end $$;
+
+-- --------------------------------------------------------------------------
+-- 2. Quem cria, enxerga
+--
+-- Duas funções de visibilidade não contavam com o caso mais simples: a pessoa
+-- que acabou de criar a coisa. Quem abria um canal fechado não era membro dele
+-- ainda, porque a entrada de membro é gravada depois; quem escrevia uma tarefa
+-- para outra pessoa não era responsável nem aprovador dela. Nos dois casos a
+-- linha existia e sumia da tela no mesmo instante.
+-- --------------------------------------------------------------------------
+
+create or replace function public.ve_item(p_id uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select
+    exists (select 1 from itens i where i.id = p_id and minha(i.org_id))
+    and (
+    eh_admin()
+    or exists (select 1 from itens i where i.id = p_id and i.resp_id in (select meu_alcance()))
+    or exists (
+      select 1 from dependencias d join itens meu on meu.id = d.item_id
+      where d.depende_de = p_id and meu.resp_id in (select meu_alcance())
+    )
+    or exists (select 1 from itens i where i.id = p_id and ve_area_de(i.fluxo_id))
+    -- Quem aprova o checkpoint lê as tarefas dele. Não é exceção à regra, é a
+    -- definição de aprovar: ninguém dá aceite no que não pode ler. Tarefa
+    -- privada continua fora, porque isso é outra condição, em itens_sel.
+    or exists (
+      select 1 from itens i join etapas e on e.id = i.etapa_id
+      where i.id = p_id and e.aprovador_id = meu_perfil()
+    )
+    -- Quem escreveu a tarefa enxerga a tarefa. Sem esta linha, delegar era
+    -- perder de vista: a pessoa criava uma tarefa para outra e ela sumia da
+    -- tela no mesmo instante. Pior, como o app pede a linha de volta logo
+    -- depois de gravar, o Postgres recusava o RETURNING e devolvia "new row
+    -- violates row-level security policy", que faz parecer que a gravação
+    -- falhou quando ela tinha passado.
+    or exists (select 1 from itens i where i.id = p_id and i.autor_id = meu_perfil()));
+$$;
+
+create or replace function public.ve_canal(c uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from canais k
+    where k.id = c
+      and minha(k.org_id)
+      and (
+        (k.tipo = 'aberto' and ativo() and (k.fluxo_id is null or ve_fluxo(k.fluxo_id)))
+        or sou_membro(k.id)
+        -- Quem abriu o canal enxerga o canal, membro ou não. A entrada de
+        -- membro é gravada logo DEPOIS da linha do canal, então sem esta
+        -- condição criar um canal fechado era impossível: o banco aceitava a
+        -- escrita e recusava a leitura da linha recém-criada, com a mesma
+        -- mensagem de política violada.
+        or k.criado_por = meu_perfil()
+      )
+  );
+$$;
 
 -- --------------------------------------------------------------------------
 -- 14. Avisos: o app para de ficar em silêncio
@@ -539,11 +596,10 @@ $$;
 
 
 -- ==========================================================================
--- Conferência. As quatro contas abaixo têm que dar 29, 3, 3 e 3.
+-- Conferência. As cinco contas abaixo têm que dar 29, 3, 3, 3 e true.
 -- ==========================================================================
 select
-  (select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid
-    where t.tgname = 'ao_inserir_org' and not t.tgisinternal)
+  (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
     as "carimbo de organizacao (29)",
   (select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid
     where t.tgname = 'ao_assinar' and c.relname in ('itens','canais','notas'))
@@ -553,4 +609,13 @@ select
     as "tabelas de aviso (3)",
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname in ('avisar','gerar_avisos_de_prazo','gente_daqui'))
-    as "funcoes novas (3)";
+    as "funcoes novas (3)",
+  (select bool_and(ok) from (
+     select prosrc like '%criado_por = meu_perfil()%' as ok from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname='public' and p.proname='ve_canal'
+     union all
+     select prosrc like '%i.autor_id = meu_perfil()%' from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname='public' and p.proname='ve_item'
+   ) t) as "quem cria enxerga (true)";

@@ -76,6 +76,10 @@ Para voltar ao modo demonstração a qualquer momento, esvazie as duas linhas do
 
 ### Se o banco recusar criar tarefa, canal ou nota
 
+Essa mensagem tem **duas** causas possíveis, e elas são indistinguíveis pelo texto: ou a
+escrita foi recusada, ou a leitura da linha recém-criada foi. A segunda acontece quando o
+código pede a linha de volta com `.select()` depois do insert. Ver `lib/id.ts`.
+
 Se aparecer **"new row violates row-level security policy"**, o mais provável é que o
 gatilho `ao_inserir_org` esteja faltando naquela tabela. É ele que preenche `org_id`, e
 toda política pergunta `minha(org_id)`: sem a etiqueta, o banco recusa, e a mensagem fala
