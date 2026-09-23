@@ -134,7 +134,7 @@ export function Painel() {
           </div>
           <div className="hdr-actions">
             <button className="btn" onClick={() => abrir({ tipo: 'avulsa' })}>
-              <Ic.plus />Tarefa avulsa
+              <Ic.plus />Tarefa
             </button>
           </div>
         </div>

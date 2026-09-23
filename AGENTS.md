@@ -33,6 +33,15 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
   criar track. As palavras vivem em `lib/rotulos.ts`; no banco continuam `fluxos`,
   `esteira` (objetivo) e `ciclo` (rotina), porque renomear coluna por causa de rótulo de
   tela é trocar dívida barata por cara.
+- **Toda tarefa nasce pelo mesmo formulário**, e a única escolha que muda tudo é "onde ela
+  vive": dentro de uma track ela entra na trilha, conta para a saída do checkpoint e a
+  equipe enxerga; livre, ela não pertence a nada e só quem criou enxerga. A frase de apoio
+  do campo troca junto com a escolha, porque essa escolha decide quem vê, e decidir isso
+  no escuro é o tipo de coisa que só se descobre depois.
+- A tarefa tem **título e descrição**. Uma linha só obriga a escolher entre ser curta e ser
+  clara: "Conferir os documentos" não diz quais nem contra o quê, e quem recebe descobre
+  perguntando. A descrição é opcional e nasce vazia, porque tarefa que se explica no
+  título não deve ganhar um campo em branco para preencher.
 - Fora das tracks existe a **tarefa avulsa**: a que não pertence a objetivo nem a rotina.
   Ela é **privada de quem criou**, de propósito. Tarefa que a empresa precisa acompanhar
   pertence a alguma coisa; o que não pertence a nada é lembrete, e lembrete dos outros não

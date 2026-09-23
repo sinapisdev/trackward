@@ -42,6 +42,8 @@ type Torrada = { texto: string; erro: boolean; id: number }
 /** O que o formulário de tarefa manda para o banco. */
 type DadosItem = {
   texto: string
+  /** O resto, quando o título não basta. Vazio é o normal. */
+  descricao?: string
   resp_id: string | null
   prazo: string
   priv: boolean
@@ -168,7 +170,7 @@ type Contexto = {
    * Cria uma tarefa avulsa: a que não pertence a objetivo nem a rotina.
    * Devolve o id, ou nulo quando não deu.
    */
-  criarAvulsa: (texto: string, prazo?: string) => Promise<string | null>
+  criarAvulsa: (texto: string, prazo?: string, descricao?: string) => Promise<string | null>
 
   conectores: Conector[]
   salvarConector: (c: Partial<Conector>) => Promise<string | null>
@@ -727,6 +729,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       etapa_id: et.id,
       fluxo_id: et.fluxo_id,
       texto: d.texto,
+      descricao: d.descricao || '',
       resp_id: d.resp_id,
       prazo: d.prazo || null,
       priv: d.priv,
@@ -745,7 +748,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     const { error } = await sb
       .from('itens')
       .update({
-        texto: d.texto, resp_id: d.resp_id, prazo: d.prazo || null,
+        texto: d.texto, descricao: d.descricao ?? '', resp_id: d.resp_id, prazo: d.prazo || null,
         priv: d.priv, prazo_firme: !!d.firme,
       })
       .eq('id', item.id)
@@ -1074,7 +1077,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    * modal não tem como esperar por isso sem virar uma máquina de estados; aqui
    * dentro, basta perguntar o checkpoint ao banco na hora.
    */
-  const criarAvulsa: Contexto['criarAvulsa'] = useCallback(async (texto, prazo) => {
+  const criarAvulsa: Contexto['criarAvulsa'] = useCallback(async (texto, prazo, descricao) => {
     const t = texto.trim()
     if (!t) return null
     const id = minhaLista?.id || await abrirMinhaLista()
@@ -1092,7 +1095,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
     const item = novoId()
     const { error } = await sb.from('itens').insert({
-      id: item, etapa_id: etapaId, fluxo_id: id, texto: t,
+      id: item, etapa_id: etapaId, fluxo_id: id, texto: t, descricao: descricao?.trim() || '',
       resp_id: eu.id, prazo: prazo || null, priv: false, prazo_firme: false,
       autor_id: eu.id, ordem: Date.now() % 100000,
     })

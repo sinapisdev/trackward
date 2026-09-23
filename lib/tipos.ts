@@ -180,6 +180,8 @@ export type Item = {
   etapa_id: string
   fluxo_id: string
   texto: string
+  /** O resto, quando o título não basta. Vazio é o normal. */
+  descricao: string
   resp_id: string | null
   prazo: string | null
   feito: boolean

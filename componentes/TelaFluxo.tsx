@@ -232,8 +232,13 @@ export function TelaFluxo({ id }: { id: string }) {
                           <Ic.check />
                         </button>
                         <span className="tf-tt">
-                          {x.priv && <span className="lk" title="Tarefa privada: só você vê"><Ic.lock /></span>}
-                          <span>{x.texto}</span>
+                          <span>
+                            {x.priv && (
+                              <span className="lk" title="Tarefa privada: só você vê"><Ic.lock /></span>
+                            )}
+                            {x.texto}
+                          </span>
+                          {!!x.descricao && <small className="tf-desc">{x.descricao}</small>}
                           {bloqueada && (
                             <small className="tf-bloq">
                               <Ic.trava />

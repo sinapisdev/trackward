@@ -105,7 +105,7 @@ export function Minhas() {
         </div>
         <div className="hdr-actions">
           <button className="btn" onClick={() => abrir({ tipo: 'avulsa' })}>
-            <Ic.plus />Tarefa avulsa
+            <Ic.plus />Tarefa
           </button>
         </div>
       </div>
@@ -224,6 +224,9 @@ function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoConcluir, aoAprovar }: 
         <span className="gaveta-onde">{avulsa ? AVULSA : `${p.fluxo.nome} / ${et?.nome}`}</span>
       </div>
       <h2>{titulo}</h2>
+      {p.tipo === 'item' && !!p.item.descricao && (
+        <p className="gaveta-desc">{p.item.descricao}</p>
+      )}
       <span className={`selo ${travas ? 'travado' : feito ? 'feito' : ''}`}>
         {travas ? <><Ic.lock />Aguardando dependência</> : feito ? <><Ic.check />Concluída</> : <><Ic.dot />A fazer</>}
       </span>

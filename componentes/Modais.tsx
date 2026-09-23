@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useRouter } from 'next/navigation'
 import { useDados } from './Dados'
 import { Ic } from './Icones'
-import { explicaTipo } from '@/lib/rotulos'
+import { explicaTipo, rotuloTipo } from '@/lib/rotulos'
 import { AvisoPrazo } from './AvisoPrazo'
 import { FAIXAS, porque } from '@/lib/sobrecarga'
 import { Av } from './atomos'
@@ -687,19 +687,38 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
  * que tem endereço e aprovação.
  */
 function MAvulsa({ fechar }: { fechar: () => void }) {
-  const { criarAvulsa, toast } = useDados()
+  const { eu, perfis, fluxos, areaDe, minhaLista, pessoal,
+    criarAvulsa, adicionarItem, toast } = useDados()
   const [texto, setTexto] = useState('')
+  const [descricao, setDescricao] = useState('')
   const [prazo, setPrazo] = useState('')
+  /** Vazio é livre. Preenchido é o id da track em que ela vai morar. */
+  const [ondeId, setOndeId] = useState('')
+  const [etapaId, setEtapaId] = useState('')
+  const [resp, setResp] = useState(eu.id)
   const [indo, setIndo] = useState(false)
+
+  const ativos = perfis.filter((p) => p.ativo)
+  // A lista pessoal não entra: ela É o "livre", e aparecer como opção faria a
+  // mesma escolha existir duas vezes com nomes diferentes.
+  const tracks = fluxos.filter((f) => !f.concluido && f.id !== minhaLista?.id && f.etapas.length)
+  const track = tracks.find((f) => f.id === ondeId) || null
+  const etapa = track?.etapas.find((e) => e.id === etapaId) || track?.etapas[track.atual] || null
 
   const salvar = async () => {
     if (!texto.trim()) { toast('Escreva o que precisa ser feito.', true); return }
     setIndo(true)
     try {
-      // A lista pessoal nasce na primeira tarefa avulsa, e não no cadastro:
-      // quem nunca criou uma não precisa de uma track vazia no nome dele.
-      // Quem cuida dessa sequência é o contexto, em criarAvulsa.
-      if (await criarAvulsa(texto, prazo)) fechar()
+      if (track && etapa) {
+        const novo = await adicionarItem(etapa, {
+          texto: texto.trim(), descricao, resp_id: resp, prazo, priv: false, firme: false,
+        })
+        if (novo) fechar()
+        return
+      }
+      // Livre: a lista pessoal nasce na primeira, e não no cadastro. Quem nunca
+      // criou uma não precisa de uma track vazia no nome dele.
+      if (await criarAvulsa(texto, prazo, descricao)) fechar()
     } finally {
       setIndo(false)
     }
@@ -708,17 +727,71 @@ function MAvulsa({ fechar }: { fechar: () => void }) {
   return (
     <div className="dlg" role="dialog" aria-modal="true" aria-labelledby="mav">
       <div className="dlg-h">
-        <h3 id="mav">Tarefa avulsa</h3>
-        <p>Sem objetivo e sem rotina. Só você vê.</p>
+        <h3 id="mav">Nova tarefa</h3>
+        <p>Ela pode viver dentro de um objetivo, de uma rotina, ou sozinha.</p>
       </div>
       <div className="dlg-b">
         <div className="fld">
           <label htmlFor="av-t">O que precisa ser feito</label>
           <input className="inp" id="av-t" value={texto} autoFocus
-            placeholder="Ex.: Ligar para o contador"
-            onChange={(e) => setTexto(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') void salvar() }} />
+            placeholder="Ex.: Conferir os documentos do fornecedor"
+            onChange={(e) => setTexto(e.target.value)} />
         </div>
+
+        <div className="fld">
+          <label htmlFor="av-d">Descrição</label>
+          <textarea className="inp" id="av-d" rows={3} value={descricao}
+            placeholder="O que quem for fazer precisa saber e não cabe no título."
+            onChange={(e) => setDescricao(e.target.value)} />
+          <p className="hint">Opcional. Tarefa que se explica no título não precisa disto.</p>
+        </div>
+
+        <div className="fld">
+          <span className="lbl">Onde ela vive</span>
+          {/* A escolha é entre pertencer e não pertencer, e ela muda quem vê a
+              tarefa: dentro de uma track ela é da equipe, livre ela é só sua.
+              Por isso a frase abaixo troca junto com a escolha. */}
+          <select className="inp" aria-label="Onde a tarefa vive" value={ondeId}
+            onChange={(e) => { setOndeId(e.target.value); setEtapaId('') }}>
+            <option value="">Livre, sem objetivo e sem rotina</option>
+            {tracks.map((f) => (
+              <option key={f.id} value={f.id}>
+                {rotuloTipo(f.tipo)}: {f.nome}{f.area_id ? ` · ${areaDe(f.area_id).nome}` : ''}
+              </option>
+            ))}
+          </select>
+          <p className="hint">
+            {track
+              ? 'Ela entra na trilha, conta para a saída do checkpoint e a equipe enxerga.'
+              : 'Ela não pertence a nada e só você enxerga. Não conta para checkpoint nenhum.'}
+          </p>
+        </div>
+
+        {track && (
+          <div className="fgrid">
+            <div className="fld">
+              <label htmlFor="av-e">Checkpoint</label>
+              <select className="inp" id="av-e" value={etapa?.id || ''}
+                onChange={(e) => setEtapaId(e.target.value)}>
+                {track.etapas.map((e, k) => (
+                  <option key={e.id} value={e.id}>
+                    {k + 1}. {e.nome}{k === track.atual ? ' (o da vez)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {!pessoal && (
+              <div className="fld">
+                <label htmlFor="av-r">Responsável</label>
+                <select className="inp" id="av-r" value={resp}
+                  onChange={(e) => setResp(e.target.value)}>
+                  {ativos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="fld">
           <label htmlFor="av-p">Prazo</label>
           <input className="inp" id="av-p" type="date" value={prazo}
@@ -744,6 +817,7 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
   const mandaNoPrazo = !!fluxo && podeMexerNoPrazo(eu, fluxo, perfis)
 
   const [texto, setTexto] = useState(item?.texto || '')
+  const [descricao, setDescricao] = useState(item?.descricao || '')
   const [resp, setResp] = useState(item?.resp_id || eu.id)
   const [prazo, setPrazo] = useState(
     item?.prazo || (etapa.prazo && dias(etapa.prazo) >= 0 ? etapa.prazo : ''),
@@ -779,7 +853,9 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
 
   const gravarResto = async () => {
     if (!item) return
-    await editarItem(item, { texto: texto.trim(), resp_id: resp, prazo, priv, firme, quieto: true })
+    await editarItem(item, {
+      texto: texto.trim(), descricao, resp_id: resp, prazo, priv, firme, quieto: true,
+    })
     if (JSON.stringify(travas) !== JSON.stringify(item.depende_de)) await definirTravas(item, travas)
   }
 
@@ -790,7 +866,7 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
     // O aviso vem antes de gravar qualquer coisa: quem vai mexer numa data
     // precisa ver o que ela arrasta antes de arrastar.
     if (mexeuNoPrazo) { setAvisando(true); return }
-    const d = { texto: texto.trim(), resp_id: resp, prazo, priv, firme }
+    const d = { texto: texto.trim(), descricao, resp_id: resp, prazo, priv, firme }
     if (item) {
       await editarItem(item, d)
       if (JSON.stringify(travas) !== JSON.stringify(item.depende_de)) await definirTravas(item, travas)
@@ -817,6 +893,12 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
             placeholder="Ex.: Conferir extrato da conta das obras"
             onChange={(e) => setTexto(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') void salvar() }} />
+        </div>
+        <div className="fld">
+          <label htmlFor="i-d">Descrição</label>
+          <textarea className="inp" id="i-d" rows={3} value={descricao}
+            placeholder="O que quem for fazer precisa saber e não cabe no título."
+            onChange={(e) => setDescricao(e.target.value)} />
         </div>
         <div className="fgrid">
           {/* Numa conta de uma pessoa só, a resposta é sempre você. */}

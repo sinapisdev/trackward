@@ -3445,3 +3445,10 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
 .forward .sec-h h2{font-size:var(--fs-h3)}
 .forward .hdr{flex-direction:column;align-items:flex-start;gap:16px}
 .forward .hdr h1{font-size:var(--fs-h2)}
+
+/* a descrição da tarefa: o resto que não cabe no título */
+textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;padding:10px 12px}
+.tf-desc{font-size:var(--fs-meta);color:var(--tx-3);line-height:1.45;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tf.f .tf-desc{text-decoration:none}
+.gaveta-desc{margin:14px 0 0;font-size:var(--fs-ui);color:var(--tx-2);line-height:1.5}

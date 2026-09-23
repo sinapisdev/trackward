@@ -3230,3 +3230,17 @@ create or replace function public.gente_daqui()
 returns setof public.perfis language sql stable security definer set search_path = public as $$
   select * from perfis where org_id = minha_org() order by nome;
 $$;
+
+-- --------------------------------------------------------------------------
+-- 16. A tarefa ganha descrição
+--
+--     Até aqui a tarefa tinha uma linha de texto e nada mais, e uma linha só
+--     obriga a escolher entre ser curta e ser clara. "Conferir os documentos"
+--     não diz quais documentos, nem contra o quê conferir, e quem recebe
+--     descobre isso perguntando. A descrição é onde esse resto cabe.
+--
+--     Fica opcional e vazia por padrão, de propósito: tarefa que se explica no
+--     título não deve ganhar um campo em branco para preencher.
+-- --------------------------------------------------------------------------
+
+alter table public.itens add column if not exists descricao text not null default '';
