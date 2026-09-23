@@ -601,8 +601,13 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const falhou = useCallback((e: unknown, padrao: string) => {
     const msg = (e as { message?: string })?.message || ''
     if (/row-level security|violates row-level/i.test(msg)) {
-      toast('O banco recusou: esta conta não está com permissão para isso neste espaço. '
-        + 'Se você é o administrador, rode a seção 15 do supabase/schema.sql.', true)
+      // O nome da tabela é a única pista de ONDE parou, e a primeira versão
+      // desta tradução o jogava fora junto com o jargão. Sem ele, duas falhas
+      // diferentes viram a mesma frase e não há como distinguir uma da outra.
+      const tabela = msg.match(/table\s+"?([a-z_]+)"?/i)?.[1]
+      toast(`O banco recusou a escrita em ${tabela || 'uma tabela'}. `
+        + 'Rode o supabase/atualizar.sql no SQL Editor; se continuar, o supabase/porque.sql '
+        + 'diz qual condição caiu.', true)
       return
     }
     if (/JWT|not authenticated|invalid token/i.test(msg)) {

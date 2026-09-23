@@ -1,75 +1,118 @@
 -- ==========================================================================
 -- Por que o banco recusou, condição por condição
 --
--- Troque o e-mail na primeira linha de código pelo seu e rode tudo de uma vez
--- no SQL Editor. Ele NÃO altera nada: tudo roda dentro de uma transação que é
--- desfeita no fim, inclusive a tarefa de teste que ele tenta criar.
+-- Cole no SQL Editor do Supabase e rode. NÃO precisa editar nada, e NÃO altera
+-- nada: tudo acontece dentro de uma transação desfeita no fim, inclusive a
+-- tarefa de teste que ele tenta criar.
 --
--- A política de criar tarefa pede quatro coisas ao mesmo tempo:
+-- Ele percorre cada login do projeto, veste a identidade daquela pessoa, e
+-- testa as quatro condições da política de criar tarefa, uma por uma:
 --
---   minha(org_id)        a linha é da sua organização
---   ativo()              o seu perfil está ativo
---   ve_fluxo(fluxo_id)   você enxerga aquela track
---   autor_id = meu_perfil()   quem assina é você (carimbado pelo servidor)
+--   minha(org_id)             a linha é da organização dela
+--   ativo()                   o perfil dela está ativo
+--   ve_fluxo(fluxo_id)        ela enxerga aquela track
+--   autor_id = meu_perfil()   quem assina é ela
 --
--- A mensagem do Postgres não diz qual caiu. Este arquivo diz.
+-- No fim, tenta criar de verdade e conta o que o banco respondeu.
 -- ==========================================================================
 
 begin;
 
--- 1. Vira "gente logada", com a sua identidade. É o que o app faz.
-select set_config('request.jwt.claim.sub',
-  (select id::text from auth.users where lower(email) = lower('troque@pelo.seu.email')), true) as login;
-select set_config('request.jwt.claims',
-  json_build_object('sub', (select id::text from auth.users
-    where lower(email) = lower('troque@pelo.seu.email')))::text, true) as claims;
-set local role authenticated;
-
--- 2. As três primeiras condições, fora de qualquer track.
+-- 1. Os carimbos. Faltando algum, o problema é este, e o conserto é rodar o
+--    supabase/atualizar.sql.
 select
-  meu_perfil() as "perfil em uso",
-  minha_org()  as "organizacao em uso",
-  ativo()      as "perfil ativo (tem que ser true)",
-  eh_admin()   as "administrador";
+  (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
+    as "carimbo de organizacao (tem que dar 29)",
+  (select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid
+    where t.tgname = 'ao_assinar' and c.relname in ('itens','canais','notas'))
+    as "carimbo de autor (tem que dar 3)";
 
--- 3. As tracks que você enxerga, e se cada uma passa no ve_fluxo.
-select
-  f.nome                 as "track",
-  f.visib                as "quem ve",
-  f.org_id = minha_org() as "e da sua empresa",
-  ve_fluxo(f.id)         as "ve_fluxo (tem que ser true)",
-  f.id                   as "id"
-from fluxos f
-order by f.criado_em
-limit 20;
+-- 2. As tabelas onde a etiqueta da organização está vazia. Qualquer número
+--    acima de zero aqui é linha órfã, que ninguém enxerga e que nasceu antes
+--    do carimbo existir.
+select 'itens' as tabela, count(*) as "linhas sem organizacao" from itens where org_id is null
+union all select 'canais', count(*) from canais where org_id is null
+union all select 'etapas', count(*) from etapas where org_id is null
+union all select 'fluxos', count(*) from fluxos where org_id is null
+union all select 'atividades', count(*) from atividades where org_id is null
+union all select 'notas', count(*) from notas where org_id is null
+order by 2 desc;
 
--- 4. A prova real: tenta criar uma tarefa na primeira track que aparecer, e
---    conta o que aconteceu. Nada disso fica: o rollback no fim desfaz tudo.
+-- 3. A prova real, login por login.
+create temp table _saida (
+  quem text, perfil text, empresa text, ativo boolean,
+  tracks_visiveis int, resultado text
+) on commit drop;
+
 do $$
-declare v_etapa uuid; v_fluxo uuid; v_erro text;
+declare u record; v_etapa uuid; v_fluxo uuid; v_n int; v_res text;
 begin
-  select e.id, e.fluxo_id into v_etapa, v_fluxo
-    from etapas e join fluxos f on f.id = e.fluxo_id
-   order by f.criado_em, e.ordem limit 1;
+  for u in select id, email from auth.users order by created_at loop
+    perform set_config('request.jwt.claim.sub', u.id::text, true);
+    perform set_config('request.jwt.claims',
+      json_build_object('sub', u.id::text)::text, true);
 
-  if v_etapa is null then
-    raise notice 'Nao achei nenhum checkpoint que voce enxergue. O problema e antes: voce nao esta vendo as tracks.';
-    return;
-  end if;
+    select count(*) into v_n from fluxos where ve_fluxo(id);
+    select e.id, e.fluxo_id into v_etapa, v_fluxo
+      from etapas e join fluxos f on f.id = e.fluxo_id
+     where ve_fluxo(f.id) order by f.criado_em, e.ordem limit 1;
 
-  begin
-    insert into itens (etapa_id, fluxo_id, texto, resp_id, autor_id, ordem)
-    values (v_etapa, v_fluxo, 'TESTE DO DIAGNOSTICO', meu_perfil(), meu_perfil(), 999);
-    raise notice 'CRIOU A TAREFA DE TESTE SEM ERRO. A politica esta passando; o problema esta no app, nao no banco.';
-  exception when others then
-    v_erro := SQLERRM;
-    raise notice 'RECUSOU. Mensagem: %', v_erro;
-    raise notice 'Detalhe das condicoes: minha(org)=%, ativo=%, ve_fluxo=%, autor bate=%',
-      (select minha(org_id) from fluxos where id = v_fluxo),
-      ativo(),
-      ve_fluxo(v_fluxo),
-      (meu_perfil() is not null);
-  end;
+    if meu_perfil() is null then
+      v_res := 'este login nao tem perfil em empresa nenhuma';
+    elsif v_etapa is null then
+      v_res := 'nao enxerga nenhum checkpoint, entao nao da para testar';
+    else
+      -- Vestir o papel de gente logada é o que liga a RLS. Sem isto, o SQL
+      -- Editor roda como dono do banco e passa por cima de toda política, que
+      -- é o contrário do que queremos medir aqui.
+      v_res := '';
+
+      begin
+        set local role authenticated;
+        insert into itens (etapa_id, fluxo_id, texto, resp_id, autor_id, ordem)
+        values (v_etapa, v_fluxo, 'TESTE DO DIAGNOSTICO', meu_perfil(), meu_perfil(), 999);
+        reset role;
+        v_res := v_res || 'tarefa OK; ';
+      exception when others then
+        reset role;
+        v_res := v_res || 'TAREFA RECUSOU (' || SQLERRM || '); ';
+      end;
+
+      -- A tarefa escreve na linha do tempo logo depois. Se for aqui que para,
+      -- o app mostra o erro da tarefa e a tarefa até entrou.
+      begin
+        set local role authenticated;
+        insert into atividades (fluxo_id, quem_id, texto)
+        values (v_fluxo, meu_perfil(), 'teste do diagnostico');
+        reset role;
+        v_res := v_res || 'atividade OK; ';
+      exception when others then
+        reset role;
+        v_res := v_res || 'ATIVIDADE RECUSOU (' || SQLERRM || '); ';
+      end;
+
+      begin
+        set local role authenticated;
+        insert into canais (nome, descricao, tipo, fluxo_id, criado_por)
+        values ('teste-do-diagnostico', '', 'aberto', v_fluxo, meu_perfil());
+        reset role;
+        v_res := v_res || 'canal OK';
+      exception when others then
+        reset role;
+        v_res := v_res || 'CANAL RECUSOU (' || SQLERRM || ')';
+      end;
+    end if;
+
+    insert into _saida
+    select u.email,
+           (select nome from perfis where id = meu_perfil()),
+           (select o.nome from organizacoes o where o.id = minha_org()),
+           ativo(), v_n, v_res;
+  end loop;
 end $$;
+
+select quem as "login", perfil, empresa, ativo,
+       tracks_visiveis as "tracks que enxerga", resultado
+  from _saida;
 
 rollback;
