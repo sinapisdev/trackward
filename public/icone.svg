@@ -1,8 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#111111"/>
-  <g fill="#F7F7F5">
+  <!-- A marca do TrackWard: duas barras e o anel, sobre o quase preto do
+       sistema. O lima é do anel e de mais nada, como em toda tela. -->
+  <rect width="512" height="512" rx="112" fill="#0A0B0A"/>
+  <g fill="#FFFFFF">
     <rect x="65" y="230" width="104" height="52" rx="26"/>
     <rect x="193" y="230" width="104" height="52" rx="26"/>
   </g>
-  <circle cx="383" cy="256" r="46" fill="none" stroke="#F98B05" stroke-width="38"/>
+  <circle cx="383" cy="256" r="46" fill="none" stroke="#D0FA3C" stroke-width="38"/>
 </svg>

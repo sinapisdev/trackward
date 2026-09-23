@@ -1,36 +1,18 @@
 {
-  "name": "Track",
-  "short_name": "Track",
-  "description": "Cada projeto e cada rotina com checkpoints: o que precisa ser feito, quem responde e até quando.",
+  "name": "TrackWard",
+  "short_name": "TrackWard",
+  "description": "Projetos, rotinas e pessoas em movimento. Cada track com checkpoints: o que precisa ser feito, quem responde e até quando.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#F7F7F5",
-  "theme_color": "#111111",
+  "background_color": "#0A0B0A",
+  "theme_color": "#0A0B0A",
+  "lang": "pt-BR",
   "icons": [
-    {
-      "src": "/icone-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icone-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icone-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "/icone.svg",
-      "sizes": "any",
-      "type": "image/svg+xml"
-    }
+    { "src": "/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icone.svg", "sizes": "any", "type": "image/svg+xml" }
   ]
 }
