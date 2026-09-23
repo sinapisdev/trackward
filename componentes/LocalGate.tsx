@@ -35,7 +35,7 @@ export function LocalGate({ children }: { children: ReactNode }) {
         <div className="auth-card">
           <div className="auth-logo">
             <span className="logo"><Ic.logo /></span>
-            <div><b>Track</b><span>Projetos, rotinas e pessoas</span></div>
+            <div><b>TrackWard</b><span>Objetivos, rotinas e pessoas</span></div>
           </div>
           <h1>Quem é você?</h1>
           <p className="sub">

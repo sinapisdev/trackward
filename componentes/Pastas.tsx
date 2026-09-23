@@ -9,7 +9,7 @@ export type Pasta = {
   id: string
   /** Para onde o clique leva. */
   href: string
-  /** Área, Rotina, Projeto ou Processo: a pasta diz o que ela é antes de dizer quem é. */
+  /** Objetivo ou Rotina: a pasta diz o que ela é antes de dizer quem é. */
   rotulo: string
   nome: string
   /** A linha logo abaixo do nome: o checkpoint da vez, ou o resumo da área. */

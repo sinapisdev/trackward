@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useRouter } from 'next/navigation'
 import { useDados } from './Dados'
 import { Ic } from './Icones'
+import { explicaTipo } from '@/lib/rotulos'
 import { AvisoPrazo } from './AvisoPrazo'
 import { FAIXAS, porque } from '@/lib/sobrecarga'
 import { Av } from './atomos'
@@ -24,6 +25,8 @@ export type Pedido =
   | { tipo: 'empresa'; empresa?: Empresa }
   | { tipo: 'fluxo'; fluxo?: Fluxo; tipoFluxo?: Tipo; areaId?: string; empresaId?: string; processoId?: string }
   | { tipo: 'item'; etapa: Etapa; item?: Item }
+  /** Tarefa que não pertence a objetivo nem a rotina. Privada de quem cria. */
+  | { tipo: 'avulsa' }
   | { tipo: 'travar'; fluxo: Fluxo }
   | { tipo: 'compromisso'; compromisso?: Compromisso; quando?: string; inicio?: string }
   | { tipo: 'canal'; canal?: Canal }
@@ -65,6 +68,7 @@ export function Modais({ children }: { children: ReactNode }) {
           {pedido.tipo === 'empresa' && <MEmpresa empresa={pedido.empresa} fechar={fechar} />}
           {pedido.tipo === 'fluxo' && <MFluxo pedido={pedido} fechar={fechar} />}
           {pedido.tipo === 'item' && <MItem etapa={pedido.etapa} item={pedido.item} fechar={fechar} />}
+          {pedido.tipo === 'avulsa' && <MAvulsa fechar={fechar} />}
           {pedido.tipo === 'travar' && <MTravar fluxo={pedido.fluxo} fechar={fechar} />}
           {pedido.tipo === 'compromisso' && <MCompromisso pedido={pedido} fechar={fechar} />}
           {pedido.tipo === 'canal' && <MCanal canal={pedido.canal} fechar={fechar} />}
@@ -246,12 +250,15 @@ function MEmpresa({ empresa, fechar }: { empresa?: Empresa; fechar: () => void }
 
 function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>; fechar: () => void }) {
   const { eu, perfis, areas, areaDe, nomeDe, empresas, org, pessoal, empresaAtiva, processos,
-    salvarFluxo, criarDoProcesso, toast } = useDados()
+    salvarFluxo, criarDoProcesso, salvarArea, toast } = useDados()
   const router = useRouter()
   const edicao = pedido.fluxo
   const ativos = perfis.filter((p) => p.ativo)
 
   const [tipo, setTipo] = useState<Tipo>(edicao?.tipo || pedido.tipoFluxo || 'esteira')
+  /** Vazio é o campo fechado. Um espaço é o campo aberto e ainda em branco. */
+  const [novaArea, setNovaArea] = useState('')
+  const [criandoArea, setCriandoArea] = useState(false)
   const [nome, setNome] = useState(edicao?.nome || '')
   const [areaId, setAreaId] = useState<string>(edicao?.area_id || pedido.areaId || areas[0]?.id || '')
   const [donoId, setDonoId] = useState(edicao?.dono_id || eu.id)
@@ -365,6 +372,18 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
     if (!edicao) router.push(`/tracks/${id}`)
   }
 
+  const criarArea = async () => {
+    const nome = novaArea.trim()
+    if (!nome || criandoArea) return
+    setCriandoArea(true)
+    try {
+      const a = await salvarArea({ nome, cor: CORES[areas.length % CORES.length] })
+      if (a) { setAreaId(a.id); setNovaArea('') }
+    } finally {
+      setCriandoArea(false)
+    }
+  }
+
   return (
     <div className="dlg wide" role="dialog" aria-modal="true" aria-labelledby="mf">
       <div className="dlg-h">
@@ -377,11 +396,11 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
           <div className="opt">
             <button className={`optc ${!ciclo ? 'on' : ''}`} onClick={() => trocarTipo('esteira')}>
               <span style={{ color: 'var(--ac)', marginTop: 2 }}><Ic.proj /></span>
-              <span><b>Projeto</b><small>Início, checkpoints e fim. Ex.: implantação, obra, novo negócio.</small></span>
+              <span><b>Objetivo</b><small>{explicaTipo('esteira')}</small></span>
             </button>
             <button className={`optc ${ciclo ? 'on' : ''}`} onClick={() => trocarTipo('ciclo')}>
               <span style={{ color: 'var(--ac)', marginTop: 2 }}><Ic.ciclo /></span>
-              <span><b>Rotina</b><small>Se repete a cada período e guarda o histórico. Ex.: fechamento mensal.</small></span>
+              <span><b>Rotina</b><small>{explicaTipo('ciclo')}</small></span>
             </button>
           </div>
         )}
@@ -394,10 +413,33 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
           </div>
           <div className="fld">
             <label htmlFor="f-area">Área</label>
-            <select className="inp" id="f-area" value={areaId || ''} onChange={(e) => setAreaId(e.target.value)}>
-              {!ciclo && <option value="">Sem área (negócio novo)</option>}
+            <select className="inp" id="f-area" value={novaArea ? '__nova' : (areaId || '')}
+              onChange={(e) => {
+                if (e.target.value === '__nova') { setNovaArea(' '); return }
+                setNovaArea(''); setAreaId(e.target.value)
+              }}>
+              {/* Track sem área não é exceção: um negócio novo não tem frente
+                  ainda, e inventar uma para ele caber é organizar antes de
+                  entender. Vale para objetivo e para rotina. */}
+              <option value="">Sem área</option>
               {areas.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+              <option value="__nova">+ Nova área</option>
             </select>
+            {!!novaArea && (
+              /* A área nasce aqui, e não numa tela à parte. Mandar a pessoa para
+                 outro lugar no meio de criar uma track é perder o que ela já
+                 digitou, e foi por isso que a tela de áreas sumiu do menu. */
+              <div className="row-inline" style={{ marginTop: 8 }}>
+                <input className="inp" autoFocus value={novaArea.trimStart()}
+                  placeholder="Nome da área. Ex.: Financeiro"
+                  aria-label="Nome da nova área"
+                  onChange={(e) => setNovaArea(e.target.value || ' ')}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void criarArea() }} />
+                <button className="btn" disabled={!novaArea.trim() || criandoArea}
+                  onClick={() => void criarArea()}>Criar</button>
+                <button className="btn ghost" onClick={() => setNovaArea('')}>Cancelar</button>
+              </div>
+            )}
           </div>
           {org.multi && (
             <div className="fld">
@@ -628,7 +670,72 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
   )
 }
 
+
+// ------------------------------------------------------------------ avulsa
+
+/**
+ * Tarefa avulsa: a que não pertence a objetivo nem a rotina.
+ *
+ * Ela mora numa track privada de quem criou, com um checkpoint só. Parece um
+ * rodeio, e é o contrário: assim ela herda de graça prazo, conclusão, histórico,
+ * anexo e busca, em vez de virar uma segunda espécie de tarefa com metade das
+ * regras. Quem usa não vê track nenhuma, vê "Avulsa".
+ *
+ * Privada de propósito. Tarefa que a empresa precisa acompanhar pertence a
+ * alguma coisa; o que não pertence a nada é lembrete, e lembrete dos outros não
+ * é assunto da casa. Para pedir algo a alguém existe a tarefa dentro da track,
+ * que tem endereço e aprovação.
+ */
+function MAvulsa({ fechar }: { fechar: () => void }) {
+  const { criarAvulsa, toast } = useDados()
+  const [texto, setTexto] = useState('')
+  const [prazo, setPrazo] = useState('')
+  const [indo, setIndo] = useState(false)
+
+  const salvar = async () => {
+    if (!texto.trim()) { toast('Escreva o que precisa ser feito.', true); return }
+    setIndo(true)
+    try {
+      // A lista pessoal nasce na primeira tarefa avulsa, e não no cadastro:
+      // quem nunca criou uma não precisa de uma track vazia no nome dele.
+      // Quem cuida dessa sequência é o contexto, em criarAvulsa.
+      if (await criarAvulsa(texto, prazo)) fechar()
+    } finally {
+      setIndo(false)
+    }
+  }
+
+  return (
+    <div className="dlg" role="dialog" aria-modal="true" aria-labelledby="mav">
+      <div className="dlg-h">
+        <h3 id="mav">Tarefa avulsa</h3>
+        <p>Sem objetivo e sem rotina. Só você vê.</p>
+      </div>
+      <div className="dlg-b">
+        <div className="fld">
+          <label htmlFor="av-t">O que precisa ser feito</label>
+          <input className="inp" id="av-t" value={texto} autoFocus
+            placeholder="Ex.: Ligar para o contador"
+            onChange={(e) => setTexto(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void salvar() }} />
+        </div>
+        <div className="fld">
+          <label htmlFor="av-p">Prazo</label>
+          <input className="inp" id="av-p" type="date" value={prazo}
+            onChange={(e) => setPrazo(e.target.value)} />
+          <p className="hint">
+            Sem prazo ela fica em &quot;mais adiante&quot;, e não entra em aviso nenhum.
+          </p>
+        </div>
+      </div>
+      <Rodape fechar={fechar} acao={() => void salvar()}
+        rotulo={indo ? 'Um instante...' : 'Criar tarefa'} />
+    </div>
+  )
+}
+
 // ------------------------------------------------------------------- item
+
 
 function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () => void }) {
   const { eu, perfis, fluxos, areaDe, pessoal, adicionarItem, editarItem, definirTravas, cargaDe, toast } = useDados()
@@ -1155,7 +1262,7 @@ function MCanal({ canal, fechar }: { canal?: Canal; fechar: () => void }) {
         )}
 
         <div className="fld">
-          <label htmlFor="c-fluxo">Projeto ou rotina</label>
+          <label htmlFor="c-fluxo">Track</label>
           <select className="inp" id="c-fluxo" value={fluxoId} onChange={(e) => setFluxoId(e.target.value)}>
             <option value="">Nenhum, é um canal de assunto</option>
             {abertos.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}

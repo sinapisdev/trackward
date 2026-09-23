@@ -111,8 +111,6 @@ export function TabBar() {
             <Link className="folha-item" href="/avisos"><Ic.sino />Avisos</Link>
             <Link className="folha-item" href="/desempenho"><Ic.grafico />Desempenho</Link>
             <Link className="folha-item" href="/relatorios"><Ic.processo />Relatórios</Link>
-            <Link className="folha-item" href="/projetos"><Ic.painel />Visão de projetos</Link>
-            <Link className="folha-item" href="/areas"><Ic.ciclo />Visão de áreas</Link>
             <Link className="folha-item" href="/processos"><Ic.processo />Processos</Link>
             <Link className="folha-item" href="/agentes"><Ic.faisca />Agentes</Link>
             {!pessoal && <Link className="folha-item" href="/equipe"><Ic.team />Equipe</Link>}

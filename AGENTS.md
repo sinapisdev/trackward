@@ -25,15 +25,32 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
 ## Regras de produto
 
 - Situação de um fluxo é sempre calculada, nunca digitada (ver `lib/regras.ts`).
-- **Área** é a frente que já funciona e guarda as rotinas. **Projeto** é a iniciativa com
-  começo e fim, listada à parte, e pode existir sem área (um negócio novo).
+- O modelo tem **dois tipos de track e nada mais**: **objetivo**, que tem fim, e **rotina**,
+  que dá voltas. As duas podem morar numa **área** ou viver soltas, porque nem todo
+  trabalho cabe numa frente existente: um negócio novo não tem área ainda, e forçar uma
+  seria inventar organização antes de ela existir. A área é uma etiqueta que agrupa, não
+  um lugar: ela não tem tela própria, é filtro em Tracks, e nasce dentro do formulário de
+  criar track. As palavras vivem em `lib/rotulos.ts`; no banco continuam `fluxos`,
+  `esteira` (objetivo) e `ciclo` (rotina), porque renomear coluna por causa de rótulo de
+  tela é trocar dívida barata por cara.
+- Fora das tracks existe a **tarefa avulsa**: a que não pertence a objetivo nem a rotina.
+  Ela é **privada de quem criou**, de propósito. Tarefa que a empresa precisa acompanhar
+  pertence a alguma coisa; o que não pertence a nada é lembrete, e lembrete dos outros não
+  é assunto da casa. Por dentro ela mora na lista pessoal, uma track privada com um
+  checkpoint só, e é assim que ela herda prazo, conclusão, anexo e busca de graça em vez
+  de virar uma segunda espécie de tarefa com metade das regras. Quem usa nunca vê a track:
+  vê "Avulsa".
 - **Empresa** é opcional e configurável (`config.multi`). Com ela desligada, a interface
   não pode mencionar empresa em lugar nenhum: o app precisa servir a quem tem um negócio
   só. O rótulo vem de `config.rotulo`, nunca escrever "Empresa" fixo na tela.
-- Rotina vive sempre dentro de uma área. **A tela de uma área mostra só rotinas**: projeto
-  nenhum aparece ali, mesmo pertencendo à área. Quem quer projeto vai na tela Projetos.
-  Áreas e área aberta são a mesma tela (`componentes/TelaRotinas.tsx`, rotas `/areas` e
-  `/area/[id]`): a coluna da esquerda lista as áreas, o resto é a área escolhida.
+- **Objetivos e rotinas moram na mesma tela**, `/tracks`, e o tipo é um filtro. Eram duas
+  telas, e ser duas telas era a afirmação errada: quem procura "aquela coisa do Financeiro"
+  não sabe de antemão em qual das duas ela está. `/projetos`, `/areas` e `/area/[id]`
+  continuam de pé como redirecionamentos, porque esses endereços estão em conversa, em
+  favorito e em aviso já enviado.
+- **A tela principal mostra tarefa, não track.** Quem abre o app de manhã pergunta "o que
+  eu faço agora" e "o que está parado", não "como vão as frentes". As tracks ficam em
+  Tracks, e o arquivo de pastas mora lá: pasta passeia bem e acha mal.
 - Com vários negócios em foco, rotinas e projetos são separados em blocos por empresa,
   um bloco por empresa, não uma lista só com etiqueta.
 - Tudo tem responsável e prazo: item (quem executa), checkpoint (quem aprova), fluxo (dono).

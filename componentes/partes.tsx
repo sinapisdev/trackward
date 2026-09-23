@@ -93,7 +93,7 @@ export function LinhaRadar({ f }: { f: Fluxo }) {
               {empresaDe(f.empresa_id)!.sigla}
             </span>
           )}
-          <span className="type">{f.tipo === 'ciclo' ? <><Ic.ciclo />{f.periodo}</> : <><Ic.proj />Projeto</>}</span>
+          <span className="type">{f.tipo === 'ciclo' ? <><Ic.ciclo />{f.periodo}</> : <><Ic.proj />Objetivo</>}</span>
           {f.area_id && <>·<span>{areaDe(f.area_id).nome}</span></>}
         </span>
       </span>

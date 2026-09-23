@@ -164,6 +164,11 @@ type Contexto = {
    */
   minhaLista: Fluxo | null
   abrirMinhaLista: () => Promise<string | null>
+  /**
+   * Cria uma tarefa avulsa: a que não pertence a objetivo nem a rotina.
+   * Devolve o id, ou nulo quando não deu.
+   */
+  criarAvulsa: (texto: string, prazo?: string) => Promise<string | null>
 
   conectores: Conector[]
   salvarConector: (c: Partial<Conector>) => Promise<string | null>
@@ -1059,6 +1064,43 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       pessoas: [],
     }, [{ id: null, nome: 'A fazer', criterio: '', aprovador_id: null, prazo: '' }])
   }, [minhaLista, salvarFluxo, eu.id, empresaAtiva])
+
+  /**
+   * A tarefa avulsa, do começo ao fim.
+   *
+   * Ela mora na lista pessoal, que é uma track privada com um checkpoint só.
+   * Isto vive aqui e não no modal por um motivo prático: a lista pode não
+   * existir ainda, e entre criá-la e ter ela em memória passa uma recarga. O
+   * modal não tem como esperar por isso sem virar uma máquina de estados; aqui
+   * dentro, basta perguntar o checkpoint ao banco na hora.
+   */
+  const criarAvulsa: Contexto['criarAvulsa'] = useCallback(async (texto, prazo) => {
+    const t = texto.trim()
+    if (!t) return null
+    const id = minhaLista?.id || await abrirMinhaLista()
+    if (!id) { toast('Não deu para abrir a sua lista.', true); return null }
+
+    // O checkpoint vem do banco, e não do estado: acabada de nascer, a lista
+    // ainda não chegou aqui.
+    let etapaId = minhaLista?.etapas[0]?.id
+    if (!etapaId) {
+      const { data } = await sb.from('etapas').select('id')
+        .eq('fluxo_id', id).order('ordem').limit(1).maybeSingle()
+      etapaId = (data as { id: string } | null)?.id
+    }
+    if (!etapaId) { toast('A sua lista veio sem checkpoint. Tente de novo.', true); return null }
+
+    const item = novoId()
+    const { error } = await sb.from('itens').insert({
+      id: item, etapa_id: etapaId, fluxo_id: id, texto: t,
+      resp_id: eu.id, prazo: prazo || null, priv: false, prazo_firme: false,
+      autor_id: eu.id, ordem: Date.now() % 100000,
+    })
+    if (error) { falhou(error, 'Não deu para criar a tarefa.'); return null }
+    toast('Tarefa avulsa criada.')
+    recarregar()
+    return item
+  }, [sb, eu.id, minhaLista, abrirMinhaLista, falhou, toast, recarregar])
 
   // ------------------------------------------------------------- conectores
 
@@ -2076,7 +2118,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     desfazerSugestao, palpites, distribuirTarefa, cargas, cargaDe,
     memoria, esquecer, consumo, agentes, salvarAgente, excluirAgente,
     conectores, salvarConector, guardarChave, excluirConector, testarConector,
-    notas, salvarNota, excluirNota, meuDespejo, abrirDespejo, minhaLista, abrirMinhaLista,
+    notas, salvarNota, excluirNota, meuDespejo, abrirDespejo, minhaLista, abrirMinhaLista, criarAvulsa,
     avisos, naoVistos: avisos.filter((a) => !a.lido_em).length,
     lerAvisos, apagarAviso, contato, salvarContato,
     aparelhos: aparelhos.filter((a) => a.perfil_id === eu.id),

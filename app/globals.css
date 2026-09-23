@@ -3346,3 +3346,47 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
 #aj-avisos input[type="time"]{width:132px;flex:none}
 #aj-avisos .row-inline{flex-wrap:wrap;gap:10px}
 #aj-avisos .hint{margin-top:8px}
+
+/* ==========================================================================
+   Tracks: a lista que manda, e o arquivo como segunda opinião
+   ========================================================================== */
+
+/* O arquivo deixou de ser o herói da tela: ele passeia bem e acha mal. Aqui ele
+   é menor e fica atrás da lista, que é onde alguém realmente procura. */
+.arquivo-curto{margin-bottom:26px}
+.arquivo-curto .arquivo-palco{--pasta-l:286px;--pasta-a:224px;--pasta-p:18px 20px;height:252px}
+.arquivo-curto .pasta-nome{font-size:var(--fs-h4)}
+.arquivo-curto .pasta-num b{font-size:26px}
+
+.tk-lista{border-top:1px solid var(--line)}
+.tk-l{display:grid;grid-template-columns:24px minmax(190px,1fr) minmax(240px,1.2fr) 34px;gap:20px;
+  align-items:center;padding:18px 8px;border-bottom:1px solid var(--line);transition:var(--t)}
+.tk-l:hover{background:var(--hover)}
+.tk-ic{color:var(--tx-2);display:grid;place-items:center}
+.tk-quem{min-width:0}
+.tk-nome{font:var(--fw-semibold) var(--fs-h4)/1.25 var(--sans);color:var(--tx);transition:var(--t)}
+.tk-nome:hover{color:var(--ac-tinta)}
+.tk-meta,.tk-dono{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:7px 0 0;
+  font-size:var(--fs-ui);color:var(--tx-2)}
+.tk-meta .sep,.tk-dono .sep{color:var(--line-3)}
+.tk-tipo{font-size:var(--fs-meta);color:var(--tx-2);background:var(--alto);
+  border-radius:var(--r-pill);padding:3px 10px}
+.tk-st{display:flex;align-items:center;gap:8px}
+.tk-st.late{color:var(--late)} .tk-st.soon{color:var(--warn)}
+.tk-trilha{min-width:0;display:grid;gap:8px;justify-items:center}
+.tk-trilha small{font-size:var(--fs-meta);color:var(--tx-3)}
+.tk-abrir{width:34px;height:34px;border-radius:var(--r-pill);display:grid;place-items:center;
+  color:var(--tx-3);transition:var(--t)}
+.tk-abrir:hover{background:var(--hover);color:var(--tx)}
+
+/* a tarefa que não pertence a nada */
+.tag-avulsa{font-style:normal;font-size:var(--fs-meta);color:var(--tx-3);
+  border:1px solid var(--line-2);border-radius:var(--r-pill);padding:3px 10px}
+.ib-quem{display:flex;align-items:center;gap:8px;font-size:var(--fs-meta);color:var(--tx-2)}
+.sec-h h2.atrasado{color:var(--late)}
+.sec-h h2.atrasado .sec-ct{color:var(--late);background:var(--late-soft)}
+
+@media (max-width:1100px){
+  .tk-l{grid-template-columns:24px minmax(0,1fr) 34px;gap:14px}
+  .tk-trilha{grid-column:1/-1;justify-items:stretch}
+}

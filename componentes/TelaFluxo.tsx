@@ -95,8 +95,8 @@ export function TelaFluxo({ id }: { id: string }) {
   return (
     <>
       <nav className="crumb" aria-label="Você está em">
-        <Link href={f.tipo === 'ciclo' && f.area_id ? '/areas' : '/projetos'}>
-          {f.tipo === 'ciclo' ? 'Rotinas' : 'Projetos'}
+        <Link href={'/tracks'}>
+          Tracks
         </Link>
         {f.tipo === 'ciclo' && f.area_id && <><span className="div">/</span><Link href={`/area/${s.id}`}>{s.nome}</Link></>}
         <span className="div">/</span><b>{f.nome}</b>
@@ -132,7 +132,7 @@ export function TelaFluxo({ id }: { id: string }) {
               tipo: 'excluir',
               titulo: `Excluir ${f.nome}?`,
               texto: 'A track, seus checkpoints, tarefas e histórico serão removidos para todos. Não dá para desfazer.',
-              acao: async () => { await excluirFluxo(f.id); router.push(f.tipo === 'ciclo' && f.area_id ? `/area/${f.area_id}` : '/projetos') },
+              acao: async () => { await excluirFluxo(f.id); router.push('/tracks') },
             })}><Ic.mais /></button>
           )}
         </div>

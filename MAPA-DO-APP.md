@@ -74,10 +74,9 @@ virou departamento. Uma área sem rotina é uma frente recém criada.
 
 | Item | Rota | O que mostra | Contador |
 |---|---|---|---|
-| **Visão geral** | `/` | O dia da empresa | |
-| **Meu trabalho** | `/minhas` | Sua fila pessoal | Quantas pendências suas |
-| **Projetos** | `/projetos` | O que tem começo e fim | |
-| **Rotinas** | `/areas` | As áreas e o que se repete em cada uma | |
+| **Visão geral** | `/` | As tarefas do dia, suas e da equipe, com o radar ao lado | |
+| **Meu trabalho** | `/minhas` | Sua fila pessoal, com a gaveta de detalhe | Quantas pendências suas |
+| **Tracks** | `/tracks` | Objetivos e rotinas juntos, com filtro por tipo e por área | |
 | **Processos** | `/processos` | Os moldes reutilizáveis | |
 | **Conversa** | `/chat` | Chat por canais | Mensagens não lidas |
 | **Agenda** | `/agenda` | Compromissos e prazos | |

@@ -76,7 +76,7 @@ function Lista({ atual }: { atual?: string }) {
       // dia e o único onde não tem ninguém do outro lado.
       { rotulo: 'Só seu', itens: canais.filter((c) => c.tipo === 'pessoal') },
       { rotulo: 'Canais', itens: ordenar(canais.filter((c) => comum(c) && !c.fluxo_id)) },
-      { rotulo: 'Projetos', itens: ordenar(canais.filter((c) => comum(c) && c.fluxo_id)) },
+      { rotulo: 'Objetivos', itens: ordenar(canais.filter((c) => comum(c) && c.fluxo_id)) },
       { rotulo: 'Conversas', itens: ordenar(canais.filter((c) => c.tipo === 'direto')) },
     ].filter((g) => g.itens.length)
   }, [canais, ultima])

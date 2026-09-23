@@ -128,7 +128,7 @@ function Formulario() {
             <span className="ent-marca"><Ic.logo /><b>TrackWard</b></span>
             <div className="ent-arte-miolo">
               <h2>move work<br />forward.</h2>
-              <p>Projetos, rotinas e pessoas em movimento.</p>
+              <p>Objetivos, rotinas e pessoas em movimento.</p>
               <ol className="ent-trilho">
                 {['Preparar', 'Executar', 'Validar', 'Concluir'].map((n, k) => (
                   <li key={n} className={k === 0 ? 'feita' : k === 1 ? 'vez' : ''}>

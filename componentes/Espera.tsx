@@ -23,7 +23,7 @@ export function Espera({ nome, email }: { nome?: string; email: string }) {
       <div className="card">
         <div className="auth-logo">
           <span className="logo"><Ic.logo /></span>
-          <div><b>Track</b><span>Projetos, rotinas e pessoas</span></div>
+          <div><b>TrackWard</b><span>Objetivos, rotinas e pessoas</span></div>
         </div>
         <h1>Acesso suspenso{nome ? `, ${nome.split(' ')[0]}` : ''}</h1>
         <p>

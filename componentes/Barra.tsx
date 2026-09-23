@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDados } from './Dados'
 import { useModais } from './Modais'
 import { Ic } from './Icones'
+import { rotuloTipo } from '@/lib/rotulos'
 import { Av, IconeStatus } from './atomos'
 import { supabase } from '@/lib/supabase/browser'
 import { pendencias, progresso, status } from '@/lib/regras'
@@ -167,7 +168,7 @@ function Busca() {
                 <span style={{ minWidth: 0 }}>
                   <span className="t">{f.nome}</span>
                   <span className="s">
-                    {f.tipo === 'ciclo' ? 'Rotina' : 'Projeto'}
+                    {rotuloTipo(f.tipo)}
                     {f.area_id && ` · ${areaDe(f.area_id).nome}`}
                     {emp && ` · ${emp.nome}`}
                   </span>
@@ -247,7 +248,6 @@ function Mais({ ativo }: { ativo: boolean }) {
     ['/avisos', 'Avisos'],
     ['/relatorios', 'Relatórios'],
     ['/desempenho', 'Desempenho'],
-    ['/tracks', 'Todas as tracks'],
     ['/notas', 'Notas', notas.filter((n) => !n.arquivada).length],
     ['/agentes', 'Agentes', agentes.filter((a) => a.ativo).length],
     ['/conectores', 'Conectores', conectores.filter((c) => c.ativo).length],
@@ -343,7 +343,7 @@ export function Barra() {
   const caminho = usePathname()
   const minhas = pendencias(fluxos, eu.id).length
   const porLer = canais.reduce((n, c) => n + naoLidas(c.id), 0)
-  const emMais = ['/relatorios', '/desempenho', '/tracks', '/notas', '/agentes', '/conectores']
+  const emMais = ['/relatorios', '/desempenho', '/notas', '/agentes', '/conectores']
     .some((r) => caminho.startsWith(r))
 
   return (
@@ -358,8 +358,10 @@ export function Barra() {
       <nav className="tw-nav" aria-label="Navegação">
         <Aba href="/" rotulo="Visão geral" ativo={caminho === '/'} />
         <Aba href="/minhas" rotulo="Meu trabalho" conta={minhas} ativo={caminho === '/minhas'} />
-        <Aba href="/projetos" rotulo="Projetos" ativo={caminho === '/projetos' || caminho.startsWith('/fluxo/')} />
-        <Aba href="/areas" rotulo="Rotinas" ativo={caminho === '/areas' || caminho.startsWith('/area/')} />
+        {/* Objetivos e rotinas moram na mesma tela: são o mesmo objeto, e a
+            diferença entre eles é um filtro, não um endereço. */}
+        <Aba href="/tracks" rotulo="Tracks"
+          ativo={caminho.startsWith('/tracks') || caminho.startsWith('/fluxo/')} />
         <Aba href="/processos" rotulo="Processos" ativo={caminho.startsWith('/processos')} />
         <Aba href="/chat" rotulo="Conversa" conta={porLer} quente ativo={caminho.startsWith('/chat')} />
         <Aba href="/agenda" rotulo="Agenda" ativo={caminho === '/agenda'} />

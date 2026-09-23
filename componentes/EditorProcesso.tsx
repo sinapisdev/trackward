@@ -145,7 +145,7 @@ function Formulario({ original }: { original: Processo | null }) {
     <>
       <div className="hdr">
         <div>
-          <div className="eyebrow"><Link href="/processos">Processos</Link> / {tipo === 'ciclo' ? 'Rotina' : 'Projeto'}</div>
+          <div className="eyebrow"><Link href="/processos">Processos</Link> / {tipo === 'ciclo' ? 'Rotina' : 'Objetivo'}</div>
           <h1>{novo ? 'Novo processo' : original!.nome}</h1>
           <p className="lede">
             {resumo.tarefas
@@ -178,7 +178,7 @@ function Formulario({ original }: { original: Processo | null }) {
                 <span className="lbl">Tipo</span>
                 <div className="seg" style={{ alignSelf: 'flex-start' }}>
                   <button className={tipo === 'esteira' ? 'on' : ''}
-                    onClick={() => mexeu(() => setTipo('esteira'))}><Ic.proj />Projeto</button>
+                    onClick={() => mexeu(() => setTipo('esteira'))}><Ic.proj />Objetivo</button>
                   <button className={tipo === 'ciclo' ? 'on' : ''}
                     onClick={() => mexeu(() => setTipo('ciclo'))}><Ic.ciclo />Rotina</button>
                 </div>

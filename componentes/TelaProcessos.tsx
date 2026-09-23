@@ -7,6 +7,7 @@ import { useDados } from './Dados'
 import { useModais } from './Modais'
 import { Carregando } from './Shell'
 import { Ic } from './Icones'
+import { rotuloTipo } from '@/lib/rotulos'
 import type { Processo } from '@/lib/tipos'
 
 /** Quantas tarefas o processo distribui, somando todos os checkpoints. */
@@ -76,7 +77,7 @@ export function TelaProcessos() {
             Todos<span className="num">{processos.length}</span>
           </button>
           <button className={aba === 'esteira' ? 'on' : ''} onClick={() => setAba('esteira')}>
-            Projetos<span className="num">{processos.filter((p) => p.tipo === 'esteira').length}</span>
+            Objetivos<span className="num">{processos.filter((p) => p.tipo === 'esteira').length}</span>
           </button>
           <button className={aba === 'ciclo' ? 'on' : ''} onClick={() => setAba('ciclo')}>
             Rotinas<span className="num">{processos.filter((p) => p.tipo === 'ciclo').length}</span>
@@ -107,7 +108,7 @@ export function TelaProcessos() {
               <button key={p.id} className={`pr-l ${atual?.id === p.id ? 'on' : ''}`} onClick={() => setSel(p.id)}>
                 <span className="pr-ic"><Ic.processo /></span>
                 <span className="pr-nm">{p.nome}</span>
-                <span className="pr-c">{p.tipo === 'ciclo' ? 'Rotina' : 'Projeto'}</span>
+                <span className="pr-c">{rotuloTipo(p.tipo)}</span>
                 <span className="pr-c">{ars.length ? areaDe(ars[0]).nome : 'Sem área'}</span>
                 <span className="pr-c num">{p.etapas.length}</span>
                 <span className="pr-mais"><Ic.mais /></span>
@@ -121,7 +122,7 @@ export function TelaProcessos() {
         {atual && (
           <aside className="proc-lado">
             <h2>{atual.nome}</h2>
-            <span className="selo">Molde de {atual.tipo === 'ciclo' ? 'rotina' : 'projeto'}</span>
+            <span className="selo">Molde de {rotuloTipo(atual.tipo).toLowerCase()}</span>
             <p className="proc-numeros">
               {atual.etapas.length} {atual.etapas.length === 1 ? 'checkpoint' : 'checkpoints'}
               {' · '}{totalTarefas(atual)} {totalTarefas(atual) === 1 ? 'tarefa' : 'tarefas'}

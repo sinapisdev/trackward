@@ -129,7 +129,7 @@ export function TabelaTracks({ lista, vazio = 'Nada por aqui.' }: { lista: Fluxo
   return (
     <div className="tb">
       <div className="tb-cab">
-        <span>{lista.some((f) => f.tipo === 'ciclo') ? 'Track' : 'Projeto'}</span>
+        <span>Track</span>
         <span>Checkpoint atual</span>
         <span>Responsável</span>
         <span>Situação</span>

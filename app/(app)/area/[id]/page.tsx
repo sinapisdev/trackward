@@ -1,6 +1,6 @@
-import { TelaRotinas } from '@/componentes/TelaRotinas'
+import { redirect } from 'next/navigation'
 
 export default async function Pagina({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  return <TelaRotinas id={id} />
+  redirect(`/tracks?area=${id}`)
 }

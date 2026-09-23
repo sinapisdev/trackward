@@ -1,539 +1,260 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useDados } from '@/componentes/Dados'
-import { useModais } from '@/componentes/Modais'
-import { Carregando } from '@/componentes/Shell'
-import { Trilho, type Faixa, type EstadoNo, type NoTrilho } from '@/componentes/Trilho'
-import { Ic } from '@/componentes/Icones'
-import { Av, IconeStatus } from '@/componentes/atomos'
-import { classePrazo } from '@/componentes/partes'
-import { mandaNoProcesso, podeConcluir } from '@/lib/acesso'
-import { LBL, ORD, etapaAtual, progresso, status } from '@/lib/regras'
-import { curta, isoDe, rel } from '@/lib/datas'
-import type { RascunhoEtapa } from '@/lib/modelos'
-import type { Area, Etapa, Fluxo } from '@/lib/tipos'
+import { useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useDados } from './Dados'
+import { useModais } from './Modais'
+import { Carregando } from './Shell'
+import { Ic } from './Icones'
+import { Av, IconeStatus } from './atomos'
+import { Pastas, type Pasta } from './Pastas'
+import { TrilhaH } from './Trilha'
+import { rotuloTipo } from '@/lib/rotulos'
+import { rel } from '@/lib/datas'
+import { envolve, etapaAtual, LBL, progresso, proxPrazo, status } from '@/lib/regras'
+import type { Fluxo, Tipo } from '@/lib/tipos'
+
+type Corte = 'tudo' | 'esteira' | 'ciclo'
 
 /**
- * Tracks: tudo que a empresa acompanha, num lugar só.
+ * Tracks: objetivos e rotinas no mesmo lugar.
  *
- * A lateral do app deixou de listar projeto por projeto e área por área. Aqui
- * dentro é que estão os dois, lado a lado, e a track escolhida abre em trilha
- * cheia, do gatilho ao fim.
+ * Eram duas telas, e ser duas telas era a afirmação errada. **Objetivo e rotina
+ * são o mesmo objeto**, com uma diferença só: um tem fim e o outro dá voltas.
+ * Quem procura "aquela coisa do Financeiro" não sabe de antemão em qual das
+ * duas ela está, e tinha que adivinhar a tela antes de achar o trabalho.
  *
- * Projeto é uma corrida com linha de chegada, então tem uma faixa. Área se
- * repete, então tem uma faixa por rotina, que é o que ela de fato acompanha.
+ * A **área** deixou de ser uma tela e virou um filtro, que é o que ela sempre
+ * foi: uma etiqueta que agrupa. Track sem área continua existindo, e não é
+ * exceção: um negócio novo não tem área ainda, e inventar uma para ele caber
+ * seria organizar antes de entender.
+ *
+ * A lista manda, e as pastas são o outro jeito de olhar. Era o contrário, e o
+ * contrário custava caro: o arquivo é bonito para passear e ruim para achar.
  */
+export function TelaTracks() {
+  const { fluxos, areas, perfis, areaDe, perfilDe, nomeDe, minhaLista, carregando } = useDados()
+  const { abrir } = useModais()
+  const router = useRouter()
+  const params = useSearchParams()
 
-const semAcento = (s: string) =>
-  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  const [corte, setCorte] = useState<Corte>((params.get('tipo') as Corte) || 'tudo')
+  const [area, setArea] = useState(params.get('area') || '')
+  const [pessoa, setPessoa] = useState('')
+  const [termo, setTermo] = useState('')
+  const [modo, setModo] = useState<'lista' | 'pastas'>('lista')
+  const [naVez, setNaVez] = useState(0)
+  const [fechadas, setFechadas] = useState(false)
 
-/** O estado de um checkpoint depende de onde a esteira está agora. */
-function estadoDa(f: Fluxo, i: number): EstadoNo {
-  if (f.travado_motivo && i === f.atual) return 'travado'
-  if (f.concluido || i < f.atual) return 'feito'
-  if (i === f.atual) return 'vez'
-  return 'futuro'
-}
-
-// ---------------------------------------------------------------- lateral
-
-function Lista({ atual, aoNovo }: { atual?: string; aoNovo: (t: 'projeto' | 'area') => void }) {
-  const { fluxos, areas, todosFluxos, minhaLista } = useDados()
-  const [busca, setBusca] = useState('')
-
-  // A lista pessoal sai de Projetos e vira um grupo dela. Ela não é um projeto:
-  // não tem checkpoint, não tem quem aprove, e ninguém mais a enxerga. Deixá-la
-  // no meio dos projetos da empresa faria a coluna mentir.
-  const projetos = useMemo(
-    () => fluxos
-      .filter((f) => f.tipo === 'esteira' && f.id !== minhaLista?.id)
-      .sort((a, b) => ORD[status(a)] - ORD[status(b)]),
+  const todas = useMemo(
+    // A lista pessoal não é uma track: não tem checkpoint, não tem quem aprove,
+    // e ninguém mais a enxerga. Ela é onde moram as tarefas avulsas.
+    () => fluxos.filter((f) => f.id !== minhaLista?.id),
     [fluxos, minhaLista],
   )
 
-  const filtrar = <T extends { nome: string }>(lista: T[]) => {
-    const q = semAcento(busca.trim())
-    return q ? lista.filter((x) => semAcento(x.nome).includes(q)) : lista
-  }
-
-  const grupos: { rotulo: string; itens: { id: string; nome: string; sub: string; marca: React.ReactNode }[] }[] = [
-    {
-      rotulo: 'Projetos',
-      itens: filtrar(projetos).map((f) => ({
-        id: f.id,
-        nome: f.nome,
-        sub: f.concluido ? 'Concluído' : etapaAtual(f)?.nome || LBL[status(f)],
-        marca: <IconeStatus st={status(f)} p={progresso(f)} />,
-      })),
-    },
-    {
-      rotulo: 'Áreas',
-      itens: filtrar(areas).map((a: Area) => {
-        const rotinas = todosFluxos.filter((f) => f.area_id === a.id && f.tipo === 'ciclo')
-        const tarde = rotinas.filter((f) => status(f) === 'late').length
-        return {
-          id: a.id,
-          nome: a.nome,
-          sub: rotinas.length
-            ? `${rotinas.length} ${rotinas.length === 1 ? 'rotina' : 'rotinas'}${tarde ? `, ${tarde} atrasada${tarde === 1 ? '' : 's'}` : ''}`
-            : 'Sem rotina ainda',
-          marca: <span className="pdot"><span className="sdot" style={{ background: a.cor }} /></span>,
-        }
-      }),
-    },
-  ]
-
-  if (minhaLista) {
-    const abertas = minhaLista.etapas.flatMap((e) => e.itens).filter((i) => !i.feito).length
-    grupos.unshift({
-      rotulo: 'Só seu',
-      itens: filtrar([minhaLista]).map((f) => ({
-        id: f.id,
-        nome: f.nome,
-        sub: abertas ? `${abertas} ${abertas === 1 ? 'tarefa aberta' : 'tarefas abertas'}` : 'nada em aberto',
-        marca: <span className="tk-eu"><Ic.eu /></span>,
-      })),
-    })
-  }
-
-  const cheios = grupos.filter((g) => g.itens.length)
-
-  return (
-    <aside className="tk-lista">
-      <div className="tk-lista-topo">
-        <b>Tracks</b>
-      </div>
-      <div className="tk-busca">
-        <Ic.lupa />
-        <input value={busca} onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar track" aria-label="Buscar track" />
-      </div>
-
-      <div className="tk-rolagem">
-        {cheios.map((g) => (
-          <div key={g.rotulo}>
-            <div className="tk-grupo">{g.rotulo}</div>
-            {g.itens.map((i) => (
-              <Link key={i.id} href={`/tracks/${i.id}`}
-                className={`tk-item ${atual === i.id ? 'on' : ''}`}>
-                <span className="mk">{i.marca}</span>
-                <span className="txt">
-                  <b>{i.nome}</b>
-                  <span>{i.sub}</span>
-                </span>
-              </Link>
-            ))}
-          </div>
-        ))}
-        {!cheios.length && (
-          <div className="mode" style={{ padding: '10px 12px' }}>
-            {busca ? 'Nada com esse nome.' : 'Nenhuma track ainda.'}
-          </div>
-        )}
-      </div>
-
-      <div className="tk-lista-pe">
-        <button className="btn" onClick={() => aoNovo('projeto')}><Ic.plus />Novo projeto</button>
-        <button className="btn ghost" onClick={() => aoNovo('area')}><Ic.plus />Nova área</button>
-      </div>
-    </aside>
-  )
-}
-
-// -------------------------------------------------------------- inspetor
-
-function Inspetor({ f, et, fechar, gravar, abrirEmEdicao }: {
-  f: Fluxo
-  et: Etapa
-  fechar: () => void
-  gravar: (etapas: RascunhoEtapa[]) => Promise<void>
-  abrirEmEdicao: boolean
-}) {
-  const { nomeDe, perfilDe, perfis, eu, alternarItem } = useDados()
-  const { abrir } = useModais()
-  const feitas = et.itens.filter((i) => i.feito).length
-
-  // Quem executa não mexe em prazo nem em critério: quem responde pelo processo é
-  // que define a régua. Sem isso, a trava do app cairia na primeira discussão.
-  const mando = mandaNoProcesso(eu, f, perfis)
-  const [editando, setEditando] = useState(abrirEmEdicao)
-  const [nome, setNome] = useState(et.nome)
-  const [criterio, setCriterio] = useState(et.criterio)
-  const [aprov, setAprov] = useState(et.aprovador_id || '')
-  const [prazo, setPrazo] = useState(et.prazo || '')
-  const [salvando, setSalvando] = useState(false)
-
-  const lugar = f.etapas.findIndex((e) => e.id === et.id)
-  const rascunho = (): RascunhoEtapa[] => f.etapas.map((e) => ({
-    id: e.id, nome: e.nome, criterio: e.criterio, aprovador_id: e.aprovador_id, prazo: e.prazo || '',
-  }))
-
-  const salvar = async () => {
-    if (!nome.trim()) return
-    setSalvando(true)
-    const etapas = rascunho()
-    etapas[lugar] = { ...etapas[lugar], nome: nome.trim(), criterio: criterio.trim(), aprovador_id: aprov || null, prazo }
-    await gravar(etapas)
-    setSalvando(false)
-    setEditando(false)
-  }
-
-  const mover = async (d: number) => {
-    const etapas = rascunho()
-    const k = lugar + d
-    if (k < 0 || k >= etapas.length) return
-    ;[etapas[k], etapas[lugar]] = [etapas[lugar], etapas[k]]
-    await gravar(etapas)
-  }
-
-  const remover = () => abrir({
-    tipo: 'excluir',
-    titulo: `Apagar o checkpoint ${et.nome}?`,
-    texto: et.itens.length
-      ? `As ${et.itens.length} tarefas dele saem junto. Isto não volta.`
-      : 'Isto não volta.',
-    acao: async () => { await gravar(rascunho().filter((_, i) => i !== lugar)); fechar() },
-  })
-
-  if (editando) return (
-    <div className="tk-inspetor">
-      <div className="tk-insp-h">
-        <div>
-          <span className="rot">Checkpoint</span>
-          <input className="tk-in grande" value={nome} onChange={(e) => setNome(e.target.value)}
-            placeholder="Nome do checkpoint" aria-label="Nome do checkpoint" autoFocus />
-        </div>
-      </div>
-
-      <div className="tk-campos">
-        <label>
-          <span>Só passa quando</span>
-          <textarea className="tk-in" rows={2} value={criterio}
-            onChange={(e) => setCriterio(e.target.value)}
-            placeholder="O que precisa estar pronto para seguir" />
-        </label>
-        <label>
-          <span>Quem aprova</span>
-          <select className="tk-in" value={aprov} onChange={(e) => setAprov(e.target.value)}>
-            <option value="">Ninguém</option>
-            {perfis.filter((x) => x.ativo).map((x) => (
-              <option key={x.id} value={x.id}>{x.nome}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>Prazo</span>
-          <input className="tk-in" type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} />
-        </label>
-      </div>
-
-      <div className="tk-ordem">
-        <button className="btn ghost" onClick={() => void mover(-1)} disabled={lugar <= 0}>
-          <Ic.volta />Antes
-        </button>
-        <button className="btn ghost" onClick={() => void mover(1)} disabled={lugar >= f.etapas.length - 1}>
-          Depois<Ic.seta />
-        </button>
-        <button className="btn ghost perigo" onClick={remover} aria-label="Apagar checkpoint"><Ic.x /></button>
-      </div>
-
-      <div className="tk-insp-pe">
-        <button className="btn pri" onClick={() => void salvar()} disabled={!nome.trim() || salvando}>
-          {salvando ? 'Salvando' : 'Salvar'}
-        </button>
-        <button className="btn ghost" onClick={() => setEditando(false)}>Cancelar</button>
-      </div>
-    </div>
-  )
-
-  return (
-    <div className="tk-inspetor">
-      <div className="tk-insp-h">
-        <div>
-          <span className="rot">Checkpoint</span>
-          <b>{et.nome}</b>
-        </div>
-        {mando && (
-          <button className="iconbtn" onClick={() => setEditando(true)}
-            aria-label="Editar checkpoint" title="Editar checkpoint"><Ic.edit /></button>
-        )}
-        <button className="iconbtn" onClick={fechar} aria-label="Fechar"><Ic.x /></button>
-      </div>
-
-      {!!et.criterio && (
-        <p className="tk-criterio"><span>Só passa quando</span>{et.criterio}</p>
-      )}
-
-      <div className="tk-insp-meta">
-        <span><Ic.check />{feitas} de {et.itens.length} pronta{et.itens.length === 1 ? '' : 's'}</span>
-        {et.aprovador_id && <span><Ic.eu />Aprova {nomeDe(et.aprovador_id)}</span>}
-        {et.prazo && <span className={classePrazo(et.prazo)}><Ic.agenda />{curta(et.prazo)}</span>}
-      </div>
-
-      <div className="tk-tarefas">
-        {et.itens.map((i) => {
-          const posso = podeConcluir(eu, f, i, perfis)
-          return (
-          <div key={i.id} className={`tk-tarefa ${i.feito ? 'feita' : ''}`}>
-            {posso ? (
-              <button className="mk" onClick={() => void alternarItem(i)}
-                aria-pressed={i.feito} aria-label={i.feito ? 'Reabrir tarefa' : 'Concluir tarefa'}>
-                {i.feito ? <Ic.check /> : <span className="oco" />}
-              </button>
-            ) : (
-              <span className="mk">{i.feito ? <Ic.check /> : <span className="oco" />}</span>
-            )}
-            <span className="txt">{i.texto}</span>
-            {i.resp_id && <Av p={perfilDe(i.resp_id)} tam="sm" />}
-            {i.prazo && <i className={classePrazo(i.prazo)}>{curta(i.prazo)}</i>}
-          </div>
-          )
-        })}
-        {!et.itens.length && <div className="mode">Nenhuma tarefa neste checkpoint.</div>}
-      </div>
-
-      <div className="tk-insp-pe">
-        <button className="btn" onClick={() => abrir({ tipo: 'item', etapa: et })}>
-          <Ic.plus />Nova tarefa
-        </button>
-        <Link className="btn ghost" href={`/fluxo/${f.id}`}>Abrir a track<Ic.seta /></Link>
-      </div>
-    </div>
-  )
-}
-
-// ----------------------------------------------------------------- palco
-
-function Palco({ alvo }: { alvo: { tipo: 'projeto'; f: Fluxo } | { tipo: 'area'; a: Area } }) {
-  const { todosFluxos, perfilDe, nomeDe, areaDe, empresaDe, org, eu, perfis, salvarFluxo } = useDados()
-  const { abrir } = useModais()
-  const [noEscolhido, setNoEscolhido] = useState<string | null>(null)
-  const [recemCriado, setRecemCriado] = useState(false)
-  const esperando = useRef(false)
-
-  /** Uma gravação só: o RPC recebe a esteira inteira com a fila nova de checkpoints. */
-  const gravar = async (f: Fluxo, etapas: RascunhoEtapa[]) => {
-    await salvarFluxo({
-      id: f.id, tipo: f.tipo, nome: f.nome, area_id: f.area_id, empresa_id: f.empresa_id,
-      dono_id: f.dono_id, visib: f.visib, pessoas: f.pessoas, freq: f.freq, periodo: f.periodo,
-    }, etapas)
-  }
-
-  const acrescentar = async (f: Fluxo) => {
-    esperando.current = true
-    await gravar(f, [
-      ...f.etapas.map((e) => ({
-        id: e.id, nome: e.nome, criterio: e.criterio, aprovador_id: e.aprovador_id, prazo: e.prazo || '',
-      })),
-      { id: null, nome: 'Novo checkpoint', criterio: '', aprovador_id: eu.id, prazo: '' },
-    ])
-  }
-
-  // O id do checkpoint novo só existe depois que o banco responde. Quando ele
-  // chega, o painel abre nele já em edição, para ninguém ter que caçar o card.
-  const fluxoAtual = alvo.tipo === 'projeto' ? alvo.f : null
-  const ultimo = fluxoAtual?.etapas[fluxoAtual.etapas.length - 1]?.id
-  useEffect(() => {
-    if (!esperando.current || !ultimo) return
-    esperando.current = false
-    setNoEscolhido(ultimo)
-    setRecemCriado(true)
-  }, [ultimo])
-
-  const rotinas = useMemo(
-    () => alvo.tipo === 'area'
-      ? todosFluxos.filter((f) => f.area_id === alvo.a.id && f.tipo === 'ciclo')
-        .sort((x, y) => ORD[status(x)] - ORD[status(y)])
-      : [],
-    [alvo, todosFluxos],
-  )
-
-  /** Um fluxo vira uma faixa: partida, os checkpoints, chegada. */
-  const daFluxo = (f: Fluxo, comNome: boolean): Faixa => {
-    const nos: NoTrilho[] = [{
-      id: `${f.id}:inicio`,
-      tipo: 'inicio',
-      nome: f.tipo === 'ciclo' ? 'Toda volta' : 'Início',
-      sub: f.tipo === 'ciclo' ? (f.periodo || '') : (f.criado_em ? curta(isoDe(f.criado_em)) : ''),
-      estado: 'feito',
-    }]
-
-    f.etapas.forEach((et, i) => {
-      const gente = [...new Set(et.itens.map((x) => x.resp_id).filter(Boolean) as string[])]
-      nos.push({
-        id: et.id,
-        tipo: 'etapa',
-        nome: et.nome,
-        sub: et.aprovador_id ? `Aprova ${nomeDe(et.aprovador_id).split(' ')[0]}` : et.criterio,
-        estado: estadoDa(f, i),
-        tarefas: et.itens.length,
-        feitas: et.itens.filter((x) => x.feito).length,
-        gente: gente.map(perfilDe),
-        atrasado: !!et.prazo && classePrazo(et.prazo) === 'late' && i >= f.atual,
+  const lista = useMemo(() => {
+    const limpa = (x: string) => x.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    return todas
+      .filter((f) => corte === 'tudo' || f.tipo === corte)
+      .filter((f) => (fechadas ? true : !f.concluido))
+      .filter((f) => !area || (area === 'sem' ? !f.area_id : f.area_id === area))
+      .filter((f) => !pessoa || envolve(f, pessoa))
+      .filter((f) => !termo.trim() || limpa(f.nome).includes(limpa(termo)))
+      .sort((a, b) => {
+        const peso = { late: 0, hold: 1, soon: 2, ok: 3, done: 4 } as Record<string, number>
+        return peso[status(a)] - peso[status(b)] || a.nome.localeCompare(b.nome, 'pt-BR')
       })
-    })
+  }, [todas, corte, area, pessoa, termo, fechadas])
 
-    nos.push({
-      id: `${f.id}:fim`,
-      tipo: 'fim',
-      nome: 'Fim',
-      sub: f.concluido ? 'Entregue' : '',
-      estado: f.concluido ? 'feito' : 'futuro',
-    })
-
-    const emp = org.multi ? empresaDe(f.empresa_id)?.nome : null
+  const pastas = useMemo<Pasta[]>(() => lista.map((f) => {
+    const et = etapaAtual(f)
+    const feitos = et ? et.itens.filter((x) => x.feito).length : 0
+    const st = status(f)
+    const pp = proxPrazo(f)
+    const gente = [...new Set([
+      f.dono_id, ...f.etapas.map((e) => e.aprovador_id),
+      ...f.etapas.flatMap((e) => e.itens.map((i) => i.resp_id)),
+    ].filter(Boolean) as string[])].map((id) => perfilDe(id))
     return {
-      id: f.id,
-      nome: comNome ? f.nome : undefined,
-      sub: comNome ? [emp, LBL[status(f)]].filter(Boolean).join(' · ') : undefined,
-      nos,
+      id: f.id, href: `/fluxo/${f.id}`, rotulo: rotuloTipo(f.tipo), nome: f.nome,
+      etapa: f.concluido ? 'Concluída' : et?.nome || 'Sem checkpoint', st,
+      numero: `${Math.round(progresso(f) * 100)}%`,
+      numeroSub: f.tipo === 'ciclo' ? 'da volta atual' : 'de progresso',
+      pe: et ? `${feitos} de ${et.itens.length} ${et.itens.length === 1 ? 'pronta' : 'prontas'}` : '',
+      alerta: st === 'late' ? 'Atrasada' : st === 'hold' ? 'Travada'
+        : st === 'soon' && pp ? `Prazo ${rel(pp).toLowerCase()}` : undefined,
+      alertaTipo: (st === 'late' ? 'late' : st === 'hold' ? 'hold' : st === 'soon' ? 'soon' : undefined) as
+        'late' | 'hold' | 'soon' | undefined,
+      gente, progresso: progresso(f),
+      atrasado: st === 'late', travado: st === 'hold',
     }
-  }
-
-  const faixas = useMemo(
-    () => alvo.tipo === 'projeto' ? [daFluxo(alvo.f, false)] : rotinas.map((f) => daFluxo(f, true)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [alvo, rotinas],
-  )
-
-  /** Do id do nó de volta para o checkpoint e o fluxo dele. */
-  const achado = useMemo(() => {
-    if (!noEscolhido) return null
-    const candidatos = alvo.tipo === 'projeto' ? [alvo.f] : rotinas
-    for (const f of candidatos) {
-      const et = f.etapas.find((e) => e.id === noEscolhido)
-      if (et) return { f, et }
-    }
-    return null
-  }, [noEscolhido, alvo, rotinas])
-
-  const cab = alvo.tipo === 'projeto'
-    ? {
-      nome: alvo.f.nome,
-      sub: alvo.f.area_id ? areaDe(alvo.f.area_id).nome : 'Sem área',
-      st: status(alvo.f),
-      dono: alvo.f.dono_id,
-      pct: Math.round(progresso(alvo.f) * 100),
-      voltas: alvo.f.voltas.length,
-      criado: alvo.f.criado_em,
-    }
-    : {
-      nome: alvo.a.nome,
-      sub: `${rotinas.length} ${rotinas.length === 1 ? 'rotina' : 'rotinas'}`,
-      st: null,
-      dono: alvo.a.responsavel_id,
-      pct: null,
-      voltas: null,
-      criado: null,
-    }
-
-  return (
-    <section className="tk-palco">
-      <header className="tk-topo">
-        <Link className="iconbtn so-celular" href="/tracks" aria-label="Voltar"><Ic.volta /></Link>
-        <div className="tk-titulo">
-          <b>{cab.nome}</b>
-          <span>{cab.sub}</span>
-        </div>
-        <div className="tk-acoes">
-          {alvo.tipo === 'projeto' ? (
-            <>
-              <button className="btn ghost" onClick={() => abrir({ tipo: 'fluxo', fluxo: alvo.f })}>
-                <Ic.ajustes />Ajustes da track
-              </button>
-              <Link className="btn pri" href={`/fluxo/${alvo.f.id}`}>Abrir<Ic.seta /></Link>
-            </>
-          ) : (
-            <>
-              <button className="btn ghost"
-                onClick={() => abrir({ tipo: 'fluxo', tipoFluxo: 'ciclo', areaId: alvo.a.id })}>
-                <Ic.plus />Nova rotina
-              </button>
-              <Link className="btn pri" href={`/area/${alvo.a.id}`}>Abrir<Ic.seta /></Link>
-            </>
-          )}
-        </div>
-      </header>
-
-      <div className="tk-selos">
-        {cab.st && <span className={`selo ${cab.st}`}>{LBL[cab.st]}</span>}
-        {cab.dono && (
-          <span className="tk-selo"><Av p={perfilDe(cab.dono)} tam="sm" />{nomeDe(cab.dono)}</span>
-        )}
-        {cab.pct !== null && <span className="tk-selo"><Ic.check />{cab.pct}% da trilha</span>}
-        {!!cab.voltas && <span className="tk-selo"><Ic.ciclo />{cab.voltas} voltas</span>}
-        {cab.criado && <span className="tk-selo"><Ic.agenda />Criada {rel(isoDe(cab.criado))}</span>}
-      </div>
-
-      <div className="tk-quadro">
-        <Trilho
-          faixas={faixas}
-          escolhido={noEscolhido}
-          aoEscolher={(id) => {
-            setRecemCriado(false)
-            setNoEscolhido((v) => (v === id ? null : id))
-          }}
-          acao={alvo.tipo === 'projeto' && mandaNoProcesso(eu, alvo.f, perfis)
-            ? { rotulo: 'Checkpoint', aoClicar: () => void acrescentar(alvo.f) }
-            : undefined}
-        />
-        {achado && (
-          <Inspetor
-            key={achado.et.id}
-            f={achado.f}
-            et={achado.et}
-            fechar={() => { setNoEscolhido(null); setRecemCriado(false) }}
-            gravar={(etapas) => gravar(achado.f, etapas)}
-            abrirEmEdicao={recemCriado}
-          />
-        )}
-      </div>
-    </section>
-  )
-}
-
-// ------------------------------------------------------------------ tela
-
-export function TelaTracks({ id }: { id?: string }) {
-  const { fluxos, areas, carregando } = useDados()
-  const { abrir } = useModais()
-  const router = useRouter()
-
-  const novo = (t: 'projeto' | 'area') =>
-    abrir(t === 'projeto' ? { tipo: 'fluxo', tipoFluxo: 'esteira' } : { tipo: 'area' })
-
-  const f = id ? fluxos.find((x) => x.id === id) : undefined
-  const a = !f && id ? areas.find((x) => x.id === id) : undefined
-  const alvo = f ? { tipo: 'projeto' as const, f } : a ? { tipo: 'area' as const, a } : null
-
-  // Link velho, track apagada ou track de outra empresa: volta para a lista.
-  // Só depois que os dados chegam, senão o carregamento derrubaria todo mundo.
-  const perdido = !!id && !alvo && !carregando
-  useEffect(() => { if (perdido) router.replace('/tracks') }, [perdido, router])
+  }), [lista, perfilDe])
 
   if (carregando) return <Carregando />
 
+  const conta = (c: Corte) => todas
+    .filter((f) => !f.concluido)
+    .filter((f) => c === 'tudo' || f.tipo === c).length
+
+  const vazio = !todas.length
+  const idx = Math.min(naVez, Math.max(0, pastas.length - 1))
+
   return (
-    <div className="tk" data-aberto={alvo ? 'sim' : 'nao'}>
-      <Lista atual={id} aoNovo={novo} />
-      {alvo ? <Palco alvo={alvo} /> : (
-        <section className="tk-palco">
-          <div className="tk-vazio">
-            <h3>Escolha uma track</h3>
+    <>
+      <div className="hdr">
+        <div>
+          <h1>Tracks</h1>
+          <p className="lede">
+            {vazio
+              ? 'Ainda não existe nenhuma. Uma track é um objetivo, que acaba, ou uma rotina, que dá voltas.'
+              : <>Objetivos e rotinas, com ou sem área.</>}
+          </p>
+        </div>
+        <div className="hdr-actions">
+          <button className="btn" onClick={() => abrir({ tipo: 'fluxo', tipoFluxo: 'esteira' })}>
+            <Ic.plus />Nova track
+          </button>
+        </div>
+      </div>
+
+      {vazio ? (
+        <div className="card">
+          <div className="onb">
+            <h3>Comece por uma track</h3>
             <p>
-              Cada track é uma trilha do começo ao fim: o gatilho, os checkpoints com as
-              tarefas de cada um e a chegada. Projeto tem uma trilha só, área tem uma por
-              rotina, porque área não acaba, ela dá voltas.
+              Tudo no TrackWard pendura em uma das duas: um <b>objetivo</b>, que tem começo,
+              checkpoints e fim, ou uma <b>rotina</b>, que se repete e guarda o histórico de cada
+              volta. As duas podem morar numa área ou viver soltas, e a área você cria na hora, ali
+              mesmo no formulário.
             </p>
-            <button className="btn pri" onClick={() => novo('projeto')}>
-              <Ic.plus />Novo projeto
+            <div className="row-inline">
+              <button className="btn pri" onClick={() => abrir({ tipo: 'fluxo', tipoFluxo: 'esteira' })}>
+                <Ic.plus />Novo objetivo
+              </button>
+              <button className="btn" onClick={() => abrir({ tipo: 'fluxo', tipoFluxo: 'ciclo' })}>
+                <Ic.ciclo />Nova rotina
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="filtros">
+            <div className="seg" role="group" aria-label="O que mostrar">
+              {([['tudo', 'Tudo'], ['esteira', 'Objetivos'], ['ciclo', 'Rotinas']] as [Corte, string][])
+                .map(([c, nome]) => (
+                  <button key={c} className={corte === c ? 'on' : ''} onClick={() => { setCorte(c); setNaVez(0) }}>
+                    {nome}<span className="num">{conta(c)}</span>
+                  </button>
+                ))}
+            </div>
+            <label className="campo-busca">
+              <Ic.lupa />
+              <input value={termo} onChange={(e) => setTermo(e.target.value)}
+                placeholder="Buscar track" aria-label="Buscar track" />
+            </label>
+            <label className="sel-quem">
+              <select value={area} onChange={(e) => { setArea(e.target.value); setNaVez(0) }}
+                aria-label="Filtrar por área">
+                <option value="">Todas as áreas</option>
+                {areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                <option value="sem">Sem área</option>
+              </select>
+              <Ic.chev />
+            </label>
+            {perfis.filter((p) => p.ativo).length > 1 && (
+              <label className="sel-quem">
+                <select value={pessoa} onChange={(e) => setPessoa(e.target.value)}
+                  aria-label="Filtrar por pessoa">
+                  <option value="">Toda a equipe</option>
+                  {perfis.filter((p) => p.ativo).map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                </select>
+                <Ic.chev />
+              </label>
+            )}
+            <div className="seg" style={{ marginLeft: 'auto' }} role="group" aria-label="Como ver">
+              <button className={modo === 'lista' ? 'on' : ''} onClick={() => setModo('lista')}>Lista</button>
+              <button className={modo === 'pastas' ? 'on' : ''} onClick={() => setModo('pastas')}>Pastas</button>
+            </div>
+          </div>
+
+          {modo === 'pastas' && !!pastas.length && (
+            <div className="arquivo-curto">
+              <Pastas rotulo="Tracks" itens={pastas} atual={idx} aoTrocar={setNaVez}
+                aoAbrir={(p) => router.push(p.href)} />
+              <div className="foco centro">
+                <Link className="btn pri" href={pastas[idx].href}>Abrir track<Ic.seta /></Link>
+              </div>
+            </div>
+          )}
+
+          {lista.length ? (
+            <div className="tk-lista">
+              {lista.map((f) => {
+                const st = status(f)
+                const et = etapaAtual(f)
+                const feitos = et ? et.itens.filter((x) => x.feito).length : 0
+                const pp = proxPrazo(f)
+                return (
+                  <article className="tk-l" key={f.id}>
+                    <span className="tk-ic" title={rotuloTipo(f.tipo)}>
+                      {f.tipo === 'ciclo' ? <Ic.ciclo /> : <Ic.proj />}
+                    </span>
+                    <div className="tk-quem">
+                      <Link className="tk-nome" href={`/fluxo/${f.id}`}>{f.nome}</Link>
+                      <p className="tk-meta">
+                        <span className="tk-tipo">{rotuloTipo(f.tipo)}</span>
+                        <span className="sep">·</span>
+                        <span>{f.area_id ? areaDe(f.area_id).nome : 'Sem área'}</span>
+                        {f.tipo === 'ciclo' && f.periodo && (
+                          <><span className="sep">·</span><span>Volta {f.periodo}</span></>
+                        )}
+                      </p>
+                      <p className="tk-dono">
+                        <span className={`tk-st ${st}`}>
+                          <IconeStatus st={st} p={progresso(f)} />{LBL[st]}
+                        </span>
+                        {pp && !f.concluido && <><span className="sep">·</span><span>{rel(pp)}</span></>}
+                        <span className="sep">·</span>
+                        <Av p={perfilDe(f.dono_id)} tam="sm" />{nomeDe(f.dono_id)}
+                      </p>
+                    </div>
+                    <div className="tk-trilha">
+                      {f.etapas.length ? <TrilhaH f={f} miuda /> : <span className="hint">Sem checkpoints</span>}
+                      {!!et && (
+                        <small>
+                          {feitos} de {et.itens.length} {et.itens.length === 1 ? 'tarefa pronta' : 'tarefas prontas'}
+                        </small>
+                      )}
+                    </div>
+                    <Link className="tk-abrir" href={`/fluxo/${f.id}`} aria-label={`Abrir ${f.nome}`}>
+                      <Ic.seta />
+                    </Link>
+                  </article>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="tb-vazio">Nenhuma track com esses filtros.</div>
+          )}
+
+          <div className="tb-pe">
+            <span>
+              {lista.length} de {todas.filter((f) => fechadas || !f.concluido).length}{' '}
+              {lista.length === 1 ? 'track' : 'tracks'}
+            </span>
+            <button onClick={() => setFechadas((v) => !v)}>
+              {fechadas ? 'Esconder as concluídas' : 'Mostrar as concluídas'}
             </button>
           </div>
-        </section>
+        </>
       )}
-    </div>
+    </>
   )
 }
+
+/** O tipo vindo da rota, para quem chega por um link antigo. */
+export const corteDaRota = (t: string | null): Tipo | null =>
+  t === 'ciclo' || t === 'esteira' ? t : null

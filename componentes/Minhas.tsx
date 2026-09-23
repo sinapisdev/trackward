@@ -12,6 +12,7 @@ import { TrilhaH } from './Trilha'
 import { classePrazo } from './partes'
 import { dias, isoDe, rel } from '@/lib/datas'
 import { etapaAtual, pendencias } from '@/lib/regras'
+import { AVULSA } from '@/lib/rotulos'
 import type { Pendencia } from '@/lib/tipos'
 
 type Filtro = 'tudo' | 'executar' | 'aprovar' | 'aguardando'
@@ -24,7 +25,8 @@ const chave = (p: Pendencia) => (p.tipo === 'aprov' ? `a-${p.etapa.id}` : `i-${p
  * próximo passo aberto ao lado. Um de cada vez, que é como o trabalho anda.
  */
 export function Minhas() {
-  const { eu, fluxos, carregando, nomeDe, perfilDe, alternarItem, aprovar: aprovarSaida } = useDados()
+  const { eu, fluxos, carregando, nomeDe, perfilDe, minhaLista,
+    alternarItem, aprovar: aprovarSaida } = useDados()
   const { abrir } = useModais()
   const [filtro, setFiltro] = useState<Filtro>('tudo')
   const [termo, setTermo] = useState('')
@@ -102,8 +104,8 @@ export function Minhas() {
           </p>
         </div>
         <div className="hdr-actions">
-          <button className="btn" onClick={() => abrir({ tipo: 'fluxo', tipoFluxo: 'esteira' })}>
-            <Ic.plus />Tarefa
+          <button className="btn" onClick={() => abrir({ tipo: 'avulsa' })}>
+            <Ic.plus />Tarefa avulsa
           </button>
         </div>
       </div>
@@ -149,7 +151,11 @@ export function Minhas() {
                     <span className="fila-txt">
                       <b>{texto(p)}</b>
                       <small>
-                        {p.fluxo.nome}{p.tipo === 'aprov' ? '' : ` / ${etapaAtual(p.fluxo)?.nome || ''}`}
+                        {/* A tarefa avulsa não tem endereço: dizer "Minha lista"
+                            seria expor o andaime em que ela se apoia. */}
+                        {p.fluxo.id === minhaLista?.id
+                          ? AVULSA
+                          : `${p.fluxo.nome}${p.tipo === 'aprov' ? '' : ` / ${etapaAtual(p.fluxo)?.nome || ''}`}`}
                       </small>
                       {!!travas.length && (
                         <small className="fila-trava">
@@ -187,7 +193,8 @@ export function Minhas() {
           )}
         </div>
 
-        {sel && <Gaveta p={sel} travas={travasDe(sel).length} nomeDe={nomeDe} perfilDe={perfilDe}
+        {sel && <Gaveta p={sel} travas={travasDe(sel).length}
+          avulsa={sel.fluxo.id === minhaLista?.id} nomeDe={nomeDe} perfilDe={perfilDe}
           aoConcluir={() => { if (sel.tipo === 'item') void alternarItem(sel.item) }}
           aoAprovar={() => void aprovarSaida(sel.fluxo)} />}
       </div>
@@ -196,9 +203,11 @@ export function Minhas() {
 }
 
 /** A gaveta: a pendência escolhida, com tudo que ela precisa para sair daqui. */
-function Gaveta({ p, travas, nomeDe, perfilDe, aoConcluir, aoAprovar }: {
+function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoConcluir, aoAprovar }: {
   p: Pendencia
   travas: number
+  /** Tarefa sem objetivo e sem rotina: a trilha e o critério não existem nela. */
+  avulsa: boolean
   nomeDe: (id: string | null) => string
   perfilDe: (id: string | null) => import('@/lib/tipos').Perfil
   aoConcluir: () => void
@@ -212,7 +221,7 @@ function Gaveta({ p, travas, nomeDe, perfilDe, aoConcluir, aoAprovar }: {
   return (
     <aside className="gaveta">
       <div className="gaveta-topo">
-        <span className="gaveta-onde">{p.fluxo.nome} / {et?.nome}</span>
+        <span className="gaveta-onde">{avulsa ? AVULSA : `${p.fluxo.nome} / ${et?.nome}`}</span>
       </div>
       <h2>{titulo}</h2>
       <span className={`selo ${travas ? 'travado' : feito ? 'feito' : ''}`}>
@@ -230,16 +239,28 @@ function Gaveta({ p, travas, nomeDe, perfilDe, aoConcluir, aoAprovar }: {
         </div>
       </dl>
 
-      <h3>Onde esta tarefa está</h3>
-      <TrilhaH f={p.fluxo} miuda />
-      <p className="gaveta-nota">
-        Checkpoint {p.fluxo.atual + 1} de {p.fluxo.etapas.length}
-        {et && ` · ${et.itens.filter((x) => x.feito).length} de ${et.itens.length} tarefas prontas`}
-      </p>
+      {avulsa ? (
+        <>
+          <h3>Onde esta tarefa está</h3>
+          <p className="gaveta-crit">
+            Em lugar nenhum, de propósito. Ela não pertence a objetivo nem a rotina, e só
+            você a enxerga. Para pedir algo a alguém, crie a tarefa dentro de uma track.
+          </p>
+        </>
+      ) : (
+        <>
+          <h3>Onde esta tarefa está</h3>
+          <TrilhaH f={p.fluxo} miuda />
+          <p className="gaveta-nota">
+            Checkpoint {p.fluxo.atual + 1} de {p.fluxo.etapas.length}
+            {et && ` · ${et.itens.filter((x) => x.feito).length} de ${et.itens.length} tarefas prontas`}
+          </p>
 
-      <h3>Critério de passagem</h3>
-      <p className="gaveta-crit">{et?.criterio || 'Critério não definido nesta etapa.'}</p>
-      <p className="gaveta-nota">Aprovação do checkpoint: {nomeDe(et?.aprovador_id ?? null)}</p>
+          <h3>Critério de passagem</h3>
+          <p className="gaveta-crit">{et?.criterio || 'Critério não definido nesta etapa.'}</p>
+          <p className="gaveta-nota">Aprovação do checkpoint: {nomeDe(et?.aprovador_id ?? null)}</p>
+        </>
+      )}
 
       {p.tipo === 'aprov' ? (
         <button className="btn pri larga" onClick={aoAprovar}><Ic.check />Aprovar saída</button>
@@ -250,7 +271,9 @@ function Gaveta({ p, travas, nomeDe, perfilDe, aoConcluir, aoAprovar }: {
           <Ic.check />{feito ? 'Reabrir tarefa' : 'Marcar como feita'}
         </button>
       )}
-      <Link className="gaveta-abrir" href={`/fluxo/${p.fluxo.id}`}>Abrir track <Ic.seta /></Link>
+      {!avulsa && (
+        <Link className="gaveta-abrir" href={`/fluxo/${p.fluxo.id}`}>Abrir track <Ic.seta /></Link>
+      )}
     </aside>
   )
 }
