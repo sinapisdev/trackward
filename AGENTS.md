@@ -162,6 +162,19 @@ Quem decide a pessoa é `areas.responsavel_id`, e o formulário de criação dei
 Não voltar a embutir trilhos em `lib/modelos.ts`: ele ficou só com o cálculo de período e
 o esqueleto em branco.
 
+## O carimbo da organização não pode ficar pela metade
+
+`carimbar_org()` preenche `org_id` em toda tabela que tem etiqueta, e **toda**
+política pergunta `minha(org_id)`. Faltando o gatilho numa tabela, o banco passa
+a recusar qualquer criação lá com "new row violates row-level security policy", e
+a mensagem fala da política, não do carimbo que falta. Foi assim que criar tarefa
+e criar canal pararam, e foi difícil de achar exatamente por isso.
+
+O laço que cria esses gatilhos tem `continue when to_regclass(...) is null`. Não é
+zelo exagerado: sem ele, uma tabela que ainda não existe no meio da lista derruba
+o bloco inteiro, e todas as tabelas depois dela ficam sem carimbo. Ao acrescentar
+tabela nova àquela lista, manter o `continue`.
+
 ## Quem assina a linha é o servidor
 
 Três tabelas guardam quem criou a linha e três políticas exigem que o campo seja

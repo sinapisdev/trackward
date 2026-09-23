@@ -76,8 +76,10 @@ Para voltar ao modo demonstração a qualquer momento, esvazie as duas linhas do
 
 ### Se o banco recusar criar tarefa, canal ou nota
 
-Se aparecer **"new row violates row-level security policy"**, rode o
-`supabase/atualizar.sql` no SQL Editor. Ele é um recorte do schema com as seções 14 e 15,
+Se aparecer **"new row violates row-level security policy"**, o mais provável é que o
+gatilho `ao_inserir_org` esteja faltando naquela tabela. É ele que preenche `org_id`, e
+toda política pergunta `minha(org_id)`: sem a etiqueta, o banco recusa, e a mensagem fala
+da política em vez do carimbo que falta. Rode o `supabase/atualizar.sql` no SQL Editor. Ele é um recorte do schema com as seções 14 e 15,
 para você não colar 3200 linhas quando só duas coisas mudaram, e termina conferindo
 sozinho se entrou. Rodar o `supabase/schema.sql` inteiro faz o mesmo: ele já contém as
 duas seções.
@@ -86,8 +88,11 @@ A **seção 15** é a que resolve: ela faz o servidor carimbar quem assina a lin
 o navegador mandar esse campo e o banco conferir. Enquanto os dois precisavam concordar,
 qualquer diferença virava essa mensagem, que não diz qual das três condições caiu.
 
-Se continuar depois disso, rode o `supabase/diagnostico.sql`, trocando o e-mail da
-primeira linha pelo seu. Ele não altera nada, e termina dizendo em português o que achou.
+Se continuar depois disso, rode o `supabase/porque.sql`, trocando o e-mail da primeira
+linha pelo seu. Ele vira "gente logada" com a sua identidade, testa as quatro condições da
+política uma por uma, tenta criar uma tarefa de teste e desfaz tudo no fim. Termina
+dizendo em português qual condição caiu. O `supabase/diagnostico.sql` é o irmão mais
+simples dele, para quando a dúvida é sobre perfis e espaços.
 
 ### Se alguém ficar preso na tela de acesso suspenso
 

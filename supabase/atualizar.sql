@@ -1,24 +1,57 @@
 -- ==========================================================================
 -- TrackWard, atualização de 22/09/2026
 --
--- Este arquivo é um RECORTE do `schema.sql`: só as seções 14 e 15, que são as
--- novas. Ele existe para você não precisar colar 3200 linhas no SQL Editor
--- quando só duas coisas mudaram.
+-- Este arquivo é um RECORTE do `schema.sql`, para você não colar 3200 linhas
+-- quando só o que mudou importa. Ele traz três coisas:
 --
---   Seção 14   Avisos. Cria a caixa de aviso de cada pessoa, os gatilhos que
+--   O carimbo da organização   Recria o gatilho `ao_inserir_org` em todas as
+--                              tabelas. É ele que preenche `org_id`, e toda
+--                              política pergunta `minha(org_id)`. Faltando em
+--                              alguma tabela, o banco recusa criar linha lá com
+--                              "new row violates row-level security policy",
+--                              sem dizer que o que falta é o carimbo.
+--
+--   Seção 14   Avisos. A caixa de aviso de cada pessoa, os gatilhos que
 --              escrevem nela e as políticas que fazem a caixa ser só sua.
 --
---   Seção 15   Quem assina a linha é o servidor. É esta que corrige o erro
---              "new row violates row-level security policy" ao criar canal,
---              tarefa ou nota.
+--   Seção 15   Quem assina a linha é o servidor, e não o navegador.
 --
--- Pode rodar quantas vezes quiser: nada aqui apaga dado nenhum, e tudo é
--- escrito para ser aplicado de novo sem reclamar. Se um dia você rodar o
--- `schema.sql` inteiro, ele já contém estas duas seções; este arquivo é só o
--- atalho.
+-- Pode rodar quantas vezes quiser: nada aqui apaga dado nenhum.
 --
 -- COMO USAR: SQL Editor do Supabase, New query, colar tudo, Run.
 -- ==========================================================================
+
+-- --------------------------------------------------------------------------
+-- O carimbo da organização, em toda tabela que tem etiqueta
+-- --------------------------------------------------------------------------
+
+-- O `continue when` não é zelo exagerado: sem ele, uma tabela que ainda não
+-- existe no meio da lista derruba o bloco inteiro, e TODAS as tabelas depois
+-- dela ficam sem carimbo. Como o carimbo é o que preenche `org_id`, e toda
+-- política pergunta `minha(org_id)`, o efeito é o banco recusar criação nessas
+-- tabelas com "new row violates row-level security policy", sem dizer por quê.
+-- Foi assim que criar tarefa e criar canal pararam, e demorou para achar
+-- justamente porque o erro aponta para a política, não para o carimbo que falta.
+do $$
+declare t text; n int := 0;
+begin
+  foreach t in array array[
+    'empresas','areas','convites',
+    'processos','processo_etapas','processo_itens',
+    'fluxos','fluxo_pessoas','etapas','itens','dependencias','historico','atividades',
+    'compromissos','convidados','agendas_externas','ocupacao_externa',
+    'canais','canal_membros','mensagens','sugestoes',
+    'anexos','decisoes','pedidos_prazo','memoria','consumo','agentes','conectores','notas'
+  ] loop
+    continue when to_regclass('public.' || quote_ident(t)) is null;
+    execute format('drop trigger if exists ao_inserir_org on public.%I', t);
+    execute format(
+      'create trigger ao_inserir_org before insert on public.%I
+         for each row execute function public.carimbar_org()', t);
+    n := n + 1;
+  end loop;
+  raise notice 'Carimbo de organização em % tabelas.', n;
+end $$;
 
 -- --------------------------------------------------------------------------
 -- 14. Avisos: o app para de ficar em silêncio
@@ -468,6 +501,13 @@ begin
   if tg_table_name = 'itens'  then new.autor_id   := v_eu; end if;
   if tg_table_name = 'canais' then new.criado_por := v_eu; end if;
   if tg_table_name = 'notas'  then new.dono_id    := v_eu; end if;
+  -- Cinto e suspensório para a etiqueta da organização. `carimbar_org()` já faz
+  -- isso, e roda depois deste (os gatilhos BEFORE disparam em ordem alfabética,
+  -- e `ao_assinar` vem antes de `ao_inserir_org`), então em banco sadio esta
+  -- linha não muda nada. Ela existe porque um banco onde aquele carimbo faltou
+  -- recusa toda criação nestas três tabelas, e o erro que aparece fala da
+  -- política, não do carimbo. Um gatilho só não pode ficar pela metade.
+  new.org_id := coalesce(new.org_id, minha_org());
   return new;
 end $$;
 
@@ -499,15 +539,18 @@ $$;
 
 
 -- ==========================================================================
--- Conferência: as três contas abaixo têm que dar 3, 3 e 3.
+-- Conferência. As quatro contas abaixo têm que dar 29, 3, 3 e 3.
 -- ==========================================================================
 select
   (select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid
+    where t.tgname = 'ao_inserir_org' and not t.tgisinternal)
+    as "carimbo de organizacao (29)",
+  (select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid
     where t.tgname = 'ao_assinar' and c.relname in ('itens','canais','notas'))
-    as "carimbos (tem que dar 3)",
+    as "carimbo de autor (3)",
   (select count(*) from pg_tables where schemaname = 'public'
     and tablename in ('avisos','avisos_contato','push_assinaturas'))
-    as "tabelas de aviso (tem que dar 3)",
+    as "tabelas de aviso (3)",
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname in ('avisar','gerar_avisos_de_prazo','gente_daqui'))
-    as "funcoes novas (tem que dar 3)";
+    as "funcoes novas (3)";

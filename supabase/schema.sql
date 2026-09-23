@@ -730,8 +730,15 @@ end $$;
 -- que já calculou a organização certa (pelo convite, pelo domínio ou criando uma
 -- nova). Carimbar ali sobrescreveria essa decisão pela organização de quem por
 -- acaso estivesse logado, e foi exatamente o que a vistoria pegou.
+-- O `continue when` não é zelo exagerado: sem ele, uma tabela que ainda não
+-- existe no meio da lista derruba o bloco inteiro, e TODAS as tabelas depois
+-- dela ficam sem carimbo. Como o carimbo é o que preenche `org_id`, e toda
+-- política pergunta `minha(org_id)`, o efeito é o banco recusar criação nessas
+-- tabelas com "new row violates row-level security policy", sem dizer por quê.
+-- Foi assim que criar tarefa e criar canal pararam, e demorou para achar
+-- justamente porque o erro aponta para a política, não para o carimbo que falta.
 do $$
-declare t text;
+declare t text; n int := 0;
 begin
   foreach t in array array[
     'empresas','areas','convites',
@@ -741,11 +748,14 @@ begin
     'canais','canal_membros','mensagens','sugestoes',
     'anexos','decisoes','pedidos_prazo','memoria','consumo','agentes','conectores','notas'
   ] loop
+    continue when to_regclass('public.' || quote_ident(t)) is null;
     execute format('drop trigger if exists ao_inserir_org on public.%I', t);
     execute format(
       'create trigger ao_inserir_org before insert on public.%I
          for each row execute function public.carimbar_org()', t);
+    n := n + 1;
   end loop;
+  raise notice 'Carimbo de organização em % tabelas.', n;
 end $$;
 
 create unique index if not exists memoria_uk on public.memoria (org_id, tipo, chave);
@@ -3172,6 +3182,13 @@ begin
   if tg_table_name = 'itens'  then new.autor_id   := v_eu; end if;
   if tg_table_name = 'canais' then new.criado_por := v_eu; end if;
   if tg_table_name = 'notas'  then new.dono_id    := v_eu; end if;
+  -- Cinto e suspensório para a etiqueta da organização. `carimbar_org()` já faz
+  -- isso, e roda depois deste (os gatilhos BEFORE disparam em ordem alfabética,
+  -- e `ao_assinar` vem antes de `ao_inserir_org`), então em banco sadio esta
+  -- linha não muda nada. Ela existe porque um banco onde aquele carimbo faltou
+  -- recusa toda criação nestas três tabelas, e o erro que aparece fala da
+  -- política, não do carimbo. Um gatilho só não pode ficar pela metade.
+  new.org_id := coalesce(new.org_id, minha_org());
   return new;
 end $$;
 
