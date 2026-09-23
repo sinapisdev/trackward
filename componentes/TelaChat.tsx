@@ -39,28 +39,22 @@ function diaDe(iso: string) {
 }
 
 const marca = (c: Canal) =>
-  c.tipo === 'pessoal' ? <Ic.eu />
-    : c.tipo === 'fechado' ? <Ic.lock />
-      : c.tipo === 'direto' ? <Ic.team />
-        : <b className="cerquilha">#</b>
+  c.tipo === 'fechado' ? <Ic.lock />
+    : c.tipo === 'direto' ? <Ic.team />
+      : <b className="cerquilha">#</b>
 
 // ------------------------------------------------------------------ lista
 
 function Lista({ atual }: { atual?: string }) {
-  const { canais, mensagens, naoLidas, meChamaram, sugestoesDe, todosFluxos, eu, perfilDe,
-    meuDespejo, abrirDespejo } = useDados()
+  const { canais, mensagens, naoLidas, meChamaram, sugestoesDe, todosFluxos, eu, perfilDe } = useDados()
   const { abrir } = useModais()
-  const router = useRouter()
-
-  const criarDespejo = async () => {
-    const id = await abrirDespejo()
-    if (id) router.push(`/chat/${id}`)
-  }
 
   /** A hora da última mensagem de cada canal, numa passada só. */
   const ultima = useMemo(() => {
     const mapa = new Map<string, number>()
     for (const m of mensagens) {
+      // Mensagem de nota não é de canal nenhum. Ver componentes/Caderno.tsx.
+      if (!m.canal_id) continue
       const q = Date.parse(m.criado_em)
       if (q > (mapa.get(m.canal_id) ?? 0)) mapa.set(m.canal_id, q)
     }
@@ -70,11 +64,8 @@ function Lista({ atual }: { atual?: string }) {
   const grupos = useMemo(() => {
     const quando = (id: string) => ultima.get(id) ?? 0
     const ordenar = (lista: Canal[]) => [...lista].sort((a, b) => quando(b.id) - quando(a.id))
-    const comum = (c: Canal) => c.tipo !== 'direto' && c.tipo !== 'pessoal'
+    const comum = (c: Canal) => c.tipo !== 'direto'
     return [
-      // O despejo em cima e sozinho, porque é o canal que se abre mais vezes por
-      // dia e o único onde não tem ninguém do outro lado.
-      { rotulo: 'Só seu', itens: canais.filter((c) => c.tipo === 'pessoal') },
       { rotulo: 'Canais', itens: ordenar(canais.filter((c) => comum(c) && !c.fluxo_id)) },
       { rotulo: 'Objetivos', itens: ordenar(canais.filter((c) => comum(c) && c.fluxo_id)) },
       { rotulo: 'Conversas', itens: ordenar(canais.filter((c) => c.tipo === 'direto')) },
@@ -124,18 +115,15 @@ function Lista({ atual }: { atual?: string }) {
           </div>
         )}
 
-        {/* O despejo não se cria pelo formulário de canal: ele não tem nome para
-            escolher nem gente para convidar, e pedir isso seria atravessar o
-            único lugar do app onde a pessoa não precisa pensar em nada. */}
-        {!meuDespejo && (
-          <button className="chat-despejo" onClick={() => void criarDespejo()}>
-            <span className="mk"><Ic.eu /></span>
-            <span>
-              <b>Abrir meu despejo</b>
-              <i>um canal só seu, para jogar tudo dentro</i>
-            </span>
-          </button>
-        )}
+        {/* O que você escreve para si mesmo não fica aqui: fica em Notas, que é
+            um caderno com conversa própria, e não um canal com um membro só. */}
+        <Link className="chat-despejo" href="/notas">
+          <span className="mk"><Ic.faisca /></span>
+          <span>
+            <b>Notas</b>
+            <i>o que é seu, e a conversa com a leitura</i>
+          </span>
+        </Link>
       </div>
     </aside>
   )
@@ -430,7 +418,6 @@ function Conversa({ canal }: { canal: Canal }) {
   }, [canalId, msgs.length, abertas.length])
 
   const fluxo = canal.fluxo_id ? todosFluxos.find((f) => f.id === canal.fluxo_id) : null
-  const despejo = canal.tipo === 'pessoal'
 
   const ler = async () => {
     setLendo(true)
@@ -450,13 +437,9 @@ function Conversa({ canal }: { canal: Canal }) {
   for (const m of msgs) {
     const dia = isoDe(m.criado_em)
     const diaAntes = anterior ? isoDe(anterior.criado_em) : null
-    // No despejo o cabeçalho com foto e nome nunca aparece: é você falando
-    // sozinho, e ver o próprio nome cinco vezes na tela não informa nada.
-    const junto = despejo
-      ? !!anterior && !m.sistema && !anterior.sistema
-      : !!anterior && !m.sistema && !anterior.sistema
-        && anterior.autor_id === m.autor_id && dia === diaAntes
-        && Date.parse(m.criado_em) - Date.parse(anterior.criado_em) < 6 * 60000
+    const junto = !!anterior && !m.sistema && !anterior.sistema
+      && anterior.autor_id === m.autor_id && dia === diaAntes
+      && Date.parse(m.criado_em) - Date.parse(anterior.criado_em) < 6 * 60000
     linhas.push({ m, junto, dia: dia === diaAntes ? null : dia })
     anterior = m
   }
@@ -469,18 +452,16 @@ function Conversa({ canal }: { canal: Canal }) {
         <div className="chat-titulo">
           <b>{nome}</b>
           <span>
-            {canal.tipo === 'pessoal'
-              ? 'só você entra aqui'
-              : fluxo
-                ? <Link href={`/fluxo/${fluxo.id}`}>{fluxo.nome}</Link>
-                : canal.area_id ? areaDe(canal.area_id).nome : canal.descricao || `${canal.membros.length || perfis.length} pessoas`}
+            {fluxo
+              ? <Link href={`/fluxo/${fluxo.id}`}>{fluxo.nome}</Link>
+              : canal.area_id ? areaDe(canal.area_id).nome : canal.descricao || `${canal.membros.length || perfis.length} pessoas`}
           </span>
         </div>
         <div className="chat-acoes">
           {org.ia_ativa && (
             <button className="btn" onClick={() => void ler()} disabled={lendo}>
               <Ic.faisca />
-              {lendo ? 'Lendo' : canal.tipo === 'pessoal' ? 'Separar o que tem aqui' : 'Ler a conversa'}
+              {lendo ? 'Lendo' : 'Ler a conversa'}
             </button>
           )}
           {canal.criado_por === eu.id && (
@@ -503,25 +484,11 @@ function Conversa({ canal }: { canal: Canal }) {
         {!msgs.length && (
           <div className="chat-vazio">
             <h3>
-              {canal.tipo === 'pessoal' ? 'Jogue tudo aqui dentro'
-                : canal.tipo === 'direto' ? `Converse com ${nome}`
-                  : `Começo de #${canal.nome}`}
+              {canal.tipo === 'direto' ? `Converse com ${nome}` : `Começo de #${canal.nome}`}
             </h3>
             <p>
-              {canal.tipo === 'pessoal' ? (
-                <>
-                  Ideia, recado para você mesmo, o número que alguém falou, o que precisa
-                  fazer amanhã. Escreva sem organizar, ou grave um recado de voz.
-                  {org.ia_ativa
-                    ? ' Depois toque em separar, e cada coisa vai para o lugar dela: tarefa, agenda ou nota.'
-                    : ' A separação automática está desligada em Ajustes, mas o caderno funciona do mesmo jeito.'}
-                </>
-              ) : (
-                <>
-                  {canal.descricao || 'Escreva a primeira mensagem.'}
-                  {org.ia_ativa && ' Depois, a leitura da conversa transforma o que ficou combinado em tarefa.'}
-                </>
-              )}
+              {canal.descricao || 'Escreva a primeira mensagem.'}
+              {org.ia_ativa && ' Depois, a leitura da conversa transforma o que ficou combinado em tarefa.'}
             </p>
           </div>
         )}
@@ -638,8 +605,8 @@ function Conversa({ canal }: { canal: Canal }) {
               </button>
             )}
           </div>
-          {abertas.map((s) => <CartaoSugestao key={s.id} s={s} despejo={despejo} />)}
-          {verFechadas && fechadas.map((s) => <CartaoSugestao key={s.id} s={s} despejo={despejo} />)}
+          {abertas.map((s) => <CartaoSugestao key={s.id} s={s} />)}
+          {verFechadas && fechadas.map((s) => <CartaoSugestao key={s.id} s={s} />)}
         </div>
       )}
 

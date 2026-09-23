@@ -5,6 +5,7 @@ import { useDados } from '@/componentes/Dados'
 import { Carregando } from '@/componentes/Shell'
 import { Ic } from '@/componentes/Icones'
 import { Anexos } from '@/componentes/Anexos'
+import { ConversaNota } from '@/componentes/ConversaNota'
 import { rel, isoDe } from '@/lib/datas'
 import {
   buscar, entradas, ligar, LIGACAO, mesmaChave, ordenar, parecidas, porTitulo, saidas, solta,
@@ -163,6 +164,11 @@ function Aberta({ nota, ir }: { nota: Nota; ir: (titulo: string) => void }) {
           <div className="nt-a-acoes">
             <button className="btn" onClick={() => setEditando(true)}><Ic.edit />Editar</button>
           </div>
+
+          {/* A conversa sobre esta nota. Ela fica dentro da nota, e não numa
+              tela à parte, porque o contexto é a nota: quem pergunta aqui não
+              precisa explicar de novo do que está falando. */}
+          <ConversaNota nota={nota} ir={ir} />
         </>
       )}
 
@@ -212,13 +218,38 @@ function Aberta({ nota, ir }: { nota: Nota; ir: (titulo: string) => void }) {
 }
 
 export function TelaNotas() {
-  const { notas, salvarNota, meuDespejo, abrirDespejo, carregando } = useDados()
+  const { notas, areas, fluxos, areaDe, salvarNota, conversaIA, abrirConversaIA,
+    org, carregando } = useDados()
   const [termo, setTermo] = useState('')
   const [abertaId, setAbertaId] = useState<string | null>(null)
 
   const vivas = useMemo(() => notas.filter((n) => !n.arquivada), [notas])
   const lista = useMemo(() => (termo ? buscar(vivas, termo) : ordenar(vivas)), [vivas, termo])
-  const aberta = notas.find((n) => n.id === abertaId) || lista[0] || null
+
+  /**
+   * Os assuntos: o endereço da nota é o que agrupa.
+   *
+   * Não é pasta, e a diferença importa: pasta é uma coisa a mais para manter, e
+   * a nota nova sempre cabe em duas. O endereço a nota já tem, porque é o mesmo
+   * da tarefa, e ele serve para o mesmo que serve lá, saber de que frente é.
+   */
+  const grupos = useMemo(() => {
+    const mapa = new Map<string, { rotulo: string; itens: Nota[] }>()
+    for (const n of lista) {
+      const chave = n.area_id ? `a:${n.area_id}` : n.fluxo_id ? `f:${n.fluxo_id}` : 'sem'
+      const rotulo = n.area_id
+        ? areaDe(n.area_id).nome
+        : n.fluxo_id ? fluxos.find((f) => f.id === n.fluxo_id)?.nome || 'Track' : 'Sem assunto'
+      if (!mapa.has(chave)) mapa.set(chave, { rotulo, itens: [] })
+      mapa.get(chave)!.itens.push(n)
+    }
+    return [...mapa.entries()]
+      .sort((a, b) => Number(a[0] === 'sem') - Number(b[0] === 'sem'))
+      .map(([, g]) => g)
+  }, [lista, areaDe, fluxos])
+
+  const naConversa = !!conversaIA && abertaId === conversaIA.id
+  const aberta = naConversa ? null : notas.find((n) => n.id === abertaId) || lista[0] || null
 
   if (carregando) return <Carregando />
 
@@ -245,9 +276,6 @@ export function TelaNotas() {
           <h1>Notas</h1>
         </div>
         <div className="hdr-actions">
-          {!meuDespejo && (
-            <button className="btn" onClick={() => void abrirDespejo()}>Abrir meu despejo</button>
-          )}
           <button className="btn pri" onClick={() => void nova()}><Ic.plus />Nota nova</button>
         </div>
       </div>
@@ -268,9 +296,10 @@ export function TelaNotas() {
             se costura sozinho.
           </p>
           <p className="hint">
-            O caminho mais curto para a primeira nota é o despejo: escreva tudo de qualquer
-            jeito naquele canal e toque em separar. O que não é tarefa nem compromisso vira
-            nota aqui.
+            Cada nota é um assunto, e dentro dela tem alguém do outro lado: a leitura lê o
+            que você escreveu, lembra do que você guardou antes e responde ali mesmo. Quando
+            a nota tiver virado trabalho, "Organizar" separa o que é tarefa e o que é
+            compromisso, e você aceita ou não.
           </p>
         </div>
       ) : (
@@ -288,17 +317,36 @@ export function TelaNotas() {
               )}
             </div>
 
+            {org.ia_ativa && !termo && (
+              <button className={`nt-solto ${naConversa ? 'on' : ''}`}
+                onClick={async () => {
+                  const id = conversaIA?.id || await abrirConversaIA()
+                  if (id) setAbertaId(id)
+                }}>
+                <Ic.faisca />
+                <span>
+                  <b>Conversa</b>
+                  <i>sem assunto fixo, com o caderno inteiro junto</i>
+                </span>
+              </button>
+            )}
+
             <div className="nt-lista">
-              {lista.map((n) => (
-                <button key={n.id} className={`nt-item ${aberta?.id === n.id ? 'on' : ''}`}
-                  onClick={() => setAbertaId(n.id)}>
-                  <b>
-                    {n.fixada && <Ic.flag />}
-                    {n.titulo}
-                  </b>
-                  <span>{n.texto.replace(LIGACAO, '$1').replace(/\s+/g, ' ').slice(0, 90) || 'vazia'}</span>
-                  <i>{rel(isoDe(n.mexido_em)).toLowerCase()}</i>
-                </button>
+              {grupos.map((g) => (
+                <div key={g.rotulo}>
+                  <div className="nt-grupo">{g.rotulo} <span className="num">{g.itens.length}</span></div>
+                  {g.itens.map((n) => (
+                    <button key={n.id} className={`nt-item ${aberta?.id === n.id ? 'on' : ''}`}
+                      onClick={() => setAbertaId(n.id)}>
+                      <b>
+                        {n.fixada && <Ic.flag />}
+                        {n.titulo}
+                      </b>
+                      <span>{n.texto.replace(LIGACAO, '$1').replace(/\s+/g, ' ').slice(0, 90) || 'vazia'}</span>
+                      <i>{rel(isoDe(n.mexido_em)).toLowerCase()}</i>
+                    </button>
+                  ))}
+                </div>
               ))}
               {!lista.length && (
                 <p className="nt-nada">Nada com isso. A busca não usa acento nem caixa.</p>
@@ -313,7 +361,16 @@ export function TelaNotas() {
             )}
           </aside>
 
-          {aberta
+          {naConversa && conversaIA ? (
+            <article className="nt-aberta">
+              <div className="nt-a-h"><h2>Conversa</h2></div>
+              <p className="nt-quando">
+                sem assunto fixo. o que você guardou no caderno entra junto na pergunta,
+                então dá para falar de uma nota antiga sem ir procurar ela
+              </p>
+              <ConversaNota nota={conversaIA} ir={ir} />
+            </article>
+          ) : aberta
             ? <Aberta nota={aberta} ir={ir} />
             : <div className="card empty" style={{ padding: 34 }}>Escolha uma nota.</div>}
         </div>

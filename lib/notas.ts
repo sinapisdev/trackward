@@ -129,6 +129,31 @@ export function palavrasDe(texto: string): Set<string> {
   )
 }
 
+/**
+ * As notas que falam do mesmo que um texto qualquer.
+ *
+ * É `parecidas` sem nota de origem, e existe para a conversa solta com a
+ * leitura: ali não há nota para comparar, há o que a pessoa acabou de dizer, e
+ * é ele que precisa encontrar o que ela guardou antes.
+ */
+export function parecidasCom(texto: string, notas: Nota[], quantas = 4, fora: string[] = []): Nota[] {
+  const minhas = palavrasDe(texto)
+  if (minhas.size < 2) return []
+  const ignorar = new Set(fora)
+  return notas
+    .filter((n) => !n.arquivada && !ignorar.has(n.id))
+    .map((n) => {
+      const dela = palavrasDe(`${n.titulo} ${n.texto}`)
+      let iguais = 0
+      for (const w of minhas) if (dela.has(w)) iguais++
+      return { n, iguais }
+    })
+    .filter((x) => x.iguais >= 2)
+    .sort((a, b) => b.iguais - a.iguais)
+    .slice(0, quantas)
+    .map((x) => x.n)
+}
+
 export function parecidas(nota: Nota, notas: Nota[], quantas = 3): Nota[] {
   const minhas = palavrasDe(`${nota.titulo} ${nota.texto}`)
   if (minhas.size < 2) return []

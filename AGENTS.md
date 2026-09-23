@@ -67,9 +67,12 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
 - O canal que o Forward abre sozinho é o que tem mais coisa por ler, e a escolha **fica
   presa depois da primeira vez**. "Por ler" muda no instante em que você lê: sem prender,
   responder uma mensagem jogava a pessoa para outro canal no meio da frase.
-- Ao lado da conversa fica a **coluna de canais**, com o despejo em cima. Ela pertence ao
-  chat, e não é uma quarta coluna do Forward: sem ela, responder a alguém que não é o canal
-  aberto exigia trocar de tela. A classe é `.cnx` e não `.cn` porque `.cn` já é o cartão de
+- A coluna do meio tem **duas faces**, Conversa e Notas, e a aba de conversa carrega o
+  número do que está por ler. As duas são as superfícies onde se escreve, e é para cá que a
+  pessoa volta o dia inteiro; separar é o que evita ter que trocar de tela para pensar.
+- Ao lado da conversa fica a **coluna de canais**. Ela pertence ao chat, e não é uma quarta
+  coluna do Forward: sem ela, responder a alguém que não é o canal aberto exigia trocar de
+  tela. **Só canal entra ali**: nota não é canal, e já foi, e foi um erro. A classe é `.cnx` e não `.cn` porque `.cn` já é o cartão de
   conector, e **classe curta repetida é o jeito mais silencioso de uma tela quebrar a
   outra**: já aconteceu com `.trk` e com `.ag-linha`. Ao criar classe nova, conferir antes.
 - **O Forward é onde o dia inteiro cabe.** Criar objetivo e criar rotina ficam de fora de
@@ -240,30 +243,42 @@ zelo exagerado: sem ele, uma tabela que ainda não existe no meio da lista derru
 o bloco inteiro, e todas as tabelas depois dela ficam sem carimbo. Ao acrescentar
 tabela nova àquela lista, manter o `continue`.
 
-## O despejo é caderno, não conversa
+## Notas: uma nota é um assunto, e tem alguém do outro lado
 
-O despejo **não é um canal de chat**, e a diferença muda o uso. Conversa pede
-interlocutor: escrever num chat vazio soa estranho, e quem se sente estranho não
-escreve. O caderno não pede nada de ninguém, e é por isso que ele recebe a ideia
-crua, o número da reunião, o nome do fornecedor.
+O caderno **não é um canal**, e já foi. O nome ("Meu despejo") e o lugar (a lista
+de canais) erravam pelo mesmo motivo: canal é onde se fala com alguém, e um
+caderno listado ao lado de `#Financeiro` pede que você comece a escrever como
+quem manda mensagem. Ninguém manda mensagem para si mesmo sobre uma ideia de
+negócio. Escreve.
 
-O que a máquina faz com isso vem **depois e a pedido**: `lerNota()` manda o texto
-pela mesma rota da leitura da conversa, com `despejo: true`, e devolve propostas
-que alguém aceita. Reusar a mesma leitura não é economia, é o que garante que a
-nota e o canal aprendam a mesma coisa e proponham do mesmo jeito. Nada vira
-tarefa sozinho.
+O desenho é o de um bloco de notas com alguém do outro lado:
 
-O que organiza o caderno continua sendo a ligação escrita no meio do texto,
-`[[outra nota]]`, porque **pasta não sobrevive às trezentas notas**. Área e track
-são etiquetas por cima disso, para o eixo do trabalho, e a maioria das notas não
-vai ter nenhuma das duas: isso é o certo, não uma lacuna a preencher.
+- **Cada nota é um assunto**, e tem conversa própria com a leitura sobre aquilo.
+  Quem pergunta dentro de uma nota não precisa contextualizar de novo: o contexto
+  é a nota em que a pergunta foi feita.
+- **Fora delas existe uma conversa solta**, que é a nota sem assunto:
+  `notas.conversa`, uma por pessoa. Ser uma nota, e não um canal nem uma tabela
+  nova, é o que faz o que for dito ali entrar no acervo pela mesma porta do
+  resto. Ela sai filtrada na fonte, em `Dados`, e nenhuma tela precisa lembrar de
+  escondê-la.
+- **Mensagem e proposta pertencem a um canal OU a uma nota**, nunca às duas nem a
+  nenhuma, e um `check` garante isso. Quem vê a mensagem da nota é só a dona da
+  nota, sem exceção para admin, igual à nota em si.
+- **Responder é uma coisa, organizar é outra.** `/api/conversar` devolve texto;
+  `lerNota()` continua indo por `/api/leitor` com `despejo: true` e devolvendo
+  propostas que alguém aceita. A conversa nunca cria tarefa, e não diz que criou.
 
-**O caderno soma, não só acumula.** Ao ler uma nota, `lerNota()` manda junto as
-notas parecidas e as do mesmo endereço, no campo `caderno` do contexto. É isso
-que faz a ideia de hoje encontrar a de um mês atrás: sem isso, quem tinha que
-lembrar da primeira era a pessoa, que escreveu justamente para não precisar
-lembrar. A leitura pode apontar a ligação no motivo da proposta, e nunca decide
-sozinha.
+O que **organiza** é o endereço que a nota já tem, área ou track, o mesmo da
+tarefa. O que **costura** continua sendo a ligação escrita no meio do texto,
+`[[outra nota]]`, porque **pasta não sobrevive às trezentas notas**: a nota nova
+sempre cabe em duas.
+
+**O caderno soma, não só acumula.** Vão junto, na pergunta e na leitura, as notas
+parecidas e as do mesmo endereço (`caderno`), mais os títulos de tudo que existe
+(`indice`). É isso que faz a ideia de hoje encontrar a de um mês atrás: sem isso,
+quem tinha que lembrar da primeira era a pessoa, que escreveu justamente para não
+precisar lembrar. A leitura pode citar a nota antiga com `[[título]]`, e nunca
+decide nada sozinha.
 
 **O anexo pertence a uma tarefa ou a uma nota, nunca às duas**, e um `check` no
 banco garante isso em vez da boa vontade de quem escreve o insert: anexo

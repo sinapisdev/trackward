@@ -593,12 +593,6 @@ export function semente(): Base {
       area_id: null, fluxo_id: null, empresa_id: null, criado_por: 'leo', criado_em: criado, arquivado: false },
     { id: 'k-leo-carlos', nome: 'Carlos', descricao: '', tipo: 'direto',
       area_id: null, fluxo_id: null, empresa_id: null, criado_por: 'leo', criado_em: criado, arquivado: false },
-    // O despejo: um membro só, e nem admin entra. O que faz ele ser privado é a
-    // mesma regra do canal fechado, que já é sólida.
-    { id: 'k-despejo-leo', nome: 'Meu despejo',
-      descricao: 'Só você entra aqui. Jogue tudo dentro e a leitura separa depois.',
-      tipo: 'pessoal', area_id: null, fluxo_id: null, empresa_id: null,
-      criado_por: 'leo', criado_em: criado, arquivado: false },
   ]
 
   const canal_membros: Linha[] = [
@@ -608,13 +602,19 @@ export function semente(): Base {
     { canal_id: 'k-leo-carlos', perfil_id: 'carlos', lido_em: min(60) },
     { canal_id: 'k-erp', perfil_id: 'leo', lido_em: min(300) },
     { canal_id: 'k-geral', perfil_id: 'leo', lido_em: min(15) },
-    { canal_id: 'k-despejo-leo', perfil_id: 'leo', lido_em: min(5) },
   ]
 
   let nm = 0
   const msg = (canal: string, autor: string, texto: string, minutos: number): Linha => ({
-    id: `msg${nm++}`, canal_id: canal, autor_id: autor, texto,
-    responde_a: null, sistema: false, criado_em: min(minutos), editado_em: null,
+    id: `msg${nm++}`, canal_id: canal, nota_id: null, autor_id: autor, texto,
+    responde_a: null, sistema: false, por_ia: false, criado_em: min(minutos), editado_em: null,
+  })
+
+  /** Uma fala dentro de uma nota. Autor nulo é a leitura falando. */
+  const naNota = (nota: string, autor: string | null, texto: string, minutos: number): Linha => ({
+    id: `msg${nm++}`, canal_id: null, nota_id: nota, autor_id: autor ?? 'leo', texto,
+    responde_a: null, sistema: false, por_ia: autor === null,
+    criado_em: min(minutos), editado_em: null,
   })
 
   const mensagens: Linha[] = [
@@ -644,14 +644,14 @@ export function semente(): Base {
     msg('k-leo-carlos', 'carlos', 'Leo, o comparativo da quinzena fecha sexta. Consigo te mandar na quinta à noite.', 70),
     msg('k-leo-carlos', 'leo', 'Perfeito, obrigado.', 60),
 
-    // O despejo. De propósito escrito torto, do jeito que se escreve para si
-    // mesmo: sem pontuação, sem ordem, três coisas diferentes na mesma frase. É
-    // exatamente o material que a separação tem que dar conta.
-    msg('k-despejo-leo', 'leo', 'ligar pro contador sobre a distribuição de lucros antes do fim do mês', 300),
-    msg('k-despejo-leo', 'leo', 'ideia: se a gente cobrasse uma taxa de implantação no primeiro mês em vez de dar desconto, o cliente entenderia melhor o valor. pensar nisso com calma', 250),
-    msg('k-despejo-leo', 'leo', 'reunião com o Renato terça 15h, levar o comparativo dos planos', 180),
-    msg('k-despejo-leo', 'leo', 'o Renato falou que o difícil não é a ferramenta, é tirar a galera do WhatsApp. isso vale para qualquer sistema novo, não só chat', 120),
-    msg('k-despejo-leo', 'leo', 'comprar cabo hdmi', 30),
+    // A conversa dentro de uma nota. É o que mostra o caderno sendo caderno:
+    // uma pergunta sobre aquele assunto, e uma resposta que puxa outra nota que
+    // a pessoa escreveu meses antes e já tinha esquecido.
+    naNota('nt1', 'leo', 'isso vale para cliente pequeno também? tenho medo de perder venda no começo', 58),
+    naNota('nt1', null, 'Para cliente pequeno o risco é real, mas o desconto também não resolve: '
+      + 'ele compra barato e sai na primeira renovação. Vale ver [[Tirar a equipe do WhatsApp]], '
+      + 'que é onde está o trabalho de verdade da implantação. Se a taxa pagar esse trabalho, '
+      + 'ela se explica sozinha na conversa de venda.', 57),
   ]
 
   // Duas propostas já abertas, para a leitura da conversa aparecer de cara.
@@ -689,17 +689,26 @@ export function semente(): Base {
         + 'era inflado.\n\nTem a ver com [[Tirar a equipe do WhatsApp]]: a implantação é justamente '
         + 'o trabalho de fazer a equipe usar.',
       dono_id: 'leo', mensagem_id: null, item_id: null, fixada: true, arquivada: false,
-      criado_em: min(250), mexido_em: min(60) },
+      area_id: 'cml', fluxo_id: null, conversa: false,
+      criado_em: min(250), mexido_em: min(57) },
     { id: 'nt2', titulo: 'Tirar a equipe do WhatsApp',
       texto: 'O Renato falou que o difícil não é a ferramenta, é tirar a galera do WhatsApp.\n\n'
         + 'Vale para qualquer sistema novo, não só chat. O que ganha é o que dá menos trabalho '
         + 'no primeiro dia, não o que tem mais recurso.',
       dono_id: 'leo', mensagem_id: null, item_id: null, fixada: false, arquivada: false,
+      area_id: 'cml', fluxo_id: null, conversa: false,
       criado_em: min(120), mexido_em: min(120) },
     { id: 'nt3', titulo: 'Fornecedor de crachá cobra por lote',
       texto: 'Mínimo de 50 unidades. Abaixo disso sai mais caro por peça do que na gráfica da esquina.',
       dono_id: 'leo', mensagem_id: null, item_id: null, fixada: false, arquivada: false,
+      area_id: null, fluxo_id: null, conversa: false,
       criado_em: min(900), mexido_em: min(900) },
+    { id: 'nt4', titulo: 'Contador: distribuição de lucros',
+      texto: 'Ligar antes do fim do mês. Ele falou que dá para lançar a parte da implantação '
+        + 'na PJ, mas quer ver o contrato primeiro.',
+      dono_id: 'leo', mensagem_id: null, item_id: null, fixada: false, arquivada: false,
+      area_id: 'fin', fluxo_id: null, conversa: false,
+      criado_em: min(300), mexido_em: min(300) },
   ]
 
   return { organizacoes, empresas, perfis, areas, fluxos, etapas, itens, dependencias,

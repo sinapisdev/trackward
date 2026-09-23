@@ -19,13 +19,14 @@ import { distribuir, type Palpite } from '@/lib/distribuir'
 import { sobrecarga, type Carga } from '@/lib/sobrecarga'
 import { escutaAqui, oQueFaz, porPalavras } from '@/lib/agentes'
 import { preencher } from '@/lib/conectores'
-import { parecidas, tituloDe } from '@/lib/notas'
+import { parecidas, parecidasCom, tituloDe } from '@/lib/notas'
 import { novoId } from '@/lib/id'
 import {
   daDecisao, jaFoiRecusada, paraOModelo, quemCostuma, termosDaConversa, ultimoAprendizado,
   type Aprendizado, type Lembranca,
 } from '@/lib/memoria'
 import type { Contexto as ContextoLeitura, Proposta } from '@/lib/leitor'
+import type { ContextoConversa, Fala } from '@/lib/conversa'
 import type { Alvo } from '@/lib/tipos'
 import { iso } from '@/lib/datas'
 import { itensVisiveis, podeMexerNoPrazo, veFluxo } from '@/lib/acesso'
@@ -133,6 +134,9 @@ type Contexto = {
   /**
    * As suas notas. De mais ninguém: o banco não devolve a nota de outra pessoa
    * nem para quem é dono da empresa.
+   *
+   * A conversa solta não entra aqui: ela é uma nota marcada, e sai filtrada na
+   * fonte para nenhuma tela precisar lembrar de escondê-la. Ver `conversaIA`.
    */
   notas: Nota[]
 
@@ -155,9 +159,27 @@ type Contexto = {
   esquecerAparelho: (id: string) => Promise<void>
   salvarNota: (n: Partial<Nota>) => Promise<string | null>
   excluirNota: (id: string) => Promise<void>
-  /** O canal de despejo desta pessoa, criado na primeira vez que ela pede. */
-  meuDespejo: Canal | null
-  abrirDespejo: () => Promise<string | null>
+  /**
+   * A conversa solta com a leitura: a nota sem assunto.
+   *
+   * Ser uma nota, e não um canal nem uma tabela nova, é o que faz o que foi dito
+   * nela entrar no acervo como o resto. Nasce na primeira vez que alguém fala.
+   */
+  conversaIA: Nota | null
+  abrirConversaIA: () => Promise<string | null>
+  /** A conversa que mora dentro de uma nota, e as propostas que saíram dela. */
+  mensagensDaNota: (notaId: string) => Mensagem[]
+  sugestoesDaNota: (notaId: string) => Sugestao[]
+  /**
+   * Escreve na nota e pede a resposta da leitura.
+   *
+   * O que você escreveu fica guardado mesmo que a resposta não venha: a nota é
+   * sua, e perder o que foi escrito porque o modelo caiu seria o pior defeito
+   * possível num caderno.
+   */
+  escreverNaNota: (notaId: string, texto: string) => Promise<void>
+  /** Verdadeiro enquanto a leitura está escrevendo a resposta desta nota. */
+  respondendo: string | null
   /**
    * A esteira onde cai a tarefa que não é de projeto nenhum.
    *
@@ -307,7 +329,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [memoria, setMemoria] = useState<Lembranca[]>([])
   const [agentes, setAgentes] = useState<Agente[]>([])
   const [conectores, setConectores] = useState<Conector[]>([])
-  const [notas, setNotas] = useState<Nota[]>([])
+  const [todasNotas, setTodasNotas] = useState<Nota[]>([])
+  const [respondendo, setRespondendo] = useState<string | null>(null)
   const [avisos, setAvisos] = useState<Aviso[]>([])
   const [contato, setContato] = useState<AvisoContato | null>(null)
   const [aparelhos, setAparelhos] = useState<PushAssinatura[]>([])
@@ -533,7 +556,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     setAgentes((ags.data || []) as Agente[])
     // O segredo cifrado nem é pedido acima: a tela não tem o que fazer com ele.
     setConectores((cnc.data || []) as Conector[])
-    setNotas((nts.data || []) as Nota[])
+    setTodasNotas((nts.data || []) as Nota[])
     setAvisos((avs.data || []) as Aviso[])
     setContato((ctt.data as AvisoContato | null) ?? null)
     setAparelhos((psh.data || []) as PushAssinatura[])
@@ -1000,6 +1023,17 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   // ------------------------------------------------------------- notas
 
   /**
+   * O caderno, sem a conversa solta.
+   *
+   * A conversa com a leitura é uma nota marcada, e o filtro é aqui, na fonte,
+   * de propósito: filtrar em cada tela é o jeito garantido de ela escapar num
+   * lugar esquecido, e o lugar esquecido seria justamente a lista de notas.
+   */
+  const notas = useMemo(() => todasNotas.filter((n) => !n.conversa), [todasNotas])
+  const conversaIA = useMemo(() => todasNotas.find((n) => n.conversa) ?? null, [todasNotas])
+
+
+  /**
    * Cria ou salva uma nota. Devolve o id, porque quem acabou de criar uma nota
    * quase sempre quer abri-la em seguida.
    *
@@ -1043,38 +1077,125 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   }, [sb, falhou, recarregar])
 
   /**
-   * O canal de despejo: o caderno de bolso em forma de conversa.
+   * A conversa solta com a leitura.
    *
-   * É um canal como qualquer outro, do tipo pessoal, com um membro só. Ser um
-   * canal de verdade é o que faz ele herdar tudo de graça: áudio com transcrição,
-   * anexo, busca, leitura da conversa, tempo real. Um campo de texto novo em
-   * algum canto da tela não teria nada disso.
+   * Ela é uma nota, marcada com `conversa`, e não um canal: o caderno saiu da
+   * lista de canais porque canal é lugar de falar com alguém, e ninguém fala
+   * sozinho onde os outros conversam. Sendo nota, o que for dito aqui entra no
+   * acervo pela mesma porta do resto, que era o ponto.
+   *
+   * Nasce na primeira vez que alguém fala, e não no cadastro: conta nova não
+   * precisa de uma conversa vazia esperando por ela.
    */
-  const meuDespejo = useMemo(
-    () => canais.find((c) => c.tipo === 'pessoal' && c.criado_por === eu.id) || null,
-    [canais, eu.id],
-  )
-
-  const abrirDespejo: Contexto['abrirDespejo'] = useCallback(async () => {
-    if (meuDespejo) return meuDespejo.id
+  const abrirConversaIA: Contexto['abrirConversaIA'] = useCallback(async () => {
+    if (conversaIA) return conversaIA.id
     // O id nasce aqui, e não do RETURNING. Ver lib/id.ts: pedir a linha de volta
-    // faz o Postgres rodar a política de leitura, e `ve_canal` consulta a própria
-    // tabela pelo id, coisa que função estável não enxerga no meio do insert.
-    // Era isto que impedia o despejo de nascer.
+    // faz o Postgres rodar a política de leitura no meio da escrita.
     const id = novoId()
-    const { error } = await sb.from('canais').insert({
-      id,
-      nome: 'Meu despejo',
-      descricao: 'Só você entra aqui. Jogue tudo dentro e a leitura separa depois.',
-      tipo: 'pessoal', criado_por: eu.id,
+    const { error } = await sb.from('notas').insert({
+      id, titulo: 'Conversa', texto: '', dono_id: eu.id, conversa: true,
     })
-    if (error) { falhou(error, 'Não deu para abrir o despejo.'); return null }
-    // Sem a linha de membro ninguém entra, nem quem criou: é a mesma regra do
-    // canal fechado, e é ela que mantém o caderno sendo caderno.
-    await sb.from('canal_membros').insert({ canal_id: id, perfil_id: eu.id })
+    if (error) { falhou(error, 'Não deu para abrir a conversa.'); return null }
     recarregar()
     return id
-  }, [sb, eu.id, meuDespejo, falhou, recarregar])
+  }, [sb, eu.id, conversaIA, falhou, recarregar])
+
+  const mensagensDaNota: Contexto['mensagensDaNota'] = useCallback(
+    (notaId) => mensagens.filter((m) => m.nota_id === notaId),
+    [mensagens],
+  )
+  const sugestoesDaNota: Contexto['sugestoesDaNota'] = useCallback(
+    (notaId) => sugestoes.filter((s) => s.nota_id === notaId),
+    [sugestoes],
+  )
+
+  /**
+   * Falar dentro de uma nota, e ser respondido ali mesmo.
+   *
+   * Duas escritas separadas, e a ordem importa: primeiro o que a pessoa disse,
+   * que fica guardado aconteça o que acontecer com o modelo, e só depois a
+   * resposta. Caderno que perde o que foi escrito porque a rede caiu não é
+   * caderno.
+   *
+   * O que vai junto é o acervo: as notas parecidas com o assunto e as do mesmo
+   * endereço. É isso que faz a ideia de hoje encontrar a de um mês atrás, que é
+   * a diferença entre um caderno que soma e um que só acumula.
+   */
+  const escreverNaNota: Contexto['escreverNaNota'] = useCallback(async (notaId, texto) => {
+    const limpo = texto.trim()
+    if (!limpo) return
+    const { error } = await sb.from('mensagens').insert({
+      id: novoId(), nota_id: notaId, autor_id: eu.id, texto: limpo, sistema: false,
+    })
+    if (error) return falhou(error, 'Não deu para escrever na nota.')
+    recarregar()
+    if (!org.ia_ativa) return
+
+    const nota = todasNotas.find((n) => n.id === notaId) || null
+    const daNota = nota && !nota.conversa ? nota : null
+    const anteriores = mensagens.filter((m) => m.nota_id === notaId)
+    const falas: Fala[] = [
+      ...anteriores.map((m) => ({ de: (m.por_ia ? 'ia' : 'pessoa') as Fala['de'], texto: m.texto })),
+      { de: 'pessoa', texto: limpo },
+    ]
+
+    // Do que procurar parecença: dentro de uma nota, a nota inteira, porque o
+    // assunto é ela. Na conversa solta, o que acabou de ser dito, porque não há
+    // assunto fixo e o de três perguntas atrás já não é o de agora.
+    const perto = daNota
+      ? [
+          ...parecidas(daNota, notas, 4),
+          ...notas.filter((n) => n.id !== daNota.id && !n.arquivada
+            && ((daNota.area_id && n.area_id === daNota.area_id)
+              || (daNota.fluxo_id && n.fluxo_id === daNota.fluxo_id))),
+        ]
+      : parecidasCom(falas.slice(-4).map((f) => f.texto).join(' '), notas, 6)
+
+    const corpo: ContextoConversa = {
+      hoje: hojeIso(),
+      falas,
+      nota: daNota
+        ? {
+            titulo: daNota.titulo,
+            texto: daNota.texto,
+            onde: [
+              daNota.area_id ? areaDe(daNota.area_id).nome : null,
+              daNota.fluxo_id ? todosFluxos.find((f) => f.id === daNota.fluxo_id)?.nome ?? null : null,
+            ].filter(Boolean).join(' · ') || null,
+          }
+        : null,
+      caderno: perto
+        .filter((n, i, todas) => todas.findIndex((x) => x.id === n.id) === i)
+        .slice(0, 8)
+        .map((n) => ({ titulo: n.titulo, trecho: n.texto.replace(/\s+/g, ' ').slice(0, 220) })),
+      indice: notas.filter((n) => !n.arquivada).map((n) => n.titulo),
+      memoria: paraOModelo(memoria),
+    }
+
+    setRespondendo(notaId)
+    try {
+      const r = await fetch('/api/conversar', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo),
+      })
+      const volta = await r.json() as { resposta?: string; porque?: string }
+      if (volta.porque === 'teto') {
+        toast('O teto de uso com IA do mês foi atingido.')
+      }
+      if (!volta.resposta) { toast('Não consegui responder agora.', true); return }
+      // A resposta sai assinada por quem escreveu, que é a leitura: `por_ia` é o
+      // que a tela usa para não fazer ela parecer com você.
+      await sb.from('mensagens').insert({
+        id: novoId(), nota_id: notaId, autor_id: eu.id, texto: volta.resposta,
+        sistema: false, por_ia: true,
+      })
+      recarregar()
+    } catch {
+      toast('Não consegui responder agora.', true)
+    } finally {
+      setRespondendo(null)
+    }
+  }, [sb, eu.id, org.ia_ativa, todasNotas, notas, mensagens, memoria, areaDe, todosFluxos,
+      falhou, toast, recarregar])
 
   /**
    * A lista pessoal: uma esteira de uma etapa só, visível apenas para o dono.
@@ -1570,6 +1691,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     const chamou = new Map<string, number>()
     for (const m of mensagens) {
       if (m.autor_id === eu.id) continue
+      // Mensagem de nota não tem canal, e não tem o que ficar por ler: quem
+      // escreve e quem lê são a mesma pessoa.
+      if (!m.canal_id) continue
       const limite = marca.get(m.canal_id)
       if (limite === undefined) continue
       if (Date.parse(m.criado_em) <= limite) continue
@@ -2017,10 +2141,15 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    * tarefa concluída entram sozinhas; prazo e trava continuam pedindo licença.
    */
   const lerNota: Contexto['lerNota'] = useCallback(async (notaId) => {
-    const nota = notas.find((n) => n.id === notaId)
-    if (!nota || !nota.texto.trim()) { toast('Escreva alguma coisa antes de mandar ler.'); return null }
-    const canalId = meuDespejo?.id || await abrirDespejo()
-    if (!canalId) { toast('Não deu para abrir o seu despejo.', true); return null }
+    const nota = todasNotas.find((n) => n.id === notaId)
+    if (!nota) return null
+    // Numa nota, o que se lê é o texto. Na conversa solta não há texto: o que
+    // foi dito está nas mensagens, e é delas que a leitura tira as propostas.
+    const daConversa = mensagensDaNota(notaId).filter((m) => !m.por_ia && !m.sistema)
+    const corpoDaLeitura = nota.conversa
+      ? daConversa.map((m) => m.texto).join('\n')
+      : nota.texto
+    if (!corpoDaLeitura.trim()) { toast('Escreva alguma coisa antes de mandar ler.'); return null }
 
     const corpo: ContextoLeitura = {
       hoje: hojeIso(),
@@ -2030,14 +2159,16 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       // a leitura ver a mesma frase duas vezes e propor em dobro.
       mensagens: [{
         id: nota.id, autor_id: eu.id, autor: eu.nome,
-        texto: nota.texto.trimStart().startsWith(nota.titulo.trim())
-          ? nota.texto
-          : `${nota.titulo}\n${nota.texto}`,
+        texto: nota.conversa || corpoDaLeitura.trimStart().startsWith(nota.titulo.trim())
+          ? corpoDaLeitura
+          : `${nota.titulo}\n${corpoDaLeitura}`,
       }],
       pessoas: perfis.filter((p) => p.ativo).map((p) => ({ id: p.id, nome: p.nome })),
       fluxo: null,
       memoria: paraOModelo(memoria),
-      canal_id: canalId,
+      // A nota não tem canal. O medidor aceita nulo: o gasto continua sendo da
+      // organização e de quem pediu, que é o que ele precisa saber.
+      canal_id: null,
       // Despejo: uma pessoa falando sozinha para o app ouvir. Muda o que a
       // leitura procura e o quanto ela se arrisca.
       despejo: true,
@@ -2076,7 +2207,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       return null
     }
 
-    const jaVistas = sugestoesDe(canalId)
+    const jaVistas = sugestoesDaNota(notaId)
     const novas = propostas
       .filter((p) => !jaVistas.some((v) => v.texto.trim().toLowerCase() === p.texto.trim().toLowerCase()))
       .filter((p) => !jaFoiRecusada(p, memoria))
@@ -2084,7 +2215,11 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     for (const p of novas) {
       await sb.from('sugestoes').insert({
         id: novoId(),
-        canal_id: canalId,
+        // A proposta fica presa à NOTA que a gerou, e não a um canal. Era isso
+        // que mantinha o caderno preso ao chat: a proposta precisava de um
+        // canal para existir, então o canal precisava existir.
+        nota_id: notaId,
+        canal_id: null,
         // A nota não é mensagem, e a coluna aponta para mensagens. Nulo aqui é
         // a resposta honesta: a origem está no texto que a proposta cita.
         mensagem_id: null,
@@ -2096,8 +2231,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       ? `${novas.length} ${novas.length === 1 ? 'proposta' : 'propostas'} da sua nota.`
       : 'Li a nota e não achei nada para propor.')
     return { achou: novas.length, motor }
-  }, [sb, notas, meuDespejo, abrirDespejo, eu.id, eu.nome, perfis, memoria,
-      sugestoesDe, toast, recarregar])
+  }, [sb, notas, todasNotas, mensagensDaNota, eu.id, eu.nome, perfis, memoria,
+      sugestoesDaNota, toast, recarregar])
 
   const lerConversa: Contexto['lerConversa'] = useCallback(async (canalId) => {
     const canal = canais.find((c) => c.id === canalId)
@@ -2122,9 +2257,10 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       // melhora sem ninguém treinar nada.
       memoria: paraOModelo(memoria),
       canal_id: canalId,
-      // Canal pessoal é despejo: uma pessoa falando sozinha para o app ouvir.
-      // Muda o que a leitura procura, e o quanto ela se arrisca.
-      despejo: canal.tipo === 'pessoal',
+      // Canal é sempre conversa de equipe. O que a pessoa escreve para si mesma
+      // mora nas notas, e a leitura de lá passa por `lerNota`, que liga o modo
+      // despejo: são duas leituras diferentes, e misturar dá ruim nas duas.
+      despejo: false,
       // Os agentes que escutam este canal. É o modelo que julga se a conversa
       // fala daquela situação: palavra-chave não entende "o João não vem mais".
       agentes: agentes
@@ -2160,9 +2296,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     // Sem chave de modelo, a rota devolve só o que as regras acharam. Os agentes
     // entram aqui, pelas palavras que a empresa escreveu, que é mais bruto e
     // ainda assim útil: é a diferença entre o agente existir e não existir.
-    // No despejo o agente não entra: agente reconhece situação de empresa para
-    // agir, e o caderno de bolso de uma pessoa não é lugar de disparar processo.
-    if (motor === 'regras' && canal.tipo !== 'pessoal') {
+    if (motor === 'regras') {
       const jaVistasAgente = sugestoesDe(canalId)
       propostas = [...propostas, ...porPalavras(
         agentes, canal, doCanal, null,
@@ -2199,12 +2333,12 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       // de escrita. Com o id em mãos, a proposta já pode ser aplicada sozinha.
       const id = novoId()
       const { error } = await sb.from('sugestoes').insert({
-        id, canal_id: canalId, mensagem_id: p.mensagem_id, tipo: p.tipo,
+        id, canal_id: canalId, nota_id: null, mensagem_id: p.mensagem_id, tipo: p.tipo,
         texto: p.texto, motivo: p.motivo, dados: p.dados, estado: 'aberta',
       })
       if (!error) {
         gravadas.push({
-          id, canal_id: canalId, mensagem_id: p.mensagem_id, tipo: p.tipo,
+          id, canal_id: canalId, nota_id: null, mensagem_id: p.mensagem_id, tipo: p.tipo,
           texto: p.texto, motivo: p.motivo, dados: p.dados, estado: 'aberta',
           criado_em: new Date().toISOString(),
           decidido_por: null, decidido_em: null, por_ia: false,
@@ -2247,7 +2381,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     desfazerSugestao, palpites, distribuirTarefa, cargas, cargaDe,
     memoria, esquecer, consumo, agentes, salvarAgente, excluirAgente,
     conectores, salvarConector, guardarChave, excluirConector, testarConector,
-    notas, salvarNota, excluirNota, meuDespejo, abrirDespejo, minhaLista, abrirMinhaLista, criarAvulsa,
+    notas, salvarNota, excluirNota, conversaIA, abrirConversaIA,
+    mensagensDaNota, sugestoesDaNota, escreverNaNota, respondendo,
+    minhaLista, abrirMinhaLista, criarAvulsa,
     avisos, naoVistos: avisos.filter((a) => !a.lido_em).length,
     lerAvisos, apagarAviso, contato, salvarContato,
     aparelhos: aparelhos.filter((a) => a.perfil_id === eu.id),

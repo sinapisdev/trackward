@@ -15,20 +15,23 @@ import type { Canal } from '@/lib/tipos'
  * responder a alguém que não é o canal aberto exigia trocar de tela, e trocar de
  * tela para dizer uma frase é o que faz a combinação acontecer fora do app.
  *
- * O despejo vem em cima e sozinho: é o canal que se abre mais vezes por dia, e o
- * único onde não tem ninguém do outro lado.
+ * Só canal entra aqui. O que a pessoa escreve para si mesma vive em Notas, ao
+ * lado, e por um motivo de leitura: um caderno listado entre os canais pede que
+ * você comece a escrever como quem manda mensagem, e ninguém manda mensagem
+ * para si mesmo sobre uma ideia de negócio.
  */
 export function ListaCanais({ atual, aoEscolher }: {
   atual?: string
   aoEscolher: (id: string) => void
 }) {
-  const { canais, mensagens, naoLidas, meChamaram, eu, perfilDe, meuDespejo, abrirDespejo } = useDados()
+  const { canais, mensagens, naoLidas, meChamaram, eu, perfilDe } = useDados()
   const { abrir } = useModais()
 
   /** A hora da última mensagem de cada canal, numa passada só. */
   const ultima = useMemo(() => {
     const mapa = new Map<string, number>()
     for (const m of mensagens) {
+      if (!m.canal_id) continue
       const q = Date.parse(m.criado_em)
       if (q > (mapa.get(m.canal_id) ?? 0)) mapa.set(m.canal_id, q)
     }
@@ -38,10 +41,9 @@ export function ListaCanais({ atual, aoEscolher }: {
   const grupos = useMemo(() => {
     const quando = (id: string) => ultima.get(id) ?? 0
     const ordenar = (lista: Canal[]) => [...lista].sort((a, b) => quando(b.id) - quando(a.id))
-    const comum = (c: Canal) => c.tipo !== 'direto' && c.tipo !== 'pessoal'
+    const comum = (c: Canal) => c.tipo !== 'direto'
     const vivos = canais.filter((c) => !c.arquivado)
     return [
-      { rotulo: 'Só seu', itens: vivos.filter((c) => c.tipo === 'pessoal') },
       { rotulo: 'Canais', itens: ordenar(vivos.filter((c) => comum(c) && !c.fluxo_id)) },
       { rotulo: 'Tracks', itens: ordenar(vivos.filter((c) => comum(c) && c.fluxo_id)) },
       { rotulo: 'Conversas', itens: ordenar(vivos.filter((c) => c.tipo === 'direto')) },
@@ -63,18 +65,6 @@ export function ListaCanais({ atual, aoEscolher }: {
       </div>
 
       <div className="cnx-rolo">
-        {/* O despejo nasce no primeiro uso, e não no cadastro: quem nunca jogou
-            nada nele não precisa de um canal vazio no nome dele. */}
-        {!meuDespejo && (
-          <button className="cnx-despejo" onClick={async () => {
-            const id = await abrirDespejo()
-            if (id) aoEscolher(id)
-          }}>
-            <Ic.clipe />
-            <span><b>Meu despejo</b><small>Joga aqui o que não pode esquecer</small></span>
-          </button>
-        )}
-
         {grupos.map((g) => (
           <div key={g.rotulo}>
             <div className="cnx-grupo">{g.rotulo}</div>
@@ -86,9 +76,8 @@ export function ListaCanais({ atual, aoEscolher }: {
                 <button key={c.id} onClick={() => aoEscolher(c.id)}
                   className={`cnx-item ${atual === c.id ? 'on' : ''} ${novas ? 'novo' : ''}`}>
                   <span className="cnx-mk">
-                    {c.tipo === 'pessoal' ? <Ic.clipe />
-                      : outro ? <Av p={perfilDe(outro)} tam="sm" />
-                        : c.tipo === 'fechado' ? <Ic.lock /> : <span aria-hidden>#</span>}
+                    {outro ? <Av p={perfilDe(outro)} tam="sm" />
+                      : c.tipo === 'fechado' ? <Ic.lock /> : <span aria-hidden>#</span>}
                   </span>
                   <span className="cnx-nm">{nomeDoCanal(c)}</span>
                   {!!novas && (

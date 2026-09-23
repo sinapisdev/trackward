@@ -14,7 +14,7 @@ const CHAVE_EU = 'track.local.eu'
 const CHAVE_USUARIO = 'track.local.user'
 const CHAVE_VERSAO = 'track.local.versao'
 /** Sobe quando o exemplo ganha tabelas novas. Ver completar(). */
-const VERSAO = 15
+const VERSAO = 16
 const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], fluxos: [], etapas: [], itens: [],
   dependencias: [], processos: [], processo_etapas: [], processo_itens: [], fluxo_pessoas: [],
   convites: [],
@@ -54,15 +54,29 @@ function completar(atual: Base) {
   }
 
   /**
-   * O despejo é caso à parte: ele mora dentro de canais, que quem já usava tem
-   * cheia, então a regra acima nunca o traria. Sem ele o canal pessoal só
-   * existiria para conta nova.
+   * O despejo que existia vira caderno, igual ao que a seção 19 do schema faz no
+   * banco: cada coisa jogada lá dentro era um pensamento separado, então vira
+   * uma nota cada. Sem isto, quem já usava o modo demonstração perderia o que
+   * tinha escrito, e perder o que a pessoa escreveu é o pior defeito possível
+   * num caderno.
    */
-  if (atual.canais?.length && !atual.canais.some((c) => c.tipo === 'pessoal')) {
-    const pessoais = new Set((nova.canais || []).filter((c) => c.tipo === 'pessoal').map((c) => c.id))
-    for (const t of ['canais', 'canal_membros', 'mensagens']) {
-      const dele = (nova[t] || []).filter((l) => pessoais.has(String(l.canal_id ?? l.id)))
-      atual[t] = [...(atual[t] || []), ...dele]
+  const pessoais = new Set((atual.canais || []).filter((c) => c.tipo === 'pessoal').map((c) => c.id))
+  if (pessoais.size) {
+    const virar = (atual.mensagens || []).filter((m) => pessoais.has(String(m.canal_id)))
+    atual.notas = [
+      ...(atual.notas || []),
+      ...virar.filter((m) => String(m.texto || '').trim()).map((m) => ({
+        id: uid('nt'),
+        titulo: String(m.texto).split('\n')[0].trim().slice(0, 80),
+        texto: String(m.texto),
+        dono_id: m.autor_id, mensagem_id: null, item_id: null,
+        fixada: false, arquivada: false, area_id: null, fluxo_id: null, conversa: false,
+        org_id: m.org_id, criado_em: m.criado_em, mexido_em: m.criado_em,
+      })),
+    ]
+    atual.canais = (atual.canais || []).filter((c) => !pessoais.has(c.id))
+    for (const t of ['canal_membros', 'mensagens', 'sugestoes']) {
+      atual[t] = (atual[t] || []).filter((l) => !pessoais.has(String(l.canal_id)))
     }
   }
   const cfg = atual.organizacoes?.[0]
@@ -278,7 +292,17 @@ function visiveis(tabela: string, todas: Linha[]): Linha[] {
     return linhas.filter((v) => ok.has(v.compromisso_id) || v.perfil_id === eu)
   }
   if (tabela === 'canais') return linhas.filter((c) => podeVerCanal(c, eu))
-  if (tabela === 'mensagens' || tabela === 'sugestoes' || tabela === 'canal_membros') {
+  // A nota é de uma pessoa, e ponto: sem exceção para admin, igual ao banco.
+  if (tabela === 'notas') return linhas.filter((n) => n.dono_id === eu)
+  if (tabela === 'mensagens' || tabela === 'sugestoes') {
+    const ok = canaisAbertos(eu)
+    const b = ler()
+    const minhas = new Set(b.notas.filter((n) => n.dono_id === eu).map((n) => n.id))
+    // Uma coisa ou a outra: a linha é de um canal ou de uma nota, e quem vê
+    // segue a regra daquele lado. Ver a seção 19 do schema.
+    return linhas.filter((x) => (x.nota_id ? minhas.has(x.nota_id) : ok.has(x.canal_id)))
+  }
+  if (tabela === 'canal_membros') {
     const ok = canaisAbertos(eu)
     return linhas.filter((x) => ok.has(x.canal_id))
   }
@@ -343,7 +367,7 @@ class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
       lista.push(linha)
       // Mesmo gatilho do banco: quem escreve num canal passa a ser membro dele,
       // e a marca de leitura nasce junto.
-      if (this.tabela === 'mensagens' && linha.autor_id) {
+      if (this.tabela === 'mensagens' && linha.autor_id && linha.canal_id) {
         const m = b.canal_membros.find(
           (x) => x.canal_id === linha.canal_id && x.perfil_id === linha.autor_id,
         )
@@ -409,6 +433,14 @@ class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
         const ids = new Set(fora)
         for (const t of ['canal_membros', 'mensagens', 'sugestoes']) {
           b[t] = b[t].filter((x) => !ids.has(x.canal_id))
+        }
+      }
+      // Apagar a nota leva junto a conversa dela, as propostas e os arquivos,
+      // que é o que o `on delete cascade` faz no banco.
+      if (this.tabela === 'notas') {
+        const ids = new Set(fora)
+        for (const t of ['mensagens', 'sugestoes', 'anexos']) {
+          b[t] = b[t].filter((x) => !ids.has(x.nota_id))
         }
       }
       if (this.tabela === 'areas') {

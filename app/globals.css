@@ -3408,7 +3408,10 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
      do Forward: ela pertence ao chat, e não ao resto da tela.
      Chama-se cnx e não cn porque .cn já é o cartão de conector, e classe curta
      repetida é o jeito mais silencioso de uma tela quebrar a outra. */
-  display:grid;grid-template-columns:172px minmax(0,1fr);gap:22px;align-items:start}
+  display:grid;grid-template-columns:172px minmax(0,1fr);gap:22px;align-items:start;
+  /* sem isto as linhas automáticas dividem entre si a sobra de altura da
+     coluna, e a segunda desce um palmo para o meio do nada */
+  align-content:start}
 .forward>.rail{border-left:1px solid var(--line);padding:26px var(--gutter) 40px;min-width:0}
 
 /* a conversa acompanha a rolagem: ela é o lugar onde se responde, e responder
@@ -3567,3 +3570,82 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 .dp-anexos{margin-top:18px}
 .dp-anexos .lbl{display:block;margin-bottom:8px}
 .nt-anexos{margin-top:22px}
+
+/* ==========================================================================
+   Notas: o caderno, e a conversa que mora dentro de cada nota
+
+   Uma nota é um assunto, e ela tem alguém do outro lado. A conversa aqui é
+   estreita de propósito: ela divide a coluna do meio do Forward com o chat da
+   equipe, e as duas precisam caber no mesmo lugar sem nenhuma virar tarja.
+   ========================================================================== */
+
+/* as duas faces da coluna do meio: onde se fala com gente, e onde se pensa */
+.fwd-face{grid-column:1/-1;margin-bottom:18px;width:fit-content}
+.forward-conversa>.dp{grid-column:1/-1;min-width:0}
+
+.dp-dentro .ct-topo{gap:6px}
+.dp-dentro .dp-tit{flex:1;min-width:0}
+
+/* a conversa solta: a nota sem assunto. Fica marcada com a faísca, e não com
+   lima cheio, porque o acento já é do botão que faz o trabalho andar */
+.dp-conversa{display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+  margin-top:16px;padding:12px 14px;border-radius:var(--r);
+  border:1px solid var(--line);background:var(--brilho);color:var(--tx);transition:var(--t)}
+.dp-conversa:hover{border-color:var(--ac-tinta);background:var(--hover)}
+.dp-conversa>svg:first-child{color:var(--ac-tinta);flex:none}
+.dp-conversa>span{flex:1;min-width:0}
+.dp-conversa b{display:block;font:var(--fw-medium) var(--fs-ui)/1.3 var(--sans)}
+.dp-conversa small{display:block;font-size:var(--fs-meta);color:var(--tx-3);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dp-conversa>svg:last-child{color:var(--tx-3);flex:none}
+
+/* os assuntos: o endereço da nota é o que agrupa, e o rótulo é de seção */
+.dp-grupo{margin-bottom:18px}
+.dp-grupo-h{font:var(--fw-semibold) var(--fs-kicker)/1 var(--sans);letter-spacing:var(--ls-kicker);
+  text-transform:uppercase;color:var(--tx-3);margin-bottom:6px}
+.dp-grupo-h .num{margin-left:6px}
+.dp-l-t b{display:flex;align-items:center;gap:6px}
+.dp-l-t b>svg{color:var(--tx-3);flex:none}
+
+/* ------------------------------------------------------------ a conversa */
+
+.cnv{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+.cnv-rolo{display:flex;flex-direction:column;gap:12px;max-height:340px;overflow:auto;
+  padding-right:4px}
+.cnv-vazio{margin:0;font-size:var(--fs-meta);color:var(--tx-3);line-height:1.55}
+
+.cnv-f{position:relative;max-width:88%;padding:10px 12px;border-radius:var(--r);
+  font-size:var(--fs-ui);line-height:1.5}
+/* o que você disse encosta à direita, como em qualquer conversa; o que a
+   leitura respondeu fica à esquerda e marcado, para nunca passar por sua */
+.cnv-f.eu{align-self:flex-end;background:var(--alto);color:var(--tx)}
+.cnv-f.ia{align-self:flex-start;background:var(--brilho);border:1px solid var(--line);color:var(--tx)}
+.cnv-marca{display:flex;align-items:center;gap:5px;margin-bottom:6px;
+  font:var(--fw-semibold) var(--fs-kicker)/1 var(--sans);letter-spacing:var(--ls-kicker);
+  text-transform:uppercase;color:var(--ac-tinta)}
+.cnv-txt{white-space:pre-wrap;word-break:break-word}
+.cnv-pensando{color:var(--tx-3)}
+.cnv-x{position:absolute;top:4px;right:4px;opacity:0;transition:var(--t)}
+.cnv-f:hover .cnv-x{opacity:1}
+
+.cnv-campo{display:flex;align-items:flex-end;gap:8px;margin-top:12px;padding:8px 10px;
+  border:1px solid var(--line);border-radius:var(--r);background:var(--brilho);transition:var(--t)}
+.cnv-campo:focus-within{border-color:var(--ac-tinta);box-shadow:0 0 0 3px var(--ac-luz)}
+.cnv-campo textarea{flex:1;min-width:0;border:0;background:none;padding:0;min-height:22px;
+  max-height:120px;resize:none}
+.cnv-campo textarea:focus{outline:none;box-shadow:none}
+
+/* ------------------------------------------------- e a mesma coisa em /notas */
+
+.nt-solto{display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  padding:10px 12px;margin-bottom:12px;border-radius:var(--r-sm);
+  border:1px solid var(--line);background:var(--brilho);color:var(--tx);transition:var(--t)}
+.nt-solto:hover,.nt-solto.on{border-color:var(--ac-tinta);background:var(--hover)}
+.nt-solto>svg{color:var(--ac-tinta);flex:none}
+.nt-solto b{display:block;font:var(--fw-medium) var(--fs-ui)/1.3 var(--sans)}
+.nt-solto i{display:block;font-style:normal;font-size:var(--fs-micro);color:var(--tx-3);margin-top:2px}
+.nt-grupo{font:var(--fw-semibold) var(--fs-kicker)/1 var(--sans);letter-spacing:var(--ls-kicker);
+  text-transform:uppercase;color:var(--tx-3);padding:14px 12px 6px}
+.nt-grupo .num{margin-left:6px}
+.nt-aberta .cnv{margin-top:26px}
+.nt-aberta .cnv-rolo{max-height:none}

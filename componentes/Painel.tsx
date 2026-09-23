@@ -10,7 +10,7 @@ import { Av } from './atomos'
 import { AgendaCurta, Radar } from './Radar'
 import { Conversa } from './ConversaTrack'
 import { ListaCanais } from './Canais'
-import { Despejo } from './Despejo'
+import { Caderno } from './Caderno'
 import { classePrazo } from './partes'
 import { AVULSA } from '@/lib/rotulos'
 import { dias, DSEM_LONGO, hoje, isoDe, MES_LONGO, rel } from '@/lib/datas'
@@ -18,6 +18,7 @@ import { etapaAtual } from '@/lib/regras'
 import type { Fluxo, Item } from '@/lib/tipos'
 
 type Lente = 'equipe' | 'minhas'
+type Face = 'conversa' | 'notas'
 
 /** Uma tarefa com o endereço dela, que é o que a linha precisa mostrar. */
 type Linha = { item: Item; fluxo: Fluxo; onde: string; avulsa: boolean }
@@ -44,6 +45,7 @@ export function Painel() {
   const [lente, setLente] = useState<Lente>('minhas')
   const [pessoa, setPessoa] = useState('')
   const [canalAberto, setCanalAberto] = useState<string | null>(null)
+  const [face, setFace] = useState<Face>('conversa')
 
   /** Toda tarefa aberta que eu enxergo, com o endereço dela. */
   const tarefas = useMemo<Linha[]>(() => {
@@ -113,6 +115,9 @@ export function Painel() {
    * mensagem jogava você para outro canal no meio da frase.
    */
   const abertos = canais.filter((c) => !c.arquivado)
+  // O número na aba existe para a pessoa poder ficar nas notas sem medo de
+  // perder conversa: sem ele, trocar de face é apostar que ninguém falou.
+  const porLer = abertos.reduce((soma, c) => soma + naoLidas(c.id), 0)
   const canal = abertos.find((c) => c.id === canalAberto)
     || [...abertos].sort((a, b) => naoLidas(b.id) - naoLidas(a.id))[0]
     || null
@@ -248,15 +253,27 @@ export function Painel() {
 
       {/* A conversa é o coração: é onde se combina, e é de lá que sai a tarefa.
           Ela fica no meio, entre o que precisa ser feito e o que está parado,
-          porque é o lugar por onde uma coisa vira a outra. */}
+          porque é o lugar por onde uma coisa vira a outra.
+
+          As notas dividem esta coluna com ela, e não a de canais, porque são
+          outra coisa: canal é falar com alguém, nota é pensar. Ficam lado a
+          lado por serem as duas superfícies onde se escreve, e é para cá que a
+          pessoa volta o dia inteiro. */}
       <section className="forward-conversa">
-        {canal ? (
+        <div className="seg fwd-face" role="group" aria-label="O que mostrar aqui">
+          <button className={face === 'conversa' ? 'on' : ''} onClick={() => setFace('conversa')}>
+            Conversa
+            {!!porLer && <span className="num">{porLer > 9 ? '9+' : porLer}</span>}
+          </button>
+          <button className={face === 'notas' ? 'on' : ''} onClick={() => setFace('notas')}>
+            Notas
+          </button>
+        </div>
+
+        {face === 'notas' ? <Caderno /> : canal ? (
           <>
             <ListaCanais atual={canal.id} aoEscolher={setCanalAberto} />
-            {/* O despejo não é conversa: é caderno. Ver componentes/Despejo.tsx. */}
-            {canal.tipo === 'pessoal'
-              ? <Despejo />
-              : <Conversa canal={canal} titulo="Conversa" quantas={8} />}
+            <Conversa canal={canal} titulo="Conversa" quantas={8} />
           </>
         ) : (
           <div className="ct">

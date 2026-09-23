@@ -74,7 +74,7 @@ virou departamento. Uma área sem rotina é uma frente recém criada.
 
 | Item | Rota | O que mostra | Contador |
 |---|---|---|---|
-| **Forward** | `/` | As tarefas do dia, a conversa e o radar, lado a lado | |
+| **Forward** | `/` | As tarefas do dia, a conversa (ou as notas) e o radar, lado a lado | |
 | **Meu trabalho** | `/minhas` | Sua fila pessoal, com a gaveta de detalhe | Quantas pendências suas |
 | **Tracks** | `/tracks` | Objetivos e rotinas juntos, com filtro por tipo e por área | |
 | **Processos** | `/processos` | Os moldes reutilizáveis | |
@@ -557,47 +557,52 @@ organização (`plano`, `limite_leituras`, `modelo_ia`) em vez de numa tabela de
 para começar a cobrar mexendo em números, e o dia em que virarem tabela de verdade a
 organização passa a apontar para ela.
 
-### 4.6g O despejo, e as notas (`/chat/<seu despejo>` e `/notas`)
+### 4.6g As notas (`/notas`, e a face Notas do Forward)
 
-**O problema:** hoje, o que não é tarefa não tem lugar. A ideia que veio no banho, o número
-que alguém falou na reunião, o nome de um fornecedor que vale lembrar. Tudo isso termina em
+**O problema:** o que não é tarefa não tem lugar. A ideia que veio no banho, o número que
+alguém falou na reunião, o nome de um fornecedor que vale lembrar. Tudo isso termina em
 recado de WhatsApp para si mesmo, e recado de WhatsApp para si mesmo não se acha de novo.
 
-**O despejo** é um canal de conversa de tipo `pessoal`: um membro só, e ninguém mais entra
-nunca, nem admin, nem quem é dono da empresa. Ele se protege pelo mesmo caminho do canal
-fechado, que já era sólido (não sendo aberto, só entra quem é membro). Aparece no alto da
-lista de conversas, no grupo **Só seu**, e quem não tem ainda vê um convite para abrir.
+**Isto já foi um canal**, de tipo `pessoal`, chamado "Meu despejo", e ele saiu na seção 19
+do schema. O nome e o lugar erravam pelo mesmo motivo: canal é onde se fala com alguém, e
+um caderno listado ao lado de `#Financeiro` pede que você comece a escrever como quem manda
+mensagem. Ninguém manda mensagem para si mesmo sobre uma ideia de negócio. Escreve. Quem
+tinha despejo não perdeu nada: cada coisa jogada lá dentro virou uma nota, porque cada uma
+era um pensamento separado, escrito num momento diferente.
 
-Ser um canal de verdade é o que faz ele herdar tudo de graça: áudio com transcrição, anexo,
-busca, tempo real, e a leitura da conversa.
+**Uma nota é um assunto, e tem alguém do outro lado.**
 
-**A leitura no despejo é outro bicho**, e tratá-la como conversa de equipe daria resultado
-ruim nos dois sentidos:
+- Dentro de cada nota há uma **conversa com a leitura** sobre aquele assunto. Quem pergunta
+  ali não precisa contextualizar: o contexto é a nota em que a pergunta foi feita.
+- Fora delas há uma **conversa solta** (`notas.conversa`, uma por pessoa), que é a nota sem
+  assunto: fala do que quiser, e o caderno inteiro entra junto na pergunta.
+- **Responder é uma coisa, organizar é outra.** A conversa devolve texto e nunca cria nada.
+  "Organizar" manda a nota pela leitura (`despejo: true`) e devolve propostas que você
+  aceita ou dispensa: tarefa, compromisso ou nota. Tarefa que sai daqui cai na **sua lista**
+  sem perguntar projeto, porque perguntar "em qual projeto?" para "comprar cabo hdmi" é o
+  atrito que faz a pessoa voltar para o papel.
 
-| | conversa de equipe | despejo |
+**A leitura de uma nota é outro bicho** da leitura de canal, e tratar as duas igual daria
+resultado ruim nos dois sentidos:
+
+| | conversa de equipe | nota |
 | --- | --- | --- |
 | o erro caro | criar trabalho que ninguém pediu, para outra gente | perder o pensamento que a pessoa escreveu para não perder |
 | a leitura é | desconfiada | generosa |
 | tipos | tarefa, prazo, concluir, decisão, trava, quem faz, agente | tarefa, compromisso, **nota** |
 
-Cada mensagem vira uma proposta, que continua pedindo um toque. A tarefa cai na **sua lista**
-sem perguntar projeto (perguntar "em qual projeto?" para "comprar cabo hdmi" é o atrito que
-faz a pessoa voltar para o papel); o compromisso vai para a sua agenda com o dia e a hora que
-a leitura entendeu de "terça 15h"; e o resto vira **nota**.
+Sem chave de modelo a organização continua funcionando, por regras generosas: tem dia mais
+coisa de agenda vira compromisso, começa com verbo vira tarefa, e o resto vira nota. A
+conversa, essa não finge: sem chave ela diz que não consegue conversar e aponta o que o
+caderno já tem sobre aquilo. Inventar resposta de regras ali seria pior que não responder,
+porque a pessoa perguntaria de novo achando que foi mal entendida.
 
-Sem chave de modelo isto continua funcionando, por regras generosas: tem dia mais coisa de
-agenda vira compromisso, começa com verbo vira tarefa, e o resto vira nota. Quem escreve
-"ideia:" ou "lembrar que" está guardando pensamento, e isso vence o verbo que vier depois.
-O modelo faz muito melhor, porque entende o sentido; o caderno tem que servir no dia em que a
-chave não está configurada ou o teto do mês acabou.
+**As notas são de uma pessoa, e ponto**: sem exceção para admin, gestor ou dono, e o mesmo
+vale para a conversa dentro delas e para os arquivos anexados. Um caderno que o chefe pode
+abrir não é caderno, porque a pessoa para de escrever nele o que importa.
 
-**As notas** são de uma pessoa, e ponto: sem exceção para admin, gestor ou dono. Um caderno
-que o chefe pode abrir não é caderno, porque a pessoa para de escrever nele o que importa.
-
-O desenho é o do Obsidian, por um motivo: **pasta não sobrevive ao uso.** Toda organização
-por categoria funciona nas primeiras trinta notas e desanda nas trezentas, porque a nota nova
-sempre cabe em duas e quem decide decide errado. O que sobrevive é a ligação escrita no meio
-do texto:
+**Organizar é por endereço; costurar é por ligação.** A lista agrupa pela área ou pela track
+da nota, que é o mesmo endereço da tarefa. O que costura o acervo é o texto:
 
 - `[[nome de outra nota]]` dentro do texto liga as duas
 - abrir uma nota mostra **quem cita ela**, sem ninguém ter mantido índice
@@ -606,9 +611,16 @@ do texto:
   ideia e ganha a página do fornecedor sem ter decidido criar página nenhuma
 - **Parece ter a ver** sugere ligação por palavras incomuns em comum. Bruto de propósito: a
   pessoa precisa olhar e concordar em dois segundos
+- a leitura também cita com `[[título]]`, e é a mesma marca de propósito: a ligação que a
+  máquina propôs e a que a pessoa escreveu valem o mesmo
 
-Busca sem acento e sem caixa, com título pesando mais que corpo. Nota não tem dono, prazo nem
-cobrança, e é isso que a separa de tarefa: ideia na lista de tarefas entope a lista.
+**O caderno soma, não só acumula.** Vão junto na pergunta as notas parecidas, as do mesmo
+endereço e os títulos de tudo que existe. É isso que faz a ideia de hoje encontrar a de um
+mês atrás, sem a pessoa ter que lembrar dela, sendo que ela escreveu justamente para não
+precisar lembrar.
+
+Busca sem acento e sem caixa, com título pesando mais que corpo. Nota não tem dono, prazo
+nem cobrança, e é isso que a separa de tarefa: ideia na lista de tarefas entope a lista.
 
 ### 4.6h Conectores (`/conectores`)
 
@@ -893,7 +905,7 @@ O que muda com `pessoal`:
 | Conectores | **Da empresa** e **Seus** | uma lista, **Ligados** |
 | Tracks | Projetos e Áreas | mais o grupo **Só seu**, com a sua lista |
 
-O que **não** muda, e é o coração do uso pessoal: o despejo, as notas, a agenda, a lista
+O que **não** muda, e é o coração do uso pessoal: as notas, a agenda, a lista
 pessoal e a leitura que separa tudo isso. Ver 4.6g.
 
 ### Multi-organização
@@ -1033,8 +1045,8 @@ A lista para o UX cobrir.
     fora de propósito, é concorrente. Chamada de vídeo por Jitsi num compromisso é a
     única que não precisa de conta de provedor, e está oferecida e não escolhida
 15. **O layout do uso pessoal** foi resolvido no que estava errado (ver 6, Uso pessoal),
-    mas a pergunta maior fica aberta: sozinho, o Painel devia começar pela lista e pelo
-    despejo em vez de pelos checkpoints? É decisão de UX, não de código
+    mas a pergunta maior fica aberta: sozinho, o Forward devia abrir pela lista e pelas
+    notas em vez de pelos checkpoints? É decisão de UX, não de código
 
 ### Pendências fora do código
 

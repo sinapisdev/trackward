@@ -83,8 +83,8 @@ código pede a linha de volta com `.select()` depois do insert. Ver `lib/id.ts`.
 Se aparecer **"new row violates row-level security policy"**, o mais provável é que o
 gatilho `ao_inserir_org` esteja faltando naquela tabela. É ele que preenche `org_id`, e
 toda política pergunta `minha(org_id)`: sem a etiqueta, o banco recusa, e a mensagem fala
-da política em vez do carimbo que falta. Rode o `supabase/atualizar.sql` no SQL Editor. Ele é um recorte do schema com as seções 14 e 15,
-para você não colar 3200 linhas quando só duas coisas mudaram, e termina conferindo
+da política em vez do carimbo que falta. Rode o `supabase/atualizar.sql` no SQL Editor. Ele é um recorte do schema com as seções 14
+a 19, para você não colar 3900 linhas quando só uma parte mudou, e termina conferindo
 sozinho se entrou. Rodar o `supabase/schema.sql` inteiro faz o mesmo: ele já contém as
 duas seções.
 

@@ -278,7 +278,7 @@ export type Nota = {
   titulo: string
   texto: string
   dono_id: string
-  /** A mensagem do despejo que deu origem, quando veio de lá. */
+  /** A mensagem de onde ela saiu, quando alguém guardou uma fala como nota. */
   mensagem_id: string | null
   /** A tarefa que saiu dela, quando a ideia ganhou dono e prazo. */
   item_id: string | null
@@ -290,6 +290,13 @@ export type Nota = {
   area_id: string | null
   /** A track a que ela se refere, quando é sobre uma. */
   fluxo_id: string | null
+  /**
+   * A conversa solta com a leitura: a nota sem assunto, uma por pessoa.
+   *
+   * Ela não aparece no caderno, e o filtro é na fonte, em `Dados`. Ser uma nota
+   * é o que faz o que for dito nela entrar no acervo pela mesma porta do resto.
+   */
+  conversa: boolean
 }
 
 /**
@@ -454,7 +461,7 @@ export type Pendencia =
  *  - fechado: só quem foi posto dentro. Nem o administrador lê de fora.
  *  - direto:  conversa entre duas pessoas.
  */
-export type TipoCanal = 'aberto' | 'fechado' | 'direto' | 'pessoal'
+export type TipoCanal = 'aberto' | 'fechado' | 'direto'
 
 export type Canal = {
   id: string
@@ -476,7 +483,10 @@ export type Canal = {
 
 export type Mensagem = {
   id: string
-  canal_id: string
+  /** De qual canal. Nulo quando a mensagem é de uma nota: uma coisa ou a outra. */
+  canal_id: string | null
+  /** De qual nota. Nulo quando a mensagem é de um canal. */
+  nota_id: string | null
   autor_id: string | null
   texto: string
   /** Resposta a outra mensagem, para a conversa não se perder. */
@@ -525,7 +535,9 @@ export type Alvo = {
 
 export type Sugestao = {
   id: string
-  canal_id: string
+  /** De qual canal veio, ou de qual nota. Uma coisa ou a outra, nunca as duas. */
+  canal_id: string | null
+  nota_id: string | null
   mensagem_id: string | null
   tipo: TipoProposta
   /** O que será feito, em uma linha. */

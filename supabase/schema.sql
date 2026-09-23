@@ -323,18 +323,14 @@ create table if not exists public.canais (
    * aberto   qualquer pessoa da casa entra e lê
    * fechado  só quem foi posto dentro
    * direto   conversa entre duas pessoas
-   * pessoal  o caderno de bolso: uma pessoa só, e ninguém mais entra nunca
    *
-   * O canal pessoal existe porque falta um lugar para o que ainda não é nada.
-   * Uma ideia às onze da noite não é tarefa, não é compromisso e não é assunto de
-   * canal de equipe: é um pensamento soltoterminando no WhatsApp de recado para si
-   * mesmo. Aqui a pessoa joga tudo e a leitura separa depois: isso é tarefa, isso
-   * é compromisso, isso é ideia para guardar.
-   *
-   * Ele se protege pelo mesmo caminho do fechado, que já é sólido: não sendo
-   * aberto, só entra quem é membro, e membro tem um só. Nem admin lê.
+   * Canal é sempre lugar de falar COM ALGUÉM. O que a pessoa escreve para si
+   * mesma não mora aqui: mora em `notas`, que tem conversa própria com a
+   * leitura. Houve um quarto tipo, `pessoal`, e ele saiu na seção 19: caderno
+   * listado entre os canais é lido como lugar de falar com alguém, e ninguém
+   * fala sozinho onde os outros conversam.
    */
-  tipo        text not null default 'aberto' check (tipo in ('aberto','fechado','direto','pessoal')),
+  tipo        text not null default 'aberto' check (tipo in ('aberto','fechado','direto')),
   area_id     uuid references public.areas on delete set null,
   fluxo_id    uuid references public.fluxos on delete cascade,
   empresa_id  uuid references public.empresas on delete set null,
@@ -3366,3 +3362,190 @@ returns boolean language sql stable security definer set search_path = public as
     split_part(p_caminho, '/', 1) = minha_org()::text
   );
 $$;
+
+-- ==========================================================================
+-- 19. As notas saem do chat e ganham conversa própria
+--
+--     O caderno nasceu como canal, do tipo `pessoal`, e o motivo era bom: canal
+--     de verdade herda áudio, anexo, busca, leitura e tempo real sem escrever
+--     nada. O preço só apareceu no uso. Um caderno listado entre os canais é
+--     lido como lugar de falar com alguém, e ninguém fala sozinho num lugar
+--     onde os outros conversam. Pior: "Meu despejo" aparecia ao lado de
+--     "#Financeiro" como se fossem a mesma coisa, e não são.
+--
+--     Aqui a nota vira o recipiente. Cada nota é UM ASSUNTO, e dentro dela cabe
+--     uma conversa com a leitura sobre aquilo e só aquilo. Fora delas existe uma
+--     conversa solta, que é a nota sem assunto: `notas.conversa`. É a mesma
+--     linha, a mesma política e a mesma dona, então a memória enxerga as duas do
+--     mesmo jeito, que era o ponto.
+--
+--     Mensagem e proposta passam a pertencer a um canal OU a uma nota, nunca às
+--     duas nem a nenhuma. Quem vê a mensagem da nota é só a dona da nota, sem
+--     exceção para admin, igual à nota em si: caderno que o chefe abre não é
+--     caderno.
+-- ==========================================================================
+
+-- A conversa solta é uma nota marcada, uma por pessoa. Ser nota é o que faz o
+-- acervo somar sozinho: o que foi dito nela entra no caderno como o resto.
+alter table public.notas add column if not exists conversa boolean not null default false;
+create unique index if not exists notas_conversa_idx on public.notas (dono_id) where conversa;
+
+alter table public.mensagens add column if not exists nota_id uuid references public.notas on delete cascade;
+alter table public.sugestoes add column if not exists nota_id uuid references public.notas on delete cascade;
+alter table public.mensagens alter column canal_id drop not null;
+alter table public.sugestoes alter column canal_id drop not null;
+
+-- --------------------------------------------------------------------------
+-- O despejo que já existe vira nota, uma por mensagem
+--
+-- Cada coisa que a pessoa jogou lá dentro era um pensamento separado, escrito
+-- em momentos diferentes: virar uma nota cada é o que preserva isso. As
+-- propostas que estavam abertas acompanham a nota que as gerou.
+-- --------------------------------------------------------------------------
+do $$
+declare m record; v_nota uuid; n int := 0;
+begin
+  for m in
+    select g.id, g.texto, g.criado_em, g.org_id,
+           coalesce(g.autor_id, k.criado_por) as dono
+      from mensagens g
+      join canais k on k.id = g.canal_id
+     where k.tipo = 'pessoal'
+       and g.sistema = false
+       and btrim(coalesce(g.texto, '')) <> ''
+       and coalesce(g.autor_id, k.criado_por) is not null
+     order by g.criado_em
+  loop
+    v_nota := gen_random_uuid();
+    insert into notas (id, titulo, texto, dono_id, org_id, criado_em, mexido_em)
+    values (
+      v_nota,
+      left(btrim(split_part(m.texto, E'\n', 1)), 80),
+      m.texto, m.dono, m.org_id, m.criado_em, m.criado_em);
+    update sugestoes set nota_id = v_nota, canal_id = null where mensagem_id = m.id;
+    n := n + 1;
+  end loop;
+  delete from canais where tipo = 'pessoal';
+  if n > 0 then raise notice 'Despejo virou caderno: % nota(s).', n; end if;
+end $$;
+
+-- Agora que não sobrou nenhum, o tipo sai do vocabulário. Deixar ele valendo
+-- seria deixar a porta por onde o caderno voltaria para a lista de canais.
+alter table public.canais drop constraint if exists canais_tipo_check;
+alter table public.canais add constraint canais_tipo_check
+  check (tipo in ('aberto','fechado','direto'));
+
+-- Uma coisa ou a outra, nunca as duas nem nenhuma. Sem isto existe mensagem
+-- pendurada em nada: ninguém acha, ninguém apaga, e nenhuma política alcança.
+alter table public.mensagens drop constraint if exists mensagens_de_um_lugar;
+alter table public.mensagens add constraint mensagens_de_um_lugar
+  check ((canal_id is not null and nota_id is null)
+      or (canal_id is null and nota_id is not null));
+
+alter table public.sugestoes drop constraint if exists sugestoes_de_um_lugar;
+alter table public.sugestoes add constraint sugestoes_de_um_lugar
+  check ((canal_id is not null and nota_id is null)
+      or (canal_id is null and nota_id is not null));
+
+create index if not exists msg_nota_idx on public.mensagens (nota_id, criado_em)
+  where nota_id is not null;
+create index if not exists sug_nota_idx on public.sugestoes (nota_id, criado_em desc)
+  where nota_id is not null;
+
+-- --------------------------------------------------------------------------
+-- Quem enxerga a conversa de uma nota
+-- --------------------------------------------------------------------------
+
+-- A dona da nota, e mais ninguém. É a mesma regra de `nt_sel`, escrita de novo
+-- como função porque é ela que as políticas de mensagem e proposta perguntam.
+create or replace function public.ve_nota(n uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from notas x
+    where x.id = n and minha(x.org_id) and x.dono_id = meu_perfil()
+  );
+$$;
+
+drop policy if exists msg_sel on public.mensagens;
+create policy msg_sel on public.mensagens for select
+  using (minha(org_id) and (ve_canal(canal_id) or ve_nota(nota_id)));
+
+drop policy if exists msg_ins on public.mensagens;
+create policy msg_ins on public.mensagens for insert
+  with check (minha(org_id) and autor_id = meu_perfil()
+              and (ve_canal(canal_id) or ve_nota(nota_id)));
+
+drop policy if exists msg_del on public.mensagens;
+create policy msg_del on public.mensagens for delete
+  using (minha(org_id) and (autor_id = meu_perfil() or ve_nota(nota_id)));
+
+drop policy if exists sug_sel on public.sugestoes;
+create policy sug_sel on public.sugestoes for select
+  using (minha(org_id) and (ve_canal(canal_id) or ve_nota(nota_id)));
+
+drop policy if exists sug_ins on public.sugestoes;
+create policy sug_ins on public.sugestoes for insert
+  with check (minha(org_id) and (ve_canal(canal_id) or ve_nota(nota_id)));
+
+drop policy if exists sug_upd on public.sugestoes;
+create policy sug_upd on public.sugestoes for update
+  using (minha(org_id) and (ve_canal(canal_id) or ve_nota(nota_id)))
+  with check (minha(org_id) and (ve_canal(canal_id) or ve_nota(nota_id)));
+
+drop policy if exists sug_del on public.sugestoes;
+create policy sug_del on public.sugestoes for delete
+  using (minha(org_id) and (ve_canal(canal_id) or ve_nota(nota_id)));
+
+-- --------------------------------------------------------------------------
+-- Os dois gatilhos de mensagem que presumiam canal
+-- --------------------------------------------------------------------------
+
+-- Mensagem de nota não tem canal, então não tem quadro de membros para marcar.
+-- Sem esta condição o gatilho tentaria gravar membro de canal nulo e derrubaria
+-- a escrita inteira.
+drop trigger if exists ao_escrever_mensagem on public.mensagens;
+create trigger ao_escrever_mensagem
+  after insert on public.mensagens
+  for each row when (new.autor_id is not null and new.canal_id is not null)
+  execute function public.ao_escrever();
+
+-- A nota entra no tempo real junto com a conversa dela. Nota é de uma pessoa,
+-- mas a mesma pessoa abre o app no computador e no celular, e caderno que só
+-- atualiza quando você recarrega a página não é caderno.
+do $$ begin
+  begin
+    execute 'alter publication supabase_realtime add table public.notas';
+  exception when duplicate_object then null;
+  end;
+end $$;
+
+-- E o aviso de citação sai de cena dentro da nota. Isto não é economia de
+-- aviso, é vazamento: escrever "@Ana" no meio de uma ideia mandaria o trecho
+-- da nota para a caixa da Ana, que não pode ler a nota.
+create or replace function public.aviso_de_citacao()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare r record; v_canal text; v_quem text;
+begin
+  if new.canal_id is null then return new; end if;
+  if new.texto is null or position('@' in new.texto) = 0 then return new; end if;
+  select nome into v_canal from canais where id = new.canal_id;
+  select nome into v_quem  from perfis where id = new.autor_id;
+
+  for r in
+    select p.id, split_part(btrim(p.nome), ' ', 1) as primeiro
+      from perfis p
+     where p.org_id = new.org_id and p.ativo
+       and p.id is distinct from new.autor_id
+       and btrim(p.nome) ~ '^[[:alpha:]]'
+  loop
+    if new.texto ~* ('@' || r.primeiro || '($|[^[:alpha:]])') then
+      perform avisar(
+        r.id, 'citacao',
+        coalesce(v_quem, 'Alguém') || ' te chamou em #' || coalesce(v_canal, 'conversa'),
+        left(new.texto, 180),
+        'citacao:' || new.id::text || ':' || r.id::text,
+        false, null, null, null, new.canal_id);
+    end if;
+  end loop;
+  return new;
+end $$;
