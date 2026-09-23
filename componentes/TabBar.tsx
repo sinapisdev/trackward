@@ -55,7 +55,7 @@ export function TabBar() {
   return (
     <>
       <nav className="tabbar" aria-label="Navegação">
-        <Aba href="/" icone={<Ic.painel />} rotulo="Painel" conta={problemas} quente />
+        <Aba href="/" icone={<Ic.painel />} rotulo="Forward" conta={problemas} quente />
         <Aba href="/minhas" icone={<Ic.inbox />} rotulo="Você" conta={minhas} />
         <Aba href="/chat" icone={<Ic.chat />} rotulo="Conversa" conta={porLer} quente />
         <Aba href="/tracks" icone={<Ic.proj />} rotulo="Tracks" />

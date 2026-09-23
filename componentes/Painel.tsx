@@ -1,13 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useDados } from './Dados'
 import { useModais } from './Modais'
 import { Carregando } from './Shell'
 import { Ic } from './Icones'
 import { Av } from './atomos'
 import { Radar } from './Radar'
+import { Conversa } from './ConversaTrack'
 import { classePrazo } from './partes'
 import { AVULSA } from '@/lib/rotulos'
 import { dias, DSEM_LONGO, hoje, isoDe, MES_LONGO, rel } from '@/lib/datas'
@@ -35,11 +36,12 @@ type Linha = { item: Item; fluxo: Fluxo; onde: string; avulsa: boolean }
  * você não pode ler" é pior que não mostrar nada.
  */
 export function Painel() {
-  const { eu, fluxos, areas, perfis, carregando, areaDe, perfilDe, nomeDe,
+  const { eu, fluxos, areas, perfis, canais, naoLidas, carregando, areaDe, perfilDe, nomeDe,
     minhaLista, alternarItem } = useDados()
   const { abrir } = useModais()
   const [lente, setLente] = useState<Lente>('minhas')
   const [pessoa, setPessoa] = useState('')
+  const [canalAberto, setCanalAberto] = useState<string | null>(null)
 
   /** Toda tarefa aberta que eu enxergo, com o endereço dela. */
   const tarefas = useMemo<Linha[]>(() => {
@@ -62,6 +64,17 @@ export function Painel() {
     }
     return saida
   }, [fluxos, minhaLista])
+
+  /** Prende o canal escolhido assim que ele aparece na tela. Ver o comentário
+   *  em `canal`, mais abaixo: sem isto, ler uma mensagem troca o canal. */
+  const primeiro = useMemo(() => {
+    const abertos = canais.filter((c) => !c.arquivado)
+    return [...abertos].sort((a, b) => naoLidas(b.id) - naoLidas(a.id))[0]?.id ?? null
+  }, [canais, naoLidas])
+
+  useEffect(() => {
+    setCanalAberto((atual) => atual ?? primeiro)
+  }, [primeiro])
 
   const ultima = useMemo(() => {
     const t = fluxos.flatMap((f) => f.log)
@@ -88,8 +101,22 @@ export function Painel() {
   const ativos = perfis.filter((p) => p.ativo)
   const semNada = !fluxos.length && !areas.length
 
+  /**
+   * Qual conversa abre sozinha: a que tem gente falando. Sem nada por ler, a
+   * primeira da lista. Abrir sempre a primeira faria a coluna mostrar um canal
+   * parado enquanto o assunto do dia acontece em outro.
+   *
+   * A escolha só vale até alguém olhar. Depois disso ela fica presa, porque
+   * "por ler" muda no instante em que você lê: sem prender, responder uma
+   * mensagem jogava você para outro canal no meio da frase.
+   */
+  const abertos = canais.filter((c) => !c.arquivado)
+  const canal = abertos.find((c) => c.id === canalAberto)
+    || [...abertos].sort((a, b) => naoLidas(b.id) - naoLidas(a.id))[0]
+    || null
+
   return (
-    <div className="duas">
+    <div className="forward">
       <div className="corpo">
         <div className="hdr">
           <div>
@@ -216,6 +243,26 @@ export function Painel() {
           </>
         )}
       </div>
+
+      {/* A conversa é o coração: é onde se combina, e é de lá que sai a tarefa.
+          Ela fica no meio, entre o que precisa ser feito e o que está parado,
+          porque é o lugar por onde uma coisa vira a outra. */}
+      <section className="forward-conversa">
+        {canal ? (
+          <Conversa canal={canal} titulo="Conversa" quantas={8} aoTrocar={setCanalAberto} />
+        ) : (
+          <div className="ct">
+            <div className="ct-topo"><h2>Conversa</h2></div>
+            <p className="ct-vazio">
+              Nenhum canal ainda. A conversa é onde o trabalho começa: alguém combina uma
+              coisa, e ela vira tarefa sem ninguém copiar nada.
+            </p>
+            <button className="btn larga" onClick={() => abrir({ tipo: 'canal' })}>
+              <Ic.plus />Criar o primeiro canal
+            </button>
+          </div>
+        )}
+      </section>
 
       <aside className="rail">
         <Radar lista={fluxos.filter((f) => f.id !== minhaLista?.id)} />

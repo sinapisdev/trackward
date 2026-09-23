@@ -6,7 +6,7 @@ import { useDados } from './Dados'
 import { Ic } from './Icones'
 import { Av } from './atomos'
 import { isoDe, rel } from '@/lib/datas'
-import type { Fluxo } from '@/lib/tipos'
+import type { Canal, Fluxo } from '@/lib/tipos'
 
 /** Só a hora, que é o que a conversa da lateral precisa mostrar. */
 function hora(ts: string) {
@@ -22,18 +22,9 @@ function hora(ts: string) {
  * enxerga a track enxerga este canal, que é a regra do produto.
  */
 export function ConversaTrack({ f }: { f: Fluxo }) {
-  const { canais, mensagensDe, perfilDe, nomeDe, enviar, lerConversa, org, sugestoesDe } = useDados()
-  const [texto, setTexto] = useState('')
-  const [lendo, setLendo] = useState(false)
-  const fim = useRef<HTMLDivElement>(null)
-
+  const { canais } = useDados()
   const canal = canais.find((c) => c.fluxo_id === f.id)
     || (f.area_id ? canais.find((c) => c.area_id === f.area_id) : undefined)
-
-  const msgs = canal ? mensagensDe(canal.id) : []
-  const abertas = canal ? sugestoesDe(canal.id).filter((s) => s.estado === 'aberta') : []
-
-  useEffect(() => { fim.current?.scrollIntoView({ block: 'nearest' }) }, [msgs.length])
 
   if (!canal)
     return (
@@ -42,25 +33,74 @@ export function ConversaTrack({ f }: { f: Fluxo }) {
         <p className="ct-vazio">Esta track ainda não tem canal. Crie um em Conversa.</p>
       </div>
     )
+  return <Conversa canal={canal} titulo="Conversa da track" quantas={4} />
+}
+
+/**
+ * O painel de conversa, em qualquer lugar que não seja a tela de Conversa.
+ *
+ * É o mesmo canal, com o mesmo envio e a mesma leitura: o que muda é o tamanho.
+ * Ele existe porque a conversa é onde o trabalho nasce, e obrigar a trocar de
+ * tela para dizer uma frase é o que faz a combinação acontecer fora do app e
+ * nunca virar tarefa.
+ */
+export function Conversa({ canal, titulo, quantas = 6, aoTrocar }: {
+  canal: Canal
+  titulo?: string
+  quantas?: number
+  /** Quando existe, o cabeçalho vira um seletor de canal. */
+  aoTrocar?: (id: string) => void
+}) {
+  const { canais, mensagensDe, perfilDe, nomeDe, enviar, lerConversa, org, sugestoesDe,
+    naoLidas, marcarLido } = useDados()
+  const [texto, setTexto] = useState('')
+  const [lendo, setLendo] = useState(false)
+  const fim = useRef<HTMLDivElement>(null)
+
+  const msgs = mensagensDe(canal.id)
+  const abertas = sugestoesDe(canal.id).filter((s) => s.estado === 'aberta')
+
+  useEffect(() => { fim.current?.scrollIntoView({ block: 'nearest' }) }, [msgs.length, canal.id])
 
   const mandar = async () => {
     const t = texto.trim()
     if (!t) return
     setTexto('')
     await enviar(canal.id, t)
+    // Quem acabou de escrever leu: deixar o contador aceso ali seria mentira.
+    if (naoLidas(canal.id)) void marcarLido(canal.id)
   }
+
+  const abertos = canais.filter((c) => !c.arquivado)
 
   return (
     <div className="ct">
       <div className="ct-topo">
-        <h2>Conversa da track</h2>
+        <h2>{titulo || 'Conversa'}</h2>
         <Link className="iconbtn" href={`/chat/${canal.id}`} title="Abrir a conversa inteira"
           aria-label="Abrir a conversa inteira"><Ic.mais /></Link>
       </div>
-      <div className="ct-canal"># {canal.nome}</div>
+
+      {aoTrocar ? (
+        <label className="ct-troca">
+          <select value={canal.id} onChange={(e) => aoTrocar(e.target.value)} aria-label="Qual canal">
+            {abertos.map((c) => {
+              const n = naoLidas(c.id)
+              return (
+                <option key={c.id} value={c.id}>
+                  {c.tipo === 'direto' ? c.nome : `#${c.nome}`}{n ? ` (${n})` : ''}
+                </option>
+              )
+            })}
+          </select>
+          <Ic.chev />
+        </label>
+      ) : (
+        <div className="ct-canal"># {canal.nome}</div>
+      )}
 
       <div className="ct-msgs">
-        {msgs.slice(-4).map((m) => (
+        {msgs.slice(-quantas).map((m) => (
           <div className="ct-msg" key={m.id}>
             {m.por_ia
               ? <span className="ct-ia"><Ic.faisca /></span>

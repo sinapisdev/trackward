@@ -3390,3 +3390,58 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
   .tk-l{grid-template-columns:24px minmax(0,1fr) 34px;gap:14px}
   .tk-trilha{grid-column:1/-1;justify-items:stretch}
 }
+
+/* ==========================================================================
+   Forward: a tela de trabalho
+   Três colunas, e a do meio é a conversa. Não é decoração de layout: é onde se
+   combina, e é de lá que sai a tarefa. Ela fica entre o que precisa ser feito e
+   o que está parado porque é o lugar por onde uma coisa vira a outra.
+   ========================================================================== */
+
+.forward{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr) 320px;
+  margin:-26px calc(-1 * var(--gutter)) -60px;
+  min-height:calc(100dvh - var(--alt-topo) - var(--alt-rodape))}
+.forward>.corpo{min-width:0;padding:26px var(--gutter) 40px}
+.forward>.forward-conversa{min-width:0;border-left:1px solid var(--line);
+  padding:26px var(--gutter) 40px}
+.forward>.rail{border-left:1px solid var(--line);padding:26px var(--gutter) 40px;min-width:0}
+
+/* a conversa acompanha a rolagem: ela é o lugar onde se responde, e responder
+   não pode exigir voltar ao topo */
+.forward-conversa .ct{position:sticky;top:calc(var(--alt-topo) + 22px)}
+.ct-troca{display:flex;align-items:center;gap:8px;margin-bottom:16px;padding:7px 12px;
+  border-radius:var(--r-pill);border:1px solid var(--line);background:var(--alto);
+  color:var(--tx-2);font-size:var(--fs-ui);transition:var(--t)}
+.ct-troca:hover{color:var(--tx)}
+.ct-troca select{appearance:none;background:none;border:0;padding:0;font:inherit;color:inherit;
+  cursor:pointer;outline:none;flex:1;min-width:0}
+.ct-troca>svg{color:var(--tx-3)}
+
+@media (max-width:1400px){
+  /* Some o radar da terceira coluna e ele desce para baixo da fila: com menos
+     largura, espremer três colunas deixa as três ruins. */
+  .forward{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .forward>.rail{grid-column:1;border-left:0;border-top:1px solid var(--line);
+    padding:26px var(--gutter) 40px}
+  .forward>.forward-conversa{grid-row:1/3}
+}
+@media (max-width:1100px){
+  .forward{grid-template-columns:1fr;margin-inline:0}
+  .forward>.corpo,.forward>.forward-conversa,.forward>.rail{padding-inline:0;grid-column:1;grid-row:auto}
+  .forward>.forward-conversa,.forward>.rail{border-left:0;border-top:1px solid var(--line);padding-top:26px}
+  .forward-conversa .ct{position:static}
+}
+
+/* Na coluna estreita do Forward a linha de tarefa não cabe em quatro colunas:
+   o endereço vira reticências e deixa de informar. Ela passa a duas linhas, com
+   o nome em cima e o endereço embaixo, do jeito que se lê. */
+.forward .ib{grid-template-columns:20px minmax(0,1fr) auto;gap:6px 14px;
+  padding-block:12px;align-items:start}
+.forward .ib .ck{margin-top:2px}
+.forward .ib-onde{grid-column:2;font-size:var(--fs-meta);color:var(--tx-3)}
+.forward .ib-fim{grid-column:3;grid-row:1;align-self:center}
+.forward .ib-quem{display:none}
+.forward .sec{margin-bottom:24px}
+.forward .sec-h h2{font-size:var(--fs-h3)}
+.forward .hdr{flex-direction:column;align-items:flex-start;gap:16px}
+.forward .hdr h1{font-size:var(--fs-h2)}

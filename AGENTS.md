@@ -48,9 +48,16 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
   não sabe de antemão em qual das duas ela está. `/projetos`, `/areas` e `/area/[id]`
   continuam de pé como redirecionamentos, porque esses endereços estão em conversa, em
   favorito e em aviso já enviado.
-- **A tela principal mostra tarefa, não track.** Quem abre o app de manhã pergunta "o que
-  eu faço agora" e "o que está parado", não "como vão as frentes". As tracks ficam em
-  Tracks, e o arquivo de pastas mora lá: pasta passeia bem e acha mal.
+- **A tela principal chama-se Forward e mostra tarefa, conversa e radar.** Quem abre o app
+  de manhã pergunta "o que eu faço agora" e "o que está parado", não "como vão as frentes".
+  As tracks ficam em Tracks, e o arquivo de pastas mora lá: pasta passeia bem e acha mal.
+  **A conversa fica no meio**, e isso não é decoração de layout: é onde se combina, e é de
+  lá que sai a tarefa, então ela vive entre o que precisa ser feito e o que está parado,
+  que é o caminho por onde uma coisa vira a outra. Trocar de tela para dizer uma frase é o
+  que faz a combinação acontecer fora do app e nunca virar tarefa.
+- O canal que o Forward abre sozinho é o que tem mais coisa por ler, e a escolha **fica
+  presa depois da primeira vez**. "Por ler" muda no instante em que você lê: sem prender,
+  responder uma mensagem jogava a pessoa para outro canal no meio da frase.
 - Com vários negócios em foco, rotinas e projetos são separados em blocos por empresa,
   um bloco por empresa, não uma lista só com etiqueta.
 - Tudo tem responsável e prazo: item (quem executa), checkpoint (quem aprova), fluxo (dono).

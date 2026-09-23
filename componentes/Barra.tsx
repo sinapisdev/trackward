@@ -356,7 +356,7 @@ export function Barra() {
       <Espaco />
 
       <nav className="tw-nav" aria-label="Navegação">
-        <Aba href="/" rotulo="Visão geral" ativo={caminho === '/'} />
+        <Aba href="/" rotulo="Forward" ativo={caminho === '/'} />
         <Aba href="/minhas" rotulo="Meu trabalho" conta={minhas} ativo={caminho === '/minhas'} />
         {/* Objetivos e rotinas moram na mesma tela: são o mesmo objeto, e a
             diferença entre eles é um filtro, não um endereço. */}
