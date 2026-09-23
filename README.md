@@ -74,6 +74,17 @@ cadastrar o real, rode `supabase/exemplo.sql` no SQL Editor.
 Para voltar ao modo demonstração a qualquer momento, esvazie as duas linhas do
 `.env.local`, ou acrescente `NEXT_PUBLIC_MODO=local`.
 
+### Se o banco recusar criar tarefa, canal ou nota
+
+Se aparecer **"new row violates row-level security policy"**, rode o
+`supabase/schema.sql` inteiro de novo no SQL Editor. A **seção 15** é a que resolve: ela
+faz o servidor carimbar quem assina a linha, em vez de o navegador mandar esse campo e o
+banco conferir. Enquanto os dois precisavam concordar, qualquer diferença virava essa
+mensagem, que não diz qual das três condições caiu.
+
+Se continuar depois disso, rode o `supabase/diagnostico.sql`, trocando o e-mail da
+primeira linha pelo seu. Ele não altera nada, e termina dizendo em português o que achou.
+
 ### Se alguém ficar preso na tela de acesso suspenso
 
 Até 22/09/2026 o domínio do e-mail colocava gente dentro de empresa, e isso deixou dois

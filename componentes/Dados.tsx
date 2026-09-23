@@ -247,7 +247,7 @@ export function useDados() {
 }
 
 const SEM_PERFIL: Perfil = {
-  id: '', user_id: '', nome: 'Sem responsável', email: '', cor: '#8A909C', papel: 'colaborador',
+  id: '', user_id: '', org_id: '', nome: 'Sem responsável', email: '', cor: '#8A909C', papel: 'colaborador',
   area_id: null, gestor_id: null, ve_area: false, ativo: false, criado_em: '',
 }
 const SEM_AREA: Area = { id: '', nome: 'Sem área', cor: '#8A909C', ordem: 999, responsavel_id: null }
@@ -372,7 +372,15 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
         .order('criado_em'),
     ])
 
-    const listaPerfis = (p.data || []) as Perfil[]
+    /**
+     * `perfis_sel` devolve, de propósito, os SEUS perfis em todos os espaços,
+     * porque é isso que alimenta o seletor de empresa. Só que aqui dentro
+     * "pessoas" quer dizer as pessoas deste espaço: uma lista de responsáveis
+     * misturando gente de outra empresa cria tarefa que o dono nunca enxerga,
+     * já que todas as outras políticas filtram por organização. Os seus outros
+     * espaços continuam vindo por `meus_espacos()`, que é a pergunta certa.
+     */
+    const listaPerfis = ((p.data || []) as Perfil[]).filter((x) => x.org_id === perfil.org_id)
     setPerfis(listaPerfis)
     const meu = listaPerfis.find((x) => x.id === perfil.id)
     if (meu) setEu(meu)
@@ -581,8 +589,26 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const nomeDe = useCallback((id: string | null) => perfilDe(id).nome, [perfilDe])
   const areaDe = useCallback((id: string | null) => (id && indiceAreas.get(id)) || SEM_AREA, [indiceAreas])
 
+  /**
+   * O erro que vai para a tela.
+   *
+   * A mensagem crua do Postgres serve para quem escreveu a política, não para
+   * quem está tentando trabalhar: "new row violates row-level security policy
+   * for table canais" não diz qual das condições caiu nem o que fazer. Quando
+   * ela aparece, trocamos por uma frase que diz o que de fato aconteceu e por
+   * onde sair. O resto passa direto, porque a maioria já é legível.
+   */
   const falhou = useCallback((e: unknown, padrao: string) => {
-    const msg = (e as { message?: string })?.message
+    const msg = (e as { message?: string })?.message || ''
+    if (/row-level security|violates row-level/i.test(msg)) {
+      toast('O banco recusou: esta conta não está com permissão para isso neste espaço. '
+        + 'Se você é o administrador, rode a seção 15 do supabase/schema.sql.', true)
+      return
+    }
+    if (/JWT|not authenticated|invalid token/i.test(msg)) {
+      toast('Sua sessão expirou. Entre de novo para continuar.', true)
+      return
+    }
     toast(msg && msg.length < 120 ? msg : padrao, true)
   }, [toast])
 

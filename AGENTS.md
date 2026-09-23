@@ -162,6 +162,25 @@ Quem decide a pessoa é `areas.responsavel_id`, e o formulário de criação dei
 Não voltar a embutir trilhos em `lib/modelos.ts`: ele ficou só com o cálculo de período e
 o esqueleto em branco.
 
+## Quem assina a linha é o servidor
+
+Três tabelas guardam quem criou a linha e três políticas exigem que o campo seja
+igual a `meu_perfil()`: `itens.autor_id`, `canais.criado_por` e `notas.dono_id`.
+Esse campo é **carimbado pelo banco**, no gatilho `ao_assinar` (seção 15 do
+schema), exatamente como `carimbar_org()` já fazia com a organização. O que o
+navegador mandar ali é ignorado.
+
+Não voltar a confiar no cliente para esse campo. Quando a verdade existe nos dois
+lados, o dia em que eles discordarem é um dia que ninguém escolheu, e o banco
+responde só "new row violates row-level security policy", que não diz qual das
+condições caiu. Foi assim que criar canal e criar tarefa pararam em uso.
+
+Pelo mesmo motivo, a lista de pessoas do app é a do espaço em uso, e não tudo que
+`perfis_sel` devolve: aquela política devolve, de propósito, os seus perfis em
+todos os espaços, porque é o que alimenta o seletor de empresa. Misturar isso numa
+escolha de responsável cria tarefa que o dono nunca enxerga. `Dados.tsx` filtra por
+`org_id`, e no banco existe `gente_daqui()` para quem precisar da lista certa.
+
 ## Avisos
 
 Um app de prazo que não avisa é um caderno: só serve para quem lembra de abrir.

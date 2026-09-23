@@ -14,6 +14,8 @@ export type Perfil = {
   id: string
   /** O login a que este perfil pertence. Um login pode ter um perfil por espaço. */
   user_id: string
+  /** O espaço a que este perfil pertence. É a etiqueta que separa uma empresa da outra. */
+  org_id: string
   nome: string
   email: string
   cor: string

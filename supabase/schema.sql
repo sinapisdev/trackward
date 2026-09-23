@@ -3133,3 +3133,70 @@ alter table public.organizacoes add column if not exists whats_conector uuid
 alter table public.organizacoes add column if not exists whats_sid text not null default '';
 -- O remetente aprovado, no formato que a Twilio espera: whatsapp:+14155238886
 alter table public.organizacoes add column if not exists whats_de text not null default '';
+
+-- --------------------------------------------------------------------------
+-- 15. Quem assina é o servidor, não o navegador
+--
+--     Três tabelas guardam quem criou a linha, e três políticas exigem que esse
+--     campo seja igual a `meu_perfil()`: `itens.autor_id`, `canais.criado_por` e
+--     `notas.dono_id`. Até aqui o valor vinha do navegador, e a política só
+--     conferia. Isso tem dois defeitos, e o segundo é o que apareceu em uso.
+--
+--     O primeiro é de desenho: a verdade passa a existir em dois lugares. O app
+--     precisa saber qual é o perfil dele em uso, e o banco precisa concordar. São
+--     duas contas do mesmo número, e a hora em que elas discordarem é uma hora
+--     que ninguém escolheu.
+--
+--     O segundo é de conserto: quando discordam, o banco responde "new row
+--     violates row-level security policy", que não diz qual das condições caiu.
+--     A pessoa lê que não pode criar um canal na própria empresa, sendo dona
+--     dela, e não há nada na tela que explique.
+--
+--     A correção é a mesma que a organização já usava desde o começo, em
+--     `carimbar_org()`: **o servidor carimba**. O campo passa a ser escrito pelo
+--     banco com `meu_perfil()`, e o que o navegador mandar naquele campo é
+--     ignorado. Com isso a política vira uma tautologia para quem está logado, e
+--     continua impossível assinar em nome de outra pessoa, que era o objetivo
+--     dela desde sempre.
+--
+--     Repare no `coalesce`: quando não há ninguém logado (o servidor agindo com
+--     a chave de serviço, uma migração), o valor enviado continua valendo. Sem
+--     isso, uma carga de dados nasceria sem autor.
+-- --------------------------------------------------------------------------
+
+create or replace function public.carimbar_autor()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_eu uuid := meu_perfil();
+begin
+  if v_eu is null then return new; end if;
+  if tg_table_name = 'itens'  then new.autor_id   := v_eu; end if;
+  if tg_table_name = 'canais' then new.criado_por := v_eu; end if;
+  if tg_table_name = 'notas'  then new.dono_id    := v_eu; end if;
+  return new;
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['itens','canais','notas'] loop
+    execute format('drop trigger if exists ao_assinar on public.%I', t);
+    execute format(
+      'create trigger ao_assinar before insert on public.%I
+         for each row execute function public.carimbar_autor()', t);
+  end loop;
+end $$;
+
+-- --------------------------------------------------------------------------
+-- Um login pode ter perfil em mais de uma empresa, e `perfis_sel` devolve
+-- todos, de propósito: é o que alimenta o seletor de espaço. Só que uma lista
+-- de gente para escolher responsável não pode misturar quem é de outra empresa:
+-- escolher alguém de fora cria uma tarefa que o dono dela nunca vai enxergar,
+-- porque toda outra política filtra por organização.
+--
+-- Esta função é a lista certa para qualquer escolha de pessoa dentro do app.
+-- --------------------------------------------------------------------------
+
+create or replace function public.gente_daqui()
+returns setof public.perfis language sql stable security definer set search_path = public as $$
+  select * from perfis where org_id = minha_org() order by nome;
+$$;

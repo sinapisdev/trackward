@@ -631,7 +631,7 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
 // ------------------------------------------------------------------- item
 
 function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () => void }) {
-  const { eu, perfis, fluxos, areaDe, pessoal, adicionarItem, editarItem, definirTravas, cargaDe } = useDados()
+  const { eu, perfis, fluxos, areaDe, pessoal, adicionarItem, editarItem, definirTravas, cargaDe, toast } = useDados()
   const ativos = perfis.filter((p) => p.ativo)
   const fluxo = fluxos.find((f) => f.id === etapa.fluxo_id)
   const mandaNoPrazo = !!fluxo && podeMexerNoPrazo(eu, fluxo, perfis)
@@ -677,7 +677,9 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
   }
 
   const salvar = async () => {
-    if (!texto.trim()) return
+    // Botão que não faz nada é pior que botão desabilitado: a pessoa clica de
+    // novo achando que o clique não pegou. Diz o que falta.
+    if (!texto.trim()) { toast('Escreva o que precisa ser feito.', true); return }
     // O aviso vem antes de gravar qualquer coisa: quem vai mexer numa data
     // precisa ver o que ela arrasta antes de arrastar.
     if (mexeuNoPrazo) { setAvisando(true); return }
@@ -687,7 +689,10 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
       if (JSON.stringify(travas) !== JSON.stringify(item.depende_de)) await definirTravas(item, travas)
     } else {
       const novo = await adicionarItem(etapa, d)
-      if (novo && travas.length) await definirTravas({ id: novo } as Item, travas)
+      // Falhou: a janela fica aberta com o que foi digitado. Fechar em cima do
+      // erro apaga o trabalho da pessoa e esconde o aviso no mesmo movimento.
+      if (!novo) return
+      if (travas.length) await definirTravas({ id: novo } as Item, travas)
     }
     fechar()
   }
