@@ -3244,3 +3244,23 @@ $$;
 -- --------------------------------------------------------------------------
 
 alter table public.itens add column if not exists descricao text not null default '';
+
+-- --------------------------------------------------------------------------
+-- 17. A nota ganha endereço
+--
+--     O caderno de bolso nasceu solto de propósito: o que organiza uma nota é a
+--     ligação escrita no meio do texto, `[[outra nota]]`, e não a pasta. Isso
+--     continua valendo, e é o que faz o acervo sobreviver às trezentas notas.
+--
+--     O que faltava era o outro eixo, o do trabalho: "isto aqui é sobre o
+--     Financeiro", "isto é da implantação do ERP". Não é pasta, é etiqueta: a
+--     nota continua achável pela ligação e pelo texto, e agora também pelo
+--     lugar da empresa a que ela se refere. As duas são opcionais, e a maioria
+--     das notas não vai ter nenhuma, que é o certo.
+-- --------------------------------------------------------------------------
+
+alter table public.notas add column if not exists area_id  uuid references public.areas  on delete set null;
+alter table public.notas add column if not exists fluxo_id uuid references public.fluxos on delete set null;
+
+create index if not exists notas_area_idx  on public.notas (area_id)  where area_id  is not null;
+create index if not exists notas_fluxo_idx on public.notas (fluxo_id) where fluxo_id is not null;

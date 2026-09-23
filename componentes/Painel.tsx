@@ -7,9 +7,10 @@ import { useModais } from './Modais'
 import { Carregando } from './Shell'
 import { Ic } from './Icones'
 import { Av } from './atomos'
-import { Radar } from './Radar'
+import { AgendaCurta, Radar } from './Radar'
 import { Conversa } from './ConversaTrack'
 import { ListaCanais } from './Canais'
+import { Despejo } from './Despejo'
 import { classePrazo } from './partes'
 import { AVULSA } from '@/lib/rotulos'
 import { dias, DSEM_LONGO, hoje, isoDe, MES_LONGO, rel } from '@/lib/datas'
@@ -252,7 +253,10 @@ export function Painel() {
         {canal ? (
           <>
             <ListaCanais atual={canal.id} aoEscolher={setCanalAberto} />
-            <Conversa canal={canal} titulo="Conversa" quantas={8} />
+            {/* O despejo não é conversa: é caderno. Ver componentes/Despejo.tsx. */}
+            {canal.tipo === 'pessoal'
+              ? <Despejo />
+              : <Conversa canal={canal} titulo="Conversa" quantas={8} />}
           </>
         ) : (
           <div className="ct">
@@ -270,6 +274,8 @@ export function Painel() {
 
       <aside className="rail">
         <Radar lista={fluxos.filter((f) => f.id !== minhaLista?.id)} />
+        <div className="rail-sep" />
+        <AgendaCurta />
       </aside>
     </div>
   )

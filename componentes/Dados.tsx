@@ -233,6 +233,14 @@ type Contexto = {
   excluirCanal: (id: string) => Promise<void>
   /** Lê a conversa e guarda o que ela produziu, sem aplicar nada ainda. */
   lerConversa: (canalId: string) => Promise<{ achou: number; motor: string } | null>
+  /**
+   * Lê uma nota do despejo e propõe o que ela tem dentro.
+   *
+   * É a mesma leitura da conversa, com a nota entrando no lugar das mensagens.
+   * Reusar em vez de escrever uma segunda não é economia: é o que garante que a
+   * nota e o canal aprendam a mesma coisa e proponham do mesmo jeito.
+   */
+  lerNota: (notaId: string) => Promise<{ achou: number; motor: string } | null>
   aceitarSugestao: (s: Sugestao, ajuste?: Alvo, porIa?: boolean) => Promise<void>
   /** Volta atrás no que a leitura fez sozinha. */
   desfazerSugestao: (s: Sugestao) => Promise<void>
@@ -993,6 +1001,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       texto,
       fixada: n.fixada ?? false,
       arquivada: n.arquivada ?? false,
+      area_id: n.area_id ?? null,
+      fluxo_id: n.fluxo_id ?? null,
       mexido_em: new Date().toISOString(),
     }
     if (n.id) {
@@ -1985,6 +1995,73 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    * alguém quem aceita. Com o modo "aplicar" ligado em Ajustes, tarefa nova e
    * tarefa concluída entram sozinhas; prazo e trava continuam pedindo licença.
    */
+  const lerNota: Contexto['lerNota'] = useCallback(async (notaId) => {
+    const nota = notas.find((n) => n.id === notaId)
+    if (!nota || !nota.texto.trim()) { toast('Escreva alguma coisa antes de mandar ler.'); return null }
+    const canalId = meuDespejo?.id || await abrirDespejo()
+    if (!canalId) { toast('Não deu para abrir o seu despejo.', true); return null }
+
+    const corpo: ContextoLeitura = {
+      hoje: hojeIso(),
+      // A nota inteira vai como uma fala só, assinada por quem escreveu. Para a
+      // leitura é indiferente ter vindo de um campo de texto ou de um chat.
+      // O título quase sempre é a primeira linha do texto: mandar os dois faria
+      // a leitura ver a mesma frase duas vezes e propor em dobro.
+      mensagens: [{
+        id: nota.id, autor_id: eu.id, autor: eu.nome,
+        texto: nota.texto.trimStart().startsWith(nota.titulo.trim())
+          ? nota.texto
+          : `${nota.titulo}\n${nota.texto}`,
+      }],
+      pessoas: perfis.filter((p) => p.ativo).map((p) => ({ id: p.id, nome: p.nome })),
+      fluxo: null,
+      memoria: paraOModelo(memoria),
+      canal_id: canalId,
+      // Despejo: uma pessoa falando sozinha para o app ouvir. Muda o que a
+      // leitura procura e o quanto ela se arrisca.
+      despejo: true,
+      agentes: [],
+    }
+
+    let propostas: Proposta[] = []
+    let motor = 'regras'
+    try {
+      const r = await fetch('/api/leitor', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo),
+      })
+      const volta = await r.json() as { propostas?: Proposta[]; motor?: string; porque?: string }
+      propostas = volta.propostas || []
+      motor = volta.motor || 'regras'
+      if (volta.porque === 'teto') {
+        toast('O teto de leituras com IA do mês foi atingido. A leitura usou as regras embutidas.')
+      }
+    } catch {
+      toast('Não consegui ler a nota agora.', true)
+      return null
+    }
+
+    const jaVistas = sugestoesDe(canalId)
+    const novas = propostas
+      .filter((p) => !jaVistas.some((v) => v.texto.trim().toLowerCase() === p.texto.trim().toLowerCase()))
+      .filter((p) => !jaFoiRecusada(p, memoria))
+
+    for (const p of novas) {
+      await sb.from('sugestoes').insert({
+        canal_id: canalId,
+        // A nota não é mensagem, e a coluna aponta para mensagens. Nulo aqui é
+        // a resposta honesta: a origem está no texto que a proposta cita.
+        mensagem_id: null,
+        tipo: p.tipo, texto: p.texto, motivo: p.motivo, dados: p.dados, estado: 'aberta',
+      })
+    }
+    recarregar()
+    toast(novas.length
+      ? `${novas.length} ${novas.length === 1 ? 'proposta' : 'propostas'} da sua nota.`
+      : 'Li a nota e não achei nada para propor.')
+    return { achou: novas.length, motor }
+  }, [sb, notas, meuDespejo, abrirDespejo, eu.id, eu.nome, perfis, memoria,
+      sugestoesDe, toast, recarregar])
+
   const lerConversa: Contexto['lerConversa'] = useCallback(async (canalId) => {
     const canal = canais.find((c) => c.id === canalId)
     if (!canal) return null
@@ -2128,7 +2205,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     ligarPushAqui, desligarPushAqui, esquecerAparelho,
     preverCascata, moverPrazo, pedidosPrazo, decidirPrazo,
     enviar, enviarAudio, abrirAudio, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
-    lerConversa, aceitarSugestao, recusarSugestao,
+    lerConversa, lerNota, aceitarSugestao, recusarSugestao,
     espacos, trocarEspaco, abrirEspaco,
   }
 

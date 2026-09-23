@@ -284,6 +284,10 @@ export type Nota = {
   arquivada: boolean
   criado_em: string
   mexido_em: string
+  /** A frente da empresa a que a nota se refere. Etiqueta, não pasta. */
+  area_id: string | null
+  /** A track a que ela se refere, quando é sobre uma. */
+  fluxo_id: string | null
 }
 
 /**

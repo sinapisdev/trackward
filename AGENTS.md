@@ -240,6 +240,24 @@ zelo exagerado: sem ele, uma tabela que ainda não existe no meio da lista derru
 o bloco inteiro, e todas as tabelas depois dela ficam sem carimbo. Ao acrescentar
 tabela nova àquela lista, manter o `continue`.
 
+## O despejo é caderno, não conversa
+
+O despejo **não é um canal de chat**, e a diferença muda o uso. Conversa pede
+interlocutor: escrever num chat vazio soa estranho, e quem se sente estranho não
+escreve. O caderno não pede nada de ninguém, e é por isso que ele recebe a ideia
+crua, o número da reunião, o nome do fornecedor.
+
+O que a máquina faz com isso vem **depois e a pedido**: `lerNota()` manda o texto
+pela mesma rota da leitura da conversa, com `despejo: true`, e devolve propostas
+que alguém aceita. Reusar a mesma leitura não é economia, é o que garante que a
+nota e o canal aprendam a mesma coisa e proponham do mesmo jeito. Nada vira
+tarefa sozinho.
+
+O que organiza o caderno continua sendo a ligação escrita no meio do texto,
+`[[outra nota]]`, porque **pasta não sobrevive às trezentas notas**. Área e track
+são etiquetas por cima disso, para o eixo do trabalho, e a maioria das notas não
+vai ter nenhuma das duas: isso é o certo, não uma lacuna a preencher.
+
 ## Quem assina a linha é o servidor
 
 Três tabelas guardam quem criou a linha e três políticas exigem que o campo seja

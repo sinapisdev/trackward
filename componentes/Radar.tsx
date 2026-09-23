@@ -3,11 +3,13 @@
 import Link from 'next/link'
 import { useMemo } from 'react'
 import { useDados } from './Dados'
+import { useModais } from './Modais'
 import { Ic } from './Icones'
 import { Av, IconeStatus } from './atomos'
-import { dias, rel } from '@/lib/datas'
+import { curta, dias, hojeIso, rel } from '@/lib/datas'
+import { faixa } from '@/lib/agenda'
 import { etapaAtual, progresso, status } from '@/lib/regras'
-import type { Fluxo, Item } from '@/lib/tipos'
+import type { Compromisso, Fluxo, Item } from '@/lib/tipos'
 
 /**
  * O radar da operação: o que está fora do lugar, em tarefa, não em track.
@@ -157,5 +159,67 @@ export function TabelaTracks({ lista, vazio = 'Nada por aqui.' }: { lista: Fluxo
         )
       })}
     </div>
+  )
+}
+
+/**
+ * A agenda de relance, embaixo do radar.
+ *
+ * Ela responde uma pergunta só: o que me prende hoje. Não é a tela da Agenda
+ * encolhida, é o recorte que muda uma decisão agora: saber que às 15h tem
+ * reunião muda o que você pega às 14h.
+ *
+ * Compromisso fechado continua fechado aqui: quem não pode ler o título recebe
+ * "Ocupado", como em todo lugar. Vazar por causa de um resumo seria o pior
+ * lugar para vazar, porque ninguém desconfia de um resumo.
+ */
+export function AgendaCurta() {
+  const { agenda, eu, nomeDe } = useDados()
+  const { abrir } = useModais()
+
+  const hj = hojeIso()
+  const meus = agenda
+    .filter((c) => [c.dono_id, ...c.convidados].includes(eu.id))
+    .filter((c) => c.quando >= hj)
+    .sort((a, b) => a.quando.localeCompare(b.quando) || (a.inicio || '').localeCompare(b.inicio || ''))
+
+  const hoje = meus.filter((c) => c.quando === hj)
+  const depois = meus.filter((c) => c.quando > hj).slice(0, 3)
+
+  const Linha = ({ c }: { c: Compromisso }) => (
+    <button className="ag-curta-l" onClick={() => c.aberto && abrir({ tipo: 'compromisso', compromisso: c })}>
+      <span className="ag-curta-h num">{c.inicio ? c.inicio.slice(0, 5) : 'dia'}</span>
+      <span className="ag-curta-t">
+        <b>{c.aberto ? c.titulo : 'Ocupado'}</b>
+        <small>
+          {c.quando === hj ? faixa(c) : `${curta(c.quando)} · ${faixa(c)}`}
+          {c.aberto && c.dono_id !== eu.id && ` · ${nomeDe(c.dono_id)}`}
+        </small>
+      </span>
+    </button>
+  )
+
+  return (
+    <section className="ag-curta">
+      <div className="rd-bh">
+        <h3>Agenda</h3>
+        <Link href="/agenda">Ver tudo</Link>
+      </div>
+
+      {hoje.length || depois.length ? (
+        <>
+          {!!hoje.length && <div className="ag-curta-dia">Hoje</div>}
+          {hoje.map((c) => <Linha key={c.id} c={c} />)}
+          {!!depois.length && <div className="ag-curta-dia">Em seguida</div>}
+          {depois.map((c) => <Linha key={c.id} c={c} />)}
+        </>
+      ) : (
+        <p className="rd-vazio">Nada marcado. O dia é seu.</p>
+      )}
+
+      <button className="btn larga" onClick={() => abrir({ tipo: 'compromisso', quando: hj })}>
+        <Ic.plus />Compromisso
+      </button>
+    </section>
   )
 }

@@ -8,6 +8,7 @@ import { rel, isoDe } from '@/lib/datas'
 import {
   buscar, entradas, ligar, LIGACAO, mesmaChave, ordenar, parecidas, porTitulo, saidas, solta,
 } from '@/lib/notas'
+import { rotuloTipo } from '@/lib/rotulos'
 import type { Nota } from '@/lib/tipos'
 
 /**
@@ -54,7 +55,7 @@ function Corpo({ texto, ir }: { texto: string; ir: (titulo: string) => void }) {
 }
 
 function Aberta({ nota, ir }: { nota: Nota; ir: (titulo: string) => void }) {
-  const { notas, salvarNota, excluirNota, toast } = useDados()
+  const { notas, areas, fluxos, salvarNota, excluirNota, toast } = useDados()
   const [editando, setEditando] = useState(false)
   const [titulo, setTitulo] = useState(nota.titulo)
   const [texto, setTexto] = useState(nota.texto)
@@ -126,6 +127,34 @@ function Aberta({ nota, ir }: { nota: Nota; ir: (titulo: string) => void }) {
       ) : (
         <>
           <Corpo texto={nota.texto} ir={ir} />
+          <div className="nt-onde">
+            <label className="sel-quem">
+              <select value={nota.area_id || ''} aria-label="Área desta nota"
+                onChange={(e) => void salvarNota({
+                  id: nota.id, titulo: nota.titulo, texto: nota.texto,
+                  fixada: nota.fixada, arquivada: nota.arquivada,
+                  area_id: e.target.value || null, fluxo_id: nota.fluxo_id,
+                })}>
+                <option value="">Sem área</option>
+                {areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+              </select>
+              <Ic.chev />
+            </label>
+            <label className="sel-quem">
+              <select value={nota.fluxo_id || ''} aria-label="Track desta nota"
+                onChange={(e) => void salvarNota({
+                  id: nota.id, titulo: nota.titulo, texto: nota.texto,
+                  fixada: nota.fixada, arquivada: nota.arquivada,
+                  area_id: nota.area_id, fluxo_id: e.target.value || null,
+                })}>
+                <option value="">Sem track</option>
+                {fluxos.filter((f) => !f.concluido).map((f) => (
+                  <option key={f.id} value={f.id}>{rotuloTipo(f.tipo)}: {f.nome}</option>
+                ))}
+              </select>
+              <Ic.chev />
+            </label>
+          </div>
           <div className="nt-a-acoes">
             <button className="btn" onClick={() => setEditando(true)}><Ic.edit />Editar</button>
           </div>
