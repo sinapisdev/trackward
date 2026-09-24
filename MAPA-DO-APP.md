@@ -354,6 +354,17 @@ O menu abre sozinho ao digitar a barra e mostra o exemplo inteiro, porque lingua
 comando não morre de sintaxe difícil, morre de ninguém descobrir que ela existe. Datas
 em português funcionam: "até sexta", "amanhã", "em 3 dias", "10/03", "10 de outubro".
 
+**A leitura conhece a casa inteira.** Vão junto no pedido as tracks abertas, as tarefas
+que já existem e as decisões já tomadas, então ela para de propor pela terceira vez a
+mesma coisa e consegue fechar, de dentro de #geral, uma tarefa que mora em outra track.
+
+**E a privacidade tem uma direção só:** leitura privada pode ver o que é público, leitura
+pública não pode ver o que é privado. A proposta que sai de um canal aparece para todo o
+canal com o trecho que a originou, então só atravessa o que a empresa inteira já podia
+ler: track de visibilidade `equipe`, tarefa não privada, decisão tomada em canal aberto.
+Nota de ninguém entra, nem a de quem mandou ler. Pela mesma razão, a memória da casa só
+aprende em canal aberto: ela é lida por todo mundo e guarda um trecho copiado da conversa.
+
 **Comando e leitura são caminhos diferentes, e a diferença é quem pediu.** Conversa
 solta vira proposta, porque ninguém combinou nada com a máquina. Comando vira coisa
 feita, porque quem escreveu a ordem foi a pessoa. Tudo que nasce de comando deixa rastro

@@ -345,6 +345,44 @@ A gramática mora em `lib/comandos.ts`, as datas em `lib/quando.ts`, o menu em
 São três campos de escrita (canal, conversa do Forward, conversa da nota) e um
 gancho só: três cópias virariam três linguagens diferentes no mês seguinte.
 
+## A memória atravessa a conversa, e a privacidade é de mão única
+
+Cada canal era uma empresa diferente: a leitura de #financeiro não sabia que a
+tarefa combinada ali já existia na Reforma da sede, e propunha uma segunda; não
+sabia que a equipe tinha decidido a data em outro canal, e propunha decidir de
+novo. Agora vai junto no pedido o que a casa já tem: as tracks abertas, as
+tarefas que já existem e as decisões já tomadas (campo `casa` do contexto,
+montado em `oQueACasaTem`, dentro de `Dados`).
+
+**A regra que decide o que entra ali tem uma direção só:**
+
+> Leitura privada pode ver o que é público. Leitura pública não pode ver o que
+> é privado.
+
+O motivo é o motivo: a proposta que sai de um canal aparece para todo mundo do
+canal, **com o trecho que a originou**. Qualquer contexto privado que entre no
+pedido volta pela porta do motivo. Por isso, para dentro de um canal, só
+atravessa o que a empresa inteira já podia ler:
+
+- track de visibilidade `equipe`, nunca `escolhidas` nem `so_eu`
+- tarefa não privada (`priv`)
+- decisão tomada em canal **aberto**, nunca em fechado, direto ou em nota
+
+O caminho contrário é seguro, e é o que `lerNota` faz: a casa inteira entra na
+leitura de uma nota, porque o que sai dali fica com a dona da nota.
+
+**A memória da casa (`memoria`) só aprende em canal aberto**, e isso foi um furo
+até 23/09/2026. Aquela tabela é lida por qualquer pessoa ativa da organização, e
+cada lembrança guarda um `exemplo` com 160 caracteres **copiados da mensagem**.
+Aprender num canal fechado publicava pedaço de conversa fechada para a empresa
+inteira, sendo que nem o administrador pode abrir aquele canal. Vale para as
+duas portas: `termosDaConversa` recusa canal que não seja aberto, e
+`podeEnsinarACasa` barra o aprendizado de proposta nascida em canal fechado,
+conversa direta ou nota. O app aprende menos, e é o preço certo.
+
+Ao acrescentar qualquer coisa ao contexto da leitura, a pergunta é sempre a
+mesma: **quem vai ler a proposta que sair daqui já podia ler isto?**
+
 ## Quem assina a linha é o servidor
 
 Três tabelas guardam quem criou a linha e três políticas exigem que o campo seja

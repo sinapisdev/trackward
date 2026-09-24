@@ -1846,6 +1846,22 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     return null
   }, [todosFluxos])
 
+  /**
+   * Esta proposta pode ensinar a casa?
+   *
+   * A memória é da organização inteira: qualquer pessoa ativa lê todas as
+   * linhas, e cada lembrança guarda um pedaço copiado do que deu origem a ela.
+   * Proposta que nasceu num canal fechado, numa conversa direta ou numa nota
+   * carrega texto que aquelas pessoas escreveram em lugar fechado, e publicar
+   * isso na memória seria contornar a própria regra de visibilidade do app.
+   *
+   * Só canal aberto ensina. O app aprende menos, e é o preço certo.
+   */
+  const podeEnsinarACasa = useCallback((sug: Sugestao) => {
+    if (!sug.canal_id) return false
+    return canais.find((c) => c.id === sug.canal_id)?.tipo === 'aberto'
+  }, [canais])
+
   const aceitarSugestao: Contexto['aceitarSugestao'] = useCallback(async (sug, ajuste, porIa = false) => {
     const dados: Alvo = { ...sug.dados, ...ajuste }
     const fluxo = todosFluxos.find((x) => x.id === dados.fluxo_id) || null
@@ -2039,7 +2055,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
     // A casa acabou de ensinar algo: quem ela põe neste assunto. Vale mais quando
     // houve correção, e é justamente o caso que a máquina precisa aprender.
-    await guardar(daDecisao(sug, true, dados.resp_id ?? null, nomeDe))
+    if (podeEnsinarACasa(sug)) await guardar(daDecisao(sug, true, dados.resp_id ?? null, nomeDe))
 
     await sb.from('sugestoes').update({
       estado: 'aceita',
@@ -2060,6 +2076,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     }
     recarregar()
   }, [sb, eu, perfis, todosFluxos, itemPorId, adicionarItem, alternarItem, editarItem, travar,
+      podeEnsinarACasa,
       logar, nomeDe, guardar, agentes, conectores, processos, areaDe, criarDoProcesso, empresaAtiva, toast, recarregar])
 
   /**
@@ -2154,9 +2171,74 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     }).eq('id', sug.id)
     // O sinal mais claro que existe: a empresa disse "isto não". Sem guardar, a
     // leitura repete o mesmo erro toda semana, e é assim que se desiste de IA.
-    await guardar(daDecisao(sug, false, null, nomeDe))
+    if (podeEnsinarACasa(sug)) await guardar(daDecisao(sug, false, null, nomeDe))
     recarregar()
-  }, [sb, eu.id, guardar, nomeDe, recarregar])
+  }, [sb, eu.id, guardar, nomeDe, podeEnsinarACasa, recarregar])
+
+  /**
+   * O que a casa inteira já tem, para a leitura não ler no escuro.
+   *
+   * É a memória atravessando a conversa: sem isto, a leitura de #financeiro não
+   * sabe que a tarefa combinada agora já existe na Reforma da sede e propõe uma
+   * segunda; não sabe que a equipe já decidiu a data em outro canal e propõe
+   * decidir de novo. Cada canal ficava sendo uma empresa diferente.
+   *
+   * **A regra de privacidade é de mão única, e é ela que decide o que entra
+   * aqui.** A proposta que sai da leitura aparece para todo o canal, com o
+   * trecho que a originou, então contexto privado vazaria pelo motivo. Por isso
+   * entra só o que a empresa inteira já podia ler: track de visibilidade
+   * `equipe`, tarefa não privada, decisão tomada em canal aberto. Nota de
+   * ninguém entra, nem a de quem mandou ler.
+   *
+   * O caminho contrário é seguro e está em `lerNota`: leitura privada pode ver
+   * o que é público, porque o que ela devolve fica com o dono da nota.
+   */
+  const oQueACasaTem = useMemo(() => {
+    const publicas = todosFluxos.filter(
+      (f) => !f.concluido && f.visib === 'equipe' && f.id !== minhaLista?.id,
+    )
+
+    const tracks = publicas.map((f) => ({
+      id: f.id,
+      nome: f.nome,
+      tipo: f.tipo,
+      etapa_id: etapaAtual(f)?.id ?? null,
+      onde: f.area_id ? areaDe(f.area_id).nome : null,
+    }))
+
+    const itens = publicas.flatMap((f) => {
+      const et = etapaAtual(f)
+      if (!et) return []
+      // Tarefa privada não atravessa: ela é de quem criou, e a proposta que
+      // sairia daqui seria lida por gente que não pode nem saber que ela existe.
+      return et.itens
+        .filter((i) => !i.feito && !i.priv)
+        .map((i) => ({
+          id: i.id, texto: i.texto, resp_id: i.resp_id, feito: false,
+          prazo: i.prazo, etapa_id: et.id, fluxo_id: f.id, onde: f.nome,
+        }))
+    })
+
+    const abertos = new Set(canais.filter((c) => c.tipo === 'aberto').map((c) => c.id))
+    const daConversa = sugestoes
+      .filter((x) => x.tipo === 'decisao' && x.estado === 'aceita'
+        // Proposta de nota é privada, mesmo sendo do tipo decisão.
+        && x.canal_id && abertos.has(x.canal_id))
+      .map((x) => ({ texto: x.texto, quando: curta(isoDe(x.criado_em)) }))
+
+    const doCheckpoint = decisoes
+      .filter((d) => d.nota.trim() && publicas.some((f) => f.id === d.fluxo_id))
+      .map((d) => ({
+        texto: `${todosFluxos.find((f) => f.id === d.fluxo_id)?.nome || 'Uma track'}: ${d.nota}`,
+        quando: curta(isoDe(d.criado_em)),
+      }))
+
+    return {
+      tracks: tracks.slice(0, 40),
+      itens: itens.slice(0, 60),
+      decisoes: [...daConversa, ...doCheckpoint].slice(0, 15),
+    }
+  }, [todosFluxos, minhaLista, areaDe, canais, sugestoes, decisoes])
 
   /**
    * Manda a conversa para a leitura e guarda o que ela produziu.
@@ -2193,6 +2275,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       // A nota não tem canal. O medidor aceita nulo: o gasto continua sendo da
       // organização e de quem pediu, que é o que ele precisa saber.
       canal_id: null,
+      // A casa entra aqui também, e aqui é seguro: o que sair desta leitura
+      // fica com a dona da nota. O contrário é que não vale.
+      casa: oQueACasaTem,
       // Despejo: uma pessoa falando sozinha para o app ouvir. Muda o que a
       // leitura procura e o quanto ela se arrisca.
       despejo: true,
@@ -2256,7 +2341,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       : 'Li a nota e não achei nada para propor.')
     return { achou: novas.length, motor }
   }, [sb, notas, todasNotas, mensagensDaNota, eu.id, eu.nome, perfis, memoria,
-      sugestoesDaNota, toast, recarregar])
+      oQueACasaTem, sugestoesDaNota, toast, recarregar])
 
   /**
    * A linguagem do chat.
@@ -2413,6 +2498,13 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       // O que a casa já ensinou vai junto no pedido: é assim que a leitura
       // melhora sem ninguém treinar nada.
       memoria: paraOModelo(memoria),
+      // E o que a casa já tem. A track deste canal sai da lista: ela já foi
+      // inteira ali em cima, e repetida daria peso duplo à mesma tarefa.
+      casa: {
+        tracks: oQueACasaTem.tracks.filter((t) => t.id !== f?.id),
+        itens: oQueACasaTem.itens.filter((i) => i.fluxo_id !== f?.id),
+        decisoes: oQueACasaTem.decisoes,
+      },
       canal_id: canalId,
       // Canal é sempre conversa de equipe. O que a pessoa escreve para si mesma
       // mora nas notas, e a leitura de lá passa por `lerNota`, que liga o modo
@@ -2520,7 +2612,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
     recarregar()
     return { achou: novas.length, motor }
-  }, [sb, canais, mensagens, perfis, todosFluxos, nomeDe, sugestoesDe, org.ia_modo,
+  }, [sb, canais, mensagens, perfis, todosFluxos, nomeDe, sugestoesDe, org.ia_modo, oQueACasaTem,
       memoria, guardar, agentes, processos, areaDe, aceitarSugestao, toast, recarregar])
 
   const valor: Contexto = {

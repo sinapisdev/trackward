@@ -29,6 +29,10 @@ export type ItemLido = {
   feito: boolean
   prazo: string | null
   etapa_id: string
+  /** De qual track, quando a tarefa vem de fora da track deste canal. */
+  fluxo_id?: string | null
+  /** O nome da track, para a leitura poder dizer onde a tarefa mora. */
+  onde?: string
 }
 
 export type Contexto = {
@@ -45,6 +49,28 @@ export type Contexto = {
   memoria?: string
   /** De qual canal veio, para o medidor saber onde o gasto aconteceu. */
   canal_id?: string | null
+  /**
+   * O que a casa inteira já tem, e não só este canal.
+   *
+   * É isto que faz a memória atravessar a conversa. Sem ele, a leitura de
+   * #financeiro não sabe que a tarefa que acabou de ser combinada já existe na
+   * Reforma da sede, e propõe uma segunda; não sabe que a equipe já decidiu a
+   * data em outro canal, e propõe decidir de novo.
+   *
+   * **Só entra aqui o que a empresa inteira já podia ler.** A proposta que sai
+   * daqui aparece para todo mundo do canal, com o trecho que a originou, então
+   * contexto privado vazaria pela porta do motivo. A regra é de mão única:
+   * leitura privada pode ver o que é público, leitura pública não pode ver o
+   * que é privado. Quem monta isso é `lerConversa`, em componentes/Dados.tsx.
+   */
+  casa?: {
+    /** As tracks abertas e visíveis à equipe, para a proposta ter endereço. */
+    tracks: { id: string; nome: string; tipo: string; etapa_id: string | null; onde: string | null }[]
+    /** As tarefas abertas dessas tracks, para não propor o que já existe. */
+    itens: ItemLido[]
+    /** O que a equipe já decidiu, para não decidir de novo. */
+    decisoes: { texto: string; quando: string }[]
+  }
   /**
    * Os agentes que escutam este canal.
    *
@@ -333,8 +359,12 @@ const nomeDe = (id: string | null, pessoas: Contexto['pessoas']) =>
  */
 export function porRegras(ctx: Contexto): Proposta[] {
   const saida: Proposta[] = []
-  const itens = ctx.fluxo?.itens || []
+  // A track do canal primeiro, a casa depois: empate de parecença fica com a
+  // tarefa daqui, que é quase sempre a certa.
+  const itens = [...(ctx.fluxo?.itens || []), ...(ctx.casa?.itens || [])]
   const abertos = itens.filter((i) => !i.feito)
+  /** De qual track é a tarefa achada: a dela, ou a do canal. */
+  const trackDe = (i: ItemLido) => i.fluxo_id ?? ctx.fluxo?.id ?? null
 
   for (const m of ctx.mensagens) {
     if (!m.texto || m.texto.startsWith('/')) continue
@@ -356,7 +386,7 @@ export function porRegras(ctx: Contexto): Proposta[] {
             texto: `Marcar como feito: ${alvo.texto}`,
             motivo: frase,
             mensagem_id: m.id,
-            dados: { fluxo_id: ctx.fluxo?.id ?? null, item_id: alvo.id, etapa_id: alvo.etapa_id },
+            dados: { fluxo_id: trackDe(alvo), item_id: alvo.id, etapa_id: alvo.etapa_id },
           })
           continue
         }
@@ -379,7 +409,7 @@ export function porRegras(ctx: Contexto): Proposta[] {
               motivo: `${m.autor}: ${frase}`,
               mensagem_id: m.id,
               dados: {
-                fluxo_id: ctx.fluxo?.id ?? null, item_id: alvo.id,
+                fluxo_id: trackDe(alvo), item_id: alvo.id,
                 etapa_id: alvo.etapa_id, resp_id: quem,
               },
             })
@@ -397,7 +427,7 @@ export function porRegras(ctx: Contexto): Proposta[] {
             texto: `Mover o prazo de "${alvo.texto}" para ${data.split('-').reverse().join('/')}`,
             motivo: frase,
             mensagem_id: m.id,
-            dados: { fluxo_id: ctx.fluxo?.id ?? null, item_id: alvo.id, prazo: data, etapa_id: alvo.etapa_id },
+            dados: { fluxo_id: trackDe(alvo), item_id: alvo.id, prazo: data, etapa_id: alvo.etapa_id },
           })
           continue
         }
@@ -453,7 +483,7 @@ export function porRegras(ctx: Contexto): Proposta[] {
             texto: `Mover o prazo de "${igual.texto}" para ${data.split('-').reverse().join('/')}`,
             motivo: `${m.autor}: ${frase}`,
             mensagem_id: m.id,
-            dados: { fluxo_id: ctx.fluxo?.id ?? null, item_id: igual.id, prazo: data, etapa_id: igual.etapa_id },
+            dados: { fluxo_id: trackDe(igual), item_id: igual.id, prazo: data, etapa_id: igual.etapa_id },
           })
         }
         continue

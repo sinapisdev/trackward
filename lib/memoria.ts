@@ -104,6 +104,20 @@ export function termosDaConversa(
    */
   desde: string | null,
 ): Aprendizado[] {
+  /**
+   * Só canal ABERTO ensina a casa.
+   *
+   * A memória é da organização inteira: a política do banco deixa qualquer
+   * pessoa ativa ler todas as linhas, e a tela de Ajustes mostra elas. Como
+   * cada lembrança guarda um `exemplo`, que são 160 caracteres COPIADOS da
+   * mensagem, aprender num canal fechado publicaria pedaço de conversa fechada
+   * para a empresa inteira. Nem o administrador pode ler aquele canal de fora,
+   * e a memória não pode ser a porta dos fundos disso.
+   *
+   * O preço é o app aprender menos, e é o preço certo: vocabulário da casa vem
+   * de onde a casa fala.
+   */
+  if (canal.tipo !== 'aberto') return []
   if (!canal.fluxo_id && !canal.area_id) return []
 
   const fora = new Set(outras.flatMap((m) => palavras(m.texto)))

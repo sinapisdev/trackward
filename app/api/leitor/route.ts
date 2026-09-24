@@ -38,7 +38,8 @@ const FERRAMENTA = {
             texto: { type: 'string', description: 'A tarefa ou a decisão, em uma linha, começando por verbo no infinitivo quando for tarefa.' },
             motivo: { type: 'string', description: 'O trecho exato da conversa que deu origem, copiado.' },
             mensagem_id: { type: ['string', 'null'], description: 'O id da mensagem de onde saiu.' },
-            item_id: { type: ['string', 'null'], description: 'Para concluir, prazo ou distribuir: o id da tarefa que já existe.' },
+            item_id: { type: ['string', 'null'], description: 'Para concluir, prazo ou distribuir: o id da tarefa que já existe, venha ela deste projeto ou da lista da casa.' },
+            fluxo_id: { type: ['string', 'null'], description: 'Para tarefa nova: o id da track onde ela deve nascer, quando a conversa deixar claro que é de outra frente. Só ids da lista de tracks da casa.' },
             resp_id: { type: ['string', 'null'], description: 'O id da pessoa responsável, quando a conversa deixa claro.' },
             prazo: { type: ['string', 'null'], description: 'Data no formato AAAA-MM-DD, só quando a conversa disser.' },
             agente_id: { type: ['string', 'null'], description: 'Só para tipo agente: o id do agente que reconheceu a situação.' },
@@ -87,6 +88,33 @@ Não invente ligação: só aponte quando a relação for evidente no texto.
 `
     : ''
 
+  /**
+   * A casa inteira, e não só este canal.
+   *
+   * É o que faz a leitura parar de propor pela terceira vez a mesma tarefa que
+   * já existe em outra frente, e o que deixa ela mandar a tarefa nova para a
+   * track certa em vez de deixá-la sem endereço. Entra só o que a empresa
+   * inteira já podia ler: a proposta aparece para todo mundo do canal.
+   */
+  const casa = ctx.casa
+  const comCasa = casa && (casa.tracks.length || casa.itens.length || casa.decisoes.length)
+    ? `
+O QUE A CASA JÁ TEM, FORA DESTE CANAL:
+
+${casa.tracks.length ? `Tracks abertas (use o id em fluxo_id quando a conversa disser de qual frente é):
+${casa.tracks.map((t) => `- ${t.nome} (id ${t.id}${t.onde ? `, ${t.onde}` : ''})`).join('\n')}
+` : ''}${casa.itens.length ? `Tarefas que JÁ EXISTEM:
+${casa.itens.map((i) => `- ${i.texto} (id ${i.id}, em ${i.onde}${i.prazo ? `, prazo ${i.prazo}` : ''})`).join('\n')}
+` : ''}${casa.decisoes.length ? `Decisões que a equipe já tomou:
+${casa.decisoes.map((d) => `- ${d.texto} (${d.quando})`).join('\n')}
+` : ''}
+Use esta lista para NÃO REPETIR: tarefa que já está aí não vira tarefa nova, e
+coisa já decidida não vira decisão de novo. Quando a conversa disser que uma
+dessas tarefas ficou pronta ou mudou de prazo, use o id dela, mesmo sendo de
+outra frente.
+`
+    : ''
+
   const comAgentes = ctx.agentes?.length
     ? `
 AGENTES QUE ESTA EMPRESA ESCREVEU:
@@ -116,7 +144,7 @@ um agente que dispara errado cria trabalho errado em área que não é sua.
   if (ctx.despejo) {
     return `Você lê o caderno de bolso de UMA pessoa e separa o que ela jogou lá dentro.
 
-Hoje é ${ctx.hoje}.${aprendido}${comCaderno}
+Hoje é ${ctx.hoje}.${aprendido}${comCaderno}${comCasa}
 Ela está falando sozinha, para o app ouvir. Não é conversa de equipe: não tem ninguém
 para quem delegar, e tudo que está escrito ela escreveu de propósito, para não perder.
 
@@ -143,7 +171,7 @@ Regras:
 
   return `Você lê a conversa de uma equipe e separa o que virou trabalho do que foi só conversa.
 
-Hoje é ${ctx.hoje}.${aprendido}${comAgentes}
+Hoje é ${ctx.hoje}.${aprendido}${comCasa}${comAgentes}
 Pessoas: ${pessoas}.
 ${ctx.fluxo ? `A conversa é do projeto "${ctx.fluxo.nome}".\nTarefas que já existem nele:\n${itens || '(nenhuma)'}` : 'A conversa não está presa a um projeto.'}
 
@@ -161,6 +189,8 @@ Sete tipos:
 
 Regras:
 - Só registre o que a conversa disser de fato. Nada de deduzir trabalho que ninguém pediu.
+- fluxo_id só quando a conversa deixar claro de qual frente é. Na dúvida, deixe nulo: a
+  tarefa nasce no projeto deste canal, ou sem projeto, e alguém escolhe depois.
 - Cumprimento, piada, combinação de almoço e pergunta sem resposta não são tarefa.
 - Se uma tarefa igual já existe na lista acima, não crie outra.
 - resp_id só quando a conversa deixar claro de quem é. Na dúvida, deixe nulo.
@@ -176,7 +206,7 @@ function conversa(ctx: Contexto) {
 
 type Cru = {
   tipo?: string; texto?: string; motivo?: string
-  mensagem_id?: string | null; item_id?: string | null
+  mensagem_id?: string | null; item_id?: string | null; fluxo_id?: string | null
   resp_id?: string | null; prazo?: string | null
   agente_id?: string | null
   quando?: string | null; inicio?: string | null
@@ -185,7 +215,12 @@ type Cru = {
 /** O que volta do modelo é texto, não verdade: cada campo é conferido aqui. */
 function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
   const pessoas = new Set(ctx.pessoas.map((p) => p.id))
-  const itens = new Map((ctx.fluxo?.itens || []).map((i) => [i.id, i]))
+  // As tarefas deste canal e as da casa, na mesma peneira: é o que permite
+  // "o plano de contas já está migrado" fechar a tarefa que mora em outra track.
+  const itens = new Map(
+    [...(ctx.fluxo?.itens || []), ...(ctx.casa?.itens || [])].map((i) => [i.id, i]),
+  )
+  const tracks = new Map((ctx.casa?.tracks || []).map((t) => [t.id, t]))
   const msgs = new Set(ctx.mensagens.map((m) => m.id))
   const saida: Proposta[] = []
 
@@ -216,14 +251,21 @@ function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
     if (tipo === 'compromisso' && !quando) continue
     const inicio = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(c.inicio)) ? String(c.inicio) : null
 
+    // Track escolhida pelo modelo: vale só se existir na lista que foi mandada.
+    // Sem esta conferência ele poderia inventar um id, e a proposta apontaria
+    // para o nada, ou pior, para uma track que quem lê não enxerga.
+    const daCasa = c.fluxo_id ? tracks.get(c.fluxo_id) ?? null : null
+
     saida.push({
       tipo,
       texto: texto.slice(0, 220),
       motivo: String(c.motivo || '').trim().slice(0, 400),
       mensagem_id: c.mensagem_id && msgs.has(c.mensagem_id) ? c.mensagem_id : null,
       dados: {
-        fluxo_id: ctx.fluxo?.id ?? null,
-        etapa_id: item ? item.etapa_id : ctx.fluxo?.etapa_id ?? null,
+        // A tarefa achada manda no endereço, porque ela já tem um. Depois vem
+        // a track que o modelo escolheu, e por último a do próprio canal.
+        fluxo_id: item ? (item.fluxo_id ?? ctx.fluxo?.id ?? null) : (daCasa?.id ?? ctx.fluxo?.id ?? null),
+        etapa_id: item ? item.etapa_id : (daCasa?.etapa_id ?? ctx.fluxo?.etapa_id ?? null),
         item_id: item ? item.id : null,
         resp_id: resp,
         prazo,
