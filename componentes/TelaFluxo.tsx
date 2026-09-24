@@ -87,15 +87,20 @@ export function TelaFluxo({ id }: { id: string }) {
   const pct = Math.round(progresso(f) * 100)
   /** Deitada só cabe até cinco. Passando disso, a trilha volta para a coluna. */
   /**
-   * Deitada sempre que couber, e no celular sempre.
+   * A trilha é deitada, e ponto. O que varia é se o nome cabe nela.
    *
-   * A regra de cinco valia quando deitada queria dizer "com o nome de cada
-   * checkpoint embaixo": aí sete não cabem e a trilha rolaria de lado. Com
-   * `soMarcas` o nome sai da trilha e vai para o cabeçalho do checkpoint, que
-   * fica logo abaixo, e sete bolinhas cabem em 393px com folga.
+   * A regra antiga mandava para a coluna acima de cinco checkpoints, e ela
+   * valia quando "deitada" queria dizer com o nome de cada um embaixo: aí sete
+   * não cabem e a trilha rolaria de lado, que é o defeito que a trilha existe
+   * para evitar.
+   *
+   * Com `soMarcas` o nome sai da trilha e vai para o cabeçalho do checkpoint,
+   * logo abaixo: sete bolinhas cabem com folga até em 393px. A coluna só volta
+   * quando nem as bolinhas cabem, e aí ela é mesmo a única saída.
    */
-  const cabemOsNomes = f.etapas.length <= (celular ? 4 : 5)
-  const deitada = celular || cabemOsNomes
+  const cabemOsNomes = f.etapas.length <= (celular ? 4 : 8)
+  const cabemAsMarcas = f.etapas.length <= (celular ? 12 : 24)
+  const deitada = cabemOsNomes || cabemAsMarcas
 
   let nota
   if (passado) nota = 'Checkpoint aprovado.'
