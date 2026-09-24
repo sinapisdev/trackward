@@ -48,6 +48,27 @@ function Formulario() {
   const [ok, setOk] = useState('')
   const [indo, setIndo] = useState(false)
 
+  /**
+   * O link do e-mail não funcionou, e por quê.
+   *
+   * Cair na tela de entrada sem explicação é o pior fim possível para quem só
+   * queria trocar a senha: a pessoa tenta de novo, cai no mesmo lugar, e
+   * conclui que o app está quebrado. Cada motivo aqui tem uma saída diferente,
+   * e é a saída que a frase precisa dizer.
+   */
+  const doLink = params.get('erro') === 'link' ? {
+    vencido: 'Esse link já venceu, ou já tinha sido usado. Peça outro aqui embaixo, '
+      + 'em "esqueci a senha", e abra dentro de uma hora.',
+    'outro-aparelho': 'Esse link precisa ser aberto no mesmo navegador em que você '
+      + 'pediu a troca. Peça de novo aqui, e clique no link a partir deste aparelho.',
+    vazio: 'O link chegou incompleto. Pode ter sido o e-mail cortando o endereço: '
+      + 'peça outro e, se puder, copie e cole o endereço inteiro na barra do navegador.',
+    recusado: 'O link não foi aceito. Peça outro em "esqueci a senha".',
+    servidor: 'O servidor não conseguiu conferir o link agora. Tente de novo em um minuto; '
+      + 'se insistir, é configuração do app, e não a sua senha.',
+  }[params.get('porque') || 'recusado'] || 'O link não foi aceito. Peça outro em "esqueci a senha".'
+    : ''
+
   const traduzir = (m: string) => {
     if (/Invalid login credentials/i.test(m)) return 'E-mail ou senha não conferem.'
     if (/Email not confirmed/i.test(m)) return 'Confirme o e-mail pelo link que enviamos antes de entrar.'
@@ -158,6 +179,7 @@ function Formulario() {
               {recuperando ? 'Receba um link para definir uma nova senha.' : 'Entre para acessar seu espaço.'}
             </p>
 
+            {!erro && !!doLink && <div className="erro"><Ic.x />{doLink}</div>}
             {erro && <div className="erro"><Ic.x />{erro}</div>}
             {ok && <div className="ok-box"><Ic.check />{ok}</div>}
 

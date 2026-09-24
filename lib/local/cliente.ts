@@ -1285,6 +1285,11 @@ function montarCliente() {
       },
       async updateUser(_dados?: unknown) { return { data: null, error: { message: SO_REAL } } },
       async resetPasswordForEmail(_email?: string, _opcoes?: unknown) { return { data: null, error: { message: SO_REAL } } },
+      // O link de e-mail não existe no modo demonstração, mas a assinatura
+      // precisa existir: a tela que abre o link é a mesma nos dois modos.
+      async setSession(_dados?: unknown) { return { data: null, error: { message: SO_REAL } } },
+      async verifyOtp(_dados?: unknown) { return { data: null, error: { message: SO_REAL } } },
+      async exchangeCodeForSession(_codigo?: string) { return { data: null, error: { message: SO_REAL } } },
     },
     /**
      * O balde de arquivos. Mesma superfície do Storage do Supabase, para o app

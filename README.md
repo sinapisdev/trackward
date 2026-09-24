@@ -213,6 +213,35 @@ pessoa parece deslogada no outro, o link de recuperação de senha do Supabase s
 o **Site URL** configurado, e a busca passa a ver duas versões da mesma coisa. Na Vercel
 isso é um clique: adicione o domínio e marque **Redirect to trackward.app**.
 
+### Se o link de trocar a senha cair na tela de entrada
+
+O link do e-mail passa pelo Supabase e volta para `/auth/confirmar`, que abre a sessão e
+segue para a tela pedida. Quando ele não abre, a volta agora **diz por quê**, na própria
+tela de entrada. Os motivos e o que fazer:
+
+| o que aparece | o que aconteceu |
+| --- | --- |
+| já venceu, ou já tinha sido usado | link de recuperação vale uma hora e uma vez só |
+| precisa do mesmo navegador | fluxo PKCE: metade da chave ficou num cookie de quem pediu. Pedir no computador e abrir no celular cai aqui |
+| chegou incompleto | o e-mail cortou o endereço. Copiar e colar o endereço inteiro resolve |
+| o servidor não conseguiu conferir | configuração do app, não do link. Ver a URL do Supabase nas variáveis |
+
+**E se ele cair no endereço errado** (a Vercel em vez do domínio), o problema é outro e
+mora no painel do Supabase, em **Authentication > URL Configuration**: o app pede o
+retorno para o endereço de onde a pessoa está, e o Supabase **só respeita esse pedido se
+ele estiver na lista de permitidos**. Não estando, ele ignora e usa o Site URL.
+
+```
+Site URL       https://trackward.app
+Redirect URLs  https://trackward.app/**
+               https://trackward.vercel.app/**
+               http://localhost:3000/**
+```
+
+As duas barras e o asterisco importam: é o que autoriza qualquer caminho dentro do
+domínio, inclusive o `/auth/confirmar?proximo=/nova-senha` que o app usa. E-mail já
+enviado carrega o link antigo gravado dentro dele: só o próximo vem certo.
+
 ## Avisos
 
 O app avisa quando alguém te passa uma tarefa, quando um prazo seu vence, quando um
