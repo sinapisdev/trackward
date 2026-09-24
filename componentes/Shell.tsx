@@ -5,6 +5,7 @@ import { useDados } from './Dados'
 import { Barra, Rodape } from './Barra'
 import { TabBar } from './TabBar'
 import { Ic } from './Icones'
+import { PedeNome } from './PedeNome'
 
 /**
  * Quanto as barras do app ocupam, medido de verdade.
@@ -53,6 +54,9 @@ export function Shell({ children }: { children: ReactNode }) {
       <Rodape />
 
       <TabBar />
+
+      {/* Quem entrou sem nome é chamado pelo e-mail, e a equipe inteira vê isso. */}
+      <PedeNome />
 
       <div className={`toast ${aviso ? 'show' : ''}`} role="status">
         {aviso && (

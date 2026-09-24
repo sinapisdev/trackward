@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/browser'
 import { Ic } from './Icones'
+import { primeiroNome } from '@/lib/nomes'
 
 /**
  * Tela de quem tem perfil na empresa mas está com o acesso desligado.
@@ -25,7 +26,7 @@ export function Espera({ nome, email }: { nome?: string; email: string }) {
           <span className="logo"><Ic.logo /></span>
           <div><b>TrackWard</b><span>Objetivos, rotinas e pessoas</span></div>
         </div>
-        <h1>Acesso suspenso{nome ? `, ${nome.split(' ')[0]}` : ''}</h1>
+        <h1>Acesso suspenso{nome ? `, ${primeiroNome(nome, email)}` : ''}</h1>
         <p>
           Sua conta ({email}) existe, mas o acesso dela está desligado no momento. Quem liga de
           volta é um administrador da sua empresa, na tela Equipe. Assim que ele fizer isso, é só

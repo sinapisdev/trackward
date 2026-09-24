@@ -115,6 +115,13 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
   `ve_item` e `meu_alcance` do schema. Mexeu em um, mexa no outro.
   Colaborador vê o que é dele e o que trava o que é dele. Gestor vê também tudo de quem
   está abaixo, em qualquer profundidade. Admin vê tudo.
+- **Ninguém é chamado pelo e-mail.** Um perfil pode nascer sem nome, por convite antigo ou
+  por cadastro anterior ao formulário atual, e aí o banco guarda o endereço no lugar. O app
+  não conserta o dado sozinho: ele **pergunta** (`componentes/PedeNome.tsx`), porque o nome
+  da pessoa é dela. Enquanto ela não responde, `primeiroNome()` em `lib/nomes.ts` evita o
+  "Boa tarde, fulano@gmail.com", que é cara de relatório de sistema e é a primeira coisa
+  que alguém de fora vê. A pergunta dá para adiar e volta na sessão seguinte, nunca vira
+  tarja permanente.
 - **Papel nunca é escolhido por quem se cadastra.** Vem do convite (tabela `convites`, resolvida
   pelo trigger `novo_usuario`) ou de um administrador em Equipe. Quem abre a empresa vira admin
   dela porque não há mais ninguém ali para dizer que pode.

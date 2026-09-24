@@ -14,6 +14,7 @@ import { TelaChat } from './TelaChat'
 import { Caderno } from './Caderno'
 import { classePrazo, useCelular } from './partes'
 import { AVULSA } from '@/lib/rotulos'
+import { primeiroNome } from '@/lib/nomes'
 import { dias, DSEM_LONGO, hoje, isoDe, MES_LONGO, rel } from '@/lib/datas'
 import { etapaAtual } from '@/lib/regras'
 import type { Fluxo, Item } from '@/lib/tipos'
@@ -170,7 +171,7 @@ export function Painel() {
             <div className="eyebrow">
               {DSEM_LONGO[h.getDay()]}, {h.getDate()} de {MES_LONGO[h.getMonth()]}
             </div>
-            <h1>{saudacao}, {eu.nome.split(' ')[0]}.</h1>
+            <h1>{saudacao}, {primeiroNome(eu.nome, eu.email)}.</h1>
             <p className="lede">
               {minhas.length
                 ? <>{minhas.length} {minhas.length === 1 ? 'tarefa com você' : 'tarefas com você'}
