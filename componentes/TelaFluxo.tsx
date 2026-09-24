@@ -99,7 +99,7 @@ export function TelaFluxo({ id }: { id: string }) {
    * quando nem as bolinhas cabem, e aí ela é mesmo a única saída.
    */
   const cabemOsNomes = f.etapas.length <= (celular ? 4 : 8)
-  const cabemAsMarcas = f.etapas.length <= (celular ? 12 : 24)
+  const cabemAsMarcas = f.etapas.length <= (celular ? 20 : 40)
   const deitada = cabemOsNomes || cabemAsMarcas
 
   let nota
@@ -329,9 +329,13 @@ export function TelaFluxo({ id }: { id: string }) {
           {aba === 'trilha' ? (
             <>
               <ConversaTrack f={f} />
-              <div className="rail-sep" />
-              <h2 className="track-rot">Atividade</h2>
-              <AtividadeTrack f={f} />
+              {/* A atividade fechada por padrão: ela é o histórico, e histórico
+                  se consulta, não se acompanha. Aberta, ela comia a altura que
+                  a conversa precisa para caber mais de quatro mensagens. */}
+              <details className="track-atv">
+                <summary><Ic.chev />Atividade<i className="num">{f.log.length}</i></summary>
+                <AtividadeTrack f={f} />
+              </details>
             </>
           ) : (
             <>

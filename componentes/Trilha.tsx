@@ -169,7 +169,8 @@ export function TrilhaH({ f, sel, aoEscolher, numerada = false, miuda = false, s
   const devolvidos = new Set(decisoes.filter((d) => d.tipo === 'devolveu').map((d) => d.etapa_id))
 
   return (
-    <div className={`trilhah ${miuda ? 'miuda' : ''} ${soMarcas ? 'so-marcas' : ''} ${f.concluido ? 'fim' : ''}`}>
+    <div className={`trilhah ${miuda ? 'miuda' : ''} ${soMarcas ? 'so-marcas' : ''}`
+      + `${soMarcas && f.etapas.length > 8 ? ' muitas' : ''} ${f.concluido ? 'fim' : ''}`}>
       <ol>
         {f.etapas.map((et, k) => {
           const feita = f.concluido || k < f.atual

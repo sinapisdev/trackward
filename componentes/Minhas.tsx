@@ -85,7 +85,15 @@ export function Minhas() {
     : [{ titulo: atual.nome, itens: atual.itens }]
 
   const naFila = blocos.flatMap((b) => b.itens)
-  const sel = naFila.find((p) => chave(p) === aberta) || naFila[0] || null
+  /**
+   * Qual pendência está aberta na gaveta.
+   *
+   * No computador a gaveta é uma coluna ao lado, e abrir a primeira sozinha é
+   * bom: a tela nunca aparece pela metade. No celular ela é uma folha por cima
+   * da lista, e abrir sozinha esconderia justamente a lista que a pessoa veio
+   * ver. Lá ela só abre no toque.
+   */
+  const sel = naFila.find((p) => chave(p) === aberta) || (celular ? null : naFila[0]) || null
 
   const Etiqueta = ({ p }: { p: Pendencia }) =>
     p.tipo === 'aprov' ? <span className="fila-tag">Aprovar</span>
@@ -196,8 +204,15 @@ export function Minhas() {
           )}
         </div>
 
+        {/* No celular a gaveta é folha: ela vinha DEPOIS da lista inteira, fora
+            da tela, então tocar numa pendência parecia não fazer nada, e o
+            "Aprovar saída" que mora dentro dela era inalcançável. */}
+        {sel && celular && (
+          <div className="folha-fundo" onClick={() => setAberta(null)} aria-hidden />
+        )}
         {sel && <Gaveta p={sel} travas={travasDe(sel).length}
           avulsa={sel.fluxo.id === minhaLista?.id} nomeDe={nomeDe} perfilDe={perfilDe}
+          aoFechar={() => setAberta(null)}
           aoConcluir={() => { if (sel.tipo === 'item') void alternarItem(sel.item) }}
           aoAprovar={() => void aprovarSaida(sel.fluxo)} />}
       </div>
@@ -218,13 +233,14 @@ export function Minhas() {
 }
 
 /** A gaveta: a pendência escolhida, com tudo que ela precisa para sair daqui. */
-function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoConcluir, aoAprovar }: {
+function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoAprovar }: {
   p: Pendencia
   travas: number
   /** Tarefa sem objetivo e sem rotina: a trilha e o critério não existem nela. */
   avulsa: boolean
   nomeDe: (id: string | null) => string
   perfilDe: (id: string | null) => import('@/lib/tipos').Perfil
+  aoFechar: () => void
   aoConcluir: () => void
   aoAprovar: () => void
 }) {
@@ -237,6 +253,7 @@ function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoConcluir, aoAprovar }: 
     <aside className="gaveta">
       <div className="gaveta-topo">
         <span className="gaveta-onde">{avulsa ? AVULSA : `${p.fluxo.nome} / ${et?.nome}`}</span>
+        <button className="iconbtn so-celular" aria-label="Fechar" onClick={aoFechar}><Ic.x /></button>
       </div>
       <h2>{titulo}</h2>
       {p.tipo === 'item' && !!p.item.descricao && (

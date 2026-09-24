@@ -34,7 +34,9 @@ export function ConversaTrack({ f }: { f: Fluxo }) {
         <p className="ct-vazio">Esta track ainda não tem canal. Crie um em Conversa.</p>
       </div>
     )
-  return <Conversa canal={canal} titulo="Conversa da track" quantas={4} />
+  // Mais mensagens agora que a atividade saiu do caminho: com quatro, a
+  // conversa da track mostrava o fim de um assunto sem o começo.
+  return <Conversa canal={canal} titulo="Conversa da track" quantas={10} />
 }
 
 /**

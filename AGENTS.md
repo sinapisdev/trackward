@@ -563,6 +563,13 @@ limas em toda tela, que é defeito.
 A agenda usa `matchMedia` para mostrar um dia por vez no celular; grade de sete colunas
 não cabe em 375px.
 
+**Detalhe que abre numa coluna no computador vira folha no celular.** A gaveta de Meu
+trabalho ficava DEPOIS da lista inteira, fora da tela: tocar numa pendência parecia não
+fazer nada, e o "Aprovar saída" que mora dentro dela era inalcançável. No celular ela é
+folha por cima, com fundo e botão de fechar, e **não abre sozinha**: no computador abrir a
+primeira é bom, porque a tela nunca aparece pela metade; no celular esconderia a lista que
+a pessoa veio ver.
+
 **Na track, o checkpoint vem antes de tudo.** Abrir uma track e não ver tarefa nenhuma sem
 rolar é o mesmo que não abrir: no celular o cabeçalho encolhe, a trilha fica rasa (sem a
 legenda de baixo, que repete o que o desenho já diz) e o palpite de quem faz desce para
@@ -611,7 +618,8 @@ trilha e fica no cabeçalho do checkpoint, logo abaixo, e sete bolinhas cabem co
 393px. Nada rola de lado, e o nome só deixa de aparecer duas vezes.
 
 Os cortes estão em `TelaFluxo` (`cabemOsNomes`, `cabemAsMarcas`): nome até 4 no celular e
-até 8 no computador, marca até 12 e até 24. A coluna só volta quando **nem as bolinhas
+até 8 no computador, marca até 20 e até 40, e a marca encolhe de 26 para 20px acima de
+oito checkpoints, que é o que faz quinze caberem em 393px. A coluna só volta quando **nem as bolinhas
 cabem**, e aí ela é mesmo a única saída. Não tirar o limite dos nomes para "ficar igual à
 arte": a arte foi desenhada com quatro.
 
