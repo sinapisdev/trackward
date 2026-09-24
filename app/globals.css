@@ -4116,3 +4116,24 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
   /* o rodapé de aprovar, sem a faixa cinza de uma versão anterior */
   .cp-f{background:none;padding:14px 0 0;border-top:1px solid var(--line)}
 }
+
+/* ---------------------------------------- a trilha só com os marcadores
+
+   Para quando são muitos checkpoints e a largura é pouca. O nome sai da
+   trilha e fica no cabeçalho do checkpoint, logo abaixo: sete bolinhas cabem
+   com folga em 393px, o anel diz onde a track está de um olhar, e nada rola
+   de lado, que é o defeito que fez a trilha deitada ser abandonada antes. */
+
+.trilhah.so-marcas{padding:2px 0}
+.trilhah.so-marcas .th-est{padding-top:0}
+.trilhah.so-marcas .th-est>button,.trilhah.so-marcas .th-est>span{padding-inline:0}
+.trilhah.so-marcas .th-est::after{top:13px;left:calc(50% + 16px);right:calc(-50% + 16px)}
+.trilhah.so-marcas .th-marca,.trilhah.so-marcas .th-ok,
+.trilhah.so-marcas .th-oca,.trilhah.so-marcas .th-anel{width:26px;height:26px}
+/* o escolhido ganha um anel de foco: sem nome embaixo, é ele que diz onde o
+   toque caiu, e sem isso escolher um checkpoint não dava retorno nenhum */
+/* o halo precisa do raio, senão sai quadrado em volta de uma bolinha */
+.trilhah.so-marcas .th-marca{border-radius:var(--r-pill)}
+.trilhah.so-marcas .th-est.sel .th-marca{box-shadow:0 0 0 3px var(--alto)}
+.trilhah.so-marcas .th-est.vez .th-marca{box-shadow:0 0 0 5px var(--ac-soft)}
+.trilhah.so-marcas .th-est.sel.vez .th-marca{box-shadow:0 0 0 5px var(--ac-soft),0 0 0 7px var(--alto)}

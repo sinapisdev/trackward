@@ -141,12 +141,17 @@ export function Trilha({ f, sel, aoEscolher, decisoes }: {
  * a rotina na lista e a pasta em foco no painel.
  *
  * Deitada ela só serve enquanto os checkpoints cabem na largura. Passando disso
- * ela rola de lado, e rolar para descobrir onde a esteira está é justamente o
- * que a trilha existe para evitar: por isso, quando não cabe, quem aparece é a
- * versão em coluna. Quem decide é `limite`, e a tela de uma track com muitos
- * checkpoints continua tendo a coluna à mão.
+ * ela rolaria de lado, e rolar para descobrir onde a esteira está é justamente o
+ * que a trilha existe para evitar.
+ *
+ * O modo `soMarcas` é a saída para quando são muitos: só os marcadores, sem
+ * nome nenhum. Sete bolinhas cabem com folga em 393px, o anel diz onde a track
+ * está de um olhar, e o nome do checkpoint escolhido aparece logo abaixo, no
+ * cabeçalho do checkpoint, onde ele já estava. Nada rola de lado, e nada se
+ * perde: o nome só deixa de aparecer duas vezes.
  */
-export function TrilhaH({ f, sel, aoEscolher, numerada = false, miuda = false, decisoes = [] }: {
+export function TrilhaH({ f, sel, aoEscolher, numerada = false, miuda = false, soMarcas = false,
+  decisoes = [] }: {
   f: Fluxo
   sel?: number
   aoEscolher?: (k: number) => void
@@ -154,12 +159,17 @@ export function TrilhaH({ f, sel, aoEscolher, numerada = false, miuda = false, d
   numerada?: boolean
   /** Versão de lista: marcas menores e sem a linha de detalhe. */
   miuda?: boolean
+  /**
+   * Só os marcadores, sem nome. Para quando são muitos e a largura é pouca: o
+   * nome de quem está aberto fica no cabeçalho do checkpoint, embaixo.
+   */
+  soMarcas?: boolean
   decisoes?: Decisao[]
 }) {
   const devolvidos = new Set(decisoes.filter((d) => d.tipo === 'devolveu').map((d) => d.etapa_id))
 
   return (
-    <div className={`trilhah ${miuda ? 'miuda' : ''} ${f.concluido ? 'fim' : ''}`}>
+    <div className={`trilhah ${miuda ? 'miuda' : ''} ${soMarcas ? 'so-marcas' : ''} ${f.concluido ? 'fim' : ''}`}>
       <ol>
         {f.etapas.map((et, k) => {
           const feita = f.concluido || k < f.atual
@@ -187,10 +197,10 @@ export function TrilhaH({ f, sel, aoEscolher, numerada = false, miuda = false, d
           )
           const dentro = (
             <>
-              {vez && <small className="th-agora">Agora</small>}
+              {vez && !soMarcas && <small className="th-agora">Agora</small>}
               {Marca}
-              <b>{numerada ? `${k + 1}. ` : ''}{et.nome}</b>
-              {!miuda && <small className="th-det">{detalhe}</small>}
+              {!soMarcas && <b>{numerada ? `${k + 1}. ` : ''}{et.nome}</b>}
+              {!miuda && !soMarcas && <small className="th-det">{detalhe}</small>}
             </>
           )
           return (

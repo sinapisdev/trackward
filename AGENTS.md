@@ -604,10 +604,15 @@ A aba chama-se **Track**, e não "Trilha": a tela já é a da track, e o conteú
 precisa de um título repetindo o nome dela por cima. Aquele título custava a linha mais
 cara da tela, que é a primeira.
 
-Quem escolhe é o número de checkpoints: **deitada só até cinco**. Passando disso ela
-rolaria de lado, e descobrir onde a track está passaria a exigir arrastar, que é
-exatamente o que a trilha existe para evitar. A regra mora em `TelaFluxo` (`deitada`).
-Não tirar esse limite para "ficar igual à arte": a arte foi desenhada com quatro.
+**No celular ela é sempre deitada.** A regra de cinco valia quando deitada queria dizer
+"com o nome de cada checkpoint embaixo": aí sete não cabem e a trilha rolaria de lado, que
+é exatamente o que ela existe para evitar. A saída é o modo **`soMarcas`**: o nome sai da
+trilha e fica no cabeçalho do checkpoint, logo abaixo, e sete bolinhas cabem com folga em
+393px. Nada rola de lado, e o nome só deixa de aparecer duas vezes.
+
+No computador o limite continua: até cinco deitada com nomes, acima disso a coluna, que
+ali cabe na lateral de 264px. A regra mora em `TelaFluxo` (`cabemOsNomes`, `deitada`).
+Não tirar o limite dos nomes para "ficar igual à arte": a arte foi desenhada com quatro.
 
 Aprovado é disco cheio com o visto, o corrente é anel do acento com halo fraco, o que
 ainda não chegou é contorno apagado com o número dentro, e o fio que liga acende até onde

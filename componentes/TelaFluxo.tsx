@@ -12,6 +12,7 @@ import { classePrazo } from './partes'
 import { Anexos } from './Anexos'
 import { Decisao } from './Decisao'
 import { Trilha, TrilhaH } from './Trilha'
+import { useCelular } from './partes'
 import { QuemFaz } from './QuemFaz'
 import { ConversaTrack, AtividadeTrack } from './ConversaTrack'
 import { curta, rel } from '@/lib/datas'
@@ -35,6 +36,9 @@ export function TelaFluxo({ id }: { id: string }) {
   const [sel, setSel] = useState<number | null>(null)
   const [decidindo, setDecidindo] = useState(false)
   const [aba, setAba] = useState<'trilha' | 'conversa' | 'atividade'>('trilha')
+  // Antes de qualquer saída antecipada: gancho dentro de ramo condicional muda
+  // a ordem entre uma pintura e outra, e o React derruba a tela inteira.
+  const celular = useCelular()
 
   /** Índice de todas as tarefas que enxergo, para resolver quem trava quem. */
   const porId = useMemo(() => {
@@ -82,7 +86,16 @@ export function TelaFluxo({ id }: { id: string }) {
   const ocultos = Math.max(0, totalItens(f.id) - f.etapas.reduce((n, et) => n + et.itens.length, 0))
   const pct = Math.round(progresso(f) * 100)
   /** Deitada só cabe até cinco. Passando disso, a trilha volta para a coluna. */
-  const deitada = f.etapas.length <= 5
+  /**
+   * Deitada sempre que couber, e no celular sempre.
+   *
+   * A regra de cinco valia quando deitada queria dizer "com o nome de cada
+   * checkpoint embaixo": aí sete não cabem e a trilha rolaria de lado. Com
+   * `soMarcas` o nome sai da trilha e vai para o cabeçalho do checkpoint, que
+   * fica logo abaixo, e sete bolinhas cabem em 393px com folga.
+   */
+  const cabemOsNomes = f.etapas.length <= (celular ? 4 : 5)
+  const deitada = celular || cabemOsNomes
 
   let nota
   if (passado) nota = 'Checkpoint aprovado.'
@@ -171,7 +184,8 @@ export function TelaFluxo({ id }: { id: string }) {
                   nome dela como título gasta a linha mais cara da tela, que é a
                   primeira. */}
               {deitada
-                ? <TrilhaH f={f} sel={idx} aoEscolher={setSel} numerada decisoes={decisoesDe(f.id)} />
+                ? <TrilhaH f={f} sel={idx} aoEscolher={setSel} numerada={cabemOsNomes}
+                    soMarcas={!cabemOsNomes} decisoes={decisoesDe(f.id)} />
                 : <Trilha f={f} sel={idx} aoEscolher={setSel} decisoes={decisoesDe(f.id)} />}
 
               {f.tipo === 'ciclo' && (
