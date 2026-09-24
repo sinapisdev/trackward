@@ -678,6 +678,23 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       toast('Sua sessão expirou. Entre de novo para continuar.', true)
       return
     }
+    /**
+     * O banco está atrás do código.
+     *
+     * O PostgREST diz "Could not find the 'x' column of 'y' in the schema
+     * cache", que é verdade e não ajuda: quem lê não sabe que existe um arquivo
+     * de atualização esperando, e a frase parece defeito do app. Aqui ela vira
+     * a instrução de uma linha que resolve, com a coluna e a tabela mantidas
+     * porque são a única pista de qual seção do schema falta.
+     */
+    const faltando = /find the '([a-z_]+)' column of '([a-z_]+)'/i.exec(msg)
+    if (faltando || /schema cache/i.test(msg)) {
+      toast(faltando
+        ? `O banco está desatualizado: falta a coluna ${faltando[1]} em ${faltando[2]}. `
+          + 'Rode o supabase/atualizar.sql no SQL Editor do Supabase.'
+        : 'O banco está desatualizado. Rode o supabase/atualizar.sql no SQL Editor.', true)
+      return
+    }
     toast(msg && msg.length < 120 ? msg : padrao, true)
   }, [toast])
 
