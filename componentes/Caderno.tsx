@@ -7,7 +7,6 @@ import { Ic } from './Icones'
 import { ConversaNota } from './ConversaNota'
 import { Documento } from './Documento'
 import { DetalhesNota } from './DetalhesNota'
-import { useCelular } from './partes'
 import { buscar, porTitulo, resumo } from '@/lib/notas'
 import { isoDe, rel } from '@/lib/datas'
 import type { Nota, TipoProposta } from '@/lib/tipos'
@@ -47,7 +46,6 @@ export function Caderno() {
     conversaIA, abrirConversaIA, sugestoesDaNota, mensagensDaNota, salvarNota,
     lerNota, aceitarSugestao, recusarSugestao, org } = useDados()
 
-  const celular = useCelular()
   const [termo, setTermo] = useState('')
   const [abertaId, setAbertaId] = useState<string | null>(null)
   const [lendo, setLendo] = useState(false)
@@ -164,24 +162,28 @@ export function Caderno() {
       <div className="dp">
         <div className="ct-topo">
           <h2>Notas</h2>
-          <button className="iconbtn" title="Nota nova" aria-label="Nota nova"
-            onClick={() => void nova()}><Ic.plus /></button>
           <Link className="iconbtn" href="/notas" title="Abrir o caderno inteiro"
-            aria-label="Abrir o caderno inteiro"><Ic.mais /></Link>
+            aria-label="Abrir o caderno inteiro"><Ic.caber /></Link>
         </div>
 
-        {/* Procurar vem antes de tudo, e procura em tudo: título, corpo,
-            endereço e o que foi dito na conversa de dentro da nota. Quem
-            procura não lembra onde escreveu, lembra da palavra. */}
-        <div className="nt-busca">
-          <Ic.lupa />
-          <input className="inp" value={termo} onChange={(e) => setTermo(e.target.value)}
-            placeholder={`Buscar em ${vivas.length} nota${vivas.length === 1 ? '' : 's'}`}
-            aria-label="Buscar nas notas" />
-          {!!termo && (
-            <button className="iconbtn" aria-label="Limpar busca"
-              onClick={() => setTermo('')}><Ic.x /></button>
-          )}
+        {/* Procurar e criar na mesma linha, no alto. Procurar vem antes de
+            tudo, e procura em tudo: título, corpo, endereço e o que foi dito na
+            conversa de dentro. Quem procura não lembra onde escreveu, lembra da
+            palavra. E criar fica do lado, porque são as duas únicas coisas que
+            se faz numa lista: achar uma, ou começar outra. */}
+        <div className="nt-topo">
+          <div className="nt-busca">
+            <Ic.lupa />
+            <input className="inp" value={termo} onChange={(e) => setTermo(e.target.value)}
+              placeholder={`Buscar em ${vivas.length} nota${vivas.length === 1 ? '' : 's'}`}
+              aria-label="Buscar nas notas" />
+            {!!termo && (
+              <button className="iconbtn" aria-label="Limpar busca"
+                onClick={() => setTermo('')}><Ic.x /></button>
+            )}
+          </div>
+          <button className="nt-nova" title="Nota nova" aria-label="Nota nova"
+            onClick={() => void nova()}><Ic.plus /></button>
         </div>
 
         {org.ia_ativa && !termo && (
@@ -215,14 +217,6 @@ export function Caderno() {
           )}
         </div>
 
-        {/* No celular o botão de criar é o redondo, como no resto do app: o do
-            cabeçalho some por CSS, e o da TabBar também, senão seriam três
-            botões para a mesma coisa na mesma tela. */}
-        {celular && (
-          <button className="fab fab-nota" aria-label="Nota nova" onClick={() => void nova()}>
-            <Ic.plus />
-          </button>
-        )}
       </div>
     )
   }

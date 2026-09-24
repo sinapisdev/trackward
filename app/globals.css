@@ -3892,6 +3892,14 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
    não deve exigir aprender duas listas diferentes.
    ========================================================================== */
 
+/* procurar e criar dividem a mesma linha: são as duas coisas que se faz numa
+   lista, achar uma nota ou começar outra */
+.nt-topo{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.nt-topo .nt-busca{flex:1;min-width:0;margin-bottom:0}
+.nt-nova{flex:none;width:38px;height:38px;border-radius:var(--r-pill);display:grid;
+  place-items:center;background:var(--ac);color:var(--ac-tx);transition:var(--t)}
+.nt-nova:hover{background:var(--ac-2)}
+
 .nt-busca{display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:0 12px;
   border:1px solid var(--line);border-radius:var(--r-pill);background:var(--brilho);
   transition:var(--t)}
@@ -3934,8 +3942,9 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
      o título, e escondê-lo lá deixava a pessoa sem saída. */
   .fwd-cel-notas .dp:not(.dp-dentro) .ct-topo{display:none}
   /* E o botão redondo da TabBar sai de cena enquanto as notas estão na tela:
-     ali ele criaria canal, que é a coisa errada no lugar certo. */
-  .shell:has(.fwd-cel-notas) .fab:not(.fab-nota){display:none}
+     ali ele criaria canal, que é a coisa errada no lugar certo. Criar nota é
+     o botão ao lado da busca, no alto. */
+  .shell:has(.fwd-cel-notas) .fab{display:none}
 }
 
 /* ==========================================================================
