@@ -41,10 +41,13 @@ export function TabBar() {
     location.assign('/entrar')
   }
 
-  const Aba = ({ href, icone, rotulo, conta, quente }: {
+  /** @param tambem outros começos de caminho que acendem esta aba. */
+  const Aba = ({ href, icone, rotulo, conta, quente, tambem }: {
     href: string; icone: React.ReactNode; rotulo: string; conta?: number; quente?: boolean
+    tambem?: string
   }) => (
-    <Link className={`aba ${caminho === href || (href !== '/' && caminho.startsWith(href)) ? 'on' : ''}`} href={href}>
+    <Link className={`aba ${caminho === href || (href !== '/' && caminho.startsWith(href))
+      || (tambem && caminho.startsWith(tambem)) ? 'on' : ''}`} href={href}>
       <span className="ic">
         {icone}
         {!!conta && <i className={`selo ${quente ? 'hot' : ''}`}>{conta > 9 ? '9+' : conta}</i>}
@@ -60,7 +63,10 @@ export function TabBar() {
             abre no chat, com o seletor de Notas em cima dela. Por isso não
             existe aba separada de Conversa nem de Notas, seria a mesma tela
             duas vezes. O que saiu dali está nas outras quatro. */}
-        <Aba href="/" icone={<Ic.chat />} rotulo="Conversa" conta={porLer} quente />
+        {/* A inicial é a lista de conversas, e entrar numa delas leva para
+            /chat/<id>: a aba continua acesa, senão a pessoa fica sem saber
+            onde está no exato momento em que ela está no lugar principal. */}
+        <Aba href="/" icone={<Ic.chat />} rotulo="Conversa" conta={porLer} quente tambem="/chat" />
         <Aba href="/minhas" icone={<Ic.inbox />} rotulo="Trabalho" conta={minhas} />
         <Aba href="/tracks" icone={<Ic.proj />} rotulo="Tracks" />
         <Aba href="/agenda" icone={<Ic.agenda />} rotulo="Agenda" conta={hoje} />
@@ -141,19 +147,21 @@ export function TabBar() {
 
       {/* Ação principal flutuante, como em app de celular. Dentro de uma conversa
           ela sai, senão ficaria em cima do campo de escrever. */}
-      {/* Fora da conversa. A página inicial agora É a conversa no celular, e o
-          botão redondo ficaria em cima do campo de escrever. Quem cria dali
-          usa a barra: /tarefa, /objetivo, /nota. */}
-      {!mais && !caminho.startsWith('/chat') && caminho !== '/' && (
+      {/* Some só DENTRO de uma conversa, onde ele ficaria em cima do campo de
+          escrever. Na lista ele é o botão de conversa nova, como em qualquer
+          app de mensagem. */}
+      {!mais && !caminho.startsWith('/chat/') && (
         <button className="fab" aria-label="Criar"
           onClick={() => abrir(
-            caminho === '/chat' ? { tipo: 'canal' }
+            // A inicial do celular é a lista de conversas, então ali o que se
+            // cria é canal.
+            caminho === '/' || caminho === '/chat' ? { tipo: 'canal' }
               : caminho === '/agenda' ? { tipo: 'compromisso', quando: hojeIso() }
-                // No Forward e na sua fila o que se cria é tarefa. Objetivo e
-                // rotina são decisão, e decisão se toma em Tracks: o botão
-                // redondo é da operação do dia, e abrir um formulário de
-                // objetivo ali era oferecer a coisa errada no lugar certo.
-                : caminho === '/' || caminho === '/minhas' ? { tipo: 'avulsa' }
+                // Na sua fila o que se cria é tarefa. Objetivo e rotina são
+                // decisão, e decisão se toma em Tracks: o botão redondo é da
+                // operação do dia, e abrir formulário de objetivo ali era
+                // oferecer a coisa errada no lugar certo.
+                : caminho === '/minhas' ? { tipo: 'avulsa' }
                   : { tipo: 'fluxo', tipoFluxo: 'esteira' })}>
           <Ic.plus />
         </button>

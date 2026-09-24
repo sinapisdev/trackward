@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDados } from './Dados'
 import { useComandos } from './Comandos'
+import { useCelular } from './partes'
 import { useModais } from './Modais'
 import { Carregando } from './Shell'
 import { Ic } from './Icones'
@@ -47,8 +48,10 @@ const marca = (c: Canal) =>
 // ------------------------------------------------------------------ lista
 
 function Lista({ atual }: { atual?: string }) {
-  const { canais, mensagens, naoLidas, meChamaram, sugestoesDe, todosFluxos, eu, perfilDe } = useDados()
+  const { canais, mensagens, naoLidas, meChamaram, sugestoesDe, todosFluxos, eu, perfilDe,
+    nomeDe } = useDados()
   const { abrir } = useModais()
+  const celular = useCelular()
 
   /** A hora da última mensagem de cada canal, numa passada só. */
   const ultima = useMemo(() => {
@@ -62,16 +65,36 @@ function Lista({ atual }: { atual?: string }) {
     return mapa
   }, [mensagens])
 
+  /** A última fala de cada canal, para a linha mostrar do que se trata. */
+  const previa = useMemo(() => {
+    const mapa = new Map<string, Mensagem>()
+    for (const m of mensagens) {
+      if (!m.canal_id) continue
+      const atual = mapa.get(m.canal_id)
+      if (!atual || m.criado_em > atual.criado_em) mapa.set(m.canal_id, m)
+    }
+    return mapa
+  }, [mensagens])
+
+  /**
+   * No celular, uma lista só, do mais recente para o mais antigo.
+   *
+   * É a forma do WhatsApp, e não é imitação: no telefone a pergunta é "quem
+   * falou comigo agora", e agrupar por tipo obriga a procurar a resposta em
+   * três lugares. No computador os grupos ficam, porque ali a lista é uma
+   * coluna parada ao lado do trabalho, e serve para navegar, não para alcançar.
+   */
   const grupos = useMemo(() => {
     const quando = (id: string) => ultima.get(id) ?? 0
     const ordenar = (lista: Canal[]) => [...lista].sort((a, b) => quando(b.id) - quando(a.id))
     const comum = (c: Canal) => c.tipo !== 'direto'
+    if (celular) return [{ rotulo: '', itens: ordenar(canais) }].filter((g) => g.itens.length)
     return [
       { rotulo: 'Canais', itens: ordenar(canais.filter((c) => comum(c) && !c.fluxo_id)) },
       { rotulo: 'Objetivos', itens: ordenar(canais.filter((c) => comum(c) && c.fluxo_id)) },
       { rotulo: 'Conversas', itens: ordenar(canais.filter((c) => c.tipo === 'direto')) },
     ].filter((g) => g.itens.length)
-  }, [canais, ultima])
+  }, [canais, ultima, celular])
 
   const nomeDoCanal = (c: Canal) => {
     if (c.tipo !== 'direto') return c.nome
@@ -90,17 +113,28 @@ function Lista({ atual }: { atual?: string }) {
       <div className="chat-rolagem">
         {grupos.map((g) => (
           <div key={g.rotulo}>
-            <div className="chat-grupo">{g.rotulo}</div>
+            {!!g.rotulo && <div className="chat-grupo">{g.rotulo}</div>}
             {g.itens.map((c) => {
               const novas = naoLidas(c.id)
               const chamadas = meChamaram(c.id)
               const propostas = sugestoesDe(c.id).filter((s) => s.estado === 'aberta').length
               const f = c.fluxo_id ? todosFluxos.find((x) => x.id === c.fluxo_id) : null
+              const ult = previa.get(c.id)
               return (
                 <Link key={c.id} href={`/chat/${c.id}`}
                   className={`chat-item ${atual === c.id ? 'on' : ''} ${novas ? 'novo' : ''}`}>
                   <span className="mk">{marca(c)}</span>
                   <span className="nm">{nomeDoCanal(c)}</span>
+                  {/* A última fala, só no celular: é ela que faz a lista dizer
+                      do que se trata em vez de só dizer que existe. */}
+                  {celular && (
+                    <span className="chat-previa">
+                      {ult
+                        ? `${ult.autor_id === eu.id ? 'Você' : nomeDe(ult.autor_id)}: ${ult.texto}`
+                        : 'Nada dito ainda'}
+                    </span>
+                  )}
+                  {celular && !!ult && <span className="chat-quando">{hora(ult.criado_em)}</span>}
                   {!!propostas && <span className="pastilha" title="Propostas da leitura"><Ic.faisca /></span>}
                   {!!chamadas && <span className="chamada" title="Chamaram você aqui">@</span>}
                   {!!novas && <span className="ct num hot">{novas > 9 ? '9+' : novas}</span>}

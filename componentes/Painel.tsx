@@ -134,9 +134,13 @@ export function Painel() {
             Notas
           </button>
         </div>
+        {/* Sem canal escolhido de propósito: abre na LISTA, como WhatsApp.
+            Abrir dentro de uma conversa é o app decidir com quem você vai
+            falar, e a primeira pergunta de quem pega o telefone é "quem falou
+            comigo", não "responde isso aqui". */}
         {face === 'notas'
           ? <div className="fwd-cel-notas"><Caderno /></div>
-          : <TelaChat id={canal?.id} />}
+          : <TelaChat />}
       </div>
     )
   }

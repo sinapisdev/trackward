@@ -3841,3 +3841,44 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
   .min-rail{margin-top:28px;padding-top:24px;border-top:1px solid var(--line)}
   .min-rail .rail-sep{height:1px;background:var(--line);margin:24px 0}
 }
+
+/* ==========================================================================
+   A lista de conversas no celular
+
+   Forma de app de mensagem: uma linha por conversa, o nome em cima, a última
+   fala embaixo e a hora no canto. A pergunta de quem pega o telefone é "quem
+   falou comigo", e nome sozinho não responde isso: responde que a conversa
+   existe, que a pessoa já sabia.
+   ========================================================================== */
+
+@media (max-width:840px){
+  /* Sem canal aberto, a regra de duas colunas lá de cima ganhava por
+     especificidade (`.chat[data-aberto="nao"]`, duas marcas contra uma) e a
+     lista ficava numa faixa de 248px com o resto vazio ao lado. Aqui ela é a
+     tela toda: a lista É a página inicial. */
+  .chat[data-aberto="nao"]{grid-template-columns:1fr}
+
+  .chat-item{display:grid;grid-template-columns:32px minmax(0,1fr) auto;
+    grid-template-rows:auto auto;gap:1px 12px;align-items:center;
+    padding:12px 14px;border-radius:0;min-height:64px;
+    border-bottom:1px solid var(--line)}
+  .chat-item.on{background:none;box-shadow:none}
+  .chat-item .mk{grid-row:1/3;width:32px;height:32px;border-radius:var(--r-pill);
+    background:var(--alto);font-size:15px}
+  .chat-item .nm{grid-column:2;grid-row:1;font:var(--fw-medium) var(--fs-body)/1.3 var(--sans);
+    color:var(--tx)}
+  .chat-previa{grid-column:2;grid-row:2;min-width:0;font-size:var(--fs-meta);color:var(--tx-3);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chat-quando{grid-column:3;grid-row:1;font-size:var(--fs-micro);color:var(--tx-3);
+    justify-self:end}
+  /* os sinais de atenção descem para a linha da prévia, à direita dela */
+  .chat-item .ct.num,.chat-item .chamada,.chat-item .pastilha,.chat-item .due{
+    grid-column:3;grid-row:2;justify-self:end}
+  /* O que está por ler vira selo, e não número solto: é o sinal que a pessoa
+     procura ao abrir, e a mesma marca vermelha da barra de abas. */
+  .chat-item .ct.num{background:var(--late);color:var(--late-tx);border-radius:var(--r-pill);
+    min-width:20px;height:20px;display:grid;place-items:center;padding:0 6px;
+    font:var(--fw-semibold) var(--fs-micro)/1 var(--sans)}
+  .chat-rolagem{padding:0}
+  .chat-despejo{margin:14px}
+}

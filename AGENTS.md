@@ -79,10 +79,16 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
   propósito, porque são decisão, não operação: a pessoa senta para fazer isso. O resto
   precisa caber aqui, e toda coisa nova que exigir sair da tela para uma ação corriqueira é
   um defeito de desenho, não uma escolha.
-- **No celular a página inicial é a CONVERSA, e só ela.** Não é a mesma tela menor: é
-  outra tela. Em cima, o mesmo seletor Conversa | Notas do computador; embaixo, a conversa
-  INTEIRA, a mesma de `/chat`, com propostas, anexo e voz. Home que mostra prévia obriga a
-  abrir a tela de verdade, e aí são dois toques para responder uma frase.
+- **No celular a página inicial é a LISTA DE CONVERSAS**, na forma de app de mensagem:
+  uma linha por conversa, nome em cima, última fala embaixo, hora no canto, selo vermelho
+  do que está por ler, tudo em ordem de quem falou por último. Sem grupos: no telefone a
+  pergunta é "quem falou comigo", e agrupar por tipo obriga a procurar a resposta em três
+  lugares. No computador os grupos ficam, porque ali a lista é uma coluna parada ao lado
+  do trabalho, e serve para navegar, não para alcançar.
+  **Ela não abre dentro de um canal**: escolher a conversa por você é decidir com quem
+  você vai falar. Tocando numa linha vai para `/chat/<id>`, que é a conversa inteira, com
+  propostas, anexo e voz.
+  Em cima da lista fica o mesmo seletor Conversa | Notas do computador.
   Se o produto é comunicação interna que organiza trabalho, o que abre no telefone tem que
   ser onde se fala: com a fila de tarefas na frente e o chat embaixo, o chat ficava na
   segunda tela de rolagem, que é o mesmo que não existir, e a ferramenta continuava sendo
@@ -92,9 +98,10 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
   seletor. A TabBar tem cinco lugares: Conversa, Trabalho, Tracks, Agenda, Mais.
 - Quem decide é `useCelular()` em `componentes/partes.tsx`, e não `display:none`: esconder
   por CSS baixaria e montaria a tela inteira para escondê-la.
-- **Uma ação de criar por tela.** O botão redondo da TabBar não aparece na inicial nem na
-  conversa: ali embaixo mora o campo de escrever, e quem cria dali usa a barra
-  (`/tarefa`, `/objetivo`, `/nota`). Em Meu trabalho ele abre **tarefa**, não objetivo.
+- **Uma ação de criar por tela.** O botão redondo da TabBar some só DENTRO de uma
+  conversa, onde ficaria em cima do campo de escrever; ali quem cria usa a barra
+  (`/tarefa`, `/objetivo`, `/nota`). Na lista ele abre **canal**, como em qualquer app de
+  mensagem; em Meu trabalho, **tarefa**; na agenda, **compromisso**.
 - Com vários negócios em foco, rotinas e projetos são separados em blocos por empresa,
   um bloco por empresa, não uma lista só com etiqueta.
 - Tudo tem responsável e prazo: item (quem executa), checkpoint (quem aprova), fluxo (dono).
