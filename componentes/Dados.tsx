@@ -2543,12 +2543,33 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
     // --------------------------------------------------------------- nota
     if (lido.comando.nome === 'nota') {
-      const id = await salvarNota({ titulo: tituloDe(texto), texto })
+      // O endereço vem de onde a nota foi escrita. Anotar uma ideia dentro da
+      // track e a nota nascer solta é perder o único contexto que ela tinha:
+      // no caderno ela vira "ideia legal" sem dizer de quê, e quem procura por
+      // aquela track depois não a encontra. Vale para o canal de uma track e
+      // para a nota em que se está escrevendo.
+      const canal = onde.canalId ? canais.find((c) => c.id === onde.canalId) : null
+      const daTrack = canal?.fluxo_id ? todosFluxos.find((f) => f.id === canal.fluxo_id) : null
+      const daNota = onde.notaId ? todasNotas.find((x) => x.id === onde.notaId) : null
+      const fluxoId = daTrack?.id ?? daNota?.fluxo_id ?? null
+      // Track e área não vão juntas: quem agrupa o caderno prefere a área, e a
+      // nota escrita dentro de uma track ficaria etiquetada com a frente inteira
+      // em vez da track, que é justamente o que se quer achar depois.
+      const areaId = fluxoId ? null : daNota?.area_id ?? null
+
+      const id = await salvarNota({
+        titulo: tituloDe(texto), texto, fluxo_id: fluxoId, area_id: areaId,
+      })
       if (!id) return { tipo: 'erro', motivo: 'Não deu para guardar a nota.' }
       // A nota é sua e de mais ninguém, então o rastro no canal diz que existe,
       // nunca o que está escrito nela.
       await contar('guardou uma nota no caderno')
-      return { tipo: 'feito', conta: `guardou "${tituloDe(texto)}" no seu caderno`, href: '/notas' }
+      const onde_ = daTrack ? ` em ${daTrack.nome}` : ''
+      return {
+        tipo: 'feito',
+        conta: `guardou "${tituloDe(texto)}"${onde_} no seu caderno`,
+        href: '/notas',
+      }
     }
 
     // ------------------------------------------------------------- agenda
@@ -2570,8 +2591,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     }
 
     return null
-  }, [sb, eu.id, perfis, canais, todosFluxos, adicionarItem, criarAvulsa, salvarFluxo,
-      salvarNota, salvarCompromisso, empresaAtiva, recarregar])
+  }, [sb, eu.id, perfis, canais, todosFluxos, todasNotas, adicionarItem, criarAvulsa,
+      salvarFluxo, salvarNota, salvarCompromisso, empresaAtiva, recarregar])
 
   const lerConversa: Contexto['lerConversa'] = useCallback(async (canalId) => {
     const canal = canais.find((c) => c.id === canalId)

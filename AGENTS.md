@@ -411,6 +411,13 @@ sistema. Sem isso o canal viraria um lugar onde coisas somem: alguém digita e a
 tarefa nasce num canto que os outros não viram acontecer. A exceção é a nota,
 que é privada: o rastro diz que existe, nunca o que está escrito nela.
 
+**O comando herda o endereço de onde foi escrito.** `/tarefa` no canal de uma track
+nasce nela, e `/nota` também: a nota escrita ali vai para o caderno já com a etiqueta da
+track. Sem isso a ideia anotada no meio da conversa vira "ideia legal" sem dizer de quê,
+e quem for procurar por aquela track depois não a acha. Nota com track não leva área
+junto, porque quem agrupa o caderno prefere a área, e a nota apareceria sob a frente
+inteira em vez da track.
+
 **Quando falta uma decisão que o app não pode tomar, o comando vira o formulário
 já preenchido.** Tarefa para outra pessoa fora de uma track é o caso: avulsa é
 privada de quem criou, então dar uma a outro seria cobrança que o cobrado não
@@ -597,6 +604,18 @@ arquivo.** A tela de conversa ficou espremida em 248px de 390 por meses porque
 um bloco `max-width:1180px` escrito depois vencia o bloco de celular. Ao
 escrever faixa intermediária, fechar embaixo também (`min-width:841px and
 max-width:1180px`).
+
+## A coluna da track é a conversa
+
+Na track aberta, a coluna da direita acompanha a rolagem e tem a altura da janela, e a
+conversa ocupa ela inteira. A atividade fica ali, mas como botão retraído colado embaixo
+(`<details class="track-atv">`), e aberta ela para na metade da coluna. Era um painel fixo
+antes, e ele comia metade da coluna para mostrar o que ninguém abriu o app para ver: quem
+entra na track quer falar e ver o checkpoint, não o histórico.
+
+Sem a coluna grudada e com altura de janela, o campo de escrever e o botão nascem abaixo
+da dobra, que é o mesmo que não existirem. A regra mora em `app/globals.css`, no bloco de
+`min-width:841px`.
 
 ## A trilha
 

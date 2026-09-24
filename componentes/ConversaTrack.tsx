@@ -36,7 +36,9 @@ export function ConversaTrack({ f }: { f: Fluxo }) {
     )
   // Mais mensagens agora que a atividade saiu do caminho: com quatro, a
   // conversa da track mostrava o fim de um assunto sem o começo.
-  return <Conversa canal={canal} titulo="Conversa da track" quantas={10} />
+  // A lista rola dentro da coluna, então dá para carregar conversa de verdade:
+  // com dez, subir um pouco já batia no começo.
+  return <Conversa canal={canal} titulo="Conversa da track" quantas={40} />
 }
 
 /**

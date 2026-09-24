@@ -4159,6 +4159,23 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
    trabalho nasce. */
 
 .track-atv{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+
+/* No computador a lateral é uma coluna de altura fixa: a conversa ocupa tudo
+   que sobra e a atividade fica colada embaixo, recolhida. Abrir a atividade
+   encolhe a conversa, e não o contrário: quem manda ali é a conversa. */
+@media (min-width:841px){
+  /* A coluna acompanha a rolagem e tem a altura da janela: sem isso ela fica do
+     tamanho da lista de tarefas, e tanto o campo de escrever quanto o botão de
+     atividade nascem abaixo da dobra, que é o mesmo que não existirem. */
+  .track>.rail{display:flex;flex-direction:column;min-height:0;position:sticky;
+    top:calc(var(--alt-topo) + 22px);height:calc(100dvh - var(--alt-topo) - 44px)}
+  .track>.rail>.ct{flex:1;min-height:0;display:flex;flex-direction:column}
+  .track>.rail>.ct>.ct-msgs{flex:1;min-height:0;overflow-y:auto;padding-right:4px}
+  .track>.rail>.track-atv{flex:none;margin-top:auto}
+  /* aberta ela pega no máximo metade, e rola dentro de si: histórico comprido
+     não pode empurrar o campo de escrever para fora da tela */
+  .track>.rail>.track-atv[open]{max-height:50%;overflow-y:auto}
+}
 .track-atv>summary{display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;
   font:var(--fw-semibold) var(--fs-ui)/1.3 var(--sans);color:var(--tx-2);transition:var(--t)}
 .track-atv>summary::-webkit-details-marker{display:none}
