@@ -24,10 +24,12 @@ import type { Nota } from '@/lib/tipos'
  * a pergunta estava, junto do raciocínio que a gerou, e o documento continua
  * sendo reorganizável, que é o que separa uma nota de um histórico.
  */
-export function Documento({ nota, ir }: {
+export function Documento({ nota, ir, acoes }: {
   nota: Nota
   /** Abrir outra nota pelo título, quando o texto citar uma. */
   ir: (titulo: string) => void
+  /** Outros botões da barra de baixo, como Organizar. */
+  acoes?: React.ReactNode
 }) {
   const { notas, salvarNota, perguntarNaNota, respondendo, org } = useDados()
   const [editando, setEditando] = useState(false)
@@ -140,6 +142,10 @@ export function Documento({ nota, ir }: {
         </div>
       )}
 
+      {/* A barra gruda no rodapé da folha: o texto passa por baixo dela em vez
+          de empurrar os botões para fora da tela. Numa nota longa, perguntar
+          exigia rolar até o fim, que é o contrário do que a barra existe para
+          resolver. */}
       <div className="doc-acoes">
         {/* onMouseDown segura o foco: sem ele o clique tira o cursor do campo,
             o campo vira texto lido, o botão sai do lugar e o clique se perde. */}
@@ -150,9 +156,10 @@ export function Documento({ nota, ir }: {
             <Ic.faisca />{pensando ? 'Perguntando...' : 'Perguntar'}
           </button>
         )}
+        {acoes}
         <span className="hint">
           {org.ia_ativa
-            ? 'Responde sobre a linha onde você está, e escreve logo abaixo dela.'
+            ? 'Responde sobre a linha onde você está.'
             : 'A leitura com IA está desligada em Ajustes.'}
         </span>
       </div>

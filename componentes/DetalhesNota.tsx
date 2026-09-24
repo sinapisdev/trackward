@@ -35,9 +35,18 @@ export function DetalhesNota({ nota, aoApagar }: {
 
   return (
     <div className="nt-det" ref={caixa}>
-      <button className={`iconbtn ${aberto ? 'on' : ''}`} aria-expanded={aberto}
-        title="Detalhes da nota" aria-label="Detalhes da nota"
-        onClick={() => setAberto((a) => !a)}><Ic.mais /></button>
+      {/* Com a palavra, e não só os três pontinhos: "•••" é o lugar onde os
+          apps guardam o que não souberam nomear, e quem não sabe o que tem
+          dentro não abre.
+
+          Ele quase virou lima cheio, e o próprio teste barrou: na tela de
+          Notas o acento já é do "Nota nova", e dois limas na mesma tela é
+          defeito. O que faz um botão ser evidente é ele dizer o que faz, não a
+          cor: com a palavra e o contorno, ninguém precisa adivinhar. */}
+      <button className={`nt-det-btn ${aberto ? 'on' : ''}`} aria-expanded={aberto}
+        title="Área, track, arquivos e mais" onClick={() => setAberto((a) => !a)}>
+        <Ic.ajustes />Detalhes
+      </button>
 
       {aberto && (
         <div className="nt-det-menu">

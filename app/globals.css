@@ -679,16 +679,20 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns
   .tw-rodape{display:none}
 
   /* No celular a barra guarda só marca, espaço e você: quem navega é a TabBar,
-     e duas navegações na mesma tela seriam a mesma coisa dita duas vezes. */
-  .tw-topo{height:auto;flex-wrap:wrap;padding:10px 16px 0;gap:0}
+     e duas navegações na mesma tela seriam a mesma coisa dita duas vezes.
+     Uma linha só: o nome da empresa fica AO LADO da marca, e não numa segunda
+     faixa embaixo dela. Aquela faixa custava 50px de altura em toda tela para
+     dizer uma palavra que quase nunca muda. */
+  .tw-topo{height:auto;flex-wrap:nowrap;padding:10px 16px;gap:8px}
   .tw-nav{display:none}
-  .tw-risco{display:none}
+  .tw-risco{display:block;height:16px;margin-inline:2px}
   .tw-marca b{font-size:16px}
-  .tw-dir{margin-left:auto;gap:4px}
+  .tw-marca svg{width:26px}
+  .tw-dir{margin-left:auto;gap:4px;flex:none}
   .tw-dir .iconbtn.grd{display:none}
-  .tw-esp{order:3;width:100%;margin:6px -6px 0;border-top:1px solid var(--line)}
-  .tw-esp-btn{max-width:none;width:100%;padding:11px 6px;border-radius:0}
-  .tw-esp-btn .nm{flex:1}
+  .tw-esp{min-width:0;flex:1}
+  .tw-esp-btn{max-width:none;width:100%;padding:6px 6px}
+  .tw-esp-btn .nm{flex:1;min-width:0}
   .tw-busca{width:38px}
   .tw-busca input{padding:8px 0 8px 30px;cursor:pointer;color:transparent;border-color:transparent;background:none}
   .tw-busca input::placeholder{color:transparent}
@@ -3835,7 +3839,9 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
   /* a conversa herda a altura do pai em vez de calcular a dela: aqui ela não é
      a tela inteira, é o que sobra depois do seletor */
   .fwd-cel .chat{flex:1;height:auto;min-height:0}
-  .fwd-cel-notas{flex:1;min-height:0;overflow:auto;padding:0 var(--gutter) 24px}
+  /* Sem recuo embaixo: a barra de ações gruda no fim do rolo, e recuo ali
+     deixaria uma faixa de texto passando por baixo dela. */
+  .fwd-cel-notas{flex:1;min-height:0;overflow:auto;padding:0 var(--gutter)}
 
   /* Em Meu trabalho, o radar e a agenda que saíram da página inicial. */
   .min-rail{margin-top:28px;padding-top:24px;border-top:1px solid var(--line)}
@@ -4030,4 +4036,37 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
     - var(--alt-abas-real,56px) - 120px)}
   .doc-campo,.doc-lido{min-height:200px}
   .nt-det-menu{width:min(280px,calc(100vw - 32px))}
+}
+
+/* ------------------------------------- a barra da nota, grudada no rodapé */
+
+/* O texto passa por baixo dela em vez de empurrá-la para fora da tela: numa
+   nota longa, perguntar exigia rolar até o fim, que é o contrário do que a
+   barra existe para resolver. */
+.doc-acoes{position:sticky;bottom:0;z-index:5;margin-top:auto;
+  padding:10px 0 12px;background:var(--bg)}
+/* o esmaecido em cima da barra, para o texto não terminar cortado em linha reta */
+.doc-acoes::before{content:'';position:absolute;left:0;right:0;bottom:100%;height:20px;
+  background:linear-gradient(to bottom,transparent,var(--bg));pointer-events:none}
+.doc-acoes .hint{margin:0;flex:1;min-width:120px}
+
+.nt-det-btn{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;
+  border-radius:var(--r-pill);border:1px solid var(--line-2);background:var(--brilho);
+  color:var(--tx-2);font:var(--fw-medium) var(--fs-ui)/1 var(--sans);transition:var(--t)}
+.nt-det-btn:hover,.nt-det-btn.on{background:var(--alto);color:var(--tx);border-color:var(--line-3)}
+.nt-det-btn>svg{color:var(--tx-3)}
+.nt-det-btn.on>svg{color:var(--tx-2)}
+
+@media (max-width:840px){
+  .doc-acoes{padding-bottom:10px}
+  .doc-acoes .hint{display:none}
+  .so-computador{display:none!important}
+}
+
+@media (max-width:840px){
+  /* Telas que calculam a própria altura não podem levar o recuo do conteúdo
+     junto: ele sobra embaixo, a página inteira passa a rolar, e aí a barra de
+     abas sobe e desce com a barra de endereço do navegador. Quem rola é o texto
+     lá dentro, e só ele. */
+  .conteudo:has(>.fwd-cel),.conteudo:has(>.chat){padding-block:0}
 }

@@ -539,6 +539,16 @@ Abaixo de 840px as abas sacam e entra a `TabBar` (barra no rodapé, folha de "Ma
 botão redondo de criar). Não duplicar navegação: quem navega no celular é a TabBar, quem
 navega no desktop é a Barra. Telas novas precisam caber nas duas formas.
 
+No celular a barra de cima é **uma linha só**: marca, nome da empresa ao lado dela, busca
+e você. A empresa já morou numa segunda faixa embaixo, e aquela faixa custava 50px de
+altura em toda tela para dizer uma palavra que quase nunca muda.
+
+**Quem rola é o conteúdo, não a página.** Tela que calcula a própria altura (a conversa,
+as notas) não pode levar o recuo do `.conteudo` junto: ele sobra embaixo, a página inteira
+passa a rolar, e aí a barra de abas sobe e desce com a barra de endereço do navegador.
+A regra é `.conteudo:has(>.fwd-cel),.conteudo:has(>.chat){padding-block:0}`, e a prova é
+`document.scrollHeight === innerHeight` nas três telas.
+
 O botão redondo do celular **não é lima**. O acento é da ação que faz o trabalho andar, e
 ela já está na tela (concluir, aprovar, abrir a track); lima no botão de criar daria dois
 limas em toda tela, que é defeito.

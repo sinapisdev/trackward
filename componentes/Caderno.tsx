@@ -230,7 +230,10 @@ export function Caderno() {
           onClick={() => setAbertaId(null)}><Ic.volta /></button>
         {aberta.conversa && <h2>Conversa</h2>}
         <span className="dp-topo-fim">
-          <Link className="iconbtn" href="/notas" title="Abrir o caderno inteiro"
+          {/* O atalho para o caderno inteiro só no computador: no celular
+              /notas é esta mesma tela noutra moldura, e um botão que leva ao
+              lugar onde a pessoa já está só gasta espaço e confunde. */}
+          <Link className="iconbtn so-computador" href="/notas" title="Abrir o caderno inteiro"
             aria-label="Abrir o caderno inteiro"><Ic.caber /></Link>
           {/* Área, track, arquivos, fixar e apagar: o cadastro da nota, atrás
               de um botão só. Ver componentes/DetalhesNota.tsx. */}
@@ -239,8 +242,20 @@ export function Caderno() {
       </div>
 
       {/* Um texto só, ocupando o espaço todo: a resposta da leitura entra aqui
-          dentro, e não numa conversa ao lado. Ver componentes/Documento.tsx. */}
-      {!aberta.conversa && <Documento nota={aberta} ir={ir} />}
+          dentro, e não numa conversa ao lado. Ver componentes/Documento.tsx.
+          Organizar entra na barra do Documento, e não numa segunda barra: as
+          duas ações da nota moram juntas, grudadas no rodapé da folha. */}
+      {!aberta.conversa && (
+        <Documento nota={aberta} ir={ir} acoes={org.ia_ativa ? (
+          <button className="btn" disabled={lendo} onClick={async () => {
+            setLendo(true)
+            await lerNota(aberta.id)
+            setLendo(false)
+          }}>
+            <Ic.faisca />{lendo ? 'Organizando...' : 'Organizar'}
+          </button>
+        ) : null} />
+      )}
 
       {/* A conversa solta continua sendo conversa: ela não tem documento
           embaixo, então a forma natural dela é a sequência de falas. */}
@@ -268,20 +283,6 @@ export function Caderno() {
         </section>
       )}
 
-      {/* Organizar fica aqui embaixo e sozinho: é a única ação desta tela que
-          muda alguma coisa fora da nota. Apagar foi para os detalhes, junto do
-          resto do cadastro, porque não é coisa de fazer sem querer. */}
-      {org.ia_ativa && (
-        <div className="dp-a-acoes">
-          <button className="btn" disabled={lendo} onClick={async () => {
-            setLendo(true)
-            await lerNota(aberta.id)
-            setLendo(false)
-          }}>
-            <Ic.faisca />{lendo ? 'Organizando...' : 'Organizar'}
-          </button>
-        </div>
-      )}
     </div>
   )
 }
