@@ -610,13 +610,6 @@ export function semente(): Base {
     responde_a: null, sistema: false, por_ia: false, criado_em: min(minutos), editado_em: null,
   })
 
-  /** Uma fala dentro de uma nota. Autor nulo é a leitura falando. */
-  const naNota = (nota: string, autor: string | null, texto: string, minutos: number): Linha => ({
-    id: `msg${nm++}`, canal_id: null, nota_id: nota, autor_id: autor ?? 'leo', texto,
-    responde_a: null, sistema: false, por_ia: autor === null,
-    criado_em: min(minutos), editado_em: null,
-  })
-
   const mensagens: Linha[] = [
     msg('k-geral', 'leo', 'Bom dia. Lembrando que o conselho ficou para quinta, 8h30.', 320),
     msg('k-geral', 'ana', 'Anotado. Levo o fluxo de caixa consolidado das três empresas.', 300),
@@ -644,14 +637,6 @@ export function semente(): Base {
     msg('k-leo-carlos', 'carlos', 'Leo, o comparativo da quinzena fecha sexta. Consigo te mandar na quinta à noite.', 70),
     msg('k-leo-carlos', 'leo', 'Perfeito, obrigado.', 60),
 
-    // A conversa dentro de uma nota. É o que mostra o caderno sendo caderno:
-    // uma pergunta sobre aquele assunto, e uma resposta que puxa outra nota que
-    // a pessoa escreveu meses antes e já tinha esquecido.
-    naNota('nt1', 'leo', 'isso vale para cliente pequeno também? tenho medo de perder venda no começo', 58),
-    naNota('nt1', null, 'Para cliente pequeno o risco é real, mas o desconto também não resolve: '
-      + 'ele compra barato e sai na primeira renovação. Vale ver [[Tirar a equipe do WhatsApp]], '
-      + 'que é onde está o trabalho de verdade da implantação. Se a taxa pagar esse trabalho, '
-      + 'ela se explica sozinha na conversa de venda.', 57),
   ]
 
   // Duas propostas já abertas, para a leitura da conversa aparecer de cara.
@@ -684,10 +669,18 @@ export function semente(): Base {
    */
   const notas: Linha[] = [
     { id: 'nt1', titulo: 'Taxa de implantação em vez de desconto',
+      // A resposta da leitura mora dentro do texto, marcada com "> ". É o que
+      // mostra o caderno sendo caderno: uma pergunta escrita no meio do
+      // raciocínio, e a resposta logo abaixo dela, puxando outra nota.
       texto: 'Se a gente cobrasse uma taxa de implantação no primeiro mês em vez de dar desconto, '
         + 'o cliente entenderia melhor o valor do que está comprando. Desconto ensina que o preço '
         + 'era inflado.\n\nTem a ver com [[Tirar a equipe do WhatsApp]]: a implantação é justamente '
-        + 'o trabalho de fazer a equipe usar.',
+        + 'o trabalho de fazer a equipe usar.\n\n'
+        + 'isso vale para cliente pequeno também? tenho medo de perder venda no começo\n\n'
+        + '> Para cliente pequeno o risco é real, mas o desconto também não resolve: ele compra\n'
+        + '> barato e sai na primeira renovação. Vale ver [[Tirar a equipe do WhatsApp]], que é\n'
+        + '> onde está o trabalho de verdade da implantação. Se a taxa pagar esse trabalho, ela\n'
+        + '> se explica sozinha na conversa de venda.',
       dono_id: 'leo', mensagem_id: null, item_id: null, fixada: true, arquivada: false,
       area_id: 'cml', fluxo_id: null, conversa: false,
       criado_em: min(250), mexido_em: min(57) },

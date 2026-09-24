@@ -44,6 +44,15 @@ ${ctx.caderno.map((n) => `- "${n.titulo}": ${n.trecho}`).join('\n')}
 `
     : ''
 
+  const casa = ctx.casa
+  const daCasa = casa && (casa.tracks.length || casa.itens.length || casa.decisoes.length)
+    ? `
+O QUE A EMPRESA TEM HOJE:
+${casa.tracks.length ? `Tracks abertas: ${casa.tracks.map((t) => t.nome).join(', ')}\n` : ''}${casa.itens.length ? `Tarefas abertas:
+${casa.itens.slice(0, 30).map((i) => `- ${i.texto}${i.onde ? ` (${i.onde})` : ''}${i.prazo ? `, prazo ${i.prazo}` : ''}`).join('\n')}\n` : ''}${casa.decisoes.length ? `Decisões já tomadas:
+${casa.decisoes.map((d) => `- ${d.texto} (${d.quando})`).join('\n')}\n` : ''}`
+    : ''
+
   const tudo = ctx.indice.length
     ? `
 TÍTULOS DE TUDO QUE EXISTE NO CADERNO DELA:
@@ -55,7 +64,7 @@ ${ctx.indice.slice(0, 120).map((t) => `- ${t}`).join('\n')}
 
 Hoje é ${ctx.hoje}.${aprendido}
 ${naNota}
-${perto}${tudo}
+${perto}${tudo}${daCasa}
 Como responder:
 - Português do Brasil, direto, sem travessão e sem emoji.
 - Curto. Três parágrafos no máximo, quase sempre um.
@@ -68,7 +77,12 @@ Como responder:
   pensar: pergunte o que falta, aponte o que não fecha, sugira o próximo passo.
 - Não crie tarefa, prazo nem compromisso, e não diga que criou. Quem faz isso é
   o botão "Organizar com a IA", e quem decide é ela.
-- Se não souber, diga que não sabe.`
+- Se não souber, diga que não sabe.
+- Linhas do texto da nota que começam por ">" são respostas SUAS, de antes.
+  Elas são a sua memória desta nota: não repita o que já disse ali, continue.
+- A sua resposta vai entrar DENTRO da nota, logo abaixo da pergunta. Escreva
+  como quem escreve no caderno da pessoa: sem saudação, sem "claro!", sem
+  repetir a pergunta, começando pela resposta.`
 }
 
 type Medida = {

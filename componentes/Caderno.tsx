@@ -6,6 +6,7 @@ import { useDados } from './Dados'
 import { Ic } from './Icones'
 import { Anexos } from './Anexos'
 import { ConversaNota } from './ConversaNota'
+import { Documento } from './Documento'
 import { useCelular } from './partes'
 import { buscar, tituloDe, porTitulo } from '@/lib/notas'
 import { rotuloTipo } from '@/lib/rotulos'
@@ -51,7 +52,6 @@ export function Caderno() {
   const [termo, setTermo] = useState('')
   const [abertaId, setAbertaId] = useState<string | null>(null)
   const [titulo, setTitulo] = useState('')
-  const [texto, setTexto] = useState('')
   const [lendo, setLendo] = useState(false)
 
   const vivas = useMemo(
@@ -108,7 +108,6 @@ export function Caderno() {
   useEffect(() => {
     if (!aberta || aberta.conversa) return
     setTitulo(aberta.titulo)
-    setTexto(aberta.texto)
   }, [aberta?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const propostas = aberta
@@ -121,10 +120,14 @@ export function Caderno() {
     if (id) { setAbertaId(id); setTermo('') }
   }
 
+  /**
+   * Salva o que é do cabeçalho: título, área e track. O corpo salva sozinho,
+   * dentro do Documento, porque é lá que ele é editado.
+   */
   const salvarAberta = async (extra?: Partial<Nota>) => {
     if (!aberta || aberta.conversa) return
     await salvarNota({
-      id: aberta.id, titulo: titulo || tituloDe(texto), texto,
+      id: aberta.id, titulo: titulo || tituloDe(aberta.texto), texto: aberta.texto,
       fixada: aberta.fixada, arquivada: aberta.arquivada,
       area_id: aberta.area_id, fluxo_id: aberta.fluxo_id, ...extra,
     })
@@ -265,8 +268,9 @@ export function Caderno() {
 
       {!aberta.conversa && (
         <>
-          <textarea className="inp dp-txt" rows={5} value={texto} aria-label="Texto da nota"
-            onChange={(e) => setTexto(e.target.value)} onBlur={() => void salvarAberta()} />
+          {/* Um texto só: a resposta da leitura entra aqui dentro, e não numa
+              conversa ao lado. Ver componentes/Documento.tsx. */}
+          <Documento nota={aberta} ir={ir} />
 
           <div className="dp-onde">
             <label className="sel-quem">
@@ -296,7 +300,9 @@ export function Caderno() {
         </>
       )}
 
-      <ConversaNota nota={aberta} ir={ir} />
+      {/* A conversa solta continua sendo conversa: ela não tem documento
+          embaixo, então a forma natural dela é a sequência de falas. */}
+      {aberta.conversa && <ConversaNota nota={aberta} ir={ir} />}
 
       {!!propostas.length && (
         <section className="dp-props">

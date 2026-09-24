@@ -1,14 +1,15 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDados } from '@/componentes/Dados'
 import { Carregando } from '@/componentes/Shell'
 import { Ic } from '@/componentes/Icones'
 import { Anexos } from '@/componentes/Anexos'
 import { ConversaNota } from '@/componentes/ConversaNota'
+import { Documento } from '@/componentes/Documento'
 import { rel, isoDe } from '@/lib/datas'
 import {
-  buscar, entradas, ligar, LIGACAO, mesmaChave, ordenar, parecidas, porTitulo, saidas, solta,
+  buscar, entradas, ligar, LIGACAO, ordenar, parecidas, porTitulo, saidas, solta,
 } from '@/lib/notas'
 import { rotuloTipo } from '@/lib/rotulos'
 import type { Nota } from '@/lib/tipos'
@@ -27,57 +28,15 @@ import type { Nota } from '@/lib/tipos'
  * página do fornecedor sem ter decidido criar página nenhuma.
  */
 
-/** O texto com as ligações clicáveis, e o link vazio de outra cor. */
-function Corpo({ texto, ir }: { texto: string; ir: (titulo: string) => void }) {
-  const { notas } = useDados()
-  const pedacos: (string | { titulo: string; existe: boolean })[] = []
-  let fim = 0
-  for (const m of texto.matchAll(LIGACAO)) {
-    const i = m.index ?? 0
-    if (i > fim) pedacos.push(texto.slice(fim, i))
-    const titulo = m[1].trim()
-    pedacos.push({ titulo, existe: !!porTitulo(notas, titulo) })
-    fim = i + m[0].length
-  }
-  if (fim < texto.length) pedacos.push(texto.slice(fim))
-
-  return (
-    <div className="nt-corpo">
-      {pedacos.map((p, i) => typeof p === 'string'
-        ? <span key={i}>{p}</span>
-        : (
-          <button key={i} className={`nt-lig ${p.existe ? '' : 'vazio'}`}
-            onClick={() => ir(p.titulo)}
-            title={p.existe ? `Abrir ${p.titulo}` : `Criar a nota ${p.titulo}`}>
-            {p.titulo}
-          </button>
-        ))}
-    </div>
-  )
-}
-
 function Aberta({ nota, ir }: { nota: Nota; ir: (titulo: string) => void }) {
   const { notas, areas, fluxos, salvarNota, excluirNota, toast } = useDados()
-  const [editando, setEditando] = useState(false)
   const [titulo, setTitulo] = useState(nota.titulo)
-  const [texto, setTexto] = useState(nota.texto)
-  const area = useRef<HTMLTextAreaElement>(null)
 
-  // Trocar de nota com a outra aberta em edição descartaria o que foi digitado.
-  useEffect(() => {
-    setEditando(false)
-    setTitulo(nota.titulo)
-    setTexto(nota.texto)
-  }, [nota.id, nota.titulo, nota.texto])
+  useEffect(() => { setTitulo(nota.titulo) }, [nota.id, nota.titulo])
 
   const aponta = saidas(nota, notas)
   const citam = entradas(nota, notas)
   const talvez = parecidas(nota, notas)
-
-  const salvar = async () => {
-    await salvarNota({ id: nota.id, titulo, texto, fixada: nota.fixada, arquivada: nota.arquivada })
-    setEditando(false)
-  }
 
   const ligarCom = async (outra: Nota) => {
     await salvarNota({
@@ -90,12 +49,13 @@ function Aberta({ nota, ir }: { nota: Nota; ir: (titulo: string) => void }) {
   return (
     <article className="nt-aberta">
       <div className="nt-a-h">
-        {editando ? (
-          <input className="inp nt-tit" value={titulo} autoFocus
-            onChange={(e) => setTitulo(e.target.value)} aria-label="Título da nota" />
-        ) : (
-          <h2>{nota.titulo}</h2>
-        )}
+        <input className="inp nt-tit" value={titulo} aria-label="Título da nota"
+          onChange={(e) => setTitulo(e.target.value)}
+          onBlur={() => void salvarNota({
+            id: nota.id, titulo, texto: nota.texto,
+            fixada: nota.fixada, arquivada: nota.arquivada,
+            area_id: nota.area_id, fluxo_id: nota.fluxo_id,
+          })} />
         <button className={`iconbtn ${nota.fixada ? 'on' : ''}`}
           title={nota.fixada ? 'Soltar do topo' : 'Fixar no topo'}
           aria-label={nota.fixada ? 'Soltar do topo' : 'Fixar no topo'}
@@ -111,66 +71,42 @@ function Aberta({ nota, ir }: { nota: Nota; ir: (titulo: string) => void }) {
         {nota.mensagem_id && ', veio do despejo'}
       </p>
 
-      {editando ? (
-        <>
-          <textarea ref={area} className="inp nt-txt" rows={14} value={texto}
-            onChange={(e) => setTexto(e.target.value)} aria-label="Texto da nota" />
-          <p className="hint">
-            Escreva <code>[[nome de outra nota]]</code> para ligar as duas. Se essa nota
-            ainda não existir, o link fica em laranja e clicar nele cria ela já ligada.
-          </p>
-          <div className="nt-a-acoes">
-            <button className="btn pri" onClick={() => void salvar()}>Salvar</button>
-            <button className="btn" onClick={() => { setEditando(false); setTitulo(nota.titulo); setTexto(nota.texto) }}>
-              Cancelar
-            </button>
-          </div>
-        </>
-      ) : (
-        <>
-          <Corpo texto={nota.texto} ir={ir} />
-          <div className="nt-anexos">
-            <span className="nt-rot">Arquivos</span>
-            <Anexos nota={nota} podeAnexar />
-          </div>
-          <div className="nt-onde">
-            <label className="sel-quem">
-              <select value={nota.area_id || ''} aria-label="Área desta nota"
-                onChange={(e) => void salvarNota({
-                  id: nota.id, titulo: nota.titulo, texto: nota.texto,
-                  fixada: nota.fixada, arquivada: nota.arquivada,
-                  area_id: e.target.value || null, fluxo_id: nota.fluxo_id,
-                })}>
-                <option value="">Sem área</option>
-                {areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
-              </select>
-              <Ic.chev />
-            </label>
-            <label className="sel-quem">
-              <select value={nota.fluxo_id || ''} aria-label="Track desta nota"
-                onChange={(e) => void salvarNota({
-                  id: nota.id, titulo: nota.titulo, texto: nota.texto,
-                  fixada: nota.fixada, arquivada: nota.arquivada,
-                  area_id: nota.area_id, fluxo_id: e.target.value || null,
-                })}>
-                <option value="">Sem track</option>
-                {fluxos.filter((f) => !f.concluido).map((f) => (
-                  <option key={f.id} value={f.id}>{rotuloTipo(f.tipo)}: {f.nome}</option>
-                ))}
-              </select>
-              <Ic.chev />
-            </label>
-          </div>
-          <div className="nt-a-acoes">
-            <button className="btn" onClick={() => setEditando(true)}><Ic.edit />Editar</button>
-          </div>
+      {/* Um texto só, e a leitura escreve dentro dele. */}
+      <Documento nota={nota} ir={ir} />
 
-          {/* A conversa sobre esta nota. Ela fica dentro da nota, e não numa
-              tela à parte, porque o contexto é a nota: quem pergunta aqui não
-              precisa explicar de novo do que está falando. */}
-          <ConversaNota nota={nota} ir={ir} />
-        </>
-      )}
+      <div className="nt-anexos">
+        <span className="nt-rot">Arquivos</span>
+        <Anexos nota={nota} podeAnexar />
+      </div>
+
+      <div className="nt-onde">
+        <label className="sel-quem">
+          <select value={nota.area_id || ''} aria-label="Área desta nota"
+            onChange={(e) => void salvarNota({
+              id: nota.id, titulo: nota.titulo, texto: nota.texto,
+              fixada: nota.fixada, arquivada: nota.arquivada,
+              area_id: e.target.value || null, fluxo_id: nota.fluxo_id,
+            })}>
+            <option value="">Sem área</option>
+            {areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+          </select>
+          <Ic.chev />
+        </label>
+        <label className="sel-quem">
+          <select value={nota.fluxo_id || ''} aria-label="Track desta nota"
+            onChange={(e) => void salvarNota({
+              id: nota.id, titulo: nota.titulo, texto: nota.texto,
+              fixada: nota.fixada, arquivada: nota.arquivada,
+              area_id: nota.area_id, fluxo_id: e.target.value || null,
+            })}>
+            <option value="">Sem track</option>
+            {fluxos.filter((f) => !f.concluido).map((f) => (
+              <option key={f.id} value={f.id}>{rotuloTipo(f.tipo)}: {f.nome}</option>
+            ))}
+          </select>
+          <Ic.chev />
+        </label>
+      </div>
 
       {!!aponta.length && (
         <div className="nt-bloco">

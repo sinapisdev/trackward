@@ -3929,9 +3929,45 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 
 @media (max-width:840px){
   /* O seletor em cima já diz "Notas": repetir no cabeçalho gasta uma linha
-     para não informar nada. Some ele, e a ação de criar vira o botão redondo. */
-  .fwd-cel-notas .ct-topo{display:none}
+     para não informar nada. Some ele, e a ação de criar vira o botão redondo.
+     Só na LISTA: dentro de uma nota aquele mesmo cabeçalho carrega o voltar e
+     o título, e escondê-lo lá deixava a pessoa sem saída. */
+  .fwd-cel-notas .dp:not(.dp-dentro) .ct-topo{display:none}
   /* E o botão redondo da TabBar sai de cena enquanto as notas estão na tela:
      ali ele criaria canal, que é a coisa errada no lugar certo. */
   .shell:has(.fwd-cel-notas) .fab:not(.fab-nota){display:none}
+}
+
+/* ==========================================================================
+   A nota como documento
+
+   Um texto só. O que a leitura escreveu fica dentro dele, num bloco marcado
+   que é texto seu: dá para editar, mover e apagar como o resto. Marcar é
+   obrigação, não enfeite: o que a máquina escreveu não pode se passar pelo que
+   você escreveu.
+   ========================================================================== */
+
+.doc{margin-top:14px}
+.doc-campo{width:100%;min-height:180px;line-height:1.6;font-size:var(--fs-body)}
+.doc-lido{min-height:120px;cursor:text;font-size:var(--fs-body);line-height:1.6;color:var(--tx)}
+.doc-p{margin:0 0 12px;white-space:pre-wrap;word-break:break-word}
+.doc-p:last-child{margin-bottom:0}
+.doc-vazio{margin:0;color:var(--tx-3)}
+
+.doc-leitura{margin:0 0 14px;padding:10px 0 10px 14px;border-left:2px solid var(--ac-tinta)}
+.doc-leitura .doc-p{color:var(--tx-2)}
+.doc-leitura-h{display:flex;align-items:center;gap:6px;margin-bottom:6px;
+  font:var(--fw-semibold) var(--fs-kicker)/1 var(--sans);letter-spacing:var(--ls-kicker);
+  text-transform:uppercase;color:var(--ac-tinta)}
+.doc-leitura-h .iconbtn{margin-left:auto;opacity:0;transition:var(--t)}
+.doc-leitura:hover .doc-leitura-h .iconbtn{opacity:1}
+.doc-pensando .doc-p{color:var(--tx-3)}
+
+.doc-acoes{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px}
+.doc-acoes .hint{margin:0;flex:1;min-width:140px}
+
+@media (max-width:840px){
+  /* No telefone o botão de apagar o bloco não tem "passar o mouse". */
+  .doc-leitura-h .iconbtn{opacity:1}
+  .doc-acoes .hint{display:none}
 }

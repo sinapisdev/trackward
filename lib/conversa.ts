@@ -35,6 +35,18 @@ export type ContextoConversa = {
   indice: string[]
   /** O que esta casa já ensinou ao app, em texto pronto para o modelo. */
   memoria?: string
+  /**
+   * O que a empresa inteira já tem: tracks abertas, tarefas e decisões.
+   *
+   * Aqui é seguro, e a regra é de mão única: leitura privada pode ver o que é
+   * público, leitura pública não pode ver o que é privado. O que sai desta
+   * conversa fica com a dona da nota. Ver `oQueACasaTem`, em Dados.
+   */
+  casa?: {
+    tracks: { id: string; nome: string; tipo: string; etapa_id: string | null; onde: string | null }[]
+    itens: { id: string; texto: string; onde?: string; prazo: string | null }[]
+    decisoes: { texto: string; quando: string }[]
+  }
 }
 
 /**

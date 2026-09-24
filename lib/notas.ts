@@ -25,6 +25,66 @@ import type { Nota } from './tipos'
 /** O jeito de escrever ligação: [[titulo da outra nota]]. */
 export const LIGACAO = /\[\[([^\[\]]+)\]\]/g
 
+/**
+ * O que a leitura escreveu dentro da nota.
+ *
+ * A resposta dela não vive numa conversa ao lado: ela entra no documento, como
+ * um bloco citado. Duas caixas de digitar na mesma tela obrigavam a pessoa a
+ * escolher onde escrever antes de ter o que dizer, e essa escolha não devia
+ * existir. Sendo parte do texto, a resposta é editada, apagada e reorganizada
+ * como o resto, e a busca acha ela sem ninguém fazer nada.
+ *
+ * A marca é o `> ` do começo da linha, que é como se cita em e-mail, em
+ * markdown e em fórum desde sempre. Quem escrever `>` na mão vai ver o mesmo
+ * bloco, e tudo bem: ali dentro é o documento da pessoa.
+ */
+export const MARCA_LEITURA = '> '
+
+/** Transforma um texto solto no bloco citado, linha a linha. */
+export const comoBloco = (texto: string) =>
+  texto.trim().split('\n').map((l) => MARCA_LEITURA + l).join('\n')
+
+export type Pedaco = { daLeitura: boolean; texto: string }
+
+/**
+ * Quebra o texto da nota em pedaços seus e pedaços da leitura, para a tela
+ * poder marcar um e não o outro. Linhas citadas seguidas viram um bloco só.
+ */
+export function emPedacos(texto: string): Pedaco[] {
+  const saida: Pedaco[] = []
+  for (const linha of texto.split('\n')) {
+    const daLeitura = linha.startsWith('>')
+    const limpa = daLeitura ? linha.replace(/^>\s?/, '') : linha
+    const ultimo = saida[saida.length - 1]
+    if (ultimo && ultimo.daLeitura === daLeitura) ultimo.texto += '\n' + limpa
+    else saida.push({ daLeitura, texto: limpa })
+  }
+  return saida
+}
+
+/**
+ * A linha onde o cursor está, e onde termina o bloco dela.
+ *
+ * É ela que vira a pergunta, e é depois dela que a resposta entra. Sem cursor,
+ * vale a última linha escrita: quem toca em perguntar sem ter clicado no texto
+ * está perguntando sobre o que acabou de escrever.
+ */
+export function linhaDoCursor(texto: string, cursor: number | null) {
+  const pos = cursor ?? texto.length
+  const inicio = texto.lastIndexOf('\n', Math.max(0, pos - 1)) + 1
+  let fim = texto.indexOf('\n', pos)
+  if (fim < 0) fim = texto.length
+  let linha = texto.slice(inicio, fim).trim()
+  let corte = fim
+  // Linha em branco não é pergunta: vale a última linha escrita antes dela.
+  if (!linha) {
+    const antes = texto.slice(0, inicio).replace(/\s+$/, '')
+    corte = antes.length
+    linha = antes.slice(antes.lastIndexOf('\n') + 1).trim()
+  }
+  return { linha: linha.replace(/^>\s?/, ''), corte }
+}
+
 /** Dois títulos são o mesmo se só diferem em caixa, acento ou espaço sobrando. */
 export const mesmaChave = (t: string) =>
   t.normalize('NFD').replace(/\p{Diacritic}/gu, '').trim().toLowerCase().replace(/\s+/g, ' ')

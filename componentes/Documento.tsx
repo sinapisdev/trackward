@@ -1,0 +1,173 @@
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import { useDados } from './Dados'
+import { Ic } from './Icones'
+import { emPedacos, linhaDoCursor, LIGACAO, porTitulo, tituloDe } from '@/lib/notas'
+import type { Nota } from '@/lib/tipos'
+
+/**
+ * O corpo de uma nota: um texto só, e a leitura escreve dentro dele.
+ *
+ * Havia duas caixas de digitar na mesma tela, o texto da nota e um chat ao
+ * lado, e isso obrigava a pessoa a escolher onde escrever antes de ter o que
+ * dizer. A escolha não devia existir: nota e conversa não são assuntos
+ * diferentes, são formas diferentes da mesma coisa.
+ *
+ * Agora é um documento. Você escreve a pergunta como uma linha qualquer e toca
+ * em Perguntar; a resposta entra logo depois dela, marcada como da leitura, e a
+ * partir dali é texto seu: dá para editar, mover e apagar como o resto. A
+ * conversa passada vira a memória da nota sem precisar de tabela nenhuma, e a
+ * busca acha o que foi respondido sem ninguém fazer nada.
+ *
+ * Duas coisas que o formato ganha de graça e valem dizer: a resposta fica ONDE
+ * a pergunta estava, junto do raciocínio que a gerou, e o documento continua
+ * sendo reorganizável, que é o que separa uma nota de um histórico.
+ */
+export function Documento({ nota, ir }: {
+  nota: Nota
+  /** Abrir outra nota pelo título, quando o texto citar uma. */
+  ir: (titulo: string) => void
+}) {
+  const { notas, salvarNota, perguntarNaNota, respondendo, org } = useDados()
+  const [editando, setEditando] = useState(false)
+  const [texto, setTexto] = useState(nota.texto)
+  const [cursor, setCursor] = useState<number | null>(null)
+  const area = useRef<HTMLTextAreaElement>(null)
+  const pensando = respondendo === nota.id
+
+  // Trocar de nota com a outra aberta descartaria o que foi digitado, então o
+  // texto local só volta a seguir a nota quando a nota muda.
+  useEffect(() => {
+    setTexto(nota.texto)
+    setEditando(false)
+  }, [nota.id, nota.texto])
+
+  const guardar = async (novo = texto) => {
+    if (novo === nota.texto) return
+    await salvarNota({
+      id: nota.id, titulo: nota.titulo || tituloDe(novo), texto: novo,
+      fixada: nota.fixada, arquivada: nota.arquivada,
+      area_id: nota.area_id, fluxo_id: nota.fluxo_id,
+    })
+  }
+
+  const editar = (onde?: number) => {
+    setEditando(true)
+    requestAnimationFrame(() => {
+      const el = area.current
+      if (!el) return
+      el.focus()
+      const pos = onde ?? el.value.length
+      el.selectionStart = el.selectionEnd = pos
+      setCursor(pos)
+    })
+  }
+
+  const perguntar = async () => {
+    if (pensando) return
+    const { linha, corte } = linhaDoCursor(texto, editando ? cursor : null)
+    // O texto vai daqui, e não do estado lá de dentro: entre salvar e o estado
+    // voltar passa uma recarga, e a resposta entraria por cima da pergunta.
+    const deu = await perguntarNaNota(nota.id, texto, linha, corte)
+    if (deu) setEditando(false)
+  }
+
+  /** Tira do texto o bloco que a leitura escreveu. É texto seu: some de vez. */
+  const apagarBloco = async (k: number) => {
+    const novo = emPedacos(texto)
+      .filter((_, i) => i !== k)
+      .map((p) => (p.daLeitura ? p.texto.split('\n').map((l) => '> ' + l).join('\n') : p.texto))
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+    setTexto(novo)
+    await guardar(novo)
+  }
+
+  return (
+    <div className="doc">
+      {editando ? (
+        <textarea
+          ref={area}
+          className="inp doc-campo"
+          value={texto}
+          aria-label="Texto da nota"
+          onChange={(e) => { setTexto(e.target.value); setCursor(e.target.selectionStart) }}
+          onSelect={(e) => setCursor((e.target as HTMLTextAreaElement).selectionStart)}
+          onBlur={() => { void guardar(); setEditando(false) }}
+        />
+      ) : (
+        <div className="doc-lido" onClick={() => editar()}>
+          {texto.trim()
+            ? emPedacos(texto).map((p, k) => (p.daLeitura ? (
+              <div className="doc-leitura" key={k}>
+                <span className="doc-leitura-h">
+                  <Ic.faisca />Leitura
+                  <button className="iconbtn" aria-label="Apagar o que a leitura escreveu"
+                    onClick={(e) => { e.stopPropagation(); void apagarBloco(k) }}><Ic.x /></button>
+                </span>
+                <p className="doc-p"><ComLigacoes texto={p.texto} ir={ir} notas={notas} /></p>
+              </div>
+            ) : (
+              <p className="doc-p" key={k}><ComLigacoes texto={p.texto} ir={ir} notas={notas} /></p>
+            )))
+            : <p className="doc-vazio">Toque para escrever.</p>}
+          {pensando && (
+            <div className="doc-leitura doc-pensando">
+              <span className="doc-leitura-h"><Ic.faisca />Leitura</span>
+              <p className="doc-p">Lendo o seu caderno...</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="doc-acoes">
+        {/* onMouseDown segura o foco: sem ele o clique tira o cursor do campo,
+            o campo vira texto lido, o botão sai do lugar e o clique se perde. */}
+        {org.ia_ativa && (
+          <button className="btn" disabled={pensando}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => void perguntar()}>
+            <Ic.faisca />{pensando ? 'Perguntando...' : 'Perguntar'}
+          </button>
+        )}
+        <span className="hint">
+          {org.ia_ativa
+            ? 'Responde sobre a linha onde você está, e escreve logo abaixo dela.'
+            : 'A leitura com IA está desligada em Ajustes.'}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+/** O texto com as ligações [[assim]] clicáveis, e o link vazio de outra cor. */
+function ComLigacoes({ texto, ir, notas }: {
+  texto: string; ir: (t: string) => void; notas: Nota[]
+}) {
+  const pedacos: (string | { titulo: string; existe: boolean })[] = []
+  let fim = 0
+  for (const m of texto.matchAll(LIGACAO)) {
+    const i = m.index ?? 0
+    if (i > fim) pedacos.push(texto.slice(fim, i))
+    const titulo = m[1].trim()
+    pedacos.push({ titulo, existe: !!porTitulo(notas, titulo) })
+    fim = i + m[0].length
+  }
+  if (fim < texto.length) pedacos.push(texto.slice(fim))
+
+  return (
+    <>
+      {pedacos.map((p, i) => typeof p === 'string'
+        ? <span key={i}>{p}</span>
+        : (
+          <button key={i} className={`nt-lig ${p.existe ? '' : 'vazio'}`}
+            onClick={(e) => { e.stopPropagation(); ir(p.titulo) }}
+            title={p.existe ? `Abrir ${p.titulo}` : `Criar a nota ${p.titulo}`}>
+            {p.titulo}
+          </button>
+        ))}
+    </>
+  )
+}

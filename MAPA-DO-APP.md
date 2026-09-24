@@ -607,8 +607,10 @@ era um pensamento separado, escrito num momento diferente.
 
 **Uma nota é um assunto, e tem alguém do outro lado.**
 
-- Dentro de cada nota há uma **conversa com a leitura** sobre aquele assunto. Quem pergunta
-  ali não precisa contextualizar: o contexto é a nota em que a pergunta foi feita.
+- A nota é **um texto só**. Você escreve a pergunta como uma linha qualquer e toca em
+  Perguntar: a resposta entra logo abaixo dela, marcada como da leitura, e a partir dali é
+  texto seu, que dá para editar, mover e apagar. Não há um chat ao lado do texto, e não
+  havendo, não há a escolha de onde escrever.
 - Fora delas há uma **conversa solta** (`notas.conversa`, uma por pessoa), que é a nota sem
   assunto: fala do que quiser, e o caderno inteiro entra junto na pergunta.
 - **Responder é uma coisa, organizar é outra.** A conversa devolve texto e nunca cria nada.

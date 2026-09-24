@@ -295,11 +295,25 @@ negócio. Escreve.
 
 O desenho é o de um bloco de notas com alguém do outro lado:
 
-- **Cada nota é um assunto**, e tem conversa própria com a leitura sobre aquilo.
-  Quem pergunta dentro de uma nota não precisa contextualizar de novo: o contexto
-  é a nota em que a pergunta foi feita.
+- **Cada nota é um assunto, e é UM TEXTO SÓ.** Você escreve a pergunta como uma
+  linha qualquer do documento e toca em Perguntar; a resposta entra logo abaixo
+  dela, marcada com `> ` e desenhada como bloco da leitura. A partir dali é
+  texto seu: dá para editar, mover e apagar como o resto.
+  Havia duas caixas de digitar na mesma tela, o texto e um chat ao lado, e isso
+  obrigava a pessoa a escolher onde escrever antes de ter o que dizer. Nota e
+  conversa não são assuntos diferentes, são formas diferentes da mesma coisa, e
+  a forma que serve a um documento é o documento.
+  O formato ganha três coisas de graça: a resposta fica ONDE a pergunta estava,
+  junto do raciocínio que a gerou; a conversa passada vira a memória da nota sem
+  tabela nenhuma, porque o documento inteiro vai no pedido seguinte; e a busca
+  acha o que foi respondido sem ninguém fazer nada.
+  Quem faz isso é `componentes/Documento.tsx`, e a marca é `MARCA_LEITURA` em
+  `lib/notas.ts`. **Marcar não é enfeite**: o que a máquina escreveu não pode se
+  passar pelo que você escreveu.
 - **Fora delas existe uma conversa solta**, que é a nota sem assunto:
-  `notas.conversa`, uma por pessoa. Ser uma nota, e não um canal nem uma tabela
+  `notas.conversa`, uma por pessoa. **Essa continua sendo conversa mesmo**, com
+  falas em sequência, porque ela não tem documento embaixo: a forma segue o que
+  a coisa é. Ser uma nota, e não um canal nem uma tabela
   nova, é o que faz o que for dito ali entrar no acervo pela mesma porta do
   resto. Ela sai filtrada na fonte, em `Dados`, e nenhuma tela precisa lembrar de
   escondê-la.

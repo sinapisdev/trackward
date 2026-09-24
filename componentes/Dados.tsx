@@ -19,7 +19,7 @@ import { distribuir, type Palpite } from '@/lib/distribuir'
 import { sobrecarga, type Carga } from '@/lib/sobrecarga'
 import { escutaAqui, oQueFaz, porPalavras } from '@/lib/agentes'
 import { preencher } from '@/lib/conectores'
-import { parecidas, parecidasCom, tituloDe } from '@/lib/notas'
+import { comoBloco, parecidas, parecidasCom, tituloDe } from '@/lib/notas'
 import { novoId } from '@/lib/id'
 import {
   daDecisao, jaFoiRecusada, paraOModelo, quemCostuma, termosDaConversa, ultimoAprendizado,
@@ -185,13 +185,30 @@ type Contexto = {
   mensagensDaNota: (notaId: string) => Mensagem[]
   sugestoesDaNota: (notaId: string) => Sugestao[]
   /**
-   * Escreve na nota e pede a resposta da leitura.
+   * Escreve na conversa solta e pede a resposta da leitura.
    *
    * O que você escreveu fica guardado mesmo que a resposta não venha: a nota é
    * sua, e perder o que foi escrito porque o modelo caiu seria o pior defeito
    * possível num caderno.
    */
   escreverNaNota: (notaId: string, texto: string) => Promise<void>
+  /**
+   * Pergunta sobre uma nota, e escreve a resposta DENTRO dela.
+   *
+   * A resposta não vai para uma conversa ao lado: entra no documento como bloco
+   * citado, logo depois da linha perguntada. Ver `MARCA_LEITURA` em lib/notas.
+   *
+   * O texto vem de fora, e não do estado: entre salvar o que foi digitado e o
+   * estado chegar aqui passa uma recarga, e ler daqui gravaria a resposta por
+   * cima da própria pergunta.
+   *
+   * @param texto    o documento como está na tela, agora
+   * @param pergunta a linha em que o cursor estava
+   * @param corte    onde enfiar a resposta, em caracteres
+   */
+  perguntarNaNota: (
+    notaId: string, texto: string, pergunta: string, corte: number,
+  ) => Promise<boolean>
   /** Verdadeiro enquanto a leitura está escrevendo a resposta desta nota. */
   respondendo: string | null
   /**
@@ -1162,81 +1179,6 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    * endereço. É isso que faz a ideia de hoje encontrar a de um mês atrás, que é
    * a diferença entre um caderno que soma e um que só acumula.
    */
-  const escreverNaNota: Contexto['escreverNaNota'] = useCallback(async (notaId, texto) => {
-    const limpo = texto.trim()
-    if (!limpo) return
-    const { error } = await sb.from('mensagens').insert({
-      id: novoId(), nota_id: notaId, autor_id: eu.id, texto: limpo, sistema: false,
-    })
-    if (error) return falhou(error, 'Não deu para escrever na nota.')
-    recarregar()
-    if (!org.ia_ativa) return
-
-    const nota = todasNotas.find((n) => n.id === notaId) || null
-    const daNota = nota && !nota.conversa ? nota : null
-    const anteriores = mensagens.filter((m) => m.nota_id === notaId)
-    const falas: Fala[] = [
-      ...anteriores.map((m) => ({ de: (m.por_ia ? 'ia' : 'pessoa') as Fala['de'], texto: m.texto })),
-      { de: 'pessoa', texto: limpo },
-    ]
-
-    // Do que procurar parecença: dentro de uma nota, a nota inteira, porque o
-    // assunto é ela. Na conversa solta, o que acabou de ser dito, porque não há
-    // assunto fixo e o de três perguntas atrás já não é o de agora.
-    const perto = daNota
-      ? [
-          ...parecidas(daNota, notas, 4),
-          ...notas.filter((n) => n.id !== daNota.id && !n.arquivada
-            && ((daNota.area_id && n.area_id === daNota.area_id)
-              || (daNota.fluxo_id && n.fluxo_id === daNota.fluxo_id))),
-        ]
-      : parecidasCom(falas.slice(-4).map((f) => f.texto).join(' '), notas, 6)
-
-    const corpo: ContextoConversa = {
-      hoje: hojeIso(),
-      falas,
-      nota: daNota
-        ? {
-            titulo: daNota.titulo,
-            texto: daNota.texto,
-            onde: [
-              daNota.area_id ? areaDe(daNota.area_id).nome : null,
-              daNota.fluxo_id ? todosFluxos.find((f) => f.id === daNota.fluxo_id)?.nome ?? null : null,
-            ].filter(Boolean).join(' · ') || null,
-          }
-        : null,
-      caderno: perto
-        .filter((n, i, todas) => todas.findIndex((x) => x.id === n.id) === i)
-        .slice(0, 8)
-        .map((n) => ({ titulo: n.titulo, trecho: n.texto.replace(/\s+/g, ' ').slice(0, 220) })),
-      indice: notas.filter((n) => !n.arquivada).map((n) => n.titulo),
-      memoria: paraOModelo(memoria),
-    }
-
-    setRespondendo(notaId)
-    try {
-      const r = await fetch('/api/conversar', {
-        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo),
-      })
-      const volta = await r.json() as { resposta?: string; porque?: string }
-      if (volta.porque === 'teto') {
-        toast('O teto de uso com IA do mês foi atingido.')
-      }
-      if (!volta.resposta) { toast('Não consegui responder agora.', true); return }
-      // A resposta sai assinada por quem escreveu, que é a leitura: `por_ia` é o
-      // que a tela usa para não fazer ela parecer com você.
-      await sb.from('mensagens').insert({
-        id: novoId(), nota_id: notaId, autor_id: eu.id, texto: volta.resposta,
-        sistema: false, por_ia: true,
-      })
-      recarregar()
-    } catch {
-      toast('Não consegui responder agora.', true)
-    } finally {
-      setRespondendo(null)
-    }
-  }, [sb, eu.id, org.ia_ativa, todasNotas, notas, mensagens, memoria, areaDe, todosFluxos,
-      falhou, toast, recarregar])
 
   /**
    * A lista pessoal: uma esteira de uma etapa só, visível apenas para o dono.
@@ -2258,6 +2200,144 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   }, [todosFluxos, minhaLista, areaDe, canais, sugestoes, decisoes])
 
   /**
+   * O contexto que a leitura recebe para falar de uma nota, ou solta.
+   *
+   * Vai junto o caderno: dentro de uma nota, as parecidas com ela e as do mesmo
+   * endereço, porque o assunto é a nota; na conversa solta, as parecidas com o
+   * que acabou de ser dito, porque ali não há assunto fixo e o de três
+   * perguntas atrás já não é o de agora.
+   */
+  const contextoDaNota = useCallback((nota: Nota | null, falas: Fala[]): ContextoConversa => {
+    const daNota = nota && !nota.conversa ? nota : null
+    const perto = daNota
+      ? [
+          ...parecidas(daNota, notas, 4),
+          ...notas.filter((n) => n.id !== daNota.id && !n.arquivada
+            && ((daNota.area_id && n.area_id === daNota.area_id)
+              || (daNota.fluxo_id && n.fluxo_id === daNota.fluxo_id))),
+        ]
+      : parecidasCom(falas.slice(-4).map((f) => f.texto).join(' '), notas, 6)
+
+    return {
+      hoje: hojeIso(),
+      falas,
+      nota: daNota
+        ? {
+            titulo: daNota.titulo,
+            texto: daNota.texto,
+            onde: [
+              daNota.area_id ? areaDe(daNota.area_id).nome : null,
+              daNota.fluxo_id ? todosFluxos.find((f) => f.id === daNota.fluxo_id)?.nome ?? null : null,
+            ].filter(Boolean).join(' · ') || null,
+          }
+        : null,
+      caderno: perto
+        .filter((n, i, todas) => todas.findIndex((x) => x.id === n.id) === i)
+        .slice(0, 8)
+        .map((n) => ({ titulo: n.titulo, trecho: n.texto.replace(/\s+/g, ' ').slice(0, 220) })),
+      indice: notas.filter((n) => !n.arquivada).map((n) => n.titulo),
+      memoria: paraOModelo(memoria),
+      casa: oQueACasaTem,
+    }
+  }, [notas, areaDe, todosFluxos, memoria, oQueACasaTem])
+
+  /** Fala com a leitura e devolve o texto da resposta, ou nulo. */
+  const pedirResposta = useCallback(async (corpo: ContextoConversa) => {
+    try {
+      const r = await fetch('/api/conversar', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo),
+      })
+      const volta = await r.json() as { resposta?: string; porque?: string }
+      if (volta.porque === 'teto') toast('O teto de uso com IA do mês foi atingido.')
+      if (!volta.resposta) { toast('Não consegui responder agora.', true); return null }
+      return volta.resposta
+    } catch {
+      toast('Não consegui responder agora.', true)
+      return null
+    }
+  }, [toast])
+
+  /**
+   * A conversa solta: essa continua sendo conversa mesmo.
+   *
+   * Ela não tem documento embaixo, então o formato natural dela é a sequência
+   * de falas. Dentro de uma nota é o contrário, e por isso lá a resposta entra
+   * no texto: ver `perguntarNaNota`.
+   */
+  const escreverNaNota: Contexto['escreverNaNota'] = useCallback(async (notaId, texto) => {
+    const limpo = texto.trim()
+    if (!limpo) return
+    const { error } = await sb.from('mensagens').insert({
+      id: novoId(), nota_id: notaId, autor_id: eu.id, texto: limpo, sistema: false,
+    })
+    if (error) return falhou(error, 'Não deu para escrever na nota.')
+    recarregar()
+    if (!org.ia_ativa) return
+
+    const nota = todasNotas.find((n) => n.id === notaId) || null
+    const anteriores = mensagens.filter((m) => m.nota_id === notaId)
+    const falas: Fala[] = [
+      ...anteriores.map((m) => ({ de: (m.por_ia ? 'ia' : 'pessoa') as Fala['de'], texto: m.texto })),
+      { de: 'pessoa', texto: limpo },
+    ]
+
+    setRespondendo(notaId)
+    try {
+      const resposta = await pedirResposta(contextoDaNota(nota, falas))
+      if (!resposta) return
+      // A resposta sai assinada por quem escreveu, que é a leitura: `por_ia` é o
+      // que a tela usa para não fazer ela parecer com você.
+      await sb.from('mensagens').insert({
+        id: novoId(), nota_id: notaId, autor_id: eu.id, texto: resposta,
+        sistema: false, por_ia: true,
+      })
+      recarregar()
+    } finally {
+      setRespondendo(null)
+    }
+  }, [sb, eu.id, org.ia_ativa, todasNotas, mensagens, contextoDaNota, pedirResposta,
+      falhou, recarregar])
+
+  /**
+   * Perguntar dentro da nota, com a resposta entrando no próprio texto.
+   *
+   * O documento inteiro vai junto, e nele estão as respostas anteriores, já
+   * marcadas: a leitura lê a própria conversa passada sem precisar de uma
+   * segunda tabela para guardá-la. Uma fonte só, que é o texto que você vê.
+   */
+  const perguntarNaNota: Contexto['perguntarNaNota'] = useCallback(
+    async (notaId, texto, pergunta, corte) => {
+      const nota = todasNotas.find((n) => n.id === notaId)
+      if (!nota) return false
+      if (!org.ia_ativa) { toast('A leitura com IA está desligada em Ajustes.'); return false }
+      if (!texto.trim()) { toast('Escreva alguma coisa antes de perguntar.'); return false }
+
+      setRespondendo(notaId)
+      try {
+        // O documento vai como está na tela, com a pergunta dentro dele.
+        const resposta = await pedirResposta(contextoDaNota({ ...nota, texto }, [{
+          de: 'pessoa',
+          texto: pergunta.trim() || 'O que você acha do que está escrito nesta nota?',
+        }]))
+        if (!resposta) return false
+
+        // Entra logo depois da linha perguntada, e não no fim do arquivo: quem
+        // pergunta no meio de um raciocínio quer a resposta ali, junto dele.
+        const antes = texto.slice(0, corte).replace(/\s+$/, '')
+        const depois = texto.slice(corte).replace(/^\s+/, '')
+        const novo = [antes, comoBloco(resposta), depois].filter(Boolean).join('\n\n')
+        await salvarNota({
+          id: nota.id, titulo: nota.titulo, texto: novo,
+          fixada: nota.fixada, arquivada: nota.arquivada,
+          area_id: nota.area_id, fluxo_id: nota.fluxo_id,
+        })
+        return true
+      } finally {
+        setRespondendo(null)
+      }
+    }, [todasNotas, org.ia_ativa, contextoDaNota, pedirResposta, salvarNota, toast])
+
+  /**
    * Manda a conversa para a leitura e guarda o que ela produziu.
    * Nada aqui encosta no trabalho de ninguém: o que volta são propostas, e é
    * alguém quem aceita. Com o modo "aplicar" ligado em Ajustes, tarefa nova e
@@ -2648,7 +2728,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     memoria, esquecer, consumo, agentes, salvarAgente, excluirAgente,
     conectores, salvarConector, guardarChave, excluirConector, testarConector,
     notas, salvarNota, excluirNota, conversaIA, abrirConversaIA,
-    mensagensDaNota, sugestoesDaNota, escreverNaNota, respondendo,
+    mensagensDaNota, sugestoesDaNota, escreverNaNota, perguntarNaNota, respondendo,
     minhaLista, abrirMinhaLista, criarAvulsa,
     avisos, naoVistos: avisos.filter((a) => !a.lido_em).length,
     lerAvisos, apagarAviso, contato, salvarContato,
