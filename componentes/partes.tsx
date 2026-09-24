@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { useDados } from './Dados'
 import { Ic } from './Icones'
 import { Av, IconeStatus, Trilha } from './atomos'
@@ -31,6 +31,27 @@ export function useCelular() {
     return () => mq.removeEventListener('change', ver)
   }, [])
   return celular
+}
+
+/**
+ * Fecha um menu ao clicar fora ou apertar Esc.
+ *
+ * Mora aqui, e não dentro da Barra, porque todo menu do app precisa disso e
+ * três cópias viram três comportamentos diferentes no mês seguinte.
+ */
+export function useFora(aberto: boolean, fechar: () => void) {
+  const caixa = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!aberto) return
+    const fora = (e: MouseEvent) => {
+      if (caixa.current && !caixa.current.contains(e.target as Node)) fechar()
+    }
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') fechar() }
+    window.addEventListener('mousedown', fora)
+    window.addEventListener('keydown', esc)
+    return () => { window.removeEventListener('mousedown', fora); window.removeEventListener('keydown', esc) }
+  }, [aberto, fechar])
+  return caixa
 }
 
 /** Classe de cor de um prazo: vencido, no limite ou normal. */

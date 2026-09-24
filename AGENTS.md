@@ -295,9 +295,20 @@ negócio. Escreve.
 
 O desenho é o de um bloco de notas com alguém do outro lado:
 
-- **Cada nota é um assunto, e é UM TEXTO SÓ.** Você escreve a pergunta como uma
-  linha qualquer do documento e toca em Perguntar; a resposta entra logo abaixo
-  dela, marcada com `> ` e desenhada como bloco da leitura. A partir dali é
+- **Cada nota é um assunto, e é UM TEXTO SÓ.** Não existe campo de título:
+  **a primeira linha é o título**, e aparece como título. Ninguém escreve uma
+  nota começando pelo nome dela, escreve a primeira linha. As duas colunas
+  continuam no banco, `titulo` derivado de `texto` a cada gravação, e `documento`
+  em `lib/notas.ts` costura as notas antigas, que têm o título fora do texto.
+  **A folha não tem moldura**: o campo ocupa o espaço todo, sem borda e sem
+  fundo. Moldura em volta de folha faz o bloco de notas parecer formulário.
+  **O cadastro fica atrás de um botão** (`componentes/DetalhesNota.tsx`): área,
+  track, arquivos, fixar e apagar. Eles não são o trabalho, e soltos embaixo do
+  texto empurravam o que importa para cima, meia página de campos antes da
+  primeira linha escrita.
+  Você escreve a pergunta como uma linha qualquer do documento e toca em
+  Perguntar; a resposta entra logo abaixo dela, marcada com `> ` e desenhada
+  como bloco da leitura. A partir dali é
   texto seu: dá para editar, mover e apagar como o resto.
   Havia duas caixas de digitar na mesma tela, o texto e um chat ao lado, e isso
   obrigava a pessoa a escolher onde escrever antes de ter o que dizer. Nota e

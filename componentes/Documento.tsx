@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useDados } from './Dados'
 import { Ic } from './Icones'
-import { emPedacos, linhaDoCursor, LIGACAO, porTitulo, tituloDe } from '@/lib/notas'
+import { documento, emPedacos, linhaDoCursor, LIGACAO, porTitulo, tituloDe } from '@/lib/notas'
 import type { Nota } from '@/lib/tipos'
 
 /**
@@ -31,7 +31,7 @@ export function Documento({ nota, ir }: {
 }) {
   const { notas, salvarNota, perguntarNaNota, respondendo, org } = useDados()
   const [editando, setEditando] = useState(false)
-  const [texto, setTexto] = useState(nota.texto)
+  const [texto, setTexto] = useState(() => documento(nota))
   const [cursor, setCursor] = useState<number | null>(null)
   const area = useRef<HTMLTextAreaElement>(null)
   const pensando = respondendo === nota.id
@@ -39,14 +39,19 @@ export function Documento({ nota, ir }: {
   // Trocar de nota com a outra aberta descartaria o que foi digitado, então o
   // texto local só volta a seguir a nota quando a nota muda.
   useEffect(() => {
-    setTexto(nota.texto)
+    setTexto(documento(nota))
     setEditando(false)
-  }, [nota.id, nota.texto])
+  }, [nota.id, nota.texto]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * Salva o documento. O título é sempre a primeira linha: não existe mais um
+   * campo separado para ele, porque ninguém escreve uma nota começando pelo
+   * nome dela. Escreve a primeira linha, e ela vira o nome.
+   */
   const guardar = async (novo = texto) => {
-    if (novo === nota.texto) return
+    if (novo === nota.texto && tituloDe(novo) === nota.titulo) return
     await salvarNota({
-      id: nota.id, titulo: nota.titulo || tituloDe(novo), texto: novo,
+      id: nota.id, titulo: tituloDe(novo), texto: novo,
       fixada: nota.fixada, arquivada: nota.arquivada,
       area_id: nota.area_id, fluxo_id: nota.fluxo_id,
     })
@@ -110,7 +115,20 @@ export function Documento({ nota, ir }: {
                 <p className="doc-p"><ComLigacoes texto={p.texto} ir={ir} notas={notas} /></p>
               </div>
             ) : (
-              <p className="doc-p" key={k}><ComLigacoes texto={p.texto} ir={ir} notas={notas} /></p>
+              /* A primeira linha é o título, e aparece como título. É a mesma
+                 linha do texto, não outro campo: ver `documento` em lib/notas. */
+              <div className="doc-bloco" key={k}>
+                {k === 0 && (
+                  <h2 className="doc-titulo">{p.texto.split('\n')[0] || 'Sem título'}</h2>
+                )}
+                {(k === 0 ? p.texto.split('\n').slice(1).join('\n') : p.texto).trim() && (
+                  <p className="doc-p">
+                    <ComLigacoes
+                      texto={k === 0 ? p.texto.split('\n').slice(1).join('\n').replace(/^\n+/, '') : p.texto}
+                      ir={ir} notas={notas} />
+                  </p>
+                )}
+              </div>
             )))
             : <p className="doc-vazio">Toque para escrever.</p>}
           {pensando && (

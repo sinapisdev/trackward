@@ -7,9 +7,10 @@ import { Ic } from '@/componentes/Icones'
 import { Anexos } from '@/componentes/Anexos'
 import { ConversaNota } from '@/componentes/ConversaNota'
 import { Documento } from '@/componentes/Documento'
+import { DetalhesNota } from '@/componentes/DetalhesNota'
 import { rel, isoDe } from '@/lib/datas'
 import {
-  buscar, entradas, ligar, LIGACAO, ordenar, parecidas, porTitulo, saidas, solta,
+  buscar, entradas, ligar, ordenar, parecidas, porTitulo, resumo, saidas, solta,
 } from '@/lib/notas'
 import { rotuloTipo } from '@/lib/rotulos'
 import type { Nota } from '@/lib/tipos'
@@ -28,11 +29,10 @@ import type { Nota } from '@/lib/tipos'
  * página do fornecedor sem ter decidido criar página nenhuma.
  */
 
-function Aberta({ nota, ir }: { nota: Nota; ir: (titulo: string) => void }) {
-  const { notas, areas, fluxos, salvarNota, excluirNota, toast } = useDados()
-  const [titulo, setTitulo] = useState(nota.titulo)
-
-  useEffect(() => { setTitulo(nota.titulo) }, [nota.id, nota.titulo])
+function Aberta({ nota, ir, aoApagar }: {
+  nota: Nota; ir: (titulo: string) => void; aoApagar: () => void
+}) {
+  const { notas, salvarNota, toast } = useDados()
 
   const aponta = saidas(nota, notas)
   const citam = entradas(nota, notas)
@@ -48,65 +48,20 @@ function Aberta({ nota, ir }: { nota: Nota; ir: (titulo: string) => void }) {
 
   return (
     <article className="nt-aberta">
+      {/* O cadastro da nota mora atrás de um botão: área, track, arquivos,
+          fixar e apagar. O que fica na tela é o texto. */}
       <div className="nt-a-h">
-        <input className="inp nt-tit" value={titulo} aria-label="Título da nota"
-          onChange={(e) => setTitulo(e.target.value)}
-          onBlur={() => void salvarNota({
-            id: nota.id, titulo, texto: nota.texto,
-            fixada: nota.fixada, arquivada: nota.arquivada,
-            area_id: nota.area_id, fluxo_id: nota.fluxo_id,
-          })} />
-        <button className={`iconbtn ${nota.fixada ? 'on' : ''}`}
-          title={nota.fixada ? 'Soltar do topo' : 'Fixar no topo'}
-          aria-label={nota.fixada ? 'Soltar do topo' : 'Fixar no topo'}
-          onClick={() => void salvarNota({ ...nota, fixada: !nota.fixada })}><Ic.flag /></button>
-        <button className="iconbtn" title="Apagar" aria-label="Apagar nota"
-          onClick={() => void excluirNota(nota.id)}><Ic.x /></button>
+        <p className="nt-quando">
+          escrita {rel(isoDe(nota.criado_em)).toLowerCase()}
+          {nota.mexido_em.slice(0, 10) !== nota.criado_em.slice(0, 10)
+            && `, mexida ${rel(isoDe(nota.mexido_em)).toLowerCase()}`}
+        </p>
+        <DetalhesNota nota={nota} aoApagar={aoApagar} />
       </div>
 
-      <p className="nt-quando">
-        escrita {rel(isoDe(nota.criado_em)).toLowerCase()}
-        {nota.mexido_em.slice(0, 10) !== nota.criado_em.slice(0, 10)
-          && `, mexida ${rel(isoDe(nota.mexido_em)).toLowerCase()}`}
-        {nota.mensagem_id && ', veio do despejo'}
-      </p>
-
-      {/* Um texto só, e a leitura escreve dentro dele. */}
+      {/* Um texto só, e a leitura escreve dentro dele. A primeira linha é o
+          título: não há campo separado para ele. */}
       <Documento nota={nota} ir={ir} />
-
-      <div className="nt-anexos">
-        <span className="nt-rot">Arquivos</span>
-        <Anexos nota={nota} podeAnexar />
-      </div>
-
-      <div className="nt-onde">
-        <label className="sel-quem">
-          <select value={nota.area_id || ''} aria-label="Área desta nota"
-            onChange={(e) => void salvarNota({
-              id: nota.id, titulo: nota.titulo, texto: nota.texto,
-              fixada: nota.fixada, arquivada: nota.arquivada,
-              area_id: e.target.value || null, fluxo_id: nota.fluxo_id,
-            })}>
-            <option value="">Sem área</option>
-            {areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
-          </select>
-          <Ic.chev />
-        </label>
-        <label className="sel-quem">
-          <select value={nota.fluxo_id || ''} aria-label="Track desta nota"
-            onChange={(e) => void salvarNota({
-              id: nota.id, titulo: nota.titulo, texto: nota.texto,
-              fixada: nota.fixada, arquivada: nota.arquivada,
-              area_id: nota.area_id, fluxo_id: e.target.value || null,
-            })}>
-            <option value="">Sem track</option>
-            {fluxos.filter((f) => !f.concluido).map((f) => (
-              <option key={f.id} value={f.id}>{rotuloTipo(f.tipo)}: {f.nome}</option>
-            ))}
-          </select>
-          <Ic.chev />
-        </label>
-      </div>
 
       {!!aponta.length && (
         <div className="nt-bloco">
@@ -289,7 +244,7 @@ export function TelaNotas() {
                         {n.fixada && <Ic.flag />}
                         {n.titulo}
                       </b>
-                      <span>{n.texto.replace(LIGACAO, '$1').replace(/\s+/g, ' ').slice(0, 90) || 'vazia'}</span>
+                      <span>{resumo(n).slice(0, 90) || 'vazia'}</span>
                       <i>{rel(isoDe(n.mexido_em)).toLowerCase()}</i>
                     </button>
                   ))}
@@ -318,7 +273,7 @@ export function TelaNotas() {
               <ConversaNota nota={conversaIA} ir={ir} />
             </article>
           ) : aberta
-            ? <Aberta nota={aberta} ir={ir} />
+            ? <Aberta nota={aberta} ir={ir} aoApagar={() => setAbertaId(null)} />
             : <div className="card empty" style={{ padding: 34 }}>Escolha uma nota.</div>}
         </div>
       )}

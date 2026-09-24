@@ -1,0 +1,80 @@
+'use client'
+
+import { useState } from 'react'
+import { useDados } from './Dados'
+import { useFora } from './partes'
+import { Ic } from './Icones'
+import { Anexos } from './Anexos'
+import { rotuloTipo } from '@/lib/rotulos'
+import type { Nota } from '@/lib/tipos'
+
+/**
+ * Tudo que a nota tem e não é o texto dela, atrás de um botão só.
+ *
+ * Área, track, arquivos, fixar e apagar estavam soltos embaixo do texto, e
+ * empurravam o que importa para cima: numa tela de telefone, meia página de
+ * campos antes da primeira linha escrita. Eles não são o trabalho, são o
+ * cadastro da nota, e cadastro se abre quando se precisa dele.
+ */
+export function DetalhesNota({ nota, aoApagar }: {
+  nota: Nota
+  /** O que fazer depois de apagar: a tela que abriu a nota decide. */
+  aoApagar: () => void
+}) {
+  const { areas, fluxos, minhaLista, salvarNota, excluirNota, anexosDe } = useDados()
+  const [aberto, setAberto] = useState(false)
+  const caixa = useFora(aberto, () => setAberto(false))
+
+  const salvar = (extra: Partial<Nota>) => void salvarNota({
+    id: nota.id, titulo: nota.titulo, texto: nota.texto,
+    fixada: nota.fixada, arquivada: nota.arquivada,
+    area_id: nota.area_id, fluxo_id: nota.fluxo_id, ...extra,
+  })
+
+  const quantos = anexosDe(nota.id).length
+
+  return (
+    <div className="nt-det" ref={caixa}>
+      <button className={`iconbtn ${aberto ? 'on' : ''}`} aria-expanded={aberto}
+        title="Detalhes da nota" aria-label="Detalhes da nota"
+        onClick={() => setAberto((a) => !a)}><Ic.mais /></button>
+
+      {aberto && (
+        <div className="nt-det-menu">
+          <label className="sel-quem">
+            <select value={nota.area_id || ''} aria-label="Área desta nota"
+              onChange={(e) => salvar({ area_id: e.target.value || null })}>
+              <option value="">Sem área</option>
+              {areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+            </select>
+            <Ic.chev />
+          </label>
+
+          <label className="sel-quem">
+            <select value={nota.fluxo_id || ''} aria-label="Track desta nota"
+              onChange={(e) => salvar({ fluxo_id: e.target.value || null })}>
+              <option value="">Sem track</option>
+              {fluxos.filter((f) => !f.concluido && f.id !== minhaLista?.id).map((f) => (
+                <option key={f.id} value={f.id}>{rotuloTipo(f.tipo)}: {f.nome}</option>
+              ))}
+            </select>
+            <Ic.chev />
+          </label>
+
+          <div className="nt-det-arq">
+            <span className="lbl">Arquivos{quantos ? ` (${quantos})` : ''}</span>
+            <Anexos nota={nota} podeAnexar />
+          </div>
+
+          <button className="nt-det-item" onClick={() => salvar({ fixada: !nota.fixada })}>
+            <Ic.flag />{nota.fixada ? 'Soltar do topo' : 'Fixar no topo'}
+          </button>
+          <button className="nt-det-item perigo"
+            onClick={async () => { await excluirNota(nota.id); setAberto(false); aoApagar() }}>
+            <Ic.x />Apagar a nota
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}

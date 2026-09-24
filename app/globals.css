@@ -3971,3 +3971,54 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
   .doc-leitura-h .iconbtn{opacity:1}
   .doc-acoes .hint{display:none}
 }
+
+/* ==========================================================================
+   A nota como folha, e não como formulário
+
+   Sem caixa em volta do texto e sem campo de título: a primeira linha é o
+   nome, e o resto é a folha. O que não é texto (área, track, arquivos, fixar,
+   apagar) é cadastro, e cadastro fica atrás de um botão.
+   ========================================================================== */
+
+.doc{margin-top:10px;display:flex;flex-direction:column;min-height:0;flex:1}
+/* sem moldura: o campo é a folha, e moldura em volta de folha vira formulário */
+.doc-campo{flex:1;width:100%;border:0;background:none;padding:0;border-radius:0;
+  min-height:240px;resize:none;line-height:1.6;font-size:var(--fs-body);color:var(--tx)}
+.doc-campo:focus{outline:none;box-shadow:none;border:0}
+.doc-lido{flex:1;min-height:240px}
+
+.doc-titulo{margin:0 0 10px;font:var(--fw-semibold) var(--fs-h3)/var(--lh-h3) var(--sans);
+  letter-spacing:var(--ls-h3);color:var(--tx)}
+.doc-bloco{margin-bottom:12px}
+.doc-bloco:last-child{margin-bottom:0}
+
+/* o menu de detalhes da nota */
+.nt-det{position:relative}
+.nt-det-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:30;width:280px;
+  display:grid;gap:10px;padding:12px;border-radius:var(--r);background:var(--panel);
+  box-shadow:var(--pop)}
+.nt-det-menu .sel-quem{width:100%}
+.nt-det-menu .sel-quem select{width:100%;max-width:none}
+.nt-det-arq{display:grid;gap:8px;padding-top:4px;border-top:1px solid var(--line)}
+.nt-det-item{display:flex;align-items:center;gap:9px;width:100%;text-align:left;
+  padding:9px 8px;margin-inline:-8px;border-radius:var(--r-sm);font-size:var(--fs-ui);
+  color:var(--tx-2);transition:var(--t)}
+.nt-det-item:hover{background:var(--hover);color:var(--tx)}
+.nt-det-item>svg{color:var(--tx-3);flex:none}
+.nt-det-item.perigo:hover{color:var(--late)}
+.nt-det-item.perigo:hover>svg{color:var(--late)}
+
+.dp-topo{align-items:center}
+.dp-topo-fim{display:flex;align-items:center;gap:4px;margin-left:auto}
+.dp-dentro{display:flex;flex-direction:column;min-height:0}
+
+.nt-aberta .nt-a-h{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.nt-aberta .nt-a-h .nt-quando{margin:0;flex:1}
+
+@media (max-width:840px){
+  /* a folha ocupa o que sobra da tela, do jeito que um bloco de notas ocupa */
+  .fwd-cel-notas .dp-dentro{min-height:calc(100dvh - var(--alt-topo-real,93px)
+    - var(--alt-abas-real,56px) - 120px)}
+  .doc-campo,.doc-lido{min-height:200px}
+  .nt-det-menu{width:min(280px,calc(100vw - 32px))}
+}

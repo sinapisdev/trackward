@@ -250,6 +250,33 @@ export function parecidas(nota: Nota, notas: Nota[], quantas = 3): Nota[] {
  * A primeira linha, ou a primeira frase, cortada onde dá. Quem escreve no despejo
  * não escreve título: escreve o pensamento e segue.
  */
+/**
+ * O documento inteiro, com a primeira linha sendo o título.
+ *
+ * As duas colunas continuam existindo no banco, e o título continua sendo o que
+ * a lista mostra e a busca pesa mais. O que mudou é a tela: não há mais um
+ * campo de título separado, porque ninguém escreve uma nota começando pelo
+ * nome dela. Escreve a primeira linha, e ela vira o nome.
+ *
+ * Notas antigas têm o título fora do texto: aqui ele volta para dentro, uma vez
+ * só, na primeira vez que a nota é aberta.
+ */
+export function documento(n: { titulo: string; texto: string }): string {
+  const t = n.texto || ''
+  if (!n.titulo) return t
+  const primeira = t.trimStart().split('\n')[0].trim()
+  if (mesmaChave(primeira) === mesmaChave(n.titulo)) return t
+  // Título cortado com reticências ainda é a primeira linha da nota.
+  if (n.titulo.endsWith('...') && mesmaChave(primeira).startsWith(mesmaChave(n.titulo.slice(0, -3)))) return t
+  return t.trim() ? `${n.titulo}\n\n${t.trimStart()}` : n.titulo
+}
+
+/** O texto sem a linha do título, que é o que a lista mostra por baixo do nome. */
+export function resumo(n: { titulo: string; texto: string }): string {
+  const linhas = documento(n).split('\n')
+  return linhas.slice(1).join(' ').replace(LIGACAO, '$1').replace(/^>\s?/gm, '').replace(/\s+/g, ' ').trim()
+}
+
 export function tituloDe(texto: string, limite = 60): string {
   const primeira = texto.trim().split('\n')[0].trim()
   // A primeira frase, quando ela já diz algo por si. Um "Ok." no começo não é

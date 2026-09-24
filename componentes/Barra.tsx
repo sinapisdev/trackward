@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDados } from './Dados'
 import { useModais } from './Modais'
 import { Ic } from './Icones'
+import { useFora } from './partes'
 import { rotuloTipo } from '@/lib/rotulos'
 import { Av, IconeStatus } from './atomos'
 import { supabase } from '@/lib/supabase/browser'
@@ -33,22 +34,6 @@ function Aba({ href, rotulo, conta, quente, ativo }: {
       {!!conta && <i className={`tw-ct num ${quente ? 'hot' : ''}`}>{conta > 99 ? '99+' : conta}</i>}
     </Link>
   )
-}
-
-/** Fecha o menu ao clicar fora ou apertar Esc. */
-function useFora(aberto: boolean, fechar: () => void) {
-  const caixa = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!aberto) return
-    const fora = (e: MouseEvent) => {
-      if (caixa.current && !caixa.current.contains(e.target as Node)) fechar()
-    }
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') fechar() }
-    window.addEventListener('mousedown', fora)
-    window.addEventListener('keydown', esc)
-    return () => { window.removeEventListener('mousedown', fora); window.removeEventListener('keydown', esc) }
-  }, [aberto, fechar])
-  return caixa
 }
 
 /** Em qual espaço você está, e como trocar. Ao lado da marca, como na arte. */

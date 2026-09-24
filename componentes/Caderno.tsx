@@ -4,12 +4,11 @@ import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDados } from './Dados'
 import { Ic } from './Icones'
-import { Anexos } from './Anexos'
 import { ConversaNota } from './ConversaNota'
 import { Documento } from './Documento'
+import { DetalhesNota } from './DetalhesNota'
 import { useCelular } from './partes'
-import { buscar, tituloDe, porTitulo } from '@/lib/notas'
-import { rotuloTipo } from '@/lib/rotulos'
+import { buscar, porTitulo, resumo } from '@/lib/notas'
 import { isoDe, rel } from '@/lib/datas'
 import type { Nota, TipoProposta } from '@/lib/tipos'
 
@@ -45,13 +44,12 @@ const ROTULO: Record<TipoProposta, string> = {
  */
 export function Caderno() {
   const { notas, areas, fluxos, areaDe, eu, minhaLista, abrirMinhaLista,
-    conversaIA, abrirConversaIA, sugestoesDaNota, mensagensDaNota, salvarNota, excluirNota,
+    conversaIA, abrirConversaIA, sugestoesDaNota, mensagensDaNota, salvarNota,
     lerNota, aceitarSugestao, recusarSugestao, org } = useDados()
 
   const celular = useCelular()
   const [termo, setTermo] = useState('')
   const [abertaId, setAbertaId] = useState<string | null>(null)
-  const [titulo, setTitulo] = useState('')
   const [lendo, setLendo] = useState(false)
 
   const vivas = useMemo(
@@ -105,11 +103,6 @@ export function Caderno() {
     ? conversaIA
     : vivas.find((n) => n.id === abertaId) || null
 
-  useEffect(() => {
-    if (!aberta || aberta.conversa) return
-    setTitulo(aberta.titulo)
-  }, [aberta?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
   const propostas = aberta
     ? sugestoesDaNota(aberta.id).filter((s) => s.estado === 'aberta')
     : []
@@ -118,19 +111,6 @@ export function Caderno() {
   const nova = async () => {
     const id = await salvarNota({ titulo: 'Nota nova', texto: '' })
     if (id) { setAbertaId(id); setTermo('') }
-  }
-
-  /**
-   * Salva o que é do cabeçalho: título, área e track. O corpo salva sozinho,
-   * dentro do Documento, porque é lá que ele é editado.
-   */
-  const salvarAberta = async (extra?: Partial<Nota>) => {
-    if (!aberta || aberta.conversa) return
-    await salvarNota({
-      id: aberta.id, titulo: titulo || tituloDe(aberta.texto), texto: aberta.texto,
-      fixada: aberta.fixada, arquivada: aberta.arquivada,
-      area_id: aberta.area_id, fluxo_id: aberta.fluxo_id, ...extra,
-    })
   }
 
   /**
@@ -173,9 +153,7 @@ export function Caderno() {
         <button className="nt-l" key={n.id} onClick={() => setAbertaId(n.id)}>
           <span className="nt-l-mk">{n.fixada ? <Ic.flag /> : <Ic.edit />}</span>
           <b className="nt-l-nm">{n.titulo}</b>
-          <span className="nt-l-previa">
-            {n.texto.replace(/\s+/g, ' ').trim() || 'Sem texto'}
-          </span>
+          <span className="nt-l-previa">{resumo(n) || 'Sem texto'}</span>
           <span className="nt-l-quando">{rel(isoDe(n.mexido_em))}</span>
           {!!onde && <i className="nt-l-tag">{onde}</i>}
         </button>
@@ -253,52 +231,22 @@ export function Caderno() {
 
   return (
     <div className="dp dp-dentro">
-      <div className="ct-topo">
+      <div className="ct-topo dp-topo">
         <button className="iconbtn" aria-label="Voltar para as notas"
           onClick={() => setAbertaId(null)}><Ic.volta /></button>
-        {aberta.conversa ? (
-          <h2>Conversa</h2>
-        ) : (
-          <input className="inp dp-tit" value={titulo} aria-label="Título da nota"
-            onChange={(e) => setTitulo(e.target.value)} onBlur={() => void salvarAberta()} />
-        )}
-        <Link className="iconbtn" href="/notas" title="Abrir o caderno inteiro"
-          aria-label="Abrir o caderno inteiro"><Ic.mais /></Link>
+        {aberta.conversa && <h2>Conversa</h2>}
+        <span className="dp-topo-fim">
+          <Link className="iconbtn" href="/notas" title="Abrir o caderno inteiro"
+            aria-label="Abrir o caderno inteiro"><Ic.caber /></Link>
+          {/* Área, track, arquivos, fixar e apagar: o cadastro da nota, atrás
+              de um botão só. Ver componentes/DetalhesNota.tsx. */}
+          {!aberta.conversa && <DetalhesNota nota={aberta} aoApagar={() => setAbertaId(null)} />}
+        </span>
       </div>
 
-      {!aberta.conversa && (
-        <>
-          {/* Um texto só: a resposta da leitura entra aqui dentro, e não numa
-              conversa ao lado. Ver componentes/Documento.tsx. */}
-          <Documento nota={aberta} ir={ir} />
-
-          <div className="dp-onde">
-            <label className="sel-quem">
-              <select value={aberta.area_id || ''} aria-label="Área desta nota"
-                onChange={(e) => void salvarAberta({ area_id: e.target.value || null })}>
-                <option value="">Sem área</option>
-                {areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
-              </select>
-              <Ic.chev />
-            </label>
-            <label className="sel-quem">
-              <select value={aberta.fluxo_id || ''} aria-label="Track desta nota"
-                onChange={(e) => void salvarAberta({ fluxo_id: e.target.value || null })}>
-                <option value="">Sem track</option>
-                {fluxos.filter((f) => !f.concluido && f.id !== minhaLista?.id).map((f) => (
-                  <option key={f.id} value={f.id}>{rotuloTipo(f.tipo)}: {f.nome}</option>
-                ))}
-              </select>
-              <Ic.chev />
-            </label>
-          </div>
-
-          <div className="dp-anexos">
-            <span className="lbl">Arquivos</span>
-            <Anexos nota={aberta} podeAnexar />
-          </div>
-        </>
-      )}
+      {/* Um texto só, ocupando o espaço todo: a resposta da leitura entra aqui
+          dentro, e não numa conversa ao lado. Ver componentes/Documento.tsx. */}
+      {!aberta.conversa && <Documento nota={aberta} ir={ir} />}
 
       {/* A conversa solta continua sendo conversa: ela não tem documento
           embaixo, então a forma natural dela é a sequência de falas. */}
@@ -326,24 +274,20 @@ export function Caderno() {
         </section>
       )}
 
-      <div className="dp-a-acoes">
-        {org.ia_ativa && (
+      {/* Organizar fica aqui embaixo e sozinho: é a única ação desta tela que
+          muda alguma coisa fora da nota. Apagar foi para os detalhes, junto do
+          resto do cadastro, porque não é coisa de fazer sem querer. */}
+      {org.ia_ativa && (
+        <div className="dp-a-acoes">
           <button className="btn" disabled={lendo} onClick={async () => {
             setLendo(true)
-            await salvarAberta()
             await lerNota(aberta.id)
             setLendo(false)
           }}>
             <Ic.faisca />{lendo ? 'Organizando...' : 'Organizar'}
           </button>
-        )}
-        {!aberta.conversa && (
-          <button className="btn ghost" aria-label="Apagar nota"
-            onClick={async () => { await excluirNota(aberta.id); setAbertaId(null) }}>
-            <Ic.x />Apagar
-          </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
