@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDados } from './Dados'
+import { useComandos } from './Comandos'
 import { useModais } from './Modais'
 import { Carregando } from './Shell'
 import { Ic } from './Icones'
@@ -118,7 +119,7 @@ function Lista({ atual }: { atual?: string }) {
         {/* O que você escreve para si mesmo não fica aqui: fica em Notas, que é
             um caderno com conversa própria, e não um canal com um membro só. */}
         <Link className="chat-despejo" href="/notas">
-          <span className="mk"><Ic.faisca /></span>
+          <span className="mk"><Ic.edit /></span>
           <span>
             <b>Notas</b>
             <i>o que é seu, e a conversa com a leitura</i>
@@ -266,6 +267,17 @@ function Campo({ canalId, respondendo, fecharResposta }: {
   const [texto, setTexto] = useState('')
   const [mencao, setMencao] = useState<string | null>(null)
   const area = useRef<HTMLTextAreaElement>(null)
+  const cmd = useComandos({ canalId })
+
+  /** Escreve no campo e no estado. Ver `inserir`: só um dos dois não basta. */
+  const escrever = (v: string) => {
+    setTexto(v)
+    if (area.current) {
+      area.current.value = v
+      area.current.selectionStart = area.current.selectionEnd = v.length
+      area.current.focus()
+    }
+  }
 
   const candidatos = useMemo(() => {
     if (mencao === null) return []
@@ -288,6 +300,7 @@ function Campo({ canalId, respondendo, fecharResposta }: {
     const antes = v.slice(0, area.current?.selectionStart ?? v.length)
     const m = antes.match(/@([\p{L}]*)$/u)
     setMencao(m ? m[1] : null)
+    cmd.aoDigitar(v)
     requestAnimationFrame(ajustar)
   }
 
@@ -315,6 +328,9 @@ function Campo({ canalId, respondendo, fecharResposta }: {
     setTexto('')
     setMencao(null)
     if (area.current) area.current.style.height = 'auto'
+    // A linha que começa por barra é ordem, não recado: ela vira a coisa feita
+    // e não aparece como mensagem. O que aparece é o rastro do que aconteceu.
+    if (await cmd.rodar(v)) { fecharResposta(); return }
     await enviar(canalId, v, respondendo?.id ?? null)
     fecharResposta()
   }
@@ -332,6 +348,7 @@ function Campo({ canalId, respondendo, fecharResposta }: {
         </div>
       )}
       <div className="chat-campo-linha">
+      {cmd.menu(escrever)}
       {!!candidatos.length && (
         <div className="mencoes">
           {candidatos.map((p) => (
@@ -345,10 +362,13 @@ function Campo({ canalId, respondendo, fecharResposta }: {
         ref={area}
         value={texto}
         rows={1}
-        placeholder="Escreva uma mensagem"
+        placeholder="Escreva, ou / para os comandos"
         aria-label="Mensagem"
         onChange={(e) => mudar(e.target.value)}
         onKeyDown={(e) => {
+          // O menu de comandos come a tecla primeiro: sem isto, o mesmo Enter
+          // que escolhe o comando manda a linha pela metade.
+          if (cmd.teclas(e, escrever)) return
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
             if (candidatos.length && mencao !== null) inserir(candidatos[0].nome)
@@ -489,6 +509,12 @@ function Conversa({ canal }: { canal: Canal }) {
             <p>
               {canal.descricao || 'Escreva a primeira mensagem.'}
               {org.ia_ativa && ' Depois, a leitura da conversa transforma o que ficou combinado em tarefa.'}
+            </p>
+            {/* O comando só existe para quem descobre que ele existe, e a tela
+                vazia é o único lugar onde sobra espaço para contar. */}
+            <p className="chat-vazio-cmd">
+              Escreva <code>/</code> para criar tarefa, objetivo, rotina, nota ou compromisso
+              sem sair daqui.
             </p>
           </div>
         )}

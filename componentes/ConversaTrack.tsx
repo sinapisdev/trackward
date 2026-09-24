@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { useDados } from './Dados'
+import { useComandos } from './Comandos'
 import { Ic } from './Icones'
 import { Av } from './atomos'
 import { isoDe, rel } from '@/lib/datas'
@@ -56,6 +57,7 @@ export function Conversa({ canal, titulo, quantas = 6, aoTrocar }: {
   const [texto, setTexto] = useState('')
   const [lendo, setLendo] = useState(false)
   const fim = useRef<HTMLDivElement>(null)
+  const cmd = useComandos({ canalId: canal.id })
 
   const msgs = mensagensDe(canal.id)
   const abertas = sugestoesDe(canal.id).filter((s) => s.estado === 'aberta')
@@ -66,6 +68,8 @@ export function Conversa({ canal, titulo, quantas = 6, aoTrocar }: {
     const t = texto.trim()
     if (!t) return
     setTexto('')
+    // Linha com barra é comando: vira coisa feita, não vira mensagem.
+    if (await cmd.rodar(t)) return
     await enviar(canal.id, t)
     // Quem acabou de escrever leu: deixar o contador aceso ali seria mentira.
     if (naoLidas(canal.id)) void marcarLido(canal.id)
@@ -133,11 +137,15 @@ export function Conversa({ canal, titulo, quantas = 6, aoTrocar }: {
       )}
 
       <div className="ct-campo">
+        {cmd.menu(setTexto)}
         <input
           value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') void mandar() }}
-          placeholder="Escreva no canal..."
+          onChange={(e) => { setTexto(e.target.value); cmd.aoDigitar(e.target.value) }}
+          onKeyDown={(e) => {
+            if (cmd.teclas(e, setTexto)) return
+            if (e.key === 'Enter') void mandar()
+          }}
+          placeholder="Escreva, ou / para os comandos"
           aria-label="Escrever no canal"
         />
         <button className="iconbtn" onClick={() => void mandar()} disabled={!texto.trim()}

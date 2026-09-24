@@ -241,17 +241,16 @@ function Eu() {
 
 /** O que não cabe na fileira principal, mas continua a um clique. */
 function Mais({ ativo }: { ativo: boolean }) {
-  const { processos, agentes, conectores, notas } = useDados()
+  const { processos, agentes, conectores } = useDados()
   const [aberto, setAberto] = useState(false)
   const caixa = useFora(aberto, () => setAberto(false))
   const linhas: [string, string, number?][] = [
     ['/avisos', 'Avisos'],
+    ['/processos', 'Processos', processos.length],
     ['/relatorios', 'Relatórios'],
     ['/desempenho', 'Desempenho'],
-    ['/notas', 'Notas', notas.filter((n) => !n.arquivada).length],
     ['/agentes', 'Agentes', agentes.filter((a) => a.ativo).length],
     ['/conectores', 'Conectores', conectores.filter((c) => c.ativo).length],
-    ['/processos', 'Processos', processos.length],
   ]
   return (
     <div className="tw-mais" ref={caixa}>
@@ -343,7 +342,7 @@ export function Barra() {
   const caminho = usePathname()
   const minhas = pendencias(fluxos, eu.id).length
   const porLer = canais.reduce((n, c) => n + naoLidas(c.id), 0)
-  const emMais = ['/relatorios', '/desempenho', '/notas', '/agentes', '/conectores']
+  const emMais = ['/relatorios', '/desempenho', '/agentes', '/conectores', '/processos']
     .some((r) => caminho.startsWith(r))
 
   return (
@@ -356,14 +355,18 @@ export function Barra() {
       <Espaco />
 
       <nav className="tw-nav" aria-label="Navegação">
+        {/* A ordem é a do produto, não a do histórico: conversa, notas e
+            tarefas primeiro, porque é onde o dia acontece. Processos foi para
+            "Mais" por ser montagem, e não operação: quem mexe em processo senta
+            para fazer isso, não passa por ali entre duas reuniões. */}
         <Aba href="/" rotulo="Forward" ativo={caminho === '/'} />
-        <Aba href="/minhas" rotulo="Meu trabalho" conta={minhas} ativo={caminho === '/minhas'} />
+        <Aba href="/chat" rotulo="Conversa" conta={porLer} quente ativo={caminho.startsWith('/chat')} />
+        <Aba href="/notas" rotulo="Notas" ativo={caminho === '/notas'} />
         {/* Objetivos e rotinas moram na mesma tela: são o mesmo objeto, e a
             diferença entre eles é um filtro, não um endereço. */}
         <Aba href="/tracks" rotulo="Tracks"
           ativo={caminho.startsWith('/tracks') || caminho.startsWith('/fluxo/')} />
-        <Aba href="/processos" rotulo="Processos" ativo={caminho.startsWith('/processos')} />
-        <Aba href="/chat" rotulo="Conversa" conta={porLer} quente ativo={caminho.startsWith('/chat')} />
+        <Aba href="/minhas" rotulo="Meu trabalho" conta={minhas} ativo={caminho === '/minhas'} />
         <Aba href="/agenda" rotulo="Agenda" ativo={caminho === '/agenda'} />
         <Mais ativo={emMais} />
       </nav>

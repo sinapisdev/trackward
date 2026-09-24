@@ -1259,7 +1259,13 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
 .mencoes button:hover{background:var(--hover);color:var(--tx)}
 
 @media (max-width:840px){
-  .chat{grid-template-columns:1fr;height:calc(100dvh - 56px);min-height:0}
+  /* A altura desconta o que as barras ocupam DE VERDADE, medido em
+     componentes/Shell.tsx. Com o número fixo do CSS a conta dava errado no
+     celular, a tela passava do fim da janela e a barra de abas cobria o campo
+     de escrever: o lugar mais usado do app ficava meio escondido atrás da
+     navegação. */
+  .chat{grid-template-columns:1fr;min-height:0;
+    height:calc(100dvh - var(--alt-topo-real,93px) - var(--alt-abas-real,56px))}
   .chat[data-aberto="sim"] .chat-lista{display:none}
   .chat[data-aberto="nao"] .chat-conversa{display:none}
   .chat-lista{border-right:0}
@@ -2907,8 +2913,17 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
 .chat-lado-gente .mais{font-size:var(--fs-meta);font-style:normal;color:var(--tx-3);margin-left:10px}
 .chat-lado-crit{margin:0;font-size:var(--fs-ui);color:var(--tx-2);line-height:1.5}
 
-@media (max-width:1180px){
+/* A partir de 841px, porque abaixo disso a tela de conversa é de uma coluna só.
+   Escrito como `max-width:1180px` puro, este bloco vinha DEPOIS do bloco de
+   celular no arquivo e ganhava dele por ordem de origem: o telefone ficava com
+   uma coluna de lista de 248px que estava escondida, e a conversa espremida em
+   248px de 390. Ordem de origem decide empate de especificidade, e dois `@media`
+   que se sobrepõem é empate. */
+@media (min-width:841px) and (max-width:1180px){
   .chat{grid-template-columns:248px minmax(0,1fr)}
+  .chat-lado{display:none}
+}
+@media (max-width:840px){
   .chat-lado{display:none}
 }
 
@@ -3726,3 +3741,43 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
   .radar.curto .rd-contas{padding-block:12px}
   .radar.curto .rd-bloco{margin-top:14px}
 }
+
+/* ==========================================================================
+   Os comandos do chat
+
+   O menu abre no instante em que a pessoa digita a barra, e mostra o exemplo
+   inteiro em vez do nome do comando: ler "/tarefa Conferir o contrato @Ana até
+   sexta" ensina a gramática toda de uma vez. Linguagem de comando não morre de
+   sintaxe difícil, morre de ninguém descobrir que ela existe.
+   ========================================================================== */
+
+.cmds{position:absolute;bottom:calc(100% + 8px);left:0;right:0;z-index:6;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  box-shadow:var(--pop);padding:6px;max-height:440px;overflow:auto}
+.cmds-h{display:flex;align-items:center;gap:7px;padding:6px 8px 8px;
+  font:var(--fw-semibold) var(--fs-kicker)/1 var(--sans);letter-spacing:var(--ls-kicker);
+  text-transform:uppercase;color:var(--tx-3)}
+.cmds-h>svg{color:var(--tx-3)}
+.cmds-h .iconbtn{margin-left:auto}
+
+.cmd{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;width:100%;
+  text-align:left;padding:8px 10px;border-radius:var(--r-sm);transition:var(--t)}
+.cmd:hover,.cmd.on{background:var(--hover)}
+.cmd b{font:var(--fw-semibold) var(--fs-ui)/1.2 var(--sans);color:var(--tx)}
+.cmd span{font-size:var(--fs-meta);color:var(--tx-2);align-self:center}
+.cmd i{grid-column:2;font-style:normal;font-size:var(--fs-micro);color:var(--tx-3);
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* O exemplo do item escolhido NÃO vira lima: o acento é da ação que faz o
+   trabalho andar, e aqui ela é o botão de enviar, que já está lima na mesma
+   tela. Distinguir o item escolhido é trabalho do fundo. */
+.cmd.on i{color:var(--tx-2)}
+.cmds-pe{margin:6px 4px 2px;padding-top:8px;border-top:1px solid var(--line);
+  font-size:var(--fs-micro);color:var(--tx-3);line-height:1.5}
+.cmds-pe b{color:var(--tx-2);font-weight:var(--fw-medium)}
+
+/* os dois campos menores precisam de âncora para o menu subir de dentro deles */
+.ct-campo,.cnv-campo{position:relative}
+.chat-vazio-cmd{margin:14px 0 0;font-size:var(--fs-meta);color:var(--tx-3)}
+.chat-vazio-cmd code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  background:var(--alto);border-radius:4px;padding:1px 6px;color:var(--tx-2)}

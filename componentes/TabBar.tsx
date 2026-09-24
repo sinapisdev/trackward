@@ -18,8 +18,8 @@ import { aplicarTema, temaAtual, TEMAS, type Tema } from '@/lib/tema'
  * Aparece só em tela estreita; no desktop quem manda é a lateral.
  */
 export function TabBar() {
-  const { eu, fluxos, areas, agenda, org, empresas, empresaAtiva, focarEmpresa, canais, naoLidas, pessoal,
-    notas } = useDados()
+  const { eu, fluxos, areas, agenda, org, empresas, empresaAtiva, focarEmpresa, canais, naoLidas,
+    pessoal } = useDados()
   const { abrir } = useModais()
   const caminho = usePathname()
   const [mais, setMais] = useState(false)
@@ -34,7 +34,6 @@ export function TabBar() {
     (c) => c.quando === hojeIso() && [c.dono_id, ...c.convidados].includes(eu.id),
   ).length
   const porLer = canais.reduce((n, c) => n + naoLidas(c.id), 0)
-  const notasVivas = notas.filter((n) => !n.arquivada).length
 
   const sair = async () => {
     await supabase().auth.signOut()
@@ -57,9 +56,13 @@ export function TabBar() {
   return (
     <>
       <nav className="tabbar" aria-label="Navegação">
+        {/* Cinco lugares, e eles são o produto: o dia, a conversa, o caderno e
+            as tracks. "Você" saiu para a folha de Mais porque o Forward já abre
+            na sua fila, e ter a mesma lista em dois botões vizinhos gasta um
+            dos cinco. */}
         <Aba href="/" icone={<Ic.painel />} rotulo="Forward" conta={problemas} quente />
-        <Aba href="/minhas" icone={<Ic.inbox />} rotulo="Você" conta={minhas} />
         <Aba href="/chat" icone={<Ic.chat />} rotulo="Conversa" conta={porLer} quente />
+        <Aba href="/notas" icone={<Ic.edit />} rotulo="Notas" />
         <Aba href="/tracks" icone={<Ic.proj />} rotulo="Tracks" />
         <button className={`aba ${mais ? 'on' : ''}`} onClick={() => setMais((v) => !v)}>
           <span className="ic"><Ic.mais /></span>
@@ -110,11 +113,11 @@ export function TabBar() {
               <Ic.agenda />Agenda
               {!!hoje && <span className="ct num" style={{ marginLeft: 'auto' }}>{hoje} hoje</span>}
             </Link>
-            <Link className="folha-item" href="/avisos"><Ic.sino />Avisos</Link>
-            <Link className="folha-item" href="/notas">
-              <Ic.faisca />Notas
-              {!!notasVivas && <span className="ct num" style={{ marginLeft: 'auto' }}>{notasVivas}</span>}
+            <Link className="folha-item" href="/minhas">
+              <Ic.inbox />Meu trabalho
+              {!!minhas && <span className="ct num" style={{ marginLeft: 'auto' }}>{minhas}</span>}
             </Link>
+            <Link className="folha-item" href="/avisos"><Ic.sino />Avisos</Link>
             <Link className="folha-item" href="/desempenho"><Ic.grafico />Desempenho</Link>
             <Link className="folha-item" href="/relatorios"><Ic.processo />Relatórios</Link>
             <Link className="folha-item" href="/processos"><Ic.processo />Processos</Link>

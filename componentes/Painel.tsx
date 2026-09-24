@@ -306,7 +306,7 @@ export function Painel() {
               {!!porLer && <i className="num">{porLer > 9 ? '9+' : porLer}</i>}
             </Link>
             <Link className="fwd-at" href="/notas">
-              <Ic.faisca />
+              <Ic.edit />
               <b>Notas</b>
             </Link>
           </div>

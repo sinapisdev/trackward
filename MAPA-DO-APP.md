@@ -339,6 +339,30 @@ Lista das rotinas com situação, filtro por pessoa, e os processos disponíveis
 
 Chat interno estilo Slack, com a conversa virando trabalho.
 
+**A linguagem de comandos.** Uma linha que começa por barra é ordem, e acontece na hora:
+
+| comando | o que faz |
+| --- | --- |
+| `/tarefa Conferir o contrato @Ana até sexta` | cria a tarefa, com dono e prazo |
+| `/objetivo Reforma da sede` | abre um objetivo, com três checkpoints em branco |
+| `/rotina Fechamento mensal` | abre uma rotina mensal |
+| `/nota O fornecedor cobra por lote de 50` | guarda no seu caderno, só para você |
+| `/agenda Reunião com o Renato terça às 15h` | marca o compromisso |
+| `/ajuda` | mostra a lista inteira |
+
+O menu abre sozinho ao digitar a barra e mostra o exemplo inteiro, porque linguagem de
+comando não morre de sintaxe difícil, morre de ninguém descobrir que ela existe. Datas
+em português funcionam: "até sexta", "amanhã", "em 3 dias", "10/03", "10 de outubro".
+
+**Comando e leitura são caminhos diferentes, e a diferença é quem pediu.** Conversa
+solta vira proposta, porque ninguém combinou nada com a máquina. Comando vira coisa
+feita, porque quem escreveu a ordem foi a pessoa. Tudo que nasce de comando deixa rastro
+na conversa, menos o conteúdo da nota, que é privado.
+
+No canal de uma track, `/tarefa` cai dentro dela. Fora de track e para outra pessoa, o
+comando abre o formulário já preenchido faltando só onde a tarefa vive: avulsa é privada
+de quem criou, e dar uma a outro seria cobrança que o cobrado não enxerga.
+
 **Coluna esquerda**: os canais em três grupos, Canais (gerais), Projetos (presos a uma
 track) e Conversas (diretas). Cada linha mostra o nome, um **@** laranja quando
 chamaram você, e a contagem de não lidas. Uma faísca aparece quando há propostas da

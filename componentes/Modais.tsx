@@ -26,7 +26,7 @@ export type Pedido =
   | { tipo: 'fluxo'; fluxo?: Fluxo; tipoFluxo?: Tipo; areaId?: string; empresaId?: string; processoId?: string }
   | { tipo: 'item'; etapa: Etapa; item?: Item }
   /** Tarefa que não pertence a objetivo nem a rotina. Privada de quem cria. */
-  | { tipo: 'avulsa' }
+  | { tipo: 'avulsa'; texto?: string; resp?: string | null; prazo?: string | null }
   | { tipo: 'travar'; fluxo: Fluxo }
   | { tipo: 'compromisso'; compromisso?: Compromisso; quando?: string; inicio?: string }
   | { tipo: 'canal'; canal?: Canal }
@@ -68,7 +68,7 @@ export function Modais({ children }: { children: ReactNode }) {
           {pedido.tipo === 'empresa' && <MEmpresa empresa={pedido.empresa} fechar={fechar} />}
           {pedido.tipo === 'fluxo' && <MFluxo pedido={pedido} fechar={fechar} />}
           {pedido.tipo === 'item' && <MItem etapa={pedido.etapa} item={pedido.item} fechar={fechar} />}
-          {pedido.tipo === 'avulsa' && <MAvulsa fechar={fechar} />}
+          {pedido.tipo === 'avulsa' && <MAvulsa fechar={fechar} pedido={pedido} />}
           {pedido.tipo === 'travar' && <MTravar fluxo={pedido.fluxo} fechar={fechar} />}
           {pedido.tipo === 'compromisso' && <MCompromisso pedido={pedido} fechar={fechar} />}
           {pedido.tipo === 'canal' && <MCanal canal={pedido.canal} fechar={fechar} />}
@@ -686,17 +686,29 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
  * é assunto da casa. Para pedir algo a alguém existe a tarefa dentro da track,
  * que tem endereço e aprovação.
  */
-function MAvulsa({ fechar }: { fechar: () => void }) {
+/**
+ * @param pedido pode vir preenchido de um comando do chat: quem escreveu
+ *   "/tarefa Conferir o contrato @Ana até sexta" já disse tudo menos em qual
+ *   track a tarefa mora, e é só isso que o formulário vem perguntar.
+ */
+function MAvulsa({ fechar, pedido }: {
+  fechar: () => void
+  pedido: { texto?: string; resp?: string | null; prazo?: string | null }
+}) {
   const { eu, perfis, fluxos, areaDe, minhaLista, pessoal,
     criarAvulsa, adicionarItem, toast } = useDados()
-  const [texto, setTexto] = useState('')
+  const [texto, setTexto] = useState(pedido.texto || '')
   const [descricao, setDescricao] = useState('')
-  const [prazo, setPrazo] = useState('')
+  const [prazo, setPrazo] = useState(pedido.prazo || '')
   /** A primeira escolha: pertencer a quê. A segunda só existe depois dela. */
-  const [onde, setOnde] = useState<'livre' | Tipo>('livre')
+  // Vindo de comando com dono, "livre" é a única resposta que não serve: tarefa
+  // avulsa é privada de quem criou, e a pessoa acabou de dizer que é de outro.
+  const [onde, setOnde] = useState<'livre' | Tipo>(
+    pedido.resp && pedido.resp !== eu.id ? 'esteira' : 'livre',
+  )
   const [ondeId, setOndeId] = useState('')
   const [etapaId, setEtapaId] = useState('')
-  const [resp, setResp] = useState(eu.id)
+  const [resp, setResp] = useState(pedido.resp || eu.id)
   const [indo, setIndo] = useState(false)
 
   const ativos = perfis.filter((p) => p.ativo)

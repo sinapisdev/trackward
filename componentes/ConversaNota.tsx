@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useDados } from './Dados'
+import { useComandos } from './Comandos'
 import { Ic } from './Icones'
 import { LIGACAO } from '@/lib/notas'
 import type { Nota } from '@/lib/tipos'
@@ -26,6 +27,9 @@ export function ConversaNota({ nota, ir }: {
   const { mensagensDaNota, escreverNaNota, apagarMensagem, respondendo, org } = useDados()
   const [texto, setTexto] = useState('')
   const rolo = useRef<HTMLDivElement>(null)
+  // Os mesmos comandos do chat valem aqui: pensar numa nota e sair dela para
+  // criar a tarefa que a ideia gerou é o atrito que faz a ideia morrer.
+  const cmd = useComandos({ notaId: nota.id })
   const falas = mensagensDaNota(nota.id)
   const pensando = respondendo === nota.id
 
@@ -38,6 +42,7 @@ export function ConversaNota({ nota, ir }: {
     const t = texto.trim()
     if (!t || pensando) return
     setTexto('')
+    if (await cmd.rodar(t)) return
     await escreverNaNota(nota.id, t)
   }
 
@@ -74,11 +79,13 @@ export function ConversaNota({ nota, ir }: {
       </div>
 
       <div className="cnv-campo">
+        {cmd.menu(setTexto)}
         <textarea className="inp" rows={1} value={texto}
           placeholder={nota.conversa ? 'Fale com a leitura...' : 'Pergunte sobre esta nota...'}
           aria-label="Falar com a leitura"
-          onChange={(e) => setTexto(e.target.value)}
+          onChange={(e) => { setTexto(e.target.value); cmd.aoDigitar(e.target.value) }}
           onKeyDown={(e) => {
+            if (cmd.teclas(e, setTexto)) return
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void mandar() }
           }} />
         <button className="iconbtn" aria-label="Enviar" disabled={!texto.trim() || pensando}

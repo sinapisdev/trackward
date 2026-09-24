@@ -295,6 +295,56 @@ banco garante isso em vez da boa vontade de quem escreve o insert: anexo
 pendurado em nada é arquivo que ninguém acha e ninguém apaga. Quem vê segue a
 coisa a que ele pertence, e anexo de nota abre só para o dono dela.
 
+## A linguagem do chat
+
+O chat é onde o trabalho nasce, então ele precisa ser onde o trabalho **é
+feito**. Uma linha que começa por barra é ordem, e acontece na hora:
+
+```
+/tarefa Conferir o contrato @Ana até sexta
+/objetivo Reforma da sede
+/rotina Fechamento mensal
+/nota O fornecedor cobra por lote de 50
+/agenda Reunião com o Renato terça às 15h
+/ajuda
+```
+
+**Comando e leitura são os dois caminhos, e a diferença é quem pediu.** Conversa
+solta vira PROPOSTA, porque ninguém combinou nada com a máquina e ela pode ter
+entendido errado. Comando vira coisa feita, sem proposta e sem confirmação,
+porque quem escreveu a ordem foi a pessoa: pedir confirmação do que ela acabou
+de digitar é desconfiar dela.
+
+**Os sinais já tinham dono, menos um.** `@pessoa` é menção e funciona desde o
+começo; `#canal` é como o app escreve canal; `[[nota]]` é como o caderno costura
+o acervo. Sobrou a barra, que é o que Slack, Discord, Notion e Linear usam para
+a mesma coisa. Por isso `/objetivo` e não `@objetivo`: dois significados para o
+mesmo sinal é o jeito mais rápido de a pessoa parar de confiar nos dois.
+
+**Barra só no começo da linha.** No meio dela é endereço de internet e é data:
+`10/03` abrindo menu seria o app atrapalhando quem está escrevendo.
+
+**O menu abre sozinho ao digitar a barra**, e mostra o exemplo inteiro em vez do
+nome do comando. Linguagem de comando não morre de sintaxe difícil, morre de
+ninguém descobrir que ela existe, e ler `/tarefa Conferir o contrato @Ana até
+sexta` ensina a gramática toda de uma vez.
+
+**Tudo que nasce de comando deixa rastro na conversa**, como mensagem de
+sistema. Sem isso o canal viraria um lugar onde coisas somem: alguém digita e a
+tarefa nasce num canto que os outros não viram acontecer. A exceção é a nota,
+que é privada: o rastro diz que existe, nunca o que está escrito nela.
+
+**Quando falta uma decisão que o app não pode tomar, o comando vira o formulário
+já preenchido.** Tarefa para outra pessoa fora de uma track é o caso: avulsa é
+privada de quem criou, então dar uma a outro seria cobrança que o cobrado não
+enxerga. O formulário abre com texto, dono e prazo prontos, faltando só onde ela
+vive. Recusar e mandar começar de novo seria pior.
+
+A gramática mora em `lib/comandos.ts`, as datas em `lib/quando.ts`, o menu em
+`componentes/Comandos.tsx` e a execução em `executarComando`, dentro de `Dados`.
+São três campos de escrita (canal, conversa do Forward, conversa da nota) e um
+gancho só: três cópias virariam três linguagens diferentes no mês seguinte.
+
 ## Quem assina a linha é o servidor
 
 Três tabelas guardam quem criou a linha e três políticas exigem que o campo seja
@@ -360,6 +410,17 @@ como qualquer app de celular.
 
 ## Navegação
 
+**A ordem das abas é a do produto, não a do histórico**: Forward, Conversa,
+Notas, Tracks, Meu trabalho, Agenda. Conversa, notas e tarefas primeiro, porque
+é onde o dia acontece e é o que o app está virando: comunicação interna que
+organiza trabalho e guarda memória no mesmo lugar. Processos desceu para "Mais"
+por ser montagem, e não operação: quem mexe em processo senta para fazer isso,
+não passa por ali entre duas reuniões.
+
+No celular são cinco lugares e eles são o produto: Forward, Conversa, Notas,
+Tracks e Mais. "Meu trabalho" foi para a folha de Mais porque o Forward já abre
+na sua fila, e ter a mesma lista em dois botões vizinhos gasta um dos cinco.
+
 **A navegação é horizontal**, na `Barra` (`componentes/Barra.tsx`, classe `.tw-topo`):
 marca, seletor de espaço, as abas, busca e você. Não existe mais lateral de navegação: a
 lateral de uma tela é **contexto** (o radar da visão geral, a conversa da track, o índice
@@ -376,6 +437,20 @@ limas em toda tela, que é defeito.
 
 A agenda usa `matchMedia` para mostrar um dia por vez no celular; grade de sete colunas
 não cabe em 375px.
+
+**A altura das barras é medida, não escrita.** `componentes/Shell.tsx` publica
+`--alt-topo-real` e `--alt-abas-real` de uma medição de verdade, porque no
+celular a barra de cima quebra em duas linhas e a de baixo cresce com a faixa do
+aparelho sem botão. Tela que calcula a própria altura com o número fixo do CSS
+passa do fim da janela, e o que fica escondido é sempre a última coisa da tela,
+que na conversa é o campo de escrever. Ao criar tela de altura fixa, usar essas
+duas variáveis.
+
+**Dois `@media` que se sobrepõem é empate, e empate quem decide é a ordem no
+arquivo.** A tela de conversa ficou espremida em 248px de 390 por meses porque
+um bloco `max-width:1180px` escrito depois vencia o bloco de celular. Ao
+escrever faixa intermediária, fechar embaixo também (`min-width:841px and
+max-width:1180px`).
 
 ## A trilha
 

@@ -1,13 +1,48 @@
 'use client'
 
-import { type ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { useDados } from './Dados'
 import { Barra, Rodape } from './Barra'
 import { TabBar } from './TabBar'
 import { Ic } from './Icones'
 
+/**
+ * Quanto as barras do app ocupam, medido de verdade.
+ *
+ * A altura delas está no CSS como número fixo, e no celular isso é mentira: a
+ * barra de cima quebra em duas linhas e a de baixo cresce com a faixa do
+ * aparelho sem botão. Tela que calcula a própria altura com o número errado
+ * passa do fim da janela, e o que fica escondido embaixo é sempre a última
+ * coisa da tela, que na conversa é justamente o campo de escrever.
+ *
+ * Medir e publicar como variável resolve para todo mundo de uma vez, e se
+ * corrige sozinho quando a barra muda de tamanho.
+ */
+function useAlturaDasBarras() {
+  useEffect(() => {
+    const raiz = document.documentElement
+    const medir = () => {
+      const topo = document.querySelector('.tw-topo') as HTMLElement | null
+      const abas = document.querySelector('.tabbar') as HTMLElement | null
+      raiz.style.setProperty('--alt-topo-real', (topo?.offsetHeight || 0) + 'px')
+      // Zero quando a barra de abas não está na tela: no computador ela não
+      // existe, e descontar altura de barra que não existe encolhe a tela à toa.
+      raiz.style.setProperty('--alt-abas-real', (abas?.offsetHeight || 0) + 'px')
+    }
+    medir()
+    const ro = new ResizeObserver(medir)
+    for (const s of ['.tw-topo', '.tabbar']) {
+      const el = document.querySelector(s)
+      if (el) ro.observe(el)
+    }
+    window.addEventListener('resize', medir)
+    return () => { ro.disconnect(); window.removeEventListener('resize', medir) }
+  }, [])
+}
+
 export function Shell({ children }: { children: ReactNode }) {
   const { aviso } = useDados()
+  useAlturaDasBarras()
 
   return (
     <div className="shell">

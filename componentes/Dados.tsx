@@ -5,7 +5,7 @@ import {
 } from 'react'
 import { supabase } from '@/lib/supabase/browser'
 import { curta, hojeIso, isoDe } from '@/lib/datas'
-import { proxPeriodo } from '@/lib/modelos'
+import { esqueletoEmBranco, proxPeriodo } from '@/lib/modelos'
 import type { RascunhoEtapa } from '@/lib/modelos'
 import { etapaAtual } from '@/lib/regras'
 import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta, Anexo, Decisao, TipoDecisao, NaCascata, PedidoPrazo, Agente, Conector, Nota,
@@ -26,6 +26,7 @@ import {
   type Aprendizado, type Lembranca,
 } from '@/lib/memoria'
 import type { Contexto as ContextoLeitura, Proposta } from '@/lib/leitor'
+import { lerComando, quemEh } from '@/lib/comandos'
 import type { ContextoConversa, Fala } from '@/lib/conversa'
 import type { Alvo } from '@/lib/tipos'
 import { iso } from '@/lib/datas'
@@ -39,6 +40,19 @@ import { itensVisiveis, podeMexerNoPrazo, veFluxo } from '@/lib/acesso'
  * some sozinha e ninguém volta para ler.
  */
 type Torrada = { texto: string; erro: boolean; id: number }
+
+/**
+ * O que saiu de um comando.
+ *
+ * `formulario` é o caso honesto do meio: dá para entender o que a pessoa quis,
+ * mas falta uma decisão que o app não pode tomar por ela. Aí o comando vira o
+ * formulário já preenchido, em vez de recusar e mandar começar de novo.
+ */
+export type Resultado =
+  | { tipo: 'feito'; conta: string; href?: string }
+  | { tipo: 'ajuda' }
+  | { tipo: 'formulario'; texto: string; resp: string | null; prazo: string | null }
+  | { tipo: 'erro'; motivo: string }
 
 /** O que o formulário de tarefa manda para o banco. */
 type DadosItem = {
@@ -256,6 +270,16 @@ type Contexto = {
   excluirCanal: (id: string) => Promise<void>
   /** Lê a conversa e guarda o que ela produziu, sem aplicar nada ainda. */
   lerConversa: (canalId: string) => Promise<{ achou: number; motor: string } | null>
+  /**
+   * Executa uma linha que começa por barra.
+   *
+   * Devolve nulo quando a linha não é comando, e aí ela é mensagem comum. Ver
+   * `lib/comandos.ts`: conversa vira proposta, comando vira coisa feita.
+   */
+  executarComando: (
+    entrada: string,
+    onde: { canalId?: string | null; notaId?: string | null },
+  ) => Promise<Resultado | null>
   /**
    * Lê uma nota do despejo e propõe o que ela tem dentro.
    *
@@ -2234,6 +2258,139 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   }, [sb, notas, todasNotas, mensagensDaNota, eu.id, eu.nome, perfis, memoria,
       sugestoesDaNota, toast, recarregar])
 
+  /**
+   * A linguagem do chat.
+   *
+   * Aqui o app FAZ, e não propõe: quem escreveu a linha foi a pessoa, e pedir
+   * confirmação do que ela acabou de digitar é desconfiar dela. A leitura da
+   * conversa continua sendo o outro caminho, para o que ninguém pediu.
+   *
+   * Toda coisa criada por comando deixa rastro na conversa, como mensagem de
+   * sistema. Sem isso o canal viraria um lugar onde coisas somem: alguém digita
+   * e a tarefa nasce num canto que os outros não viram acontecer.
+   */
+  const executarComando: Contexto['executarComando'] = useCallback(async (entrada, onde) => {
+    const lido = lerComando(entrada, hojeIso())
+    if (!lido) return null
+    if (lido.comando.nome === 'ajuda') return { tipo: 'ajuda' }
+
+    const texto = lido.texto.trim()
+    if (!texto) {
+      return { tipo: 'erro', motivo: `Faltou o quê. Exemplo: ${lido.comando.exemplo}` }
+    }
+
+    /** O rastro na conversa. Sem canal nem nota, o comando ainda funciona. */
+    const contar = async (frase: string) => {
+      if (onde.canalId) {
+        await sb.from('mensagens').insert({
+          id: novoId(), canal_id: onde.canalId, nota_id: null, autor_id: eu.id,
+          texto: frase, sistema: true, responde_a: null,
+        })
+      } else if (onde.notaId) {
+        await sb.from('mensagens').insert({
+          id: novoId(), canal_id: null, nota_id: onde.notaId, autor_id: eu.id,
+          texto: frase, sistema: true, responde_a: null,
+        })
+      }
+    }
+
+    const pessoa = quemEh(lido.quem, perfis.filter((p) => p.ativo))
+    if (lido.quem && !pessoa) {
+      return { tipo: 'erro', motivo: `Não achei ninguém chamado ${lido.quem} por aqui.` }
+    }
+
+    // ------------------------------------------------------------- tarefa
+    if (lido.comando.nome === 'tarefa') {
+      const canal = onde.canalId ? canais.find((c) => c.id === onde.canalId) : null
+      const daTrack = canal?.fluxo_id ? todosFluxos.find((f) => f.id === canal.fluxo_id) : null
+      const etapa = daTrack ? etapaAtual(daTrack) : null
+
+      // No canal de uma track, a tarefa nasce nela: é o endereço óbvio, e é o
+      // que faz o comando valer a pena em vez de abrir formulário.
+      if (daTrack && etapa) {
+        const novo = await adicionarItem(etapa, {
+          texto, descricao: '', resp_id: pessoa?.id ?? eu.id,
+          prazo: lido.quando || '', priv: false, firme: false,
+        })
+        if (!novo) return { tipo: 'erro', motivo: 'Não deu para criar a tarefa.' }
+        const conta = `criou a tarefa "${texto}" em ${daTrack.nome}`
+          + (pessoa && pessoa.id !== eu.id ? `, para ${pessoa.nome}` : '')
+          + (lido.quando ? `, até ${curta(lido.quando)}` : '')
+        await contar(conta)
+        recarregar()
+        return { tipo: 'feito', conta, href: `/fluxo/${daTrack.id}` }
+      }
+
+      // Fora de track, tarefa de outra pessoa não existe: o que não pertence a
+      // nada é privado de quem criou, e tarefa privada para os outros seria uma
+      // cobrança que o cobrado não enxerga. Ver a regra da tarefa avulsa.
+      if (pessoa && pessoa.id !== eu.id) {
+        return { tipo: 'formulario', texto, resp: pessoa.id, prazo: lido.quando }
+      }
+
+      const novo = await criarAvulsa(texto, lido.quando || undefined)
+      if (!novo) return { tipo: 'erro', motivo: 'Não deu para criar a tarefa.' }
+      const conta = `criou a tarefa "${texto}"${lido.quando ? `, até ${curta(lido.quando)}` : ''}`
+      await contar(conta)
+      return { tipo: 'feito', conta, href: '/minhas' }
+    }
+
+    // --------------------------------------------------- objetivo e rotina
+    if (lido.comando.nome === 'objetivo' || lido.comando.nome === 'rotina') {
+      const tipo = lido.comando.nome === 'rotina' ? 'ciclo' : 'esteira'
+      const freq = tipo === 'ciclo' ? 'mensal' : null
+      const id = await salvarFluxo(
+        {
+          id: null, tipo, nome: texto, area_id: null, empresa_id: empresaAtiva,
+          dono_id: pessoa?.id ?? eu.id, visib: 'equipe', pessoas: [],
+          freq, periodo: tipo === 'ciclo' ? proxPeriodo(null, 'mensal') : null,
+        },
+        // Nasce com o esqueleto de três checkpoints, o mesmo do formulário.
+        // Track sem checkpoint nenhum não é track, e obrigar a desenhar a
+        // trilha antes de existir era o que empurrava a criação para fora
+        // da conversa.
+        esqueletoEmBranco(tipo, freq, pessoa?.id ?? eu.id),
+      )
+      if (!id) return { tipo: 'erro', motivo: 'Não deu para abrir a track.' }
+      const conta = `abriu ${tipo === 'ciclo' ? 'a rotina' : 'o objetivo'} "${texto}"`
+        + (pessoa && pessoa.id !== eu.id ? `, com ${pessoa.nome} respondendo por ela` : '')
+      await contar(conta)
+      recarregar()
+      return { tipo: 'feito', conta, href: `/tracks/${id}` }
+    }
+
+    // --------------------------------------------------------------- nota
+    if (lido.comando.nome === 'nota') {
+      const id = await salvarNota({ titulo: tituloDe(texto), texto })
+      if (!id) return { tipo: 'erro', motivo: 'Não deu para guardar a nota.' }
+      // A nota é sua e de mais ninguém, então o rastro no canal diz que existe,
+      // nunca o que está escrito nela.
+      await contar('guardou uma nota no caderno')
+      return { tipo: 'feito', conta: `guardou "${tituloDe(texto)}" no seu caderno`, href: '/notas' }
+    }
+
+    // ------------------------------------------------------------- agenda
+    if (lido.comando.nome === 'agenda') {
+      if (!lido.quando) {
+        return { tipo: 'erro', motivo: 'Faltou o dia. Exemplo: /agenda Reunião terça às 15h' }
+      }
+      const id = await salvarCompromisso({
+        titulo: texto, quando: lido.quando, inicio: lido.hora, fim: null,
+        local: '', nota: '', bloqueia: true, visivel: true,
+        convidados: pessoa && pessoa.id !== eu.id ? [pessoa.id] : [],
+      })
+      if (!id) return { tipo: 'erro', motivo: 'Não deu para marcar na agenda.' }
+      const conta = `marcou "${texto}" em ${curta(lido.quando)}${lido.hora ? `, às ${lido.hora}` : ''}`
+        + (pessoa && pessoa.id !== eu.id ? `, com ${pessoa.nome}` : '')
+      await contar(conta)
+      recarregar()
+      return { tipo: 'feito', conta, href: '/agenda' }
+    }
+
+    return null
+  }, [sb, eu.id, perfis, canais, todosFluxos, adicionarItem, criarAvulsa, salvarFluxo,
+      salvarNota, salvarCompromisso, empresaAtiva, recarregar])
+
   const lerConversa: Contexto['lerConversa'] = useCallback(async (canalId) => {
     const canal = canais.find((c) => c.id === canalId)
     if (!canal) return null
@@ -2390,6 +2547,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     ligarPushAqui, desligarPushAqui, esquecerAparelho,
     preverCascata, moverPrazo, pedidosPrazo, decidirPrazo,
     enviar, enviarAudio, abrirAudio, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
+    executarComando,
     lerConversa, lerNota, aceitarSugestao, recusarSugestao,
     espacos, trocarEspaco, abrirEspaco,
   }
