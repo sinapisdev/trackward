@@ -563,6 +563,20 @@ limas em toda tela, que é defeito.
 A agenda usa `matchMedia` para mostrar um dia por vez no celular; grade de sete colunas
 não cabe em 375px.
 
+**Na track, o checkpoint vem antes de tudo.** Abrir uma track e não ver tarefa nenhuma sem
+rolar é o mesmo que não abrir: no celular o cabeçalho encolhe, a trilha fica rasa (sem a
+legenda de baixo, que repete o que o desenho já diz) e o palpite de quem faz desce para
+depois das tarefas, porque sugestão não passa na frente do trabalho.
+
+**Nada rola a página por conta própria.** `scrollIntoView` rola o primeiro antepassado que
+rola, e quando a lista não rola sozinha esse antepassado é a página: abrir uma track
+jogava a pessoa 1500px para baixo, no meio da conversa. Ao descer para a última mensagem,
+mexer no `scrollTop` do próprio container, e só se ele realmente rolar.
+
+**Botão desligado não flutua.** "Aprovar saída" nasce desligado até as tarefas ficarem
+prontas, e boiando sobre a lista ele cobria justamente o que precisava ser feito para
+ligá-lo.
+
 **A altura das barras é medida, não escrita.** `componentes/Shell.tsx` publica
 `--alt-topo-real` e `--alt-abas-real` de uma medição de verdade, porque no
 celular a barra de cima quebra em duas linhas e a de baixo cresce com a faixa do
@@ -585,6 +599,10 @@ tem duas orientações, as duas em `componentes/Trilha.tsx`:
 - `TrilhaH` (classe `.trilhah`), **deitada**, é a da arte do produto: é ela na track
   aberta, na linha de cada rotina e na gaveta de Meu trabalho.
 - `Trilha` (classe `.trilha`), **em coluna**, é o CheckpointTrail na vertical.
+
+A aba chama-se **Track**, e não "Trilha": a tela já é a da track, e o conteúdo da aba não
+precisa de um título repetindo o nome dela por cima. Aquele título custava a linha mais
+cara da tela, que é a primeira.
 
 Quem escolhe é o número de checkpoints: **deitada só até cinco**. Passando disso ela
 rolaria de lado, e descobrir onde a track está passaria a exigir arrastar, que é

@@ -142,7 +142,7 @@ export function TelaFluxo({ id }: { id: string }) {
         {(['trilha', 'conversa', 'atividade'] as const).map((k) => (
           <button key={k} role="tab" aria-selected={aba === k} className={aba === k ? 'on' : ''}
             onClick={() => setAba(k)}>
-            {k === 'trilha' ? 'Trilha' : k === 'conversa' ? 'Conversa' : 'Atividade'}
+            {k === 'trilha' ? 'Track' : k === 'conversa' ? 'Conversa' : 'Atividade'}
           </button>
         ))}
       </div>
@@ -167,7 +167,9 @@ export function TelaFluxo({ id }: { id: string }) {
             </>
           ) : (
             <>
-              <h2 className="track-rot">Trilha {f.tipo === 'ciclo' ? 'da rotina' : 'do projeto'}</h2>
+              {/* Sem rótulo: a aba escolhida já diz o que é isto, e repetir o
+                  nome dela como título gasta a linha mais cara da tela, que é a
+                  primeira. */}
               {deitada
                 ? <TrilhaH f={f} sel={idx} aoEscolher={setSel} numerada decisoes={decisoesDe(f.id)} />
                 : <Trilha f={f} sel={idx} aoEscolher={setSel} decisoes={decisoesDe(f.id)} />}
@@ -178,8 +180,6 @@ export function TelaFluxo({ id }: { id: string }) {
                   Ao aprovar {f.etapas[f.etapas.length - 1].nome}, a rotina reinicia em {f.etapas[0].nome} no próximo período.
                 </p>
               )}
-
-              <QuemFaz f={f} />
 
               <div className="cp">
                 <div className="cp-h">
@@ -297,6 +297,11 @@ export function TelaFluxo({ id }: { id: string }) {
                   <span className="cp-nota">{nota}</span>
                 </div>
               </div>
+
+              {/* O palpite de quem faz vem DEPOIS do checkpoint: ele é sugestão,
+                  e sugestão não passa na frente do trabalho. Antes ele empurrava
+                  as tarefas para fora da primeira tela no celular. */}
+              <QuemFaz f={f} />
             </>
           )}
         </div>

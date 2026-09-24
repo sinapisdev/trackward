@@ -732,7 +732,10 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns
   .cp-h{padding:16px}
   .exit{margin:0 16px 12px}
   .additem,.cp-f{padding:14px 16px}
-  .cp-f{position:sticky;bottom:calc(72px + env(safe-area-inset-bottom,0px));z-index:6}
+  /* Aprovar saída NÃO flutua: ele nasce desligado até as tarefas ficarem
+     prontas, e um botão desligado boiando em cima das tarefas cobre justamente
+     o que precisa ser feito para ligá-lo. Ele fica no fim do checkpoint, que é
+     onde a decisão acontece. */
   .cp-f .btn.pri{flex:1;justify-content:center;padding:11px 16px}
   .rail .card{padding:16px}
 
@@ -4069,4 +4072,47 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
      abas sobe e desce com a barra de endereço do navegador. Quem rola é o texto
      lá dentro, e só ele. */
   .conteudo:has(>.fwd-cel),.conteudo:has(>.chat){padding-block:0}
+}
+
+/* ==========================================================================
+   A track no celular: o checkpoint antes de tudo
+
+   Abrir uma track e não ver tarefa nenhuma sem rolar é o mesmo que não abrir.
+   Aqui o cabeçalho encolhe, a trilha fica rasa e o que sobra de espaço vai
+   para o checkpoint aberto, que é o conteúdo.
+   ========================================================================== */
+
+@media (max-width:840px){
+  /* O caminho de volta está na barra de abas e no botão do sistema. */
+  .crumb{display:none}
+
+  .track-hdr{margin-bottom:12px;gap:10px}
+  .track-hdr h1{font-size:var(--fs-h3);line-height:var(--lh-h3)}
+  .track-hdr .meta-row{margin-top:6px;font-size:var(--fs-meta);gap:8px}
+  /* progresso vira uma faixa fina de largura inteira, e não um bloco ao lado */
+  .track-hdr .hdr-actions{width:100%;gap:8px;flex-wrap:wrap}
+  .track-pct{display:flex;align-items:center;gap:10px;width:100%;font-size:var(--fs-meta)}
+  .track-pct .pbar{flex:1;min-width:0}
+  .track-hdr .btn{padding:7px 12px;font-size:var(--fs-meta)}
+
+  .track-abas{margin-bottom:10px}
+
+  /* a trilha deitada mais rasa: o nome do checkpoint basta, a legenda de
+     baixo repete o que o próprio desenho já diz */
+  .trilhah{margin-bottom:4px}
+  .th-est{padding-top:14px}
+  /* a legenda de baixo ("Aprovado", "0 de 4 tarefas") repete o que o próprio
+     desenho já diz, e ela é uma linha inteira por checkpoint */
+  .th-est .th-det{display:none}
+
+  .cp{margin-top:12px}
+}
+
+@media (max-width:840px){
+  /* o "Agora" em cima do checkpoint corrente precisa do seu próprio espaço:
+     com a trilha mais rasa ele estava batendo no anel */
+  .th-est{padding-top:20px}
+  .th-agora{font-size:var(--fs-micro)}
+  /* o rodapé de aprovar, sem a faixa cinza de uma versão anterior */
+  .cp-f{background:none;padding:14px 0 0;border-top:1px solid var(--line)}
 }

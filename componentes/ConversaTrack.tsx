@@ -62,7 +62,17 @@ export function Conversa({ canal, titulo, quantas = 6, aoTrocar }: {
   const msgs = mensagensDe(canal.id)
   const abertas = sugestoesDe(canal.id).filter((s) => s.estado === 'aberta')
 
-  useEffect(() => { fim.current?.scrollIntoView({ block: 'nearest' }) }, [msgs.length, canal.id])
+  /**
+   * Desce até a última fala, mas só DENTRO da lista.
+   *
+   * `scrollIntoView` rola o primeiro antepassado que rola, e quando a lista não
+   * rola sozinha esse antepassado é a página: abrir uma track jogava a pessoa
+   * 1500px para baixo, no meio da conversa, antes de ela ver o checkpoint.
+   */
+  useEffect(() => {
+    const lista = fim.current?.parentElement
+    if (lista && lista.scrollHeight > lista.clientHeight + 4) lista.scrollTop = lista.scrollHeight
+  }, [msgs.length, canal.id])
 
   const mandar = async () => {
     const t = texto.trim()
