@@ -222,7 +222,7 @@ tela de entrada. Os motivos e o que fazer:
 | o que aparece | o que aconteceu |
 | --- | --- |
 | já venceu, ou já tinha sido usado | link de recuperação vale uma hora e uma vez só |
-| precisa do mesmo navegador | fluxo PKCE: metade da chave ficou num cookie de quem pediu. Pedir no computador e abrir no celular cai aqui |
+| precisa do mesmo navegador | fluxo PKCE: metade da chave ficou num cookie de quem pediu. Pedir no computador e abrir no celular cai aqui, e a saída é trocar o modelo do e-mail (ver `supabase/emails/`) |
 | chegou incompleto | o e-mail cortou o endereço. Copiar e colar o endereço inteiro resolve |
 | o servidor não conseguiu conferir | configuração do app, não do link. Ver a URL do Supabase nas variáveis |
 
@@ -241,6 +241,12 @@ Redirect URLs  https://trackward.app/**
 As duas barras e o asterisco importam: é o que autoriza qualquer caminho dentro do
 domínio, inclusive o `/auth/confirmar?proximo=/nova-senha` que o app usa. E-mail já
 enviado carrega o link antigo gravado dentro dele: só o próximo vem certo.
+
+**Para o link abrir em qualquer aparelho**, troque o modelo do e-mail em
+**Authentication > Emails > Templates**. O padrão do Supabase sai no formato PKCE, que
+exige o mesmo navegador; o modelo em `supabase/emails/recuperar-senha.html` usa
+`token_hash`, que é conferido no servidor e não guarda nada em cookie. É o caso normal:
+pedir no computador e abrir o e-mail no celular.
 
 ## Avisos
 

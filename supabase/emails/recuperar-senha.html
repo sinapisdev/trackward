@@ -1,0 +1,21 @@
+<h2 style="font-family:Helvetica,Arial,sans-serif;font-weight:600;color:#16191A">
+  Trocar a senha do TrackWard
+</h2>
+<p style="font-family:Helvetica,Arial,sans-serif;color:#3A3F41;line-height:1.5">
+  Alguém pediu uma senha nova para esta conta. Se foi você, use o botão abaixo.
+  O link vale por uma hora e só funciona uma vez.
+</p>
+<p>
+  <a
+    href="{{ .SiteURL }}/auth/confirmar?token_hash={{ .TokenHash }}&type=recovery&proximo=/nova-senha"
+    style="font-family:Helvetica,Arial,sans-serif;display:inline-block;background:#D0FA3C;
+           color:#0A0B0A;text-decoration:none;font-weight:600;padding:12px 22px;border-radius:999px"
+  >Definir a nova senha</a>
+</p>
+<p style="font-family:Helvetica,Arial,sans-serif;color:#74797B;font-size:13px;line-height:1.5">
+  Se o botão não funcionar, copie e cole este endereço no navegador:<br />
+  {{ .SiteURL }}/auth/confirmar?token_hash={{ .TokenHash }}&type=recovery&proximo=/nova-senha
+</p>
+<p style="font-family:Helvetica,Arial,sans-serif;color:#74797B;font-size:13px">
+  Se não foi você, pode ignorar: a senha continua a mesma.
+</p>
