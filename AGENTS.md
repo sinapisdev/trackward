@@ -79,16 +79,22 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
   propósito, porque são decisão, não operação: a pessoa senta para fazer isso. O resto
   precisa caber aqui, e toda coisa nova que exigir sair da tela para uma ação corriqueira é
   um defeito de desenho, não uma escolha.
-- **No celular o Forward é só a fila, e isso não é a mesma tela menor.** A conversa e as
-  notas saem (viram atalho com a contagem do que está por ler) e o radar encolhe para as
-  três contas mais duas linhas. Empilhar as três colunas dava três telas e meia de rolagem,
-  com a conversa na segunda e o radar na terceira, que é o mesmo que não ter nenhum dos
-  dois. Quem decide é `useCelular()` em `componentes/partes.tsx`, e não `display:none`:
-  esconder por CSS baixaria e montaria a conversa inteira para escondê-la. O CSS esconde
-  junto, só para não piscar entre a pintura do servidor e a do navegador.
-- **Uma ação de criar por tela.** No celular quem cria é o botão redondo da TabBar, que no
-  Forward e em Meu trabalho abre **tarefa**, não objetivo. O botão do cabeçalho some ali:
-  dois botões para a mesma coisa em 390px é gastar a largura que falta.
+- **No celular a página inicial é a CONVERSA, e só ela.** Não é a mesma tela menor: é
+  outra tela. Em cima, o mesmo seletor Conversa | Notas do computador; embaixo, a conversa
+  INTEIRA, a mesma de `/chat`, com propostas, anexo e voz. Home que mostra prévia obriga a
+  abrir a tela de verdade, e aí são dois toques para responder uma frase.
+  Se o produto é comunicação interna que organiza trabalho, o que abre no telefone tem que
+  ser onde se fala: com a fila de tarefas na frente e o chat embaixo, o chat ficava na
+  segunda tela de rolagem, que é o mesmo que não existir, e a ferramenta continuava sendo
+  o WhatsApp.
+- **O que saiu da inicial não sumiu.** Tarefas e radar estão em Meu trabalho, que no
+  celular ganha o radar e a agenda no fim; tracks na aba delas; notas a um toque no
+  seletor. A TabBar tem cinco lugares: Conversa, Trabalho, Tracks, Agenda, Mais.
+- Quem decide é `useCelular()` em `componentes/partes.tsx`, e não `display:none`: esconder
+  por CSS baixaria e montaria a tela inteira para escondê-la.
+- **Uma ação de criar por tela.** O botão redondo da TabBar não aparece na inicial nem na
+  conversa: ali embaixo mora o campo de escrever, e quem cria dali usa a barra
+  (`/tarefa`, `/objetivo`, `/nota`). Em Meu trabalho ele abre **tarefa**, não objetivo.
 - Com vários negócios em foco, rotinas e projetos são separados em blocos por empresa,
   um bloco por empresa, não uma lista só com etiqueta.
 - Tudo tem responsável e prazo: item (quem executa), checkpoint (quem aprova), fluxo (dono).

@@ -1276,7 +1276,15 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
   .so-celular{display:grid!important}
   .chat-topo{padding:9px 12px}
   .msg{padding-inline:13px}
-  .chat-campo{padding:10px 12px calc(12px + 56px + env(safe-area-inset-bottom,0px))}
+  /* Só o respiro normal. O desconto da barra de abas agora está na altura da
+     própria tela de conversa (ver `.chat` acima): mantido aqui também, ele
+     contava duas vezes e deixava o campo boiando 68px acima da barra. */
+  .chat-campo{padding:10px 12px 12px}
+  /* No telefone o campo era de tamanho de computador: o texto de ajuda quebrava
+     em duas linhas dentro de uma caixa de altura fixa e ficava cortado pela
+     metade. */
+  .chat-campo textarea{padding:12px 14px;min-height:46px;font-size:var(--fs-ui)}
+  .chat-campo .btn.pri{height:46px;width:46px}
   .chat-sugs{max-height:54vh}
   .sug-campos select,.sug-campos input{max-width:none;flex:1}
   .sug-campos label{flex:1;min-width:130px}
@@ -3423,7 +3431,7 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
      do Forward: ela pertence ao chat, e não ao resto da tela.
      Chama-se cnx e não cn porque .cn já é o cartão de conector, e classe curta
      repetida é o jeito mais silencioso de uma tela quebrar a outra. */
-  display:grid;grid-template-columns:172px minmax(0,1fr);gap:22px;align-items:start;
+  display:grid;grid-template-columns:148px minmax(0,1fr);gap:18px;align-items:start;
   /* sem isto as linhas automáticas dividem entre si a sobra de altura da
      coluna, e a segunda desce um palmo para o meio do nada */
   align-content:start}
@@ -3781,3 +3789,28 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 .chat-vazio-cmd{margin:14px 0 0;font-size:var(--fs-meta);color:var(--tx-3)}
 .chat-vazio-cmd code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
   background:var(--alto);border-radius:4px;padding:1px 6px;color:var(--tx-2)}
+
+/* ==========================================================================
+   A página inicial do celular é a conversa
+
+   Ela já foi a fila de tarefas com o chat embaixo, e chat embaixo é chat
+   nenhum: ficava na segunda tela de rolagem. Aqui ela é uma coluna que ocupa a
+   janela inteira, com o seletor em cima e a conversa enchendo o resto.
+   ========================================================================== */
+
+@media (max-width:840px){
+  /* Sem margem negativa: no celular o conteúdo já não tem recuo para cancelar,
+     e o -26px empurrava a tela para debaixo da barra de cima. */
+  .fwd-cel{display:flex;flex-direction:column;min-height:0;
+    /* as barras medidas de verdade, ver componentes/Shell.tsx */
+    height:calc(100dvh - var(--alt-topo-real,93px) - var(--alt-abas-real,56px))}
+  .fwd-cel>.fwd-face{flex:none;margin:12px var(--gutter) 10px}
+  /* a conversa herda a altura do pai em vez de calcular a dela: aqui ela não é
+     a tela inteira, é o que sobra depois do seletor */
+  .fwd-cel .chat{flex:1;height:auto;min-height:0}
+  .fwd-cel-notas{flex:1;min-height:0;overflow:auto;padding:0 var(--gutter) 24px}
+
+  /* Em Meu trabalho, o radar e a agenda que saíram da página inicial. */
+  .min-rail{margin-top:28px;padding-top:24px;border-top:1px solid var(--line)}
+  .min-rail .rail-sep{height:1px;background:var(--line);margin:24px 0}
+}

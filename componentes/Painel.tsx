@@ -10,6 +10,7 @@ import { Av } from './atomos'
 import { AgendaCurta, Radar } from './Radar'
 import { Conversa } from './ConversaTrack'
 import { ListaCanais } from './Canais'
+import { TelaChat } from './TelaChat'
 import { Caderno } from './Caderno'
 import { classePrazo, useCelular } from './partes'
 import { AVULSA } from '@/lib/rotulos'
@@ -89,23 +90,6 @@ export function Painel() {
 
   if (carregando) return <Carregando />
 
-  const minhas = tarefas.filter((t) => t.item.resp_id === eu.id)
-  const naLente = (lente === 'minhas' ? minhas : tarefas.filter((t) => !t.avulsa))
-    .filter((t) => !pessoa || t.item.resp_id === pessoa)
-
-  const blocos = [
-    { titulo: 'Vencidas', itens: naLente.filter((t) => t.item.prazo && dias(t.item.prazo) < 0), late: true },
-    { titulo: 'Hoje', itens: naLente.filter((t) => t.item.prazo && dias(t.item.prazo) === 0) },
-    { titulo: 'Esta semana', itens: naLente.filter((t) => t.item.prazo && dias(t.item.prazo) > 0 && dias(t.item.prazo) <= 7) },
-    { titulo: 'Mais adiante', itens: naLente.filter((t) => !t.item.prazo || dias(t.item.prazo) > 7) },
-  ].filter((b) => b.itens.length)
-
-  const h = hoje()
-  const hora = new Date().getHours()
-  const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
-  const ativos = perfis.filter((p) => p.ativo)
-  const semNada = !fluxos.length && !areas.length
-
   /**
    * Qual conversa abre sozinha: a que tem gente falando. Sem nada por ler, a
    * primeira da lista. Abrir sempre a primeira faria a coluna mostrar um canal
@@ -122,6 +106,57 @@ export function Painel() {
   const canal = abertos.find((c) => c.id === canalAberto)
     || [...abertos].sort((a, b) => naoLidas(b.id) - naoLidas(a.id))[0]
     || null
+
+
+  /**
+   * No celular a página inicial é a CONVERSA, e só ela.
+   *
+   * Ela já foi a fila de tarefas com o chat embaixo, e o chat embaixo é o mesmo
+   * que chat nenhum: ficava na segunda tela de rolagem, onde ninguém chega. Se
+   * o produto é comunicação interna que organiza trabalho, o que abre no
+   * telefone tem que ser onde se fala, senão a ferramenta continua sendo o
+   * WhatsApp e o app vira o lugar de cadastrar depois.
+   *
+   * O que saiu daqui não sumiu: tarefas e radar estão em Meu trabalho, tracks
+   * na aba delas, e as notas a um toque no seletor de cima. E a conversa aqui é
+   * a INTEIRA, a mesma de /chat, não um resumo: home que mostra prévia obriga a
+   * abrir a tela de verdade, e aí eram dois toques para responder uma frase.
+   */
+  if (celular) {
+    return (
+      <div className="fwd-cel">
+        <div className="seg fwd-face" role="group" aria-label="O que mostrar aqui">
+          <button className={face === 'conversa' ? 'on' : ''} onClick={() => setFace('conversa')}>
+            Conversa
+            {!!porLer && <span className="num">{porLer > 9 ? '9+' : porLer}</span>}
+          </button>
+          <button className={face === 'notas' ? 'on' : ''} onClick={() => setFace('notas')}>
+            Notas
+          </button>
+        </div>
+        {face === 'notas'
+          ? <div className="fwd-cel-notas"><Caderno /></div>
+          : <TelaChat id={canal?.id} />}
+      </div>
+    )
+  }
+
+  const minhas = tarefas.filter((t) => t.item.resp_id === eu.id)
+  const naLente = (lente === 'minhas' ? minhas : tarefas.filter((t) => !t.avulsa))
+    .filter((t) => !pessoa || t.item.resp_id === pessoa)
+
+  const blocos = [
+    { titulo: 'Vencidas', itens: naLente.filter((t) => t.item.prazo && dias(t.item.prazo) < 0), late: true },
+    { titulo: 'Hoje', itens: naLente.filter((t) => t.item.prazo && dias(t.item.prazo) === 0) },
+    { titulo: 'Esta semana', itens: naLente.filter((t) => t.item.prazo && dias(t.item.prazo) > 0 && dias(t.item.prazo) <= 7) },
+    { titulo: 'Mais adiante', itens: naLente.filter((t) => !t.item.prazo || dias(t.item.prazo) > 7) },
+  ].filter((b) => b.itens.length)
+
+  const h = hoje()
+  const hora = new Date().getHours()
+  const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
+  const ativos = perfis.filter((p) => p.ativo)
+  const semNada = !fluxos.length && !areas.length
 
   return (
     <div className="forward">

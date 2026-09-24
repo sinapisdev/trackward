@@ -74,7 +74,7 @@ virou departamento. Uma área sem rotina é uma frente recém criada.
 
 | Item | Rota | O que mostra | Contador |
 |---|---|---|---|
-| **Forward** | `/` | As tarefas do dia, a conversa (ou as notas) e o radar, lado a lado | |
+| **Forward** | `/` | No computador: tarefas, conversa (ou notas) e radar, lado a lado. No celular: só a conversa, com o seletor de Notas em cima | |
 | **Meu trabalho** | `/minhas` | Sua fila pessoal, com a gaveta de detalhe | Quantas pendências suas |
 | **Tracks** | `/tracks` | Objetivos e rotinas juntos, com filtro por tipo e por área | |
 | **Processos** | `/processos` | Os moldes reutilizáveis | |

@@ -5,6 +5,8 @@ import { useMemo, useState } from 'react'
 import { PedidosDePrazo } from './PedidosDePrazo'
 import { useDados } from './Dados'
 import { useModais } from './Modais'
+import { AgendaCurta, Radar } from './Radar'
+import { useCelular } from './partes'
 import { Carregando } from './Shell'
 import { Ic } from './Icones'
 import { Av } from './atomos'
@@ -28,6 +30,7 @@ export function Minhas() {
   const { eu, fluxos, carregando, nomeDe, perfilDe, minhaLista,
     alternarItem, aprovar: aprovarSaida } = useDados()
   const { abrir } = useModais()
+  const celular = useCelular()
   const [filtro, setFiltro] = useState<Filtro>('tudo')
   const [termo, setTermo] = useState('')
   const [aberta, setAberta] = useState<string | null>(null)
@@ -198,6 +201,18 @@ export function Minhas() {
           aoConcluir={() => { if (sel.tipo === 'item') void alternarItem(sel.item) }}
           aoAprovar={() => void aprovarSaida(sel.fluxo)} />}
       </div>
+
+      {/* No celular a página inicial virou a conversa, então o radar e a agenda
+          moram aqui: esta é a tela do trabalho, e eles respondem "o que está
+          parado" e "o que vem agora", que são perguntas da mesma família que a
+          fila. No computador eles continuam no Forward, ao lado da conversa. */}
+      {celular && (
+        <div className="min-rail">
+          <Radar lista={fluxos.filter((f) => f.id !== minhaLista?.id)} compacto />
+          <div className="rail-sep" />
+          <AgendaCurta />
+        </div>
+      )}
     </>
   )
 }

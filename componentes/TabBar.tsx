@@ -56,14 +56,14 @@ export function TabBar() {
   return (
     <>
       <nav className="tabbar" aria-label="Navegação">
-        {/* Cinco lugares, e eles são o produto: o dia, a conversa, o caderno e
-            as tracks. "Você" saiu para a folha de Mais porque o Forward já abre
-            na sua fila, e ter a mesma lista em dois botões vizinhos gasta um
-            dos cinco. */}
-        <Aba href="/" icone={<Ic.painel />} rotulo="Forward" conta={problemas} quente />
-        <Aba href="/chat" icone={<Ic.chat />} rotulo="Conversa" conta={porLer} quente />
-        <Aba href="/notas" icone={<Ic.edit />} rotulo="Notas" />
+        {/* Cinco lugares. O primeiro É a conversa: no celular a página inicial
+            abre no chat, com o seletor de Notas em cima dela. Por isso não
+            existe aba separada de Conversa nem de Notas, seria a mesma tela
+            duas vezes. O que saiu dali está nas outras quatro. */}
+        <Aba href="/" icone={<Ic.chat />} rotulo="Conversa" conta={porLer} quente />
+        <Aba href="/minhas" icone={<Ic.inbox />} rotulo="Trabalho" conta={minhas} />
         <Aba href="/tracks" icone={<Ic.proj />} rotulo="Tracks" />
+        <Aba href="/agenda" icone={<Ic.agenda />} rotulo="Agenda" conta={hoje} />
         <button className={`aba ${mais ? 'on' : ''}`} onClick={() => setMais((v) => !v)}>
           <span className="ic"><Ic.mais /></span>
           <span>Mais</span>
@@ -113,10 +113,11 @@ export function TabBar() {
               <Ic.agenda />Agenda
               {!!hoje && <span className="ct num" style={{ marginLeft: 'auto' }}>{hoje} hoje</span>}
             </Link>
-            <Link className="folha-item" href="/minhas">
-              <Ic.inbox />Meu trabalho
-              {!!minhas && <span className="ct num" style={{ marginLeft: 'auto' }}>{minhas}</span>}
+            <Link className="folha-item" href="/chat">
+              <Ic.chat />Todos os canais
+              {!!porLer && <span className="ct num" style={{ marginLeft: 'auto' }}>{porLer}</span>}
             </Link>
+            <Link className="folha-item" href="/notas"><Ic.edit />Notas</Link>
             <Link className="folha-item" href="/avisos"><Ic.sino />Avisos</Link>
             <Link className="folha-item" href="/desempenho"><Ic.grafico />Desempenho</Link>
             <Link className="folha-item" href="/relatorios"><Ic.processo />Relatórios</Link>
@@ -140,7 +141,10 @@ export function TabBar() {
 
       {/* Ação principal flutuante, como em app de celular. Dentro de uma conversa
           ela sai, senão ficaria em cima do campo de escrever. */}
-      {!mais && !caminho.startsWith('/chat/') && (
+      {/* Fora da conversa. A página inicial agora É a conversa no celular, e o
+          botão redondo ficaria em cima do campo de escrever. Quem cria dali
+          usa a barra: /tarefa, /objetivo, /nota. */}
+      {!mais && !caminho.startsWith('/chat') && caminho !== '/' && (
         <button className="fab" aria-label="Criar"
           onClick={() => abrir(
             caminho === '/chat' ? { tipo: 'canal' }

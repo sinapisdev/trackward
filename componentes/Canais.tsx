@@ -79,7 +79,10 @@ export function ListaCanais({ atual, aoEscolher }: {
                     {outro ? <Av p={perfilDe(outro)} tam="sm" />
                       : c.tipo === 'fechado' ? <Ic.lock /> : <span aria-hidden>#</span>}
                   </span>
-                  <span className="cnx-nm">{nomeDoCanal(c)}</span>
+                  {/* O nome inteiro no título: a coluna é estreita de propósito,
+                      para a conversa ser larga, e aí "implantacao-erp" vira
+                      "implant...". Passar o mouse resolve sem gastar largura. */}
+                  <span className="cnx-nm" title={nomeDoCanal(c)}>{nomeDoCanal(c)}</span>
                   {!!novas && (
                     <i className={`cnx-ct num ${chamadas ? 'hot' : ''}`}>{novas > 9 ? '9+' : novas}</i>
                   )}
