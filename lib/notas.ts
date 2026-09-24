@@ -82,21 +82,30 @@ export const ordenar = (notas: Nota[]) =>
  * nota chamada fornecedor, não as oito que mencionam a palavra. Sem acento e sem
  * caixa, porque ninguém lembra como escreveu.
  */
-export function buscar(notas: Nota[], termo: string): Nota[] {
+/**
+ * @param mais texto de fora da nota que também conta na busca: o nome da área e
+ *   da track, e o que foi dito na conversa dentro dela. Sem isto, procurar
+ *   "betoneira" não acha a nota onde você perguntou sobre betoneira para a
+ *   leitura, que é exatamente onde a resposta está. Quem procura não lembra se
+ *   escreveu no corpo ou perguntou depois.
+ */
+export function buscar(notas: Nota[], termo: string, mais?: (n: Nota) => string): Nota[] {
   const q = mesmaChave(termo)
   if (!q) return ordenar(notas)
   const palavras = q.split(' ').filter(Boolean)
   const pontos = (n: Nota) => {
     const t = mesmaChave(n.titulo)
     const c = mesmaChave(n.texto)
+    const e = mais ? mesmaChave(mais(n)) : ''
     let p = 0
     for (const w of palavras) {
       if (t === w) p += 100
       else if (t.includes(w)) p += 10
       if (c.includes(w)) p += 1
+      if (e.includes(w)) p += 1
     }
     // Só entra quem bateu em TODAS as palavras, em algum lugar.
-    return palavras.every((w) => t.includes(w) || c.includes(w)) ? p : 0
+    return palavras.every((w) => t.includes(w) || c.includes(w) || e.includes(w)) ? p : 0
   }
   return notas
     .map((n) => ({ n, p: pontos(n) }))

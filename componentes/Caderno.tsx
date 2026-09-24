@@ -1,12 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDados } from './Dados'
 import { Ic } from './Icones'
 import { Anexos } from './Anexos'
 import { ConversaNota } from './ConversaNota'
-import { tituloDe, porTitulo } from '@/lib/notas'
+import { useCelular } from './partes'
+import { buscar, tituloDe, porTitulo } from '@/lib/notas'
 import { rotuloTipo } from '@/lib/rotulos'
 import { isoDe, rel } from '@/lib/datas'
 import type { Nota, TipoProposta } from '@/lib/tipos'
@@ -43,20 +44,36 @@ const ROTULO: Record<TipoProposta, string> = {
  */
 export function Caderno() {
   const { notas, areas, fluxos, areaDe, eu, minhaLista, abrirMinhaLista,
-    conversaIA, abrirConversaIA, sugestoesDaNota, salvarNota, excluirNota, lerNota,
-    aceitarSugestao, recusarSugestao, org } = useDados()
+    conversaIA, abrirConversaIA, sugestoesDaNota, mensagensDaNota, salvarNota, excluirNota,
+    lerNota, aceitarSugestao, recusarSugestao, org } = useDados()
 
-  const [rascunho, setRascunho] = useState('')
+  const celular = useCelular()
+  const [termo, setTermo] = useState('')
   const [abertaId, setAbertaId] = useState<string | null>(null)
   const [titulo, setTitulo] = useState('')
   const [texto, setTexto] = useState('')
   const [lendo, setLendo] = useState(false)
-  const campo = useRef<HTMLTextAreaElement>(null)
 
   const vivas = useMemo(
     () => notas.filter((n) => !n.arquivada)
       .sort((a, b) => Number(b.fixada) - Number(a.fixada) || b.mexido_em.localeCompare(a.mexido_em)),
     [notas],
+  )
+
+  /**
+   * O que mais conta na busca, além do título e do corpo: o endereço e o que
+   * foi dito na conversa de dentro. Quem procura não lembra se escreveu no
+   * corpo da nota ou perguntou depois para a leitura.
+   */
+  const ondeMais = useCallback((n: Nota) => [
+    n.area_id ? areaDe(n.area_id).nome : '',
+    n.fluxo_id ? fluxos.find((f) => f.id === n.fluxo_id)?.nome || '' : '',
+    ...mensagensDaNota(n.id).map((m) => m.texto),
+  ].join(' '), [areaDe, fluxos, mensagensDaNota])
+
+  const achadas = useMemo(
+    () => (termo.trim() ? buscar(vivas, termo, ondeMais) : []),
+    [vivas, termo, ondeMais],
   )
 
   /**
@@ -98,13 +115,10 @@ export function Caderno() {
     ? sugestoesDaNota(aberta.id).filter((s) => s.estado === 'aberta')
     : []
 
-  const guardar = async () => {
-    const t = rascunho.trim()
-    if (!t) return
-    setRascunho('')
-    const id = await salvarNota({ titulo: tituloDe(t), texto: t })
-    if (id) setAbertaId(id)
-    campo.current?.focus()
+  /** Nota em branco, aberta na hora para escrever. */
+  const nova = async () => {
+    const id = await salvarNota({ titulo: 'Nota nova', texto: '' })
+    if (id) { setAbertaId(id); setTermo('') }
   }
 
   const salvarAberta = async (extra?: Partial<Nota>) => {
@@ -147,33 +161,49 @@ export function Caderno() {
   // ------------------------------------------------------------ a lista
 
   if (!aberta) {
+    /** A linha de uma nota, igual em qualquer um dos dois modos da lista. */
+    const linha = (n: Nota) => {
+      const onde = n.area_id
+        ? areaDe(n.area_id).nome
+        : n.fluxo_id ? fluxos.find((f) => f.id === n.fluxo_id)?.nome || null : null
+      return (
+        <button className="nt-l" key={n.id} onClick={() => setAbertaId(n.id)}>
+          <span className="nt-l-mk">{n.fixada ? <Ic.flag /> : <Ic.edit />}</span>
+          <b className="nt-l-nm">{n.titulo}</b>
+          <span className="nt-l-previa">
+            {n.texto.replace(/\s+/g, ' ').trim() || 'Sem texto'}
+          </span>
+          <span className="nt-l-quando">{rel(isoDe(n.mexido_em))}</span>
+          {!!onde && <i className="nt-l-tag">{onde}</i>}
+        </button>
+      )
+    }
+
     return (
       <div className="dp">
         <div className="ct-topo">
           <h2>Notas</h2>
+          <button className="iconbtn" title="Nota nova" aria-label="Nota nova"
+            onClick={() => void nova()}><Ic.plus /></button>
           <Link className="iconbtn" href="/notas" title="Abrir o caderno inteiro"
             aria-label="Abrir o caderno inteiro"><Ic.mais /></Link>
         </div>
 
-        {/* Escrever vem antes de procurar: quem abre as notas quase sempre vem
-            guardar alguma coisa, não achar. */}
-        <div className="dp-jogar">
-          <textarea ref={campo} className="inp" rows={2} value={rascunho}
-            placeholder="Escreva do jeito que sai..."
-            aria-label="Escrever uma nota"
-            onChange={(e) => setRascunho(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void guardar() }
-            }} />
-          <div className="dp-jogar-pe">
-            <span className="hint">A primeira linha vira o título.</span>
-            <button className="btn pri" disabled={!rascunho.trim()} onClick={() => void guardar()}>
-              Guardar
-            </button>
-          </div>
+        {/* Procurar vem antes de tudo, e procura em tudo: título, corpo,
+            endereço e o que foi dito na conversa de dentro da nota. Quem
+            procura não lembra onde escreveu, lembra da palavra. */}
+        <div className="nt-busca">
+          <Ic.lupa />
+          <input className="inp" value={termo} onChange={(e) => setTermo(e.target.value)}
+            placeholder={`Buscar em ${vivas.length} nota${vivas.length === 1 ? '' : 's'}`}
+            aria-label="Buscar nas notas" />
+          {!!termo && (
+            <button className="iconbtn" aria-label="Limpar busca"
+              onClick={() => setTermo('')}><Ic.x /></button>
+          )}
         </div>
 
-        {org.ia_ativa && (
+        {org.ia_ativa && !termo && (
           <button className="dp-conversa" onClick={() => void falarSolto()}>
             <Ic.faisca />
             <span>
@@ -185,18 +215,16 @@ export function Caderno() {
         )}
 
         <div className="dp-lista">
-          {grupos.length ? grupos.map((g) => (
+          {/* Com busca, uma lista só: agrupar resultado por assunto esconde o
+              que a pessoa está procurando atrás de um cabeçalho. */}
+          {termo ? (
+            achadas.length
+              ? achadas.map(linha)
+              : <p className="ct-vazio">Nada com isso. A busca não usa acento nem caixa.</p>
+          ) : grupos.length ? grupos.map((g) => (
             <div className="dp-grupo" key={g.rotulo}>
               <div className="dp-grupo-h">{g.rotulo} <span className="num">{g.itens.length}</span></div>
-              {g.itens.slice(0, 6).map((n) => (
-                <button className="dp-l" key={n.id} onClick={() => setAbertaId(n.id)}>
-                  <span className="dp-l-t">
-                    <b>{n.fixada && <Ic.flag />}{n.titulo}</b>
-                    <small>{n.texto.replace(/\s+/g, ' ').slice(0, 90) || 'Sem texto'}</small>
-                  </span>
-                  <span className="due">{rel(isoDe(n.mexido_em))}</span>
-                </button>
-              ))}
+              {g.itens.map(linha)}
             </div>
           )) : (
             <p className="ct-vazio">
@@ -205,6 +233,15 @@ export function Caderno() {
             </p>
           )}
         </div>
+
+        {/* No celular o botão de criar é o redondo, como no resto do app: o do
+            cabeçalho some por CSS, e o da TabBar também, senão seriam três
+            botões para a mesma coisa na mesma tela. */}
+        {celular && (
+          <button className="fab fab-nota" aria-label="Nota nova" onClick={() => void nova()}>
+            <Ic.plus />
+          </button>
+        )}
       </div>
     )
   }

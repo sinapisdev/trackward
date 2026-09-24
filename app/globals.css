@@ -3882,3 +3882,56 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
   .chat-rolagem{padding:0}
   .chat-despejo{margin:14px}
 }
+
+/* ==========================================================================
+   A lista de notas, na mesma forma da lista de conversas
+
+   Título em cima, começo do texto embaixo, quando no canto e o assunto como
+   etiqueta. É a mesma leitura de um app de mensagem, e de propósito: o caderno
+   e a conversa são as duas superfícies onde se escreve, e alternar entre elas
+   não deve exigir aprender duas listas diferentes.
+   ========================================================================== */
+
+.nt-busca{display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:0 12px;
+  border:1px solid var(--line);border-radius:var(--r-pill);background:var(--brilho);
+  transition:var(--t)}
+.nt-busca:focus-within{border-color:var(--ac-tinta);box-shadow:0 0 0 3px var(--ac-luz)}
+.nt-busca>svg{color:var(--tx-3);flex:none}
+.nt-busca input{flex:1;min-width:0;border:0;background:none;padding:10px 0;
+  font-size:var(--fs-ui);color:var(--tx)}
+.nt-busca input:focus{outline:none;box-shadow:none}
+
+.nt-l{display:grid;grid-template-columns:28px minmax(0,1fr) auto;grid-template-rows:auto auto;
+  gap:2px 12px;align-items:center;width:100%;text-align:left;padding:11px 8px;
+  margin-inline:-8px;border-bottom:1px solid var(--line);border-radius:var(--r-sm);
+  transition:var(--t)}
+.nt-l:hover{background:var(--hover)}
+.nt-l-mk{grid-row:1/3;width:28px;height:28px;border-radius:var(--r-pill);background:var(--alto);
+  display:grid;place-items:center;color:var(--tx-3)}
+.nt-l-nm{grid-column:2;grid-row:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;font:var(--fw-medium) var(--fs-ui)/1.3 var(--sans);color:var(--tx)}
+.nt-l-previa{grid-column:2;grid-row:2;min-width:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;font-size:var(--fs-meta);color:var(--tx-3)}
+.nt-l-quando{grid-column:3;grid-row:1;justify-self:end;font-size:var(--fs-micro);color:var(--tx-3)}
+.nt-l-tag{grid-column:3;grid-row:2;justify-self:end;font-style:normal;font-size:var(--fs-micro);
+  color:var(--tx-2);background:var(--alto);border-radius:var(--r-pill);padding:2px 8px;
+  max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+@media (max-width:840px){
+  .nt-l{padding:12px 14px;margin-inline:0;border-radius:0;min-height:64px;
+    grid-template-columns:32px minmax(0,1fr) auto}
+  .nt-l-mk{width:32px;height:32px}
+  .nt-l-nm{font-size:var(--fs-body)}
+  /* a busca e o cabeçalho acompanham a margem da lista de conversas */
+  .fwd-cel-notas .dp{padding-top:2px}
+  .fwd-cel-notas .dp-lista{margin-inline:calc(-1 * var(--gutter))}
+}
+
+@media (max-width:840px){
+  /* O seletor em cima já diz "Notas": repetir no cabeçalho gasta uma linha
+     para não informar nada. Some ele, e a ação de criar vira o botão redondo. */
+  .fwd-cel-notas .ct-topo{display:none}
+  /* E o botão redondo da TabBar sai de cena enquanto as notas estão na tela:
+     ali ele criaria canal, que é a coisa errada no lugar certo. */
+  .shell:has(.fwd-cel-notas) .fab:not(.fab-nota){display:none}
+}

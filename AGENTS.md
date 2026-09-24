@@ -310,6 +310,19 @@ O desenho é o de um bloco de notas com alguém do outro lado:
   `lerNota()` continua indo por `/api/leitor` com `despejo: true` e devolvendo
   propostas que alguém aceita. A conversa nunca cria tarefa, e não diz que criou.
 
+A lista de notas tem a **mesma forma da lista de conversas**: título em cima,
+começo do texto embaixo, quando no canto, o assunto como etiqueta. É de
+propósito: caderno e conversa são as duas superfícies onde se escreve, e
+alternar entre elas não deve exigir aprender duas listas diferentes. **Não tem
+campo de escrita rápida no topo**: o que se faz numa lista é achar, e quem vem
+guardar toca no botão de criar, que abre a nota já aberta para escrever.
+
+**A busca procura em tudo**: título, corpo, o nome da área e da track, e o que
+foi dito na conversa de dentro da nota. Sem a conversa, procurar "betoneira" não
+acharia a nota onde você perguntou sobre betoneira para a leitura, que é
+exatamente onde a resposta está. Quem procura não lembra se escreveu no corpo ou
+perguntou depois.
+
 O que **organiza** é o endereço que a nota já tem, área ou track, o mesmo da
 tarefa. O que **costura** continua sendo a ligação escrita no meio do texto,
 `[[outra nota]]`, porque **pasta não sobrevive às trezentas notas**: a nota nova

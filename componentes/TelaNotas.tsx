@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDados } from '@/componentes/Dados'
 import { Carregando } from '@/componentes/Shell'
 import { Ic } from '@/componentes/Icones'
@@ -219,12 +219,23 @@ function Aberta({ nota, ir }: { nota: Nota; ir: (titulo: string) => void }) {
 
 export function TelaNotas() {
   const { notas, areas, fluxos, areaDe, salvarNota, conversaIA, abrirConversaIA,
-    org, carregando } = useDados()
+    mensagensDaNota, org, carregando } = useDados()
   const [termo, setTermo] = useState('')
   const [abertaId, setAbertaId] = useState<string | null>(null)
 
   const vivas = useMemo(() => notas.filter((n) => !n.arquivada), [notas])
-  const lista = useMemo(() => (termo ? buscar(vivas, termo) : ordenar(vivas)), [vivas, termo])
+
+  /** A busca procura no endereço e na conversa de dentro, não só no texto. */
+  const ondeMais = useCallback((n: Nota) => [
+    n.area_id ? areaDe(n.area_id).nome : '',
+    n.fluxo_id ? fluxos.find((f) => f.id === n.fluxo_id)?.nome || '' : '',
+    ...mensagensDaNota(n.id).map((m) => m.texto),
+  ].join(' '), [areaDe, fluxos, mensagensDaNota])
+
+  const lista = useMemo(
+    () => (termo ? buscar(vivas, termo, ondeMais) : ordenar(vivas)),
+    [vivas, termo, ondeMais],
+  )
 
   /**
    * Os assuntos: o endereço da nota é o que agrupa.
