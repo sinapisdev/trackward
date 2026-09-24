@@ -146,6 +146,15 @@ One saturated brand colour — **lime `#D0FA3C`** (the logo ring is the slightly
 checkpoint, the AI sparkle, the "today" dot, focus rings, text selection. Two or more lime
 buttons on a screen is a bug.
 
+> **The app raised this floor on 24/09/2026.** `app/globals.css` uses graphite
+> (`#16191A`) instead of `#0A0B0A`, and a grey (`#E9EBE7`) instead of near-white in
+> light mode. Pure black mirrors the room on a real screen and makes white text
+> bloom at the edges; pure white panels on near-white ground separate nothing.
+> This file stays as the measured spec of the artwork; the app is the one that
+> diverged, on purpose, and says so in its own comments. The showcase at
+> `/design-system` still renders the values below.
+
+
 Semantics are narrow and always paired with words: red `#FF4B4B` / text `#FF5A5A` for
 atrasado, amber `#FFB224` / text `#FFA81E` for vence em breve, neutral grey `#A9ADB3` for
 em dia, a lock glyph (no colour) for travado. Ink runs white → `#D4D7D8` (body) → `#9EA2A4`

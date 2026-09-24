@@ -24,6 +24,16 @@
    O escuro é o tema especificado, medido da arte do produto. O claro é uma
    derivação: o próprio DESIGN.md marca o modo claro como inferência, não
    especificação. A diferença que ela exige está no `--ac-tinta`, mais abaixo.
+
+   **Em 24/09/2026 o chão dos dois subiu um degrau, e é a única coisa aqui que
+   diverge do DESIGN.md de propósito.** A arte especifica o quase-preto #0A0B0A,
+   e ele é lindo em imagem parada e cansativo em tela de verdade: preto puro
+   espelha o ambiente, e branco puro em cima dele floresce nas bordas. O claro
+   tinha o problema simétrico, painel branco sobre fundo quase branco, que não
+   separa nada e estoura. Agora o escuro é grafite e o claro é cinza, e a
+   hierarquia continua a mesma: o que sobe fica mais claro no escuro e mais
+   claro ainda no claro. O lima cheio também desceu um degrau só no claro, onde
+   ele vibrava.
    -------------------------------------------------------------------------- */
 
 :root{
@@ -56,75 +66,92 @@
 
 /* ---------------------------------------------------------------- claro */
 :root,:root[data-tema="claro"]{
-  --bg:#FAFAF8; --panel:#FFFFFF; --alto:#FFFFFF; --sunken:#F2F3F0; --hover:#EDEEEA;
-  --line:rgba(10,11,10,.08); --line-2:rgba(10,11,10,.14); --line-3:rgba(10,11,10,.22);
-  --tx:#0A0B0A; --tx-2:#5C6062; --tx-3:#83878A;
-  --ac:#D0FA3C; --ac-2:#DCFF5E; --ac-tx:#0A0B0A; --ac-soft:#F2FCD6; --ac-linha:#D9E9A0;
-  --ac-luz:rgba(208,250,60,.34);
-  /* No claro o lima não se lê como texto: 1,6:1 sobre off-white. A tinta é o
+  /* O claro é um CINZA, não um branco. Painel branco sobre fundo quase branco
+     não separa nada e estoura na tela: é a mesma cor com nome diferente, e o
+     olho procura a borda que não existe. Aqui o chão é cinza e o que sobe fica
+     mais claro que ele, que é a mesma hierarquia do escuro, ao contrário. */
+  --bg:#E9EBE7; --panel:#FAFBF8; --alto:#FFFFFF; --sunken:#DFE1DD; --hover:#E0E2DD;
+  --line:rgba(10,11,10,.10); --line-2:rgba(10,11,10,.16); --line-3:rgba(10,11,10,.24);
+  --tx:#15181A; --tx-2:#565A5C; --tx-3:#787C7F;
+  /* O lima cheio da arte é de fundo escuro. Sobre cinza claro ele vibra e
+     chama mais atenção que o trabalho, então aqui ele desce um degrau: mesma
+     cor, menos luz. Letra preta em cima continua em 12,8:1. */
+  --ac:#BCDE36; --ac-2:#C6E83C; --ac-tx:#0A0B0A; --ac-soft:#E9F3CE; --ac-linha:#CFE08F;
+  --ac-luz:rgba(188,222,54,.30);
+  /* No claro o lima não se lê como texto: 1,3:1 sobre o cinza. A tinta é o
      mesmo acento escurecido até passar em contraste, e só ela vai em letra,
-     ícone e borda fina. O lima cheio continua sendo o fundo do botão. */
-  --ac-tinta:#5C7A00;
-  --late:#D2402F; --late-tx:#FFFFFF; --late-soft:#FBEDEA; --late-linha:#F2D3CC;
-  --warn:#8A5A00; --warn-forte:#B87400; --warn-soft:#FBF3E2; --warn-linha:#EEDCB4;
+     ícone e borda fina. O lima continua sendo o fundo do botão. */
+  --ac-tinta:#4F6B00;
+  --late:#D2402F; --late-tx:#FFFFFF; --late-soft:#F8E7E3; --late-linha:#EECFC7;
+  --warn:#8A5A00; --warn-forte:#B87400; --warn-soft:#F7EEDC; --warn-linha:#E9D6AE;
   --scrim:rgba(6,7,6,.3);
   --brilho:transparent;
-  --sombra:0 1px 2px rgba(10,11,10,.05);
+  --sombra:0 1px 2px rgba(10,11,10,.06);
   --shadow:0 0 0 1px var(--line);
-  --pop:0 16px 40px -16px rgba(10,11,10,.26),0 0 0 1px var(--line);
-  --vidro:linear-gradient(158deg,#FFFFFF 0%,#F4F5F1 100%);
+  --pop:0 16px 40px -16px rgba(10,11,10,.24),0 0 0 1px var(--line);
+  --vidro:linear-gradient(158deg,#FCFCFA 0%,#EFF1EC 100%);
   --vidro-linha:rgba(10,11,10,.1);
   color-scheme:light;
 }
 
 /* ---------------------------------------------------------------- escuro */
 :root[data-tema="escuro"]{
-  --bg:#0A0B0A; --panel:#121516; --alto:#171A1A; --sunken:#0E1011; --hover:#1E2223;
-  --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.12); --line-3:#2A2F30;
-  --tx:#FFFFFF; --tx-2:#9EA2A4; --tx-3:#74797B;
-  --ac:#D0FA3C; --ac-2:#DCFF5E; --ac-tx:#0A0B0A; --ac-soft:rgba(208,250,60,.12);
+  /* O chão é GRAFITE, e não o quase-preto da arte original.
+     Preto puro numa tela real não é neutro: ele espelha o ambiente, e a letra
+     branca em cima dele floresce nas bordas, que é o que cansa a vista em
+     conversa longa. Subir o chão e baixar um pouco o branco troca 19,7:1 de
+     contraste por 16,2:1, que continua muito acima do necessário e lê melhor. */
+  --bg:#16191A; --panel:#1C2021; --alto:#232728; --sunken:#121415; --hover:#2A2F30;
+  --line:rgba(255,255,255,.10); --line-2:rgba(255,255,255,.15); --line-3:#383D3E;
+  --tx:#F3F5F5; --tx-2:#A9AEB0; --tx-3:#7E8385;
+  --ac:#D0FA3C; --ac-2:#DCFF5E; --ac-tx:#0A0B0A; --ac-soft:rgba(208,250,60,.14);
   --ac-linha:rgba(208,250,60,.4);
   --ac-luz:rgba(208,250,60,.24);
   /* No escuro o lima se lê inteiro, então a tinta é o próprio acento. */
   --ac-tinta:#D0FA3C;
-  --late:#FF5A5A; --late-tx:#0A0B0A; --late-soft:rgba(255,75,75,.12);
+  --late:#FF5A5A; --late-tx:#0A0B0A; --late-soft:rgba(255,75,75,.14);
   --late-linha:rgba(255,75,75,.4);
-  --warn:#FFA81E; --warn-forte:#FFB224; --warn-soft:rgba(255,178,36,.12);
+  --warn:#FFA81E; --warn-forte:#FFB224; --warn-soft:rgba(255,178,36,.14);
   --warn-linha:rgba(255,178,36,.38);
   --scrim:rgba(6,7,6,.72);
-  --brilho:rgba(255,255,255,.02);
-  --sombra:0 1px 2px rgba(0,0,0,.6);
+  --brilho:rgba(255,255,255,.03);
+  --sombra:0 1px 2px rgba(0,0,0,.5);
   --shadow:0 0 0 1px var(--line);
-  --pop:0 16px 40px -16px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.09) inset;
+  --pop:0 16px 40px -16px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.09) inset;
   /* vidro: a pasta do sistema. Só em coisa que flutua sobre o conteúdo. */
-  --vidro:linear-gradient(158deg,#2B2F2F 0%,#1A1E1E 46%,#141717 100%);
+  --vidro:linear-gradient(158deg,#34393A 0%,#24292A 46%,#1D2122 100%);
   --vidro-linha:rgba(255,255,255,.07);
   color-scheme:dark;
 }
 
 @media (prefers-color-scheme:dark){
   :root:not([data-tema]){
-  --bg:#0A0B0A; --panel:#121516; --alto:#171A1A; --sunken:#0E1011; --hover:#1E2223;
-  --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.12); --line-3:#2A2F30;
-  --tx:#FFFFFF; --tx-2:#9EA2A4; --tx-3:#74797B;
-  --ac:#D0FA3C; --ac-2:#DCFF5E; --ac-tx:#0A0B0A; --ac-soft:rgba(208,250,60,.12);
-  --ac-linha:rgba(208,250,60,.4);
-  --ac-luz:rgba(208,250,60,.24);
-  /* No escuro o lima se lê inteiro, então a tinta é o próprio acento. */
-  --ac-tinta:#D0FA3C;
-  --late:#FF5A5A; --late-tx:#0A0B0A; --late-soft:rgba(255,75,75,.12);
-  --late-linha:rgba(255,75,75,.4);
-  --warn:#FFA81E; --warn-forte:#FFB224; --warn-soft:rgba(255,178,36,.12);
-  --warn-linha:rgba(255,178,36,.38);
-  --scrim:rgba(6,7,6,.72);
-  --brilho:rgba(255,255,255,.02);
-  --sombra:0 1px 2px rgba(0,0,0,.6);
-  --shadow:0 0 0 1px var(--line);
-  --pop:0 16px 40px -16px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.09) inset;
-  /* vidro: a pasta do sistema. Só em coisa que flutua sobre o conteúdo. */
-  --vidro:linear-gradient(158deg,#2B2F2F 0%,#1A1E1E 46%,#141717 100%);
-  --vidro-linha:rgba(255,255,255,.07);
-  color-scheme:dark;
+    /* O chão é GRAFITE, e não o quase-preto da arte original.
+       Preto puro numa tela real não é neutro: ele espelha o ambiente, e a letra
+       branca em cima dele floresce nas bordas, que é o que cansa a vista em
+       conversa longa. Subir o chão e baixar um pouco o branco troca 19,7:1 de
+       contraste por 16,2:1, que continua muito acima do necessário e lê melhor. */
+    --bg:#16191A; --panel:#1C2021; --alto:#232728; --sunken:#121415; --hover:#2A2F30;
+    --line:rgba(255,255,255,.10); --line-2:rgba(255,255,255,.15); --line-3:#383D3E;
+    --tx:#F3F5F5; --tx-2:#A9AEB0; --tx-3:#7E8385;
+    --ac:#D0FA3C; --ac-2:#DCFF5E; --ac-tx:#0A0B0A; --ac-soft:rgba(208,250,60,.14);
+    --ac-linha:rgba(208,250,60,.4);
+    --ac-luz:rgba(208,250,60,.24);
+    /* No escuro o lima se lê inteiro, então a tinta é o próprio acento. */
+    --ac-tinta:#D0FA3C;
+    --late:#FF5A5A; --late-tx:#0A0B0A; --late-soft:rgba(255,75,75,.14);
+    --late-linha:rgba(255,75,75,.4);
+    --warn:#FFA81E; --warn-forte:#FFB224; --warn-soft:rgba(255,178,36,.14);
+    --warn-linha:rgba(255,178,36,.38);
+    --scrim:rgba(6,7,6,.72);
+    --brilho:rgba(255,255,255,.03);
+    --sombra:0 1px 2px rgba(0,0,0,.5);
+    --shadow:0 0 0 1px var(--line);
+    --pop:0 16px 40px -16px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.09) inset;
+    /* vidro: a pasta do sistema. Só em coisa que flutua sobre o conteúdo. */
+    --vidro:linear-gradient(158deg,#34393A 0%,#24292A 46%,#1D2122 100%);
+    --vidro-linha:rgba(255,255,255,.07);
+    color-scheme:dark;
   }
 }
 

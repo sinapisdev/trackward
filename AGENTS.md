@@ -149,9 +149,15 @@ A marca na tela é **TrackWard**, e a unidade de trabalho se chama **track** par
 usuário. No código o nome antigo continua: `fluxo` (tabela e tipo), `esteira` (projeto) e
 `ciclo` (rotina). Não renomear o banco por causa da interface.
 
-Sistema de **acento único**: chão quase preto (`#0A0B0A`), tudo construído com branco a
+Sistema de **acento único**: chão **grafite** (`#16191A`), tudo construído com branco a
 4 a 20% de alfa em vez de cinzas novos, e uma cor saturada, o lima `#D0FA3C`. Tipografia
-**Figtree**. Rótulos de seção em caixa alta espaçada, pílulas para segmento e selo, cantos
+**Figtree**.
+
+O chão era o quase-preto `#0A0B0A` da arte, e subiu em 24/09/2026. É a **única divergência
+proposital do DESIGN.md**, e o motivo é tela de verdade: preto puro espelha o ambiente, e
+branco puro em cima dele floresce nas bordas, que é o que cansa a vista em conversa longa.
+A troca foi 19,7:1 de contraste por 16,2:1, muito acima do necessário nos dois casos. Ao
+mexer em cor de chão, medir contraste antes e escrever o número no comentário. Rótulos de seção em caixa alta espaçada, pílulas para segmento e selo, cantos
 generosos (`--r-lg` 18px na pasta e na gaveta, `--r` 14px no painel, `--r-sm` 8px no campo).
 
 **O lima é racionado.** Ele marca a *uma* ação que faz o trabalho andar, o checkpoint
@@ -171,10 +177,23 @@ glow forte, fotografia ou ilustração. O produto não tem imagem nenhuma, de pr
 uma superfície precisa de corpo, ela ganha uma pasta, não uma foto.
 
 **O escuro é o tema especificado**, medido da arte. O claro é derivação, e o próprio
-DESIGN.md marca modo claro como inferência. A diferença que ele exige é o `--ac-tinta`:
-lima puro não se lê como letra sobre fundo claro (1,6:1), então tudo que é letra, ícone e
-fio fino usa a tinta, enquanto fundo de botão e brilho seguem no lima cheio. Ao mexer no
-acento, mexer nos dois.
+DESIGN.md marca modo claro como inferência.
+
+**O claro é CINZA, não branco.** Painel branco sobre fundo quase branco não separa nada e
+estoura na tela: é a mesma cor com nome diferente, e o olho procura uma borda que não
+existe. O chão é `#E9EBE7` e o que sobe fica mais claro que ele, que é a mesma hierarquia
+do escuro ao contrário.
+
+Duas coisas o claro exige, e as duas são sobre o acento. O `--ac-tinta`: lima puro não se
+lê como letra sobre fundo claro (1,3:1), então tudo que é letra, ícone e fio fino usa a
+tinta, enquanto fundo de botão e brilho seguem no lima. E o próprio `--ac` desce um degrau
+lá (`#BCDE36`): o lima da arte é de fundo escuro, e sobre cinza claro ele vibra e chama
+mais atenção que o trabalho. Ao mexer no acento, mexer nos dois temas.
+
+**Os tokens do escuro existem em duas cópias**, uma em `[data-tema="escuro"]` e outra em
+`prefers-color-scheme`, porque CSS não deixa compartilhar bloco entre as duas. Elas têm
+que continuar idênticas: mexeu numa, mexa na outra, senão quem nunca escolheu tema vê um
+app e quem escolheu vê outro.
 
 Cores vivem só em `app/globals.css`, sobre `:root[data-tema="..."]`. Nenhuma tela conhece
 o tema no ar. Ao criar um token, defini-lo no escuro e no claro.

@@ -55,9 +55,12 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
+  // As mesmas cores de chão de app/globals.css. Desencontrado, a barra do
+  // navegador e a tela de abertura ficam de uma cor e o app de outra, e a
+  // emenda aparece justamente no telefone, que é onde ela é uma faixa.
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#FAFAF8' },
-    { media: '(prefers-color-scheme: dark)', color: '#0A0B0A' },
+    { media: '(prefers-color-scheme: light)', color: '#E9EBE7' },
+    { media: '(prefers-color-scheme: dark)', color: '#16191A' },
   ],
 }
 
