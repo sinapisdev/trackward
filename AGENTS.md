@@ -131,9 +131,9 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
 - **O mesmo login vive em várias empresas**, uma por convite aceito mais a que ele abriu. São
   perfis distintos do mesmo `user_id`, e `sessoes` guarda em qual ele está. É o caso do grupo e
   da holding, então nada pode assumir que uma pessoa tem um perfil só.
-- **Uso pessoal está guardado, não removido.** `organizacoes.tipo` ainda aceita `pessoal` e as
-  telas ainda sabem se comportar assim, mas a tela de criar conta não oferece mais. O foco é
-  empresa. Não apagar o caminho: ele volta depois, repensado.
+- **Uso pessoal voltou, e agora é um produto.** `organizacoes.tipo` aceita `pessoal` desde
+  sempre, e o que era caminho guardado virou a segunda forma de vender o app. A regra
+  inteira está em "Dois workspaces", abaixo.
 - **Permissão por campo, não só por tela**: o executor muda o texto e o responsável da
   tarefa dele, mas prazo, checkpoints e critério de saída são de quem responde pelo
   processo (`manda_no_processo`). No banco isso é um trigger, não só uma policy, porque
@@ -148,6 +148,58 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
   restrita a `auth.uid()`), e a rota `/api/agenda-externa` valida o destino contra SSRF.
 - Uma tarefa pode depender de tarefas de **outras esteiras e outras áreas**. Enquanto a
   trava não sai, a tarefa não pode ser concluída e mostra quem está segurando.
+
+## Dois workspaces, e num deles não existe segunda pessoa
+
+O TrackWard é vendido de duas formas, e as duas rodam o mesmo modelo. **A lógica do
+workspace empresarial não muda por causa disto**: fluxo, trilha, checkpoint, item, prazo,
+nota e agenda continuam as mesmas tabelas e as mesmas regras. O workspace **pessoal** é
+esse mesmo app com o que exige uma segunda pessoa apagado, e não um produto à parte. É
+essa escolha que deixa os dois de pé com um código só; no dia em que o pessoal virar um
+fork, quem usa o app no trabalho e em casa passa a usar dois produtos parecidos, que é o
+pior dos dois mundos.
+
+**No pessoal deixa de existir**: canal, mensagem, menção e não lidas; equipe, convite,
+papel e gestor; responsável, delegação e carga; aprovador de checkpoint e "Aprovar saída",
+que viram fase fechada pelas próprias tarefas; visibilidade (`equipe`, `escolhidas`,
+`so_eu`), porque não há de quem esconder; e empresas dentro da organização
+(`config.multi`). O que ganha peso é o contrário: capturar rápido, rotina na frente de
+objetivo, e o dia (o que vence, o que está marcado) como tela inicial.
+
+**A trava entre tarefas fica.** "Não dá para pintar antes de rebocar" é seu com você
+mesmo, e vale sozinho. O que morre é a dependência de terceiro e o aviso de quem está
+segurando, que ali é sempre você. Não jogar a trava fora junto com a delegação.
+
+**O que some, some no banco.** A tela não pode ser a única a saber: o banco recusa canal e
+segundo perfil em organização pessoal, e convite para ela também. E a lista do que cada
+espaço pode fazer mora num arquivo só (`recursos()`, em `lib/espaco.ts`), espelhada nas
+políticas, como já é feito com `lib/acesso.ts` e `ve_fluxo`. Espalhar `!pessoal &&` pelas
+telas é o jeito conhecido de, seis meses depois, aparecer um campo de responsável num app
+de uma pessoa só: quem escreve tela nova não lembra de uma regra que não está escrita em
+lugar nenhum.
+
+**O espaço pessoal é da pessoa, não da empresa.** Ele é uma `organizacoes` com
+`tipo='pessoal'` e `dono_id` dela, e precisa sobreviver ao dia em que ela sai do emprego.
+Por isso a cobrança dele é por `user_id`, nunca pelo plano da empresa, e o administrador
+não liga nem desliga o pessoal de ninguém. Sem isso, o que se vendeu para a pessoa é uma
+coisa que o chefe dela pode cancelar, e aí não era dela.
+
+**Onde cada um entra.** No cadastro escolhe-se **empresarial** ou **pessoal**. Quem escolhe
+pessoal não vê opção de empresa em lugar nenhum: não é assunto dele naquele momento. Quem
+escolhe empresarial entra como é hoje, com assentos e podendo abrir mais de uma empresa.
+Depois de dentro, o espaço pessoal aparece para todo mundo no seletor de espaços, ao lado
+das empresas, e é contratado à parte, porque não é da empresa.
+
+**A porta fica aberta nos dois sentidos.** Quem entrou pelo pessoal e depois contrata gente
+abre uma empresa ao lado, pelo seletor, sem migrar nada. No cadastro a opção não aparece;
+depois, aparece.
+
+**Em aberto, e não decidir isto no código:** o que o pessoal de quem já está numa empresa
+traz incluído. A recomendação registrada é um chão de graça (notas, tarefas avulsas e a
+agenda da pessoa) com o plano pago acrescentando a leitura, agenda externa, rotinas e
+relatórios, porque colaborador pagando do próprio bolso dentro da ferramenta que o chefe
+comprou compara o preço com o bloco de notas do telefone, que é de graça. Enquanto não
+estiver decidido, não escrever limite nenhum espalhado pelas telas.
 
 ## Regras visuais
 
