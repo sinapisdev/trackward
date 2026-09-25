@@ -1540,8 +1540,39 @@ create policy fb_del on public.feedbacks for delete
 -- /api/feedback, com a chave de serviço, e ela devolve só o que pode ser visto.
 
 -- ==========================================================================
--- Conferência. As dezenove contas abaixo têm que dar
--- 31, 3, 3, 3, true, 1, 2, 1, 2, 0, true, 3, true, 4, true, true, 1, true e 1.
+-- 25. A nota que vai para o canal é um cartão, e o cartão abre
+--
+--     A mensagem aponta para a nota em vez de copiar o texto inteiro, e quem
+--     pode ver o canal pode abrir a nota. Abrir é gesto de quem lê: a função
+--     confere que existe um cartão daquela nota num canal seu antes de deixar.
+--     A política de `nota_pessoas` continua recusando que alguém se convide.
+-- ==========================================================================
+
+alter table public.mensagens add column if not exists nota_ref uuid references public.notas on delete set null;
+create index if not exists msg_nota_ref_idx on public.mensagens (nota_ref) where nota_ref is not null;
+
+create or replace function public.abrir_nota_do_canal(n uuid)
+returns boolean language plpgsql security definer set search_path = public as $$
+begin
+  if minha_nota(n) or nota_comigo(n) then return true; end if;
+
+  if not exists (
+    select 1 from mensagens m
+    where m.nota_ref = n and m.canal_id is not null and ve_canal(m.canal_id)
+  ) then
+    raise exception 'Esta nota não foi compartilhada em nenhuma conversa sua.';
+  end if;
+
+  -- O carimbo de organização vem do gatilho, como em toda tabela etiquetada.
+  insert into nota_pessoas (nota_id, perfil_id) values (n, meu_perfil())
+  on conflict do nothing;
+  return true;
+end $$;
+
+-- ==========================================================================
+-- Conferência. As vinte contas abaixo têm que dar
+-- 31, 3, 3, 3, true, 1, 2, 1, 2, 0, true, 3, true, 4, true, true, 1, true, 1
+-- e 1.
 -- ==========================================================================
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
@@ -1608,4 +1639,7 @@ select
     as "ve_nota enxerga o convidado (true)",
   (select count(*) from information_schema.tables
     where table_schema = 'public' and table_name = 'feedbacks')
-    as "feedback de quem recebeu (1)";
+    as "feedback de quem recebeu (1)",
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'abrir_nota_do_canal')
+    as "a nota do canal abre (1)";

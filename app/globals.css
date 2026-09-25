@@ -1242,6 +1242,24 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
 .msg-cit svg{flex:none;opacity:.7}
 .msg-cit b{font-weight:600;flex:none}
 .msg-cit span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+/* A nota posta num canal. Cartão, e não texto solto: no meio da conversa o
+   texto de uma nota lê-se como mais uma fala, e a pessoa nunca descobre que
+   tem uma nota inteira do outro lado. O acento fica no fio da esquerda e na
+   chamada, e não no fundo: a ação que faz o trabalho andar é outra. */
+.msg-nota{display:flex;align-items:center;gap:10px;max-width:420px;text-align:left;
+  padding:10px 12px;border-radius:var(--r-sm);background:var(--alto);
+  border:1px solid var(--line-2);border-left:2px solid var(--ac-tinta);
+  color:var(--tx-2);transition:var(--t)}
+.msg-nota:hover{background:var(--hover);border-color:var(--line-3)}
+.msg-nota>svg{flex:none;color:var(--ac-tinta)}
+.msg-nota span{display:grid;gap:2px;min-width:0;flex:1}
+.msg-nota b{font:var(--fw-medium) var(--fs-ui)/1.3 var(--sans);color:var(--tx);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msg-nota i{font-style:normal;font-size:var(--fs-meta);color:var(--tx-3);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msg-nota em{flex:none;font-style:normal;font-size:var(--fs-micro);color:var(--ac-tinta);
+  text-transform:uppercase;letter-spacing:.06em}
+
 @keyframes pisca{from{background:color-mix(in srgb,var(--ac) 22%,transparent)}}
 .msg.pisca{animation:pisca 1.4s ease-out}
 .msg-corpo{min-width:0}
@@ -2472,6 +2490,7 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
 .nt-item b{font-size:var(--fs-ui);font-weight:var(--fw-medium);display:flex;
   align-items:center;gap:6px;color:var(--tx)}
 .nt-item b svg{width:11px;height:11px;color:var(--ac-tinta);flex:none}
+.nt-comp-mk{display:inline-grid;place-items:center;flex:none}
 .nt-item span{font-size:var(--fs-sm);color:var(--tx-3);overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 .nt-item i{font-size:var(--fs-micro);color:var(--tx-3);font-style:normal}
@@ -3940,6 +3959,10 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 .nt-l:hover{background:var(--hover)}
 .nt-l-mk{grid-row:1/3;width:28px;height:28px;border-radius:var(--r-pill);background:var(--alto);
   display:grid;place-items:center;color:var(--tx-3)}
+/* Nota que passou por outra pessoa, nas duas direções: a que compartilharam
+   com você e a que você compartilhou. Sem isso, a nota dos outros fica no meio
+   das suas sem dizer nada, e você a lê como se tivesse escrito. */
+.nt-l-mk.comp{color:var(--ac-tinta);background:color-mix(in srgb,var(--ac) 14%,var(--alto))}
 .nt-l-nm{grid-column:2;grid-row:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;font:var(--fw-medium) var(--fs-ui)/1.3 var(--sans);color:var(--tx)}
 .nt-l-previa{grid-column:2;grid-row:2;min-width:0;overflow:hidden;text-overflow:ellipsis;

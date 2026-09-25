@@ -463,10 +463,30 @@ A nota continua do dono e de mais ninguém, **sem exceção nem para administrad
 ninguém passa a ver nada por mudança de regra: só por gesto de quem escreveu. Mostrar tem
 duas formas, e elas não são a mesma coisa:
 
-- **Mandar para um canal é cópia.** O texto vira mensagem e a partir dali a vida dele é a
-  da conversa. É o caminho de "olhem isto". Não precisa de tabela nem de política.
+- **Pôr num canal é deixar o cartão lá.** A mensagem aponta para a nota
+  (`mensagens.nota_ref`, seção 25) e carrega só o título com o começo do texto, o bastante
+  para alguém decidir abrir. É o caminho de "olhem isto". Já foi cópia do texto inteiro, e
+  era errado três vezes: no meio da conversa ninguém via que aquilo era uma nota, a cópia
+  envelhecia no mesmo instante, e quem quisesse acompanhar não tinha para onde ir.
 - **Liberar para pessoas é acesso continuado**: quem recebeu abre a nota e lê o que ela
   for virando. É o caminho de "acompanhe isto", e mora em `nota_pessoas` (seção 23).
+
+**Quem abre o cartão passa a ler a nota, e quem autoriza isso é o canal.** Não é convite do
+dono, é gesto de quem lê: o dono já escolheu a plateia quando pôs a nota ali. Quem não pode
+ver o canal não pode abrir a nota, e é `abrir_nota_do_canal()` que confere isso antes de
+pôr a pessoa em `nota_pessoas`. A política daquela tabela continua recusando que alguém se
+convide sozinho, então a função é o único caminho, e ela exige o cartão num canal seu. Sem
+essa conferência, um id de nota qualquer abriria uma nota qualquer.
+
+Duas consequências, e as duas são de propósito: quem abriu **aparece** em "Compartilhada
+com", então o dono vê quem foi ler; e tirar alguém dali **não adianta** enquanto o cartão
+estiver no canal, porque ele abre de novo. Quem quer cortar o acesso apaga a mensagem.
+
+**Nota que passou por outra pessoa fica marcada na lista**, com o ícone de duas pessoas, nas
+duas direções: a que compartilharam com você e a que você compartilhou. No meio das suas
+ela some, e o risco não é pequeno: você leria o que outra pessoa escreveu como se tivesse
+escrito. Vale nas duas listas, a do celular (`Caderno`) e a do computador (`TelaNotas`), e
+`/notas?nota=<id>` é como o cartão do chat chega lá.
 
 **O que não vai junto é a conversa de dentro.** Quem compartilha está mostrando o que
 escreveu, não o que perguntou à leitura enquanto pensava, e a segunda é a mais íntima das

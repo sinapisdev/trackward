@@ -19,7 +19,7 @@ import { distribuir, type Palpite } from '@/lib/distribuir'
 import { sobrecarga, type Carga } from '@/lib/sobrecarga'
 import { escutaAqui, oQueFaz, porPalavras } from '@/lib/agentes'
 import { preencher } from '@/lib/conectores'
-import { comoBloco, parecidas, parecidasCom, tituloDe } from '@/lib/notas'
+import { comoBloco, parecidas, parecidasCom, resumo, tituloDe } from '@/lib/notas'
 import { novoId } from '@/lib/id'
 import { recursos, type Recursos } from '@/lib/espaco'
 import { arquivada } from '@/lib/desfecho'
@@ -190,8 +190,16 @@ type Contexto = {
   comQuem: (notaId: string) => string[]
   /** Liberar a leitura da nota para pessoas escolhidas. Só o dono. */
   compartilharNota: (notaId: string, perfis: string[]) => Promise<void>
-  /** Mandar o texto da nota para um canal. É cópia, não acesso. */
+  /** Pôr a nota no canal como cartão, para quem está lá poder abrir. */
   notaParaCanal: (notaId: string, canalId: string) => Promise<void>
+  /**
+   * Abrir uma nota que apareceu num canal seu.
+   *
+   * Quem autoriza é o canal, não o dono: ele escolheu aquela plateia quando
+   * pôs a nota lá. A partir daqui a nota é sua de ler, como a de quem foi
+   * convidado, e o dono vê que você abriu.
+   */
+  abrirNotaDoCanal: (notaId: string) => Promise<boolean>
   excluirNota: (id: string) => Promise<void>
   /**
    * A conversa solta com a leitura: a nota sem assunto.
@@ -1255,24 +1263,42 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   }, [sb, comQuem, eu.id, falhou, toast, recarregar])
 
   /**
-   * Mandar a nota para um canal.
+   * Pôr a nota num canal.
    *
-   * Isto é cópia, e não acesso: o texto vira mensagem e a partir dali a vida
-   * dele é a da conversa. É o caminho certo para "olhem isto", e o outro, o de
-   * liberar a leitura, é para "acompanhe isto".
+   * A mensagem APONTA para a nota e leva só o título com o começo do texto, o
+   * bastante para alguém decidir abrir. Já foi cópia do texto inteiro, e era
+   * errado três vezes: no meio da conversa ninguém via que aquilo era uma
+   * nota, a cópia envelhecia no mesmo instante, e quem quisesse acompanhar não
+   * tinha para onde ir. Quem abre lê a versão de agora, e não a de quando foi
+   * mandada. Ver a seção 25 do schema.
    */
   const notaParaCanal: Contexto['notaParaCanal'] = useCallback(async (notaId, canalId) => {
     const nota = todasNotas.find((n) => n.id === notaId)
     if (!nota) return
-    const corpo = `**${nota.titulo}**\n\n${nota.texto}`.trim()
     const { error } = await sb.from('mensagens').insert({
-      id: novoId(), canal_id: canalId, nota_id: null, autor_id: eu.id,
-      texto: corpo, sistema: false, responde_a: null,
+      id: novoId(), canal_id: canalId, nota_id: null, nota_ref: notaId, autor_id: eu.id,
+      texto: `${nota.titulo}\n${resumo(nota).slice(0, 180)}`.trim(),
+      sistema: false, responde_a: null,
     })
     if (error) return falhou(error, 'Não deu para mandar a nota.')
-    toast('Mandada para o canal.')
+    toast('Posta no canal.')
     recarregar()
   }, [sb, todasNotas, eu.id, falhou, toast, recarregar])
+
+  /**
+   * Abrir uma nota que alguém pôs num canal seu.
+   *
+   * O banco confere que existe mesmo um cartão daquela nota num canal que você
+   * pode ver, e só então põe você na lista de quem lê. Sem essa conferência, um
+   * id de nota qualquer abriria uma nota qualquer.
+   */
+  const abrirNotaDoCanal: Contexto['abrirNotaDoCanal'] = useCallback(async (notaId) => {
+    if (notas.some((n) => n.id === notaId)) return true
+    const { error } = await sb.rpc('abrir_nota_do_canal', { n: notaId })
+    if (error) { falhou(error, 'Não deu para abrir a nota.'); return false }
+    recarregar()
+    return true
+  }, [sb, notas, falhou, recarregar])
 
   const excluirNota: Contexto['excluirNota'] = useCallback(async (id) => {
     const { error } = await sb.from('notas').delete().eq('id', id)
@@ -2895,7 +2921,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     desfazerSugestao, palpites, distribuirTarefa, cargas, cargaDe,
     memoria, esquecer, consumo, agentes, salvarAgente, excluirAgente,
     conectores, salvarConector, guardarChave, excluirConector, testarConector,
-    notas, salvarNota, excluirNota, comQuem, compartilharNota, notaParaCanal, conversaIA, abrirConversaIA,
+    notas, salvarNota, excluirNota, comQuem, compartilharNota, notaParaCanal,
+    abrirNotaDoCanal, conversaIA, abrirConversaIA,
     mensagensDaNota, sugestoesDaNota, escreverNaNota, perguntarNaNota, respondendo,
     minhaLista, abrirMinhaLista, criarAvulsa,
     avisos, naoVistos: avisos.filter((a) => !a.lido_em).length,

@@ -504,6 +504,15 @@ export type Mensagem = {
   canal_id: string | null
   /** De qual nota. Nulo quando a mensagem é de um canal. */
   nota_id: string | null
+  /**
+   * A nota que esta mensagem MOSTRA, e não a nota a que ela pertence.
+   *
+   * São coisas diferentes e é fácil confundir: `nota_id` diz que a mensagem
+   * mora dentro de uma nota, na conversa com a leitura; `nota_ref` diz que a
+   * mensagem é um cartão, num canal, apontando para uma nota que alguém pode
+   * abrir. Ver a seção 25 do schema.
+   */
+  nota_ref: string | null
   autor_id: string | null
   texto: string
   /** Resposta a outra mensagem, para a conversa não se perder. */

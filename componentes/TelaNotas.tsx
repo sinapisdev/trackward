@@ -1,5 +1,6 @@
 'use client'
 
+import { useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useDados } from '@/componentes/Dados'
 import { Carregando } from '@/componentes/Shell'
@@ -111,10 +112,13 @@ function Aberta({ nota, ir, aoApagar }: {
 }
 
 export function TelaNotas() {
-  const { notas, areas, fluxos, areaDe, salvarNota, conversaIA, abrirConversaIA,
-    mensagensDaNota, org, carregando } = useDados()
+  const { notas, areas, fluxos, areaDe, eu, nomeDe, comQuem, salvarNota, conversaIA,
+    abrirConversaIA, mensagensDaNota, org, carregando } = useDados()
+  const params = useSearchParams()
   const [termo, setTermo] = useState('')
-  const [abertaId, setAbertaId] = useState<string | null>(null)
+  // `?nota=` é como o cartão do chat chega aqui: quem clicou na nota posta num
+  // canal já ganhou acesso a ela, e cai direto nela em vez de na lista.
+  const [abertaId, setAbertaId] = useState<string | null>(params.get('nota'))
 
   const vivas = useMemo(() => notas.filter((n) => !n.arquivada), [notas])
 
@@ -237,17 +241,25 @@ export function TelaNotas() {
               {grupos.map((g) => (
                 <div key={g.rotulo}>
                   <div className="nt-grupo">{g.rotulo} <span className="num">{g.itens.length}</span></div>
-                  {g.itens.map((n) => (
+                  {g.itens.map((n) => {
+                    // A nota de outra pessoa se anuncia na lista: no meio das
+                    // suas ela some, e você leria como se tivesse escrito.
+                    const de = n.dono_id && n.dono_id !== eu.id ? nomeDe(n.dono_id) : null
+                    const quantos = de ? 0 : comQuem(n.id).length
+                    return (
                     <button key={n.id} className={`nt-item ${aberta?.id === n.id ? 'on' : ''}`}
-                      onClick={() => setAbertaId(n.id)}>
+                      onClick={() => setAbertaId(n.id)}
+                      title={de ? `Compartilhada por ${de}`
+                        : quantos ? `Compartilhada com ${quantos} pessoa${quantos === 1 ? '' : 's'}` : undefined}>
                       <b>
-                        {n.fixada && <Ic.flag />}
+                        {de || quantos ? <i className="nt-comp-mk"><Ic.team /></i> : n.fixada && <Ic.flag />}
                         {n.titulo}
                       </b>
                       <span>{resumo(n).slice(0, 90) || 'vazia'}</span>
                       <i>{rel(isoDe(n.mexido_em)).toLowerCase()}</i>
                     </button>
-                  ))}
+                    )
+                  })}
                 </div>
               ))}
               {!lista.length && (

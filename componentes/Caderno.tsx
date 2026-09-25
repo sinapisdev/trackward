@@ -42,7 +42,7 @@ const ROTULO: Record<TipoProposta, string> = {
  * meio do texto, [[outra nota]], porque pasta não sobrevive às trezentas notas.
  */
 export function Caderno({ abas }: { abas?: ReactNode }) {
-  const { notas, areas, fluxos, areaDe, eu, minhaLista, abrirMinhaLista,
+  const { notas, areas, fluxos, areaDe, eu, nomeDe, comQuem, minhaLista, abrirMinhaLista,
     conversaIA, abrirConversaIA, sugestoesDaNota, mensagensDaNota, salvarNota,
     lerNota, aceitarSugestao, recusarSugestao, org } = useDados()
 
@@ -147,9 +147,17 @@ export function Caderno({ abas }: { abas?: ReactNode }) {
       const onde = n.area_id
         ? areaDe(n.area_id).nome
         : n.fluxo_id ? fluxos.find((f) => f.id === n.fluxo_id)?.nome || null : null
+      // Nota que não é sua fica marcada na lista, e não só depois de abrir: no
+      // meio das suas ela some, e você leria como se tivesse escrito.
+      const de = n.dono_id && n.dono_id !== eu.id ? nomeDe(n.dono_id) : null
+      const quantos = de ? 0 : comQuem(n.id).length
       return (
         <button className="nt-l" key={n.id} onClick={() => setAbertaId(n.id)}>
-          <span className="nt-l-mk">{n.fixada ? <Ic.flag /> : <Ic.edit />}</span>
+          <span className={`nt-l-mk ${de || quantos ? 'comp' : ''}`}
+            title={de ? `Compartilhada por ${de}`
+              : quantos ? `Compartilhada com ${quantos} pessoa${quantos === 1 ? '' : 's'}` : undefined}>
+            {de || quantos ? <Ic.team /> : n.fixada ? <Ic.flag /> : <Ic.edit />}
+          </span>
           <b className="nt-l-nm">{n.titulo}</b>
           <span className="nt-l-previa">{resumo(n) || 'Sem texto'}</span>
           <span className="nt-l-quando">{rel(isoDe(n.mexido_em))}</span>

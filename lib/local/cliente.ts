@@ -14,7 +14,7 @@ const CHAVE_EU = 'track.local.eu'
 const CHAVE_USUARIO = 'track.local.user'
 const CHAVE_VERSAO = 'track.local.versao'
 /** Sobe quando o exemplo ganha tabelas novas. Ver completar(). */
-const VERSAO = 18
+const VERSAO = 19
 const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], fluxos: [], etapas: [], itens: [],
   dependencias: [], processos: [], processo_etapas: [], processo_itens: [], fluxo_pessoas: [],
   convites: [],
@@ -1288,6 +1288,30 @@ function montarCliente() {
             data: abrirEspacoLocal(String(args.p_nome || ''), String(args.p_tipo || 'equipe')),
             error: null,
           }
+        }
+        /**
+         * Abrir a nota que alguém pôs num canal seu. Seção 25 do schema.
+         *
+         * O que autoriza é o cartão no canal, e não o dono: quem pôs a nota
+         * ali escolheu aquela plateia. Sem essa conferência, um id qualquer
+         * abriria uma nota qualquer.
+         */
+        if (nome === 'abrir_nota_do_canal') {
+          const b = ler()
+          const eu = euLocal()
+          const alvo = String(args.n || '')
+          const nota = b.notas.find((x) => x.id === alvo)
+          const jaTem = !!nota && (nota.dono_id === eu
+            || b.nota_pessoas.some((x) => x.nota_id === alvo && x.perfil_id === eu))
+          if (jaTem) return { data: true, error: null }
+          const abertos = canaisAbertos(eu)
+          const temCartao = b.mensagens.some(
+            (m) => m.nota_ref === alvo && m.canal_id && abertos.has(m.canal_id as string))
+          if (!temCartao) throw new Error('Esta nota não foi compartilhada em nenhuma conversa sua.')
+          // O carimbo de organização é o `carimbar()` de dentro do gravar.
+          b.nota_pessoas.push({ nota_id: alvo, perfil_id: eu, criado_em: new Date().toISOString() })
+          gravar()
+          return { data: true, error: null }
         }
         if (nome === 'ocupacao') {
           const b = ler()

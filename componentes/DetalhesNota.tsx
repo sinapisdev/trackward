@@ -82,8 +82,8 @@ export function DetalhesNota({ nota, aoApagar }: {
 
           {/* Mostrar a nota é gesto de quem escreveu, e nunca acontece sozinho.
               São duas coisas diferentes e a palavra "compartilhar" esconde
-              isso: liberar a leitura é acompanhar, e mandar para um canal é
-              cópia, que a partir dali vive a vida da conversa. */}
+              isso: liberar a leitura é escolher quem acompanha, e pôr num canal
+              é deixar o cartão lá para quem estiver na conversa abrir. */}
           {pode.canais && (
             <div className="nt-det-arq">
               <button className="nt-det-item" onClick={() => setMostrando((v) => !v)}>
@@ -113,7 +113,7 @@ export function DetalhesNota({ nota, aoApagar }: {
                     perguntou à leitura aqui dentro.
                   </p>
 
-                  <span className="lbl">Mandar para um canal</span>
+                  <span className="lbl">Pôr num canal</span>
                   <label className="sel-quem">
                     <select defaultValue="" aria-label="Mandar esta nota para um canal"
                       onChange={(e) => {
@@ -128,7 +128,10 @@ export function DetalhesNota({ nota, aoApagar }: {
                     </select>
                     <Ic.chev />
                   </label>
-                  <p className="hint">Manda o texto como mensagem. É cópia, não acesso.</p>
+                  <p className="hint">
+                    Vira um cartão na conversa, com o título e o começo do texto. Quem abrir
+                    passa a ler a nota, e aparece aqui em cima.
+                  </p>
                 </div>
               )}
             </div>

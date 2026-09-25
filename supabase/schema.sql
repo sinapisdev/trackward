@@ -4158,3 +4158,51 @@ create policy fb_del on public.feedbacks for delete
 
 -- De fora ninguém lê e ninguém escreve por aqui: quem atende o link é a rota
 -- /api/feedback, com a chave de serviço, e ela devolve só o que pode ser visto.
+
+-- --------------------------------------------------------------------------
+-- 25. A nota que vai para o canal é um cartão, e o cartão abre
+--
+--     Mandar a nota para um canal despejava o texto inteiro como mensagem
+--     comum, e isso errava três vezes de uma vez: no meio da conversa ninguém
+--     via que aquilo era uma nota; a cópia envelhecia no mesmo instante, porque
+--     a nota continua sendo escrita depois; e quem quisesse acompanhar não
+--     tinha para onde ir.
+--
+--     Agora a mensagem APONTA para a nota (`mensagens.nota_ref`) e carrega só
+--     o título com o começo do texto, o bastante para decidir abrir. Quem abre
+--     ganha a nota de verdade, do mesmo jeito de quem foi convidado: leitura,
+--     sem a conversa de dentro, e sempre a versão de agora.
+--
+--     Abrir é gesto de quem lê, e não convite de quem escreveu. O que autoriza
+--     é o canal: quem pôs a nota ali escolheu aquela plateia, e quem não pode
+--     ver o canal não pode abrir a nota. Por isso existe esta função e por
+--     isso a política de `nota_pessoas` continua recusando que alguém se
+--     convide sozinho: sem ela no meio, o id de uma nota qualquer abriria uma
+--     nota qualquer.
+--
+--     Efeito de lado que é bom: quem abriu aparece em "Compartilhada com", e o
+--     dono vê quem foi ler. Efeito de lado que não é: tirar alguém dali não
+--     adianta enquanto o cartão estiver no canal, porque ele abre de novo.
+--     Quem quer cortar o acesso apaga a mensagem.
+-- --------------------------------------------------------------------------
+
+alter table public.mensagens add column if not exists nota_ref uuid references public.notas on delete set null;
+create index if not exists msg_nota_ref_idx on public.mensagens (nota_ref) where nota_ref is not null;
+
+create or replace function public.abrir_nota_do_canal(n uuid)
+returns boolean language plpgsql security definer set search_path = public as $$
+begin
+  if minha_nota(n) or nota_comigo(n) then return true; end if;
+
+  if not exists (
+    select 1 from mensagens m
+    where m.nota_ref = n and m.canal_id is not null and ve_canal(m.canal_id)
+  ) then
+    raise exception 'Esta nota não foi compartilhada em nenhuma conversa sua.';
+  end if;
+
+  -- O carimbo de organização vem do gatilho, como em toda tabela etiquetada.
+  insert into nota_pessoas (nota_id, perfil_id) values (n, meu_perfil())
+  on conflict do nothing;
+  return true;
+end $$;

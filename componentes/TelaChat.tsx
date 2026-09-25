@@ -425,7 +425,7 @@ function Conversa({ canal }: { canal: Canal }) {
   const {
     eu, perfis, perfilDe, nomeDe, todosFluxos, areaDe, org,
     mensagensDe, sugestoesDe, marcarLido, lerConversa, apagarMensagem, excluirCanal,
-    desfazerSugestao, abrirAudio,
+    desfazerSugestao, abrirAudio, abrirNotaDoCanal,
   } = useDados()
   const { abrir } = useModais()
   const router = useRouter()
@@ -452,6 +452,17 @@ function Conversa({ canal }: { canal: Canal }) {
   const canalId = canal.id
   useEffect(() => { void marcarLido(canalId) }, [canalId, msgs.length, marcarLido])
   useEffect(() => { setRespondendo(null) }, [canalId])
+
+  /**
+   * Abrir a nota de um cartão.
+   *
+   * O acesso nasce aqui, no clique de quem lê, e não no gesto de quem mandou:
+   * quem pôs a nota no canal escolheu a plateia, e quem está na plateia decide
+   * se quer acompanhar. O banco confere o canal antes de deixar.
+   */
+  const abrirNota = async (notaId: string) => {
+    if (await abrirNotaDoCanal(notaId)) router.push(`/notas?nota=${notaId}`)
+  }
 
   /** Leva a tela até a mensagem citada e pisca, para não se perder no meio da conversa. */
   const irPara = (id: string) => {
@@ -588,7 +599,20 @@ function Conversa({ canal }: { canal: Canal }) {
                     <Recado caminho={m.audio_caminho} segundos={m.audio_segundos}
                       aoAbrir={() => abrirAudio(m)} />
                   )}
-                  {!!m.texto && (
+                  {/* Nota posta no canal: um cartão, e não texto solto. O
+                      que está aqui é o título e o começo; o resto está na
+                      nota, e abrir é o que dá acesso a ela. Ver a seção 25 do
+                      schema e `notaParaCanal`, em Dados. */}
+                  {m.nota_ref ? (
+                    <button className="msg-nota" onClick={() => void abrirNota(m.nota_ref!)}>
+                      <Ic.edit />
+                      <span>
+                        <b>{m.texto.split('\n')[0]}</b>
+                        <i>{m.texto.split('\n').slice(1).join(' ') || 'Sem texto'}</i>
+                      </span>
+                      <em>Abrir a nota</em>
+                    </button>
+                  ) : !!m.texto && (
                     <p className={m.transcrito ? 'transcrito' : ''}>
                       {pedacos(m.texto, nomes).map((d, i) => (
                         d.chamada
