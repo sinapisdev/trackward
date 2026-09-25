@@ -104,7 +104,10 @@ export function semente(): Base {
     dominio: 'meridiano.com.br', entrada_por_dominio: false, dono_id: 'leo',
     multi: true, rotulo: 'Empresa', rotulo_plural: 'Empresas',
     ia_ativa: true, ia_modo: 'sugerir', criado_em: criado,
-    plano: 'padrao', limite_leituras: null, modelo_ia: null,
+    // A empresa de exemplo é interna: sem teto e sem prazo. Em teste, ela
+    // venceria e a demonstração abriria no modo reduzido, sem deixar criar nada.
+    plano: 'interno', assentos: null, teste_ate: null,
+    limite_leituras: null, modelo_ia: null,
   }]
 
   const empresas = [

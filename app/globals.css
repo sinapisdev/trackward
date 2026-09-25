@@ -4408,3 +4408,31 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
     transform:none!important}
   .tut-cartao.centro{top:auto!important}
 }
+
+/* --------------------------------------------------------------------- plano
+
+   A faixa só aparece quando há o que dizer: o teste acabando e o modo
+   reduzido. Faixa permanente dizendo "você está no plano tal" é moldura que
+   ninguém lê depois do segundo dia, e custa a linha mais cara de toda tela.
+
+   Ela é âmbar, e não lima nem vermelha: âmbar já significa "vence em breve" no
+   resto do app, e é exatamente isto. Vermelho é para o que já venceu e cobra
+   alguém, e o teste acabando não cobra ninguém. */
+.pl-faixa{display:flex;align-items:center;gap:10px;padding:9px 20px;
+  font-size:var(--fs-sm);color:var(--tx-2);
+  background:color-mix(in srgb,var(--warn) 14%,transparent);
+  border-bottom:1px solid color-mix(in srgb,var(--warn) 30%,transparent)}
+.pl-faixa svg{flex:none;color:var(--warn)}
+.pl-faixa b{color:var(--tx)}
+.pl-faixa.acabou{background:color-mix(in srgb,var(--late) 12%,transparent);
+  border-bottom-color:color-mix(in srgb,var(--late) 28%,transparent)}
+.pl-faixa.acabou svg{color:var(--late)}
+
+.pl-linhas{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px}
+.pl-linhas>div{display:grid;gap:3px;align-content:start}
+.pl-linhas b{font:var(--fw-semibold) var(--fs-h4)/1.2 var(--sans);color:var(--tx)}
+.pl-linhas small{font-size:var(--fs-meta);color:var(--tx-3);line-height:1.35}
+
+.eq-assentos{margin:0 0 14px;font-size:var(--fs-sm);color:var(--tx-3)}
+.eq-assentos.cheio{color:var(--tx-2)}
+.eq-assentos b{color:var(--tx)}

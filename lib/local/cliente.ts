@@ -14,7 +14,7 @@ const CHAVE_EU = 'track.local.eu'
 const CHAVE_USUARIO = 'track.local.user'
 const CHAVE_VERSAO = 'track.local.versao'
 /** Sobe quando o exemplo ganha tabelas novas. Ver completar(). */
-const VERSAO = 21
+const VERSAO = 22
 const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], fluxos: [], etapas: [], itens: [],
   dependencias: [], processos: [], processo_etapas: [], processo_itens: [], fluxo_pessoas: [],
   convites: [],
@@ -971,6 +971,11 @@ function criarDoProcesso(
  * de Supabase nenhum. A senha não é verificada: aqui não existe segurança, e
  * dizer o contrário seria mentira. Segurança de verdade é a do banco.
  */
+/** Daqui a tantos dias, em ISO. O prazo do teste no modo demonstração. */
+function emDias(n: number) {
+  return new Date(Date.now() + n * 86400000).toISOString()
+}
+
 function cadastrarLocal(email: string, dados: Linha): { erro?: string } {
   const b = ler()
   const e = email.trim().toLowerCase()
@@ -1015,6 +1020,9 @@ function cadastrarLocal(email: string, dados: Linha): { erro?: string } {
       entrada_por_dominio: false, dono_id: null,
       multi: false, rotulo: 'Empresa', rotulo_plural: 'Empresas',
       ia_ativa: true, ia_modo: 'sugerir', criado_em: agora(),
+      // Catorze dias, como o gatilho `comecar_teste` faz no banco.
+      plano: 'teste', assentos: null, teste_ate: emDias(14),
+      limite_leituras: null, modelo_ia: null,
     })
     papel = 'admin'
     ativo = true
@@ -1086,6 +1094,8 @@ function abrirEspacoLocal(nome: string, tipo: string): string {
     id: orgId, nome: nome.trim(), tipo, dominio: null, entrada_por_dominio: false,
     dono_id: null, multi: false, rotulo: 'Empresa', rotulo_plural: 'Empresas',
     ia_ativa: true, ia_modo: 'sugerir', criado_em: agora(),
+    plano: 'teste', assentos: null, teste_ate: emDias(14),
+    limite_leituras: null, modelo_ia: null,
   })
   const pid = uid('u')
   b.perfis.push({

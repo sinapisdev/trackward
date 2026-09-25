@@ -22,6 +22,7 @@ import { preencher } from '@/lib/conectores'
 import { comoBloco, parecidas, parecidasCom, resumo, tituloDe } from '@/lib/notas'
 import { novoId } from '@/lib/id'
 import { recursos, type Recursos } from '@/lib/espaco'
+import { diasDeTeste, planoDe, tetoDeLeituras, type Plano } from '@/lib/planos'
 import { arquivada } from '@/lib/desfecho'
 import {
   daDecisao, jaFoiRecusada, paraOModelo, quemCostuma, termosDaConversa, ultimoAprendizado,
@@ -83,6 +84,20 @@ type Contexto = {
   pessoal: boolean
   /** O que este espaço sabe fazer. Ver `lib/espaco.ts`. */
   pode: Recursos
+  /**
+   * O que o plano contratado libera.
+   *
+   * Separado de `pode` de propósito: `pode` responde "este tipo de espaço tem
+   * isto?", e a resposta nunca muda; aqui é "o que foi contratado inclui
+   * isto?", e muda quando alguém paga. Ver lib/planos.ts.
+   */
+  plano: Plano
+  /** Quantos dias de teste sobraram. Zero é acabado, e só vale no plano teste. */
+  diasDeTeste: number
+  /** Pessoas ativas neste espaço, que é o que o Enterprise cobra. */
+  ativos: number
+  /** Teto de leituras do mês já multiplicado pelos assentos. Nulo é sem teto. */
+  tetoLeituras: number | null
   /** Os espaços a que o meu login pertence, para o seletor no alto da lateral. */
   espacos: Espaco[]
   trocarEspaco: (perfilId: string) => Promise<void>
@@ -365,7 +380,7 @@ const ORG_PADRAO: Organizacao = {
   id: '', nome: 'Track', tipo: 'equipe', dominio: null, entrada_por_dominio: false,
   dono_id: null, multi: false, rotulo: 'Empresa', rotulo_plural: 'Empresas',
   ia_ativa: true, ia_modo: 'sugerir', criado_em: '',
-  plano: 'padrao', limite_leituras: null, modelo_ia: null,
+  plano: 'interno', assentos: null, teste_ate: null, limite_leituras: null, modelo_ia: null,
   whats_conector: null, whats_sid: '', whats_de: '',
 }
 const CHAVE_EMPRESA = 'track.empresa'
@@ -2923,8 +2938,21 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    */
   const pode = useMemo(() => recursos(org), [org])
 
+  /**
+   * O plano em vigor, e o tamanho da conta.
+   *
+   * O fim do teste é resolvido aqui comparando data, e não por um serviço que
+   * vira o plano à meia-noite: enquanto o serviço não roda, o cliente usa de
+   * graça, e é mais uma peça para dar errado.
+   */
+  const ativos = useMemo(() => perfis.filter((p) => p.ativo && p.org_id === org.id).length,
+    [perfis, org.id])
+  const plano = useMemo(() => planoDe(org), [org])
+  const tetoLeituras = useMemo(() => tetoDeLeituras(org, ativos), [org, ativos])
+
   const valor: Contexto = {
-    eu, perfis, areas, empresas, org, pessoal: org.tipo === 'pessoal', pode, fluxos, todosFluxos, totalItens, agenda, minhaAgendaExterna, processos, convites,
+    eu, perfis, areas, empresas, org, pessoal: org.tipo === 'pessoal', pode,
+    plano, diasDeTeste: diasDeTeste(org), ativos, tetoLeituras, fluxos, todosFluxos, totalItens, agenda, minhaAgendaExterna, processos, convites,
     empresaAtiva, focarEmpresa, empresaDe, carregando,
     perfilDe, nomeDe, areaDe, aviso, toast,
     salvarArea, excluirArea, salvarFluxo, excluirFluxo, arquivarFluxo, reabrirFluxo, arquivadas,

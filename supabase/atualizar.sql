@@ -1882,9 +1882,262 @@ update public.perfis
    and not ('inicio' = any(tutoriais));
 
 -- ==========================================================================
--- Conferência. As vinte e quatro contas abaixo têm que dar
+-- 30. Os planos, e o que eles recusam
+--
+--     A cobrança acontece FORA do app, por contrato, e quem liga o plano é a
+--     operação do TrackWard pelo SQL Editor, nunca o administrador do cliente:
+--     se o admin dele pudesse escolher, escolheria o maior. Por isso não existe
+--     política de update de plano para ninguém, e existe `supabase/planos.sql`.
+--
+--     São quatro recusas, e todas no banco pelo motivo de sempre: a tela
+--     esconde o botão, e quem manda um insert pela API entra assim mesmo.
+--
+--     1. Assento. O Enterprise é por pessoa ativa, então convidar e reativar
+--        param quando o número bate no contratado.
+--     2. Criar. O modo reduzido (teste vencido) deixa LER tudo e terminar o que
+--        já estava em pé, e não deixa começar nada. Trancar ou apagar os dados
+--        de quem estava avaliando é sequestro, e quem passa por isso não volta;
+--        sem poder criar, o app deixa de servir para trabalhar em duas horas,
+--        que é o aperto que a decisão precisa.
+--     3. O teto de leituras passa a contar por assento no Enterprise, porque o
+--        custo de IA anda com o tamanho da equipe.
+--     4. O desconto do pessoal cai quando a pessoa sai da empresa, e o app
+--        precisa DIZER isso: a cobrança é na mão, e ninguém vai olhar.
+--
+--     O teste vence por data comparada na hora, e não por um serviço que vira
+--     o plano à meia-noite: enquanto o serviço não roda, o cliente usa de graça,
+--     e é mais uma peça para dar errado.
+-- ==========================================================================
+
+alter table public.organizacoes add column if not exists assentos int;
+alter table public.organizacoes add column if not exists teste_ate timestamptz;
+-- Quem paga, e desde quando. Só para a operação saber a quem cobrar; o app não
+-- lê estes dois, e é de propósito: preço não aparece em tela nenhuma enquanto a
+-- cobrança for por contrato, senão um dia o número da tela e o do contrato
+-- discordam e quem está errado é sempre o que o cliente viu.
+alter table public.organizacoes add column if not exists paga_desde date;
+alter table public.organizacoes add column if not exists obs_plano text;
+
+do $$
+begin
+  -- Conta que já existe entrou antes de haver plano: ela vira interna, e a
+  -- operação reclassifica uma a uma. Deixar tudo em 'teste' derrubaria clientes
+  -- de verdade para o modo reduzido no dia seguinte.
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'organizacoes' and column_name = 'teste_ate'
+      and column_default is not null
+  ) then
+    update organizacoes set plano = 'interno' where plano in ('padrao', 'piloto');
+  end if;
+end $$;
+
+-- Quem se cadastra a partir de agora começa em teste, com catorze dias.
+alter table public.organizacoes alter column plano set default 'teste';
+
+/** O plano em vigor, já contando o fim do teste. Espelha planoDe() em lib/planos.ts. */
+create or replace function public.plano_em_vigor(o uuid)
+returns text language sql stable security definer set search_path = public as $$
+  select case
+    when x.plano <> 'teste' then x.plano
+    when x.teste_ate is null or x.teste_ate < now() then 'reduzido'
+    else 'teste'
+  end
+  from organizacoes x where x.id = o;
+$$;
+
+/** Pode criar coisa nova aqui? Falso só no modo reduzido. */
+create or replace function public.pode_criar()
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce(plano_em_vigor(minha_org()) <> 'reduzido', false);
+$$;
+
+/** Quantas pessoas ativas há neste espaço. */
+create or replace function public.assentos_usados(o uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select coalesce(count(*), 0)::int from perfis where org_id = o and ativo;
+$$;
+
+/**
+ * O assento acabou.
+ *
+ * Vale para o convite e para a reativação de alguém desligado, que são as duas
+ * portas de entrada. O convite conta como assento desde que é criado, e não só
+ * quando é aceito: senão dá para mandar vinte convites num plano de cinco e a
+ * conta estoura quando todos entrarem, com a culpa caindo em quem aceitou.
+ */
+create or replace function public.cabe_mais_um(o uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select case
+    when (select assentos from organizacoes where id = o) is null then true
+    else assentos_usados(o)
+       + (select count(*) from convites c
+           where c.org_id = o and c.usado_em is null
+             and (c.vence_em is null or c.vence_em > now()))
+       < (select assentos from organizacoes where id = o)
+  end;
+$$;
+
+create or replace function public.travar_assento()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if not cabe_mais_um(new.org_id) then
+    raise exception 'Os assentos do plano acabaram. Fale com o TrackWard para aumentar.';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists convite_cabe on public.convites;
+create trigger convite_cabe before insert on public.convites
+  for each row execute function public.travar_assento();
+
+create or replace function public.reativar_cabe()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  -- Só na volta de alguém desligado. Quem já está ativo continua ativo, e o
+  -- perfil que nasce junto com a organização não pode esbarrar em si mesmo.
+  if new.ativo and not coalesce(old.ativo, false) and not cabe_mais_um(new.org_id) then
+    raise exception 'Os assentos do plano acabaram. Fale com o TrackWard para aumentar.';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists perfil_cabe on public.perfis;
+create trigger perfil_cabe before update on public.perfis
+  for each row execute function public.reativar_cabe();
+
+/**
+ * O modo reduzido recusa criar.
+ *
+ * O laço cobre as tabelas onde nasce trabalho. Ler, editar o que já existe e
+ * concluir continuam abertos: o que se tira é o começar, e não o acabar. Quem
+ * está no meio de uma track precisa poder terminá-la.
+ */
+do $$
+declare t text; n int := 0;
+begin
+  execute $f$
+    create or replace function public.travar_criacao()
+    returns trigger language plpgsql security definer set search_path = public as $x$
+    begin
+      if not pode_criar() then
+        raise exception 'O teste acabou. Dá para ler e terminar o que já começou; para criar coisa nova, contrate um plano.';
+      end if;
+      return new;
+    end $x$;
+  $f$;
+  for t in select unnest(array[
+    'fluxos','itens','notas','canais','compromissos','processos','agentes','conectores','areas'
+  ]) loop
+    continue when to_regclass('public.' || t) is null;
+    execute format('drop trigger if exists so_com_plano on public.%I', t);
+    execute format('create trigger so_com_plano before insert on public.%I
+                      for each row execute function public.travar_criacao()', t);
+    n := n + 1;
+  end loop;
+  raise notice 'Trava de criação em % tabelas.', n;
+end $$;
+
+-- O teto de leituras passa a contar por assento no Enterprise.
+create or replace function public.pode_chamar_modelo()
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((
+    select o.ia_ativa
+       and plano_em_vigor(o.id) <> 'reduzido'
+       and (o.limite_leituras is null
+            or leituras_do_mes() < o.limite_leituras
+              * case when plano_em_vigor(o.id) = 'equipe' then greatest(1, assentos_usados(o.id)) else 1 end)
+      from organizacoes o where o.id = minha_org()
+  ), false);
+$$;
+
+/**
+ * Este login tem desconto no espaço pessoal?
+ *
+ * Tem quem está ATIVO numa empresa que paga. É desconto de quem já é cliente
+ * por outro lado, então some no dia em que a pessoa sai da empresa, e o app
+ * precisa dizer isso em vez de deixar a operação descobrir três meses depois:
+ * a cobrança é feita na mão.
+ *
+ * `definer` porque a pergunta atravessa espaços, e as políticas de `perfis`
+ * mostram só os seus. A resposta é um sim ou não sobre você mesmo, então não
+ * vaza nada de ninguém.
+ */
+create or replace function public.desconto_do_pessoal()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from perfis p join organizacoes o on o.id = p.org_id
+    where p.user_id = auth.uid() and p.ativo
+      and o.tipo = 'equipe'
+      and plano_em_vigor(o.id) in ('equipe', 'interno')
+  );
+$$;
+
+/**
+ * Perdeu o desconto: saiu da última empresa que pagava.
+ *
+ * O aviso vai para a pessoa, no espaço pessoal dela, e a chave carrega o mês
+ * para ele não voltar todo dia. Quem cobra é gente, e gente precisa ser
+ * avisada, porque plano que continua barato depois que o motivo acabou é
+ * receita que some sem ninguém notar.
+ */
+create or replace function public.aviso_desconto()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_pessoal uuid; v_perfil uuid;
+begin
+  if coalesce(old.ativo, false) and not new.ativo then
+    if exists (
+      select 1 from perfis p join organizacoes o on o.id = p.org_id
+      where p.user_id = new.user_id and p.ativo and p.id <> new.id
+        and o.tipo = 'equipe' and plano_em_vigor(o.id) in ('equipe', 'interno')
+    ) then
+      return new;
+    end if;
+    select p.id, p.org_id into v_perfil, v_pessoal
+    from perfis p join organizacoes o on o.id = p.org_id
+    where p.user_id = new.user_id and p.ativo and o.tipo = 'pessoal'
+    limit 1;
+    if v_perfil is not null then
+      perform avisar(
+        v_perfil, 'prazo', 'O desconto do seu espaço pessoal acabou',
+        'Ele valia enquanto você estava numa empresa que usa o TrackWard. O espaço continua '
+        || 'seu, com tudo dentro, e passa a custar o valor normal.',
+        'desconto:' || v_perfil::text || ':' || to_char(now(), 'YYYY-MM'),
+        false, null, null, null, null, null);
+    end if;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists ao_perder_desconto on public.perfis;
+create trigger ao_perder_desconto after update on public.perfis
+  for each row execute function public.aviso_desconto();
+
+/**
+ * Todo espaço novo nasce com catorze dias.
+ *
+ * Num gatilho, e não dentro de `novo_usuario`, porque há duas portas: o
+ * cadastro e o `abrir_espaco` de quem já está dentro e abre mais um. Escrito
+ * nas duas, um dia alguém mexe numa e esquece a outra, e aquele caminho passa a
+ * dar teste eterno.
+ */
+create or replace function public.comecar_teste()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if new.plano = 'teste' and new.teste_ate is null then
+    new.teste_ate := now() + interval '14 days';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists ao_nascer_org on public.organizacoes;
+create trigger ao_nascer_org before insert on public.organizacoes
+  for each row execute function public.comecar_teste();
+
+-- ==========================================================================
+-- Conferência. As vinte e cinco contas abaixo têm que dar
 -- 31, 3, 3, 3, true, 1, 2, 1, 2, 0, true, 3, true, 4, true, true, 1, true, 1,
--- 1, true, 3, 1 e 1.
+-- 1, true, 3, 1, 1 e 4.
 -- ==========================================================================
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
@@ -1967,4 +2220,7 @@ select
     as "tutorial da primeira vez (1)",
   (select count(*) from information_schema.columns
     where table_schema = 'public' and table_name = 'perfis' and column_name = 'tutoriais')
-    as "um tutorial por tela (1)";
+    as "um tutorial por tela (1)",
+  (select count(*) from pg_trigger
+    where tgname in ('convite_cabe','perfil_cabe','ao_nascer_org','ao_perder_desconto'))
+    as "as travas do plano (4)";

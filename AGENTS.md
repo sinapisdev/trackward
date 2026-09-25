@@ -244,6 +244,52 @@ relatórios, porque colaborador pagando do próprio bolso dentro da ferramenta q
 comprou compara o preço com o bloco de notas do telefone, que é de graça. Enquanto não
 estiver decidido, não escrever limite nenhum espalhado pelas telas.
 
+## Os planos, e quem pode ligá-los
+
+São dois produtos, **Enterprise** (por pessoa ativa) e **Pessoal**, mais três estados:
+**teste** (catorze dias com tudo), **reduzido** (o que sobra quando o teste vence) e
+**interno** (a casa e a demonstração, sem teto e sem prazo). O catálogo mora em
+`lib/planos.ts`, e as recusas, na seção 30 do schema.
+
+**Isto não é a mesma pergunta que `recursos()` responde.** Lá é "este tipo de espaço tem
+isto?", e a resposta nunca muda: num espaço de uma pessoa não existe aprovador, e não
+existe por preço nenhum. Aqui é "o que foi contratado inclui isto?", e muda quando alguém
+paga. Por isso são dois objetos no contexto, `pode` e `plano`, e não um só: misturados, a
+tela perguntaria "posso delegar?" sem saber se pergunta sobre o produto ou sobre a fatura.
+
+**A cobrança é por contrato, fora do app, e quem liga o plano é a operação pelo SQL Editor**
+(`supabase/planos.sql`), nunca o administrador do cliente: plano que o cliente escolhe é
+sempre o maior. Não existe tela de trocar de plano, e não voltar a criar uma. Pelo mesmo
+motivo **preço não aparece em tela nenhuma**: um dia o número da tela e o do contrato
+discordam, e quem está errado é sempre o que o cliente viu.
+
+**O modo reduzido deixa LER tudo e TERMINAR o que já estava em pé, e não deixa começar
+nada.** Apagar ou trancar os dados de quem estava avaliando é sequestro, e quem passa por
+isso não volta; sem poder criar, o app deixa de servir para trabalhar em duas horas, que é
+o aperto que a decisão precisa. A trava é um gatilho de insert nas tabelas onde nasce
+trabalho, e a tela tem a dela em `Modais.abrir`, que é o caminho de quase todo formulário:
+espalhar a checagem pelos vinte botões seria esquecer três, e o esquecido é o que o cliente
+acha.
+
+**O teto de leituras é degrau, não porta.** Estourado, a leitura cai nas regras embutidas e
+o app segue inteiro (`pode_chamar_modelo`). É isso que deixa o limite separar planos sem
+quebrar ninguém. No Enterprise ele conta **por assento ativo**, porque o custo de IA anda
+com o tamanho da equipe, e a conta é a mesma nos dois lados: se a tela multiplicasse e o
+banco não, a tela diria um número e a leitura pararia noutro.
+
+**Convite aberto já ocupa assento.** Senão dá para mandar vinte num plano de cinco, e o
+estouro cai em quem aceitou, que não fez nada de errado.
+
+**O desconto do pessoal cai sozinho, e o app avisa.** Quem está ativo numa empresa cliente
+paga menos pelo espaço pessoal (`desconto_do_pessoal()`); no dia em que sai, a pessoa
+recebe um aviso e a consulta 4 de `planos.sql` lista quem passou a pagar cheio. A cobrança
+é na mão, e plano que continua barato depois que o motivo acabou é receita que some sem
+ninguém notar.
+
+**O teste vence por data comparada na hora**, e não por um serviço que vira o plano à
+meia-noite: enquanto o serviço não roda, o cliente usa de graça, e é mais uma peça para dar
+errado. Vale nos dois lados, `planoDe()` e `plano_em_vigor()`.
+
 ## Regras visuais
 
 **A fonte da verdade é `design-system/DESIGN.md`** para os tokens, e **as telas de

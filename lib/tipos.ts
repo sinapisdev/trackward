@@ -168,13 +168,26 @@ export type Organizacao = {
    *          sozinho, porque prazo é compromisso com quem espera.
    */
   ia_modo: 'sugerir' | 'aplicar'
+
   /**
-   * O plano desta empresa. Os limites moram nas colunas abaixo, e não numa
-   * tabela de planos, porque os planos ainda não estão definidos: assim dá para
-   * começar a cobrar mexendo em números, sem mexer em código.
+   * O plano contratado. O que cada um libera está em `lib/planos.ts`; os
+   * limites desta conta moram nas colunas aqui embaixo, e não numa tabela de
+   * planos, para mexer em número não virar mexer em código.
+   *
+   * Quem grava é a operação do TrackWard, pelo SQL Editor (`supabase/planos.sql`),
+   * e nunca o administrador do cliente: plano que o cliente escolhe é o maior.
    */
   plano: string
-  /** Leituras com modelo por mês. Nulo é sem teto. */
+  /** Quantas pessoas ativas cabem. Nulo é sem limite. */
+  assentos: number | null
+  /** Quando o teste acaba. Vencido, o espaço cai no modo reduzido. */
+  teste_ate: string | null
+  /**
+   * Leituras com modelo por mês. Nulo é sem teto.
+   *
+   * No Enterprise este número é POR ASSENTO ATIVO: o custo de IA anda com o
+   * tamanho da equipe, e um teto fixo puniria quem cresce.
+   */
   limite_leituras: number | null
   /** Qual modelo esta empresa usa. Vazio é o padrão do servidor. */
   modelo_ia: string | null

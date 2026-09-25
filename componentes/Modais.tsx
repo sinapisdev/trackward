@@ -52,7 +52,31 @@ export function useModais() {
 
 export function Modais({ children }: { children: ReactNode }) {
   const [pedido, setPedido] = useState<Pedido | null>(null)
-  const abrir = useCallback((p: Pedido) => setPedido(p), [])
+  const { plano, toast } = useDados()
+
+  /**
+   * Abrir um formulário, se o plano deixar criar.
+   *
+   * A trava fica aqui porque este é o único caminho para quase todo formulário
+   * do app: track, tarefa, canal, compromisso, área, agente e conector passam
+   * todos por `abrir`. Espalhar a checagem pelos vinte botões que chamam isto
+   * seria esquecer três deles, e o esquecido é sempre o que o cliente acha.
+   *
+   * Editar o que já existe continua liberado no modo reduzido: o que se tira é
+   * o começar, não o acabar. Quem está no meio de uma track precisa terminá-la.
+   */
+  const abrir = useCallback((p: Pedido) => {
+    const editando = 'area' in p ? !!p.area : 'fluxo' in p ? !!p.fluxo
+      : 'item' in p ? !!p.item : 'canal' in p ? !!p.canal
+        : 'compromisso' in p ? !!p.compromisso : 'agente' in p ? !!p.agente : false
+    const decide = p.tipo === 'travar' || p.tipo === 'arquivar' || p.tipo === 'feedback'
+    if (!plano.cria && !editando && !decide) {
+      toast('O teste acabou. Dá para ler e terminar o que já começou; para criar coisa nova, '
+        + 'contrate um plano.', true)
+      return
+    }
+    setPedido(p)
+  }, [plano.cria, toast])
   const fechar = useCallback(() => setPedido(null), [])
 
   useEffect(() => {

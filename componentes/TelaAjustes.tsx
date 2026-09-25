@@ -17,7 +17,8 @@ import { esquecerTutoriais } from './Tutorial'
 
 export function TelaAjustes() {
   const { eu, org, empresas, todosFluxos, carregando, salvarOrg, salvarPerfil, excluirEmpresa,
-    minhaAgendaExterna, agenda, ligarAgendaExterna, desligarAgendaExterna, pode } = useDados()
+    minhaAgendaExterna, agenda, ligarAgendaExterna, desligarAgendaExterna, pode,
+    plano, diasDeTeste, ativos, tetoLeituras } = useDados()
   const { abrir } = useModais()
   const [tema, setTema] = useState<Tema>('escuro')
   // As voltas guiadas deste espaço, e quais desta pessoa já rodaram.
@@ -58,6 +59,7 @@ export function TelaAjustes() {
           <a href="#aj-agenda">Minha agenda externa</a>
           <a href="#aj-tema">Aparência</a>
           <a href="#aj-tutorial">Como o app funciona</a>
+          <a href="#aj-plano">Seu plano</a>
         </nav>
 
         <div className="aj-corpo">
@@ -331,6 +333,55 @@ export function TelaAjustes() {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+
+        {/* O que a conta tem contratado.
+            Só mostra, nunca deixa trocar: quem liga plano é a operação do
+            TrackWard pelo banco, e plano que o próprio cliente escolhe é
+            sempre o maior. E preço não aparece aqui: enquanto a cobrança for
+            por contrato, o número da tela e o do contrato um dia discordam, e
+            quem está errado é sempre o que o cliente viu. */}
+        <div className="blk" id="aj-plano">
+          <div className="bh">
+            <h2>Seu plano</h2>
+            <span className="c">o que esta conta tem contratado</span>
+          </div>
+          <div className="card" style={{ padding: 15 }}>
+            <div className="pl-linhas">
+              <div>
+                <span className="lbl">Plano</span>
+                <b>{plano.nome}</b>
+                <small>{plano.resumo}</small>
+              </div>
+              {plano.id === 'teste' && (
+                <div>
+                  <span className="lbl">Teste</span>
+                  <b>{diasDeTeste <= 0 ? 'Último dia' : `${diasDeTeste} dias`}</b>
+                  <small>depois disso, só leitura do que já existe</small>
+                </div>
+              )}
+              {pode.equipe && (
+                <div>
+                  <span className="lbl">Pessoas ativas</span>
+                  <b>{ativos}{org.assentos ? ` de ${org.assentos}` : ''}</b>
+                  <small>{org.assentos
+                    ? 'convites abertos também ocupam assento'
+                    : 'sem limite de assentos'}</small>
+                </div>
+              )}
+              <div>
+                <span className="lbl">Leituras neste mês</span>
+                <b>{tetoLeituras === null ? 'Sem teto' : `Até ${tetoLeituras}`}</b>
+                <small>{tetoLeituras === null
+                  ? 'a leitura nunca para'
+                  : 'estourando, a leitura cai nas regras embutidas e o app segue inteiro'}</small>
+              </div>
+            </div>
+            <p className="hint" style={{ margin: '12px 0 0' }}>
+              Para mudar de plano, aumentar assentos ou subir o teto de leituras, fale com o
+              TrackWard. Nada aqui é alterado de dentro do app, de propósito.
+            </p>
           </div>
         </div>
 

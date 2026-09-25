@@ -7,6 +7,7 @@ import { TabBar } from './TabBar'
 import { Ic } from './Icones'
 import { PedeNome } from './PedeNome'
 import { Tutorial } from './Tutorial'
+import { FaixaDoPlano } from './Plano'
 
 /**
  * Quanto as barras do app ocupam, medido de verdade.
@@ -55,6 +56,8 @@ export function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="shell">
       <Barra />
+      {/* Só aparece quando o teste está acabando ou já acabou. Ver Plano.tsx. */}
+      <FaixaDoPlano />
       <main className="main">
         <div className="conteudo">{children}</div>
       </main>

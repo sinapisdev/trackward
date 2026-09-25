@@ -14,7 +14,7 @@ const CORES = ['#C2703C', '#7D8471', '#A8763E', '#6E7B8B', '#96705B', '#5F7A6A',
 
 export function Equipe() {
   const { eu, perfis, areas, areaDe, nomeDe, convites, carregando, salvarPerfil,
-    criarConvite, excluirConvite, pessoal, salvarOrg } = useDados()
+    criarConvite, excluirConvite, pessoal, salvarOrg, org, ativos: assentosUsados } = useDados()
   const { abrir } = useModais()
   const [nome, setNome] = useState(eu.nome)
   const [cEmail, setCEmail] = useState('')
@@ -38,6 +38,10 @@ export function Equipe() {
     .filter((p) => !filtroPapel || p.papel === filtroPapel)
   /** O convite mais novo é o que a lateral mostra pronto para copiar. */
   const ultimo = convites[convites.length - 1] || null
+
+  // Assentos livres: pessoas ativas mais convites em aberto, que já ocupam.
+  const abertos = convites.filter((c) => !c.usado_em).length
+  const livres = org.assentos ? org.assentos - assentosUsados - abertos : 0
 
   const criarNovo = async () => {
     const c = await criarConvite({
@@ -201,6 +205,17 @@ export function Equipe() {
           {admin && (
             <>
               <h2>Convidar alguém</h2>
+              {/* O assento é o que o Enterprise cobra, então quem convida
+                  precisa ver a conta antes de gastar o último. Convite aberto
+                  já ocupa: senão dá para mandar vinte num plano de cinco e o
+                  estouro cai em quem aceitou. */}
+              {!!org.assentos && (
+                <p className={`eq-assentos ${livres <= 0 ? 'cheio' : ''}`}>
+                  {livres > 0
+                    ? <>{livres} {livres === 1 ? 'assento livre' : 'assentos livres'} de {org.assentos}.</>
+                    : <><b>Os assentos acabaram.</b> Para convidar mais alguém, fale com o TrackWard.</>}
+                </p>
+              )}
               <div className="fld">
                 <label htmlFor="c-nome">Nome da pessoa</label>
                 <input className="inp" id="c-nome" value={cNome} placeholder="Ex.: Carlos"
