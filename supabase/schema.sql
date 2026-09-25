@@ -4313,3 +4313,146 @@ begin
   end if;
   return new;
 end $$;
+
+-- --------------------------------------------------------------------------
+-- 27. Mais três avisos, e nenhum deles é barulho
+--
+--     A caixa avisava de tarefa, aprovação, prazo, trava e menção: tudo que
+--     acontece DENTRO de uma track. O que acontecia ao lado dela não chegava a
+--     ninguém, e o caso que mostrou isso foi a nota compartilhada: a pessoa
+--     liberava a leitura e a outra só descobria se abrisse o caderno e
+--     reparasse numa linha nova no meio das dela.
+--
+--     Os três que entram têm a mesma forma: alguém fez uma coisa que só faz
+--     sentido se a outra pessoa ficar sabendo.
+--
+--     - `nota`     compartilharam uma nota com você
+--     - `feedback` responderam o link que você mandou
+--     - `mensagem` falaram com você numa conversa direta
+--
+--     **Nenhum é urgente**, e isso não é descuido: urgente é o que já venceu, o
+--     que trava outra pessoa e o que só você destrava. Nota compartilhada não
+--     é nada disso, e tocar o celular de alguém por causa dela é o começo do
+--     caminho em que a pessoa desliga tudo.
+--
+--     O da conversa direta é **um por conversa por dia**, e é a chave que faz
+--     isso: `direto:<canal>:<dia>`. Um aviso por mensagem transformaria o sino
+--     num segundo chat, e quem manda três frases seguidas geraria três avisos
+--     para dizer uma coisa. Canal de equipe continua de fora: lá o que chama
+--     alguém é a menção, que já avisa.
+--
+--     O aviso de nota não dispara quando é você que se põe na lista, que é o
+--     que acontece ao abrir um cartão no canal (seção 25): ninguém precisa ser
+--     avisado do que acabou de fazer.
+-- --------------------------------------------------------------------------
+
+-- Para onde o aviso leva, quando o destino é uma nota.
+alter table public.avisos add column if not exists nota_id uuid references public.notas on delete cascade;
+
+do $$
+begin
+  alter table public.avisos drop constraint if exists avisos_tipo_check;
+  alter table public.avisos add constraint avisos_tipo_check check (tipo in (
+    'tarefa','aprovacao','prazo','travou','destravou','citacao','pedido_prazo',
+    'nota','feedback','mensagem'));
+end $$;
+
+-- `avisar()` ganha o destino de nota. Assinatura nova, então a antiga sai.
+drop function if exists public.avisar(uuid, text, text, text, text, boolean, uuid, uuid, uuid, uuid);
+
+create or replace function public.avisar(
+  p_perfil uuid, p_tipo text, p_titulo text, p_corpo text, p_chave text,
+  p_urgente boolean default false,
+  p_fluxo uuid default null, p_item uuid default null,
+  p_etapa uuid default null, p_canal uuid default null,
+  p_nota uuid default null
+) returns boolean language plpgsql security definer set search_path = public as $$
+declare v_org uuid; v_id uuid;
+begin
+  if p_perfil is null or coalesce(btrim(p_chave), '') = '' then return false; end if;
+  -- Quem está desativado não recebe: acesso suspenso é acesso suspenso.
+  select org_id into v_org from perfis where id = p_perfil and ativo;
+  if v_org is null then return false; end if;
+
+  insert into avisos (org_id, perfil_id, tipo, titulo, corpo, chave, urgente,
+                      fluxo_id, item_id, etapa_id, canal_id, nota_id)
+  values (v_org, p_perfil, p_tipo, p_titulo, coalesce(p_corpo, ''), p_chave,
+          coalesce(p_urgente, false), p_fluxo, p_item, p_etapa, p_canal, p_nota)
+  on conflict (perfil_id, chave) do nothing
+  returning id into v_id;
+  return v_id is not null;
+end $$;
+
+-- Compartilharam uma nota com você.
+create or replace function public.aviso_nota()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_titulo text; v_dono uuid; v_quem text;
+begin
+  -- Quem se põe na lista sozinho está abrindo um cartão de canal. Não se avisa
+  -- ninguém do que ela mesma acabou de fazer.
+  if new.perfil_id = meu_perfil() then return new; end if;
+
+  select titulo, dono_id into v_titulo, v_dono from notas where id = new.nota_id;
+  select nome into v_quem from perfis where id = v_dono;
+
+  perform avisar(
+    new.perfil_id, 'nota', 'Compartilharam uma nota com você',
+    coalesce(v_titulo, 'Nota') || coalesce(' · ' || v_quem, ''),
+    'nota:' || new.nota_id::text || ':' || new.perfil_id::text,
+    false, null, null, null, null, new.nota_id);
+  return new;
+end $$;
+
+drop trigger if exists ao_compartilhar_nota on public.nota_pessoas;
+create trigger ao_compartilhar_nota
+  after insert on public.nota_pessoas
+  for each row execute function public.aviso_nota();
+
+-- Responderam o link de feedback que você mandou.
+create or replace function public.aviso_feedback()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_fluxo text;
+begin
+  if new.respondido_em is null or old.respondido_em is not null then return new; end if;
+  select nome into v_fluxo from fluxos where id = new.fluxo_id;
+  perform avisar(
+    new.pediu_id, 'feedback', 'Responderam o seu pedido de feedback',
+    coalesce(nullif(btrim(new.para), ''), 'Quem recebeu') || ' deu '
+      || coalesce(new.nota::text, '?') || ' de 5' || coalesce(' · ' || v_fluxo, ''),
+    'feedback:' || new.id::text,
+    false, new.fluxo_id, null, null, null, null);
+  return new;
+end $$;
+
+drop trigger if exists ao_responder_feedback on public.feedbacks;
+create trigger ao_responder_feedback
+  after update on public.feedbacks
+  for each row execute function public.aviso_feedback();
+
+-- Falaram com você numa conversa direta. Um por conversa por dia.
+create or replace function public.aviso_direto()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_tipo text; v_quem text; p record;
+begin
+  if new.canal_id is null or new.sistema then return new; end if;
+  select tipo into v_tipo from canais where id = new.canal_id;
+  if v_tipo <> 'direto' then return new; end if;
+
+  select nome into v_quem from perfis where id = new.autor_id;
+  for p in
+    select perfil_id from canal_membros
+    where canal_id = new.canal_id and perfil_id <> new.autor_id
+  loop
+    perform avisar(
+      p.perfil_id, 'mensagem', coalesce(v_quem, 'Alguém') || ' falou com você',
+      left(new.texto, 120),
+      'direto:' || new.canal_id::text || ':' || to_char(now(), 'YYYY-MM-DD'),
+      false, null, null, null, new.canal_id, null);
+  end loop;
+  return new;
+end $$;
+
+drop trigger if exists ao_falar_direto on public.mensagens;
+create trigger ao_falar_direto
+  after insert on public.mensagens
+  for each row execute function public.aviso_direto();

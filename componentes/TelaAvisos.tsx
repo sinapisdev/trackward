@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useDados } from './Dados'
 import { Carregando } from './Shell'
 import { Ic } from './Icones'
@@ -22,24 +22,46 @@ import type { TipoAviso } from '@/lib/tipos'
 export function TelaAvisos() {
   const { avisos, naoVistos, lerAvisos, apagarAviso, carregando } = useDados()
   const [filtro, setFiltro] = useState<'tudo' | 'novos' | TipoAviso>('tudo')
+  /**
+   * Quem estava por ler quando a tela abriu.
+   *
+   * Abrir a caixa marca tudo como lido, igual ao sino: o contador conta o que
+   * você ainda não viu, e depois de abrir você viu. Mas o destaque das linhas
+   * não pode sumir debaixo do olho de quem está lendo, senão a tela fica sem
+   * dizer o que chegou. Por isso quem pinta é esta lista, e não o `lido_em`.
+   */
+  const [novos, setNovos] = useState<string[] | null>(null)
+
+  useEffect(() => {
+    if (carregando || novos !== null) return
+    const porLer = avisos.filter((a) => !a.lido_em).map((a) => a.id)
+    setNovos(porLer)
+    if (porLer.length) void lerAvisos()
+  }, [carregando, novos, avisos, lerAvisos])
 
   if (carregando) return <Carregando />
 
+  const novo = (id: string) => !!novos?.includes(id)
+  const quantosNovos = novos?.length ?? naoVistos
+
   const lista = avisos.filter((a) =>
-    filtro === 'tudo' ? true : filtro === 'novos' ? !a.lido_em : a.tipo === filtro)
+    filtro === 'tudo' ? true : filtro === 'novos' ? novo(a.id) : a.tipo === filtro)
 
   const conta = (k: 'tudo' | 'novos' | TipoAviso) =>
     k === 'tudo' ? avisos.length
-      : k === 'novos' ? naoVistos
+      : k === 'novos' ? quantosNovos
         : avisos.filter((a) => a.tipo === k).length
 
   const abas: { id: 'tudo' | 'novos' | TipoAviso; nome: string }[] = [
     { id: 'tudo', nome: 'Tudo' },
-    { id: 'novos', nome: 'Sem ler' },
+    { id: 'novos', nome: 'Desta vez' },
     { id: 'prazo', nome: 'Prazo' },
     { id: 'aprovacao', nome: 'Aprovação' },
     { id: 'tarefa', nome: 'Tarefa' },
     { id: 'citacao', nome: 'Conversa' },
+    { id: 'nota', nome: 'Nota' },
+    { id: 'mensagem', nome: 'Conversa direta' },
+    { id: 'feedback', nome: 'Feedback' },
   ]
 
   const nomeDoDia = (dia: string) =>
@@ -53,16 +75,13 @@ export function TelaAvisos() {
           <h1>Avisos</h1>
           <p className="lede">
             {avisos.length
-              ? <>{naoVistos ? <><b>{naoVistos} sem ler</b> de </> : null}{avisos.length}{' '}
+              ? <>{quantosNovos ? <><b>{quantosNovos} desde a última vez</b> de </> : null}{avisos.length}{' '}
                   {avisos.length === 1 ? 'aviso' : 'avisos'}.</>
               : 'Nada ainda. Os avisos aparecem aqui quando algo passa a depender de você.'}
           </p>
         </div>
         <div className="hdr-actions">
           <Link className="btn" href="/ajustes#aj-avisos"><Ic.ajustes />Como quero ser avisado</Link>
-          {!!naoVistos && (
-            <button className="btn" onClick={() => void lerAvisos()}><Ic.check />Marcar tudo como lido</button>
-          )}
         </div>
       </div>
 
@@ -83,7 +102,7 @@ export function TelaAvisos() {
           <div className="sec-h"><h2>{nomeDoDia(dia)}</h2></div>
           <div className="lista-fina">
             {itens.map((a) => (
-              <div className={`av-linha ${a.lido_em ? '' : 'novo'}`} key={a.id}>
+              <div className={`av-linha ${novo(a.id) ? 'novo' : ''}`} key={a.id}>
                 <span className={`av-pt ${a.urgente ? 'urgente' : ''}`} aria-hidden />
                 <Link className="av-txt" href={destino(a)} onClick={() => void lerAvisos([a.id])}>
                   <b>{a.titulo}</b>
@@ -92,11 +111,9 @@ export function TelaAvisos() {
                 <span className="av-tipo">{ROTULO[a.tipo]}</span>
                 <span className="av-q">{rel(isoDe(a.criado_em))}</span>
                 <span className="av-acoes">
-                  {!a.lido_em && (
-                    <button className="iconbtn" title="Marcar como lido"
-                      aria-label={`Marcar ${a.titulo} como lido`}
-                      onClick={() => void lerAvisos([a.id])}><Ic.check /></button>
-                  )}
+                  {/* Marcar como lido saiu: abrir a caixa já marcou. O que
+                      sobra de verdade para fazer com um aviso é tirá-lo da
+                      frente. */}
                   <button className="iconbtn" title="Apagar" aria-label={`Apagar ${a.titulo}`}
                     onClick={() => void apagarAviso(a.id)}><Ic.x /></button>
                 </span>

@@ -642,12 +642,28 @@ Quatro regras, e nenhuma delas é detalhe de implementação.
   dia duas vezes escrever uma vez só. `on conflict do nothing` é a regra inteira.
   Ao criar um tipo novo de aviso, a chave precisa carregar o que o identifica, e
   a data quando ele se repete por dia.
+- **Abrir a caixa apaga o número, e o destaque fica.** O contador conta o que a pessoa
+  ainda não viu, e depois de abrir ela viu: selo que não some depois de aberto ensina a
+  ignorar selo. O que não pode sumir junto é o realce das linhas, senão a caixa abre sem
+  dizer o que chegou. Por isso o sino e `/avisos` guardam num estado (`novos`) quem estava
+  por ler no instante em que abriram, e é essa lista que pinta, nunca o `lido_em`, que
+  acabou de mudar. Some junto o "Marcar tudo como lido": ele passou a ser um botão que
+  desfaz o que a abertura já fez.
 - **A caixa é de uma pessoa e de mais ninguém**, inclusive do administrador. Ali
   dentro aparece texto de tarefa privada e de mensagem de canal fechado, e o
   aviso não pode virar a porta dos fundos das regras de visibilidade. Telefone e
   assinatura de push moram em `avisos_contato` e `push_assinaturas`, fora de
   `perfis`, porque RLS trabalha por linha e em `perfis` a organização inteira
   leria o celular de todo mundo.
+- **O aviso não é só do que acontece dentro de uma track.** Eram cinco tipos, todos de
+  dentro (tarefa, aprovação, prazo, trava, menção), e o que acontecia ao lado não chegava a
+  ninguém: quem recebia uma nota compartilhada só descobria se abrisse o caderno e
+  reparasse numa linha nova no meio das dela. Entraram `nota`, `feedback` e `mensagem`
+  (seção 27), e os três têm a mesma forma: alguém fez uma coisa que só faz sentido se a
+  outra pessoa ficar sabendo. O da conversa direta é **um por conversa por dia**, pela
+  chave `direto:<canal>:<dia>`: um por mensagem faria do sino um segundo chat, e quem manda
+  três frases seguidas geraria três avisos para dizer uma coisa. Canal de equipe fica de
+  fora, porque lá quem chama alguém é a menção, que já avisa.
 - **Urgente é faixa estreita, de propósito**: o que já venceu, o que trava outra
   pessoa e o que só aquela pessoa destrava. Tocar o celular de alguém gasta a
   atenção dela e a credibilidade do app; se tudo é urgente, nada é, e a primeira

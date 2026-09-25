@@ -14,7 +14,7 @@ const CHAVE_EU = 'track.local.eu'
 const CHAVE_USUARIO = 'track.local.user'
 const CHAVE_VERSAO = 'track.local.versao'
 /** Sobe quando o exemplo ganha tabelas novas. Ver completar(). */
-const VERSAO = 19
+const VERSAO = 20
 const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], fluxos: [], etapas: [], itens: [],
   dependencias: [], processos: [], processo_etapas: [], processo_itens: [], fluxo_pessoas: [],
   convites: [],
@@ -1127,7 +1127,7 @@ function sincronizarAvisos() {
   const escrever = (a: {
     perfil: string; tipo: string; titulo: string; corpo?: string; chave: string
     urgente?: boolean; fluxo?: string | null; item?: string | null; canal?: string | null
-    quando?: string
+    nota?: string | null; quando?: string
   }) => {
     if (a.perfil !== eu) return
     if (tem.has(`${a.perfil}|${a.chave}`)) return
@@ -1136,6 +1136,7 @@ function sincronizarAvisos() {
       id: `av-${a.chave}`, perfil_id: a.perfil, tipo: a.tipo, titulo: a.titulo,
       corpo: a.corpo || '', urgente: !!a.urgente, chave: a.chave,
       fluxo_id: a.fluxo || null, item_id: a.item || null, etapa_id: null, canal_id: a.canal || null,
+      nota_id: a.nota || null,
       lido_em: null, entregue_em: null, criado_em: a.quando || agora(),
     })
   }
@@ -1216,6 +1217,49 @@ function sincronizarAvisos() {
         canal: m.canal_id as string, quando: (m.criado_em as string) || agora(),
       })
     }
+  }
+
+  // Compartilharam uma nota com você. Seção 27 do schema.
+  for (const np of b.nota_pessoas as Linha[]) {
+    if (np.perfil_id !== eu) continue
+    const nota = b.notas.find((n) => n.id === np.nota_id)
+    if (!nota || nota.dono_id === eu) continue
+    const dono = b.perfis.find((p) => p.id === nota.dono_id)
+    escrever({
+      perfil: eu, tipo: 'nota', titulo: 'Compartilharam uma nota com você',
+      corpo: `${nota.titulo || 'Nota'}${dono ? ` · ${dono.nome}` : ''}`,
+      chave: `nota:${np.nota_id}:${eu}`, nota: np.nota_id as string,
+      quando: (np.criado_em as string) || agora(),
+    })
+  }
+
+  // Responderam o link de feedback que você mandou.
+  for (const fb of b.feedbacks as Linha[]) {
+    if (fb.pediu_id !== eu || !fb.respondido_em) continue
+    const f = fluxoDe(fb.fluxo_id)
+    escrever({
+      perfil: eu, tipo: 'feedback', titulo: 'Responderam o seu pedido de feedback',
+      corpo: `${String(fb.para || '').trim() || 'Quem recebeu'} deu ${fb.nota ?? '?'} de 5`
+        + (f ? ` · ${f.nome}` : ''),
+      chave: `feedback:${fb.id}`, fluxo: (fb.fluxo_id as string) || null,
+      quando: fb.respondido_em as string,
+    })
+  }
+
+  // Falaram com você numa conversa direta. Um por conversa por dia: um por
+  // mensagem transformaria o sino num segundo chat.
+  for (const m of b.mensagens as Linha[]) {
+    if (m.autor_id === eu || m.sistema || !m.canal_id) continue
+    const canal = b.canais.find((c) => c.id === m.canal_id)
+    if (!canal || canal.tipo !== 'direto') continue
+    if (!b.canal_membros.some((x) => x.canal_id === m.canal_id && x.perfil_id === eu)) continue
+    const quem = b.perfis.find((p) => p.id === m.autor_id)
+    escrever({
+      perfil: eu, tipo: 'mensagem', titulo: `${quem?.nome || 'Alguém'} falou com você`,
+      corpo: String(m.texto || '').slice(0, 120),
+      chave: `direto:${m.canal_id}:${String(m.criado_em || agora()).slice(0, 10)}`,
+      canal: m.canal_id as string, quando: (m.criado_em as string) || agora(),
+    })
   }
 
   gravar()

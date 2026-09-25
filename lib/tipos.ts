@@ -587,6 +587,9 @@ export type Sugestao = {
 
 export type TipoAviso =
   | 'tarefa' | 'aprovacao' | 'prazo' | 'travou' | 'destravou' | 'citacao' | 'pedido_prazo'
+  // O que acontece ao lado da track, e que só faz sentido se a outra pessoa
+  // ficar sabendo. Ver a seção 27 do schema.
+  | 'nota' | 'feedback' | 'mensagem'
 
 /**
  * Um aviso é sempre de uma pessoa. Não existe aviso do grupo: aviso sem dono
@@ -604,6 +607,7 @@ export type Aviso = {
   item_id: string | null
   etapa_id: string | null
   canal_id: string | null
+  nota_id: string | null
   /** A chave que impede o mesmo aviso duas vezes. Ver `avisar()` no schema. */
   chave: string
   lido_em: string | null

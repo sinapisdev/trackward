@@ -36,10 +36,16 @@ export const ROTULO: Record<TipoAviso, string> = {
   destravou: 'Destravou',
   citacao: 'Conversa',
   pedido_prazo: 'Prazo',
+  nota: 'Nota',
+  feedback: 'Feedback',
+  mensagem: 'Conversa',
 }
 
 /** Para onde o aviso leva quando alguém clica nele. */
 export function destino(a: Aviso): string {
+  // A nota vem antes do canal: o aviso do cartão aberto tem os dois, e quem
+  // clicou quer a nota, não a conversa onde ela apareceu.
+  if (a.nota_id) return `/notas?nota=${a.nota_id}`
   if (a.canal_id) return `/chat/${a.canal_id}`
   if (a.tipo === 'pedido_prazo') return '/minhas'
   if (a.fluxo_id) return `/fluxo/${a.fluxo_id}`

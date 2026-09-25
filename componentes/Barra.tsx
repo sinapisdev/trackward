@@ -391,19 +391,33 @@ function Mais({ ativo }: { ativo: boolean }) {
  * leva o aviso para fora do app é `/api/avisar`: aqui dentro a pessoa já está
  * olhando, então não há o que empurrar.
  *
- * Abrir o sino **não** marca tudo como lido. Ler é um ato: quem passa o olho e
- * fecha continua com a marca, porque o contador existe para lembrar do que ainda
- * não foi resolvido, não do que ainda não foi visto.
+ * **Abrir o sino apaga o número.** Ele conta o que você ainda não viu, e depois
+ * de aberto você viu: o selo que fica é o app insistindo em algo que a pessoa
+ * acabou de olhar, e selo que não some ensina a ignorar selo.
+ *
+ * O que não some na hora é o **destaque das linhas**. Quem abriu precisa
+ * distinguir o que chegou do que já estava ali, e marcar tudo como lido no
+ * mesmo instante apagaria o destaque debaixo do olho de quem está lendo. Por
+ * isso `novos` guarda quem estava por ler quando a caixa abriu, e é essa lista
+ * que pinta, não o `lido_em` que acabou de mudar.
  */
 function Sino() {
   const { avisos, naoVistos, lerAvisos, apagarAviso } = useDados()
   const [aberto, setAberto] = useState(false)
+  const [novos, setNovos] = useState<string[]>([])
   const caixa = useFora(aberto, () => setAberto(false))
   const lista = avisos.slice(0, 8)
 
+  const alternar = () => {
+    if (aberto) { setAberto(false); return }
+    setNovos(avisos.filter((a) => !a.lido_em).map((a) => a.id))
+    if (naoVistos) void lerAvisos()
+    setAberto(true)
+  }
+
   return (
     <div className="tw-sino" ref={caixa}>
-      <button className="iconbtn grd" onClick={() => setAberto((a) => !a)} aria-expanded={aberto}
+      <button className="iconbtn grd" onClick={alternar} aria-expanded={aberto}
         aria-label={naoVistos ? `Avisos, ${naoVistos} sem ler` : 'Avisos'} title="Avisos">
         <Ic.sino />
         {!!naoVistos && <i className="tw-sino-pt">{naoVistos > 9 ? '9+' : naoVistos}</i>}
@@ -413,13 +427,10 @@ function Sino() {
         <div className="tw-menu dir tw-avisos">
           <div className="tw-avisos-h">
             <b>Avisos</b>
-            {!!naoVistos && (
-              <button onClick={() => void lerAvisos()}>Marcar tudo como lido</button>
-            )}
           </div>
 
           {lista.length ? lista.map((a) => (
-            <Link key={a.id} href={destino(a)} className={`av-l ${a.lido_em ? '' : 'novo'}`}
+            <Link key={a.id} href={destino(a)} className={`av-l ${novos.includes(a.id) ? 'novo' : ''}`}
               onClick={() => { void lerAvisos([a.id]); setAberto(false) }}>
               <span className={`av-pt ${a.urgente ? 'urgente' : ''}`} aria-hidden />
               <span className="av-txt">
