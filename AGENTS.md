@@ -190,6 +190,19 @@ escolhe empresarial entra como é hoje, com assentos e podendo abrir mais de uma
 Depois de dentro, o espaço pessoal aparece para todo mundo no seletor de espaços, ao lado
 das empresas, e é contratado à parte, porque não é da empresa.
 
+**Um login, perfis separados, e sair de um não mexe no outro.** Quem tem espaço pessoal e
+depois é convidado por uma empresa ganha um **segundo perfil**, na organização dela, com o
+mesmo e-mail e nada em comum além disso: o que se vê é sempre o do espaço em uso. Quando
+essa pessoa sai da empresa, o perfil de lá é desligado e aquele espaço fecha inteiro
+(`ativo()` olha o perfil da sessão, não o login), enquanto o pessoal segue como estava,
+com tudo dentro. Isso é o que se promete a quem paga pelo pessoal, então **o espaço
+desligado tem que dizer que acabou**, e não abrir vazio: um app sem nada dentro, no dia em
+que a pessoa saiu da empresa, parece perda de dados.
+
+**Um espaço pessoal por login, e ninguém entra nele.** As duas coisas são recusa do banco,
+não ausência de botão: convite apontando para organização `tipo='pessoal'` não vale, e
+`abrir_espaco` não abre a segunda. Sem isso, a regra existe só enquanto alguém lembra dela.
+
 **A porta fica aberta nos dois sentidos.** Quem entrou pelo pessoal e depois contrata gente
 abre uma empresa ao lado, pelo seletor, sem migrar nada. No cadastro a opção não aparece;
 depois, aparece.
