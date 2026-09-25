@@ -3549,3 +3549,128 @@ begin
   end loop;
   return new;
 end $$;
+
+-- --------------------------------------------------------------------------
+-- 20. O espaço pessoal
+--
+--     O app é vendido de duas formas e roda o mesmo modelo: o espaço de equipe,
+--     que é o produto inteiro, e o pessoal, que é ele sem o que exige uma
+--     segunda pessoa. A tela sabe disso por `lib/espaco.ts`; aqui ficam as
+--     recusas, que são o que torna a regra verdadeira mesmo quando alguém
+--     escrever tela nova sem lembrar dela.
+--
+--     Três, e as três pela mesma razão: espaço pessoal é de uma pessoa só.
+--     Sem isso, "ninguém entra aqui" é promessa de interface, e o que se vende
+--     a quem paga pelo pessoal é exatamente essa frase.
+-- --------------------------------------------------------------------------
+
+-- 1. Um espaço pessoal por login. Dois cadernos particulares não são mais
+--    privacidade, são duas metades do mesmo acervo que nunca se encontram.
+create or replace function public.abrir_espaco(p_nome text, p_tipo text default 'equipe')
+returns uuid language plpgsql security definer set search_path = public as $$
+declare v_org uuid; v_perfil uuid; u uuid := auth.uid(); v_email text; v_nome text;
+begin
+  if u is null then raise exception 'Entre na sua conta primeiro.'; end if;
+  if btrim(coalesce(p_nome, '')) = '' then raise exception 'Dê um nome ao espaço.'; end if;
+  if p_tipo not in ('pessoal','equipe') then raise exception 'Tipo de espaço inválido.'; end if;
+
+  if p_tipo = 'pessoal' and exists (
+    select 1 from perfis p join organizacoes o on o.id = p.org_id
+    where p.user_id = u and o.tipo = 'pessoal'
+  ) then
+    raise exception 'Você já tem um espaço pessoal.';
+  end if;
+
+  select email, nome into v_email, v_nome from perfis
+  where user_id = u order by criado_em, id limit 1;
+
+  insert into organizacoes (nome, tipo) values (btrim(p_nome), p_tipo) returning id into v_org;
+  insert into perfis (user_id, org_id, nome, email, papel, ve_area, ativo)
+  values (u, v_org, coalesce(v_nome, split_part(coalesce(v_email,''), '@', 1)),
+          coalesce(v_email, ''), 'admin', true, true)
+  returning id into v_perfil;
+  update organizacoes set dono_id = v_perfil where id = v_org;
+
+  insert into sessoes (user_id, perfil_id) values (u, v_perfil)
+  on conflict (user_id) do update set perfil_id = excluded.perfil_id, trocado_em = now();
+  return v_perfil;
+end $$;
+
+-- 2. Convite não entra em espaço pessoal, nem sendo criado nem sendo usado.
+--    As duas portas, porque fechar só a segunda deixaria o convite existindo e
+--    falhando na cara de quem recebeu.
+create or replace function public.ao_convidar()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if exists (select 1 from organizacoes o where o.id = new.org_id and o.tipo = 'pessoal') then
+    raise exception 'Espaço pessoal é de uma pessoa só, e não recebe convite.';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists convites_so_equipe on public.convites;
+create trigger convites_so_equipe before insert on public.convites
+  for each row execute function public.ao_convidar();
+
+create or replace function public.entrar_com_convite(p_codigo text)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare cv convites%rowtype; v_perfil uuid; u uuid := auth.uid(); v_email text; v_nome text;
+begin
+  if u is null then raise exception 'Entre na sua conta primeiro.'; end if;
+  select * into cv from convites
+  where usado_em is null and (vence_em is null or vence_em > now())
+    and codigo = upper(btrim(coalesce(p_codigo, '')));
+  if cv.id is null then raise exception 'Código inválido ou vencido.'; end if;
+  if exists (select 1 from organizacoes o where o.id = cv.org_id and o.tipo = 'pessoal') then
+    raise exception 'Espaço pessoal é de uma pessoa só, e não recebe convite.';
+  end if;
+  if exists (select 1 from perfis where user_id = u and org_id = cv.org_id) then
+    raise exception 'Você já faz parte deste espaço.';
+  end if;
+
+  select email, nome into v_email, v_nome from perfis
+  where user_id = u order by criado_em, id limit 1;
+
+  insert into perfis (user_id, org_id, nome, email, papel, area_id, gestor_id, ve_area, ativo)
+  values (u, cv.org_id, coalesce(nullif(btrim(cv.nome),''), v_nome), coalesce(v_email,''),
+          coalesce(cv.papel,'colaborador'), cv.area_id, cv.gestor_id,
+          coalesce(cv.ve_area,false), true)
+  returning id into v_perfil;
+
+  update convites set usado_em = now(), usado_por = v_perfil where id = cv.id;
+  insert into sessoes (user_id, perfil_id) values (u, v_perfil)
+  on conflict (user_id) do update set perfil_id = excluded.perfil_id, trocado_em = now();
+  return v_perfil;
+end $$;
+
+-- 3. Segundo perfil em espaço pessoal não entra por caminho nenhum. É o mesmo
+--    que a recusa acima diz do convite, dito onde não há como desviar: o
+--    convite é a porta conhecida, esta é a parede.
+create or replace function public.ao_criar_perfil()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if exists (select 1 from organizacoes o where o.id = new.org_id and o.tipo = 'pessoal')
+     and exists (select 1 from perfis p where p.org_id = new.org_id) then
+    raise exception 'Espaço pessoal é de uma pessoa só.';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists perfis_pessoal_unico on public.perfis;
+create trigger perfis_pessoal_unico before insert on public.perfis
+  for each row execute function public.ao_criar_perfil();
+
+-- 4. Canal é falar com alguém, e em espaço pessoal não há com quem. A tela já
+--    não oferece; aqui é para o dia em que uma tela nova oferecer.
+create or replace function public.ao_criar_canal()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if exists (select 1 from organizacoes o where o.id = new.org_id and o.tipo = 'pessoal') then
+    raise exception 'Espaço pessoal não tem canal: sozinho não há com quem conversar.';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists canais_so_equipe on public.canais;
+create trigger canais_so_equipe after insert on public.canais
+  for each row execute function public.ao_criar_canal();

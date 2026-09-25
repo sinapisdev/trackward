@@ -152,7 +152,7 @@ function Inspetor({ f, et, fechar, gravar, abrirEmEdicao }: {
   gravar: (etapas: RascunhoEtapa[]) => Promise<void>
   abrirEmEdicao: boolean
 }) {
-  const { nomeDe, perfilDe, perfis, eu, alternarItem } = useDados()
+  const { nomeDe, perfilDe, perfis, eu, alternarItem, pode } = useDados()
   const { abrir } = useModais()
   const feitas = et.itens.filter((i) => i.feito).length
 
@@ -215,15 +215,17 @@ function Inspetor({ f, et, fechar, gravar, abrirEmEdicao }: {
             onChange={(e) => setCriterio(e.target.value)}
             placeholder="O que precisa estar pronto para seguir" />
         </label>
-        <label>
-          <span>Quem aprova</span>
-          <select className="tk-in" value={aprov} onChange={(e) => setAprov(e.target.value)}>
-            <option value="">Ninguém</option>
-            {perfis.filter((x) => x.ativo).map((x) => (
-              <option key={x.id} value={x.id}>{x.nome}</option>
-            ))}
-          </select>
-        </label>
+        {pode.aprovacao && (
+          <label>
+            <span>Quem aprova</span>
+            <select className="tk-in" value={aprov} onChange={(e) => setAprov(e.target.value)}>
+              <option value="">Ninguém</option>
+              {perfis.filter((x) => x.ativo).map((x) => (
+                <option key={x.id} value={x.id}>{x.nome}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
           <span>Prazo</span>
           <input className="tk-in" type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} />
@@ -269,7 +271,7 @@ function Inspetor({ f, et, fechar, gravar, abrirEmEdicao }: {
 
       <div className="tk-insp-meta">
         <span><Ic.check />{feitas} de {et.itens.length} pronta{et.itens.length === 1 ? '' : 's'}</span>
-        {et.aprovador_id && <span><Ic.eu />Aprova {nomeDe(et.aprovador_id)}</span>}
+        {pode.aprovacao && et.aprovador_id && <span><Ic.eu />Aprova {nomeDe(et.aprovador_id)}</span>}
         {et.prazo && <span className={classePrazo(et.prazo)}><Ic.agenda />{curta(et.prazo)}</span>}
       </div>
 
@@ -308,7 +310,7 @@ function Inspetor({ f, et, fechar, gravar, abrirEmEdicao }: {
 // ----------------------------------------------------------------- palco
 
 function Palco({ alvo }: { alvo: { tipo: 'objetivo'; f: Fluxo } | { tipo: 'area'; a: Area } }) {
-  const { todosFluxos, perfilDe, nomeDe, areaDe, empresaDe, org, eu, perfis, salvarFluxo } = useDados()
+  const { todosFluxos, perfilDe, nomeDe, areaDe, empresaDe, org, eu, perfis, salvarFluxo, pode } = useDados()
   const { abrir } = useModais()
   const [noEscolhido, setNoEscolhido] = useState<string | null>(null)
   const [recemCriado, setRecemCriado] = useState(false)
@@ -367,7 +369,8 @@ function Palco({ alvo }: { alvo: { tipo: 'objetivo'; f: Fluxo } | { tipo: 'area'
         id: et.id,
         tipo: 'etapa',
         nome: et.nome,
-        sub: et.aprovador_id ? `Aprova ${nomeDe(et.aprovador_id).split(' ')[0]}` : et.criterio,
+        sub: pode.aprovacao && et.aprovador_id
+          ? `Aprova ${nomeDe(et.aprovador_id).split(' ')[0]}` : et.criterio,
         estado: estadoDa(f, i),
         tarefas: et.itens.length,
         feitas: et.itens.filter((x) => x.feito).length,

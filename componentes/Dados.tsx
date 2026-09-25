@@ -21,6 +21,7 @@ import { escutaAqui, oQueFaz, porPalavras } from '@/lib/agentes'
 import { preencher } from '@/lib/conectores'
 import { comoBloco, parecidas, parecidasCom, tituloDe } from '@/lib/notas'
 import { novoId } from '@/lib/id'
+import { recursos, type Recursos } from '@/lib/espaco'
 import {
   daDecisao, jaFoiRecusada, paraOModelo, quemCostuma, termosDaConversa, ultimoAprendizado,
   type Aprendizado, type Lembranca,
@@ -79,6 +80,8 @@ type Contexto = {
    * sempre "você", e campo cuja resposta é sempre a mesma só atrapalha.
    */
   pessoal: boolean
+  /** O que este espaço sabe fazer. Ver `lib/espaco.ts`. */
+  pode: Recursos
   /** Os espaços a que o meu login pertence, para o seletor no alto da lateral. */
   espacos: Espaco[]
   trocarEspaco: (perfilId: string) => Promise<void>
@@ -2734,7 +2737,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       memoria, guardar, agentes, processos, areaDe, aceitarSugestao, toast, recarregar])
 
   const valor: Contexto = {
-    eu, perfis, areas, empresas, org, pessoal: org.tipo === 'pessoal', fluxos, todosFluxos, totalItens, agenda, minhaAgendaExterna, processos, convites,
+    eu, perfis, areas, empresas, org, pessoal: org.tipo === 'pessoal', pode: recursos(org), fluxos, todosFluxos, totalItens, agenda, minhaAgendaExterna, processos, convites,
     empresaAtiva, focarEmpresa, empresaDe, carregando,
     perfilDe, nomeDe, areaDe, aviso, toast,
     salvarArea, excluirArea, salvarFluxo, excluirFluxo,

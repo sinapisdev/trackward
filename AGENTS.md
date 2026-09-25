@@ -170,13 +170,31 @@ objetivo, e o dia (o que vence, o que está marcado) como tela inicial.
 mesmo, e vale sozinho. O que morre é a dependência de terceiro e o aviso de quem está
 segurando, que ali é sempre você. Não jogar a trava fora junto com a delegação.
 
-**O que some, some no banco.** A tela não pode ser a única a saber: o banco recusa canal e
-segundo perfil em organização pessoal, e convite para ela também. E a lista do que cada
-espaço pode fazer mora num arquivo só (`recursos()`, em `lib/espaco.ts`), espelhada nas
-políticas, como já é feito com `lib/acesso.ts` e `ve_fluxo`. Espalhar `!pessoal &&` pelas
-telas é o jeito conhecido de, seis meses depois, aparecer um campo de responsável num app
-de uma pessoa só: quem escreve tela nova não lembra de uma regra que não está escrita em
-lugar nenhum.
+**O que some, some no banco.** A tela não pode ser a única a saber. A lista do que cada
+espaço pode fazer mora num arquivo só, `recursos()` em `lib/espaco.ts`, e as telas
+perguntam a ela (`pode.canais`, `pode.delegar`, `pode.aprovacao`, `pode.visibilidade`,
+`pode.equipe`, `pode.empresas`). Espalhar `org.tipo === 'pessoal'` pelas telas é o jeito
+conhecido de, seis meses depois, aparecer um campo de responsável num app de uma pessoa
+só: quem escreve tela nova não lembra de uma regra que não está escrita em lugar nenhum.
+
+As recusas de verdade estão na seção 20 do `supabase/schema.sql`, e são quatro: um espaço
+pessoal por login, convite não nasce apontando para espaço pessoal, convite não é aceito
+por lá, e canal não entra. Espelhadas em `lib/local/cliente.ts`, como todo o resto.
+
+**Na tela, o pessoal é o mesmo app com menos coisa, e não outro app.** Só muda o que
+depende de outra pessoa: some a aba Conversa (e `/chat` redireciona para a inicial), a
+coluna do meio do Forward fica só com o caderno, o formulário de track perde "Quem vê",
+"Dono" e o aprovador de cada checkpoint, o de tarefa perde "Responsável", a lente
+"Minhas / Toda a equipe" some, e a coluna da track troca a conversa pela atividade, que
+ali deixa de ser botão porque é o que sobrou na coluna. "Aprovar saída" vira **"Fechar
+checkpoint"**, e a tela de decidir continua a mesma, com as palavras trocadas: fechar,
+fechar com pendência, voltar atrás. A tela vale pelo que ela mostra antes de seguir, não
+pela assinatura.
+
+**No celular a inicial do pessoal é o caderno**, na mesma posição em que a conversa está na
+empresa. A lista de notas tem a mesma forma da lista de conversas, então quem troca de
+espaço encontra a mesma tela com outro conteúdo. Se fosse outra coisa, o hábito que a
+pessoa criou na empresa não atravessaria, e hábito que não atravessa é app que não se usa.
 
 **O espaço pessoal é da pessoa, não da empresa.** Ele é uma `organizacoes` com
 `tipo='pessoal'` e `dono_id` dela, e precisa sobreviver ao dia em que ela sai do emprego.
@@ -184,7 +202,9 @@ Por isso a cobrança dele é por `user_id`, nunca pelo plano da empresa, e o adm
 não liga nem desliga o pessoal de ninguém. Sem isso, o que se vendeu para a pessoa é uma
 coisa que o chefe dela pode cancelar, e aí não era dela.
 
-**Onde cada um entra.** No cadastro escolhe-se **empresarial** ou **pessoal**. Quem escolhe
+**Onde cada um entra.** Já de dentro, o pessoal é contratado no seletor de espaços, que
+é onde a pessoa já vem trocar de lugar, e o espaço desligado continua listado dizendo
+"acesso encerrado" em vez de sumir. No cadastro escolhe-se **empresarial** ou **pessoal**. Quem escolhe
 pessoal não vê opção de empresa em lugar nenhum: não é assunto dele naquele momento. Quem
 escolhe empresarial entra como é hoje, com assentos e podendo abrir mais de uma empresa.
 Depois de dentro, o espaço pessoal aparece para todo mundo no seletor de espaços, ao lado

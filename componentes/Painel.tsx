@@ -42,13 +42,23 @@ type Linha = { item: Item; fluxo: Fluxo; onde: string; avulsa: boolean }
  */
 export function Painel() {
   const { eu, fluxos, areas, perfis, canais, naoLidas, carregando, areaDe, perfilDe, nomeDe,
-    minhaLista, alternarItem } = useDados()
+    minhaLista, alternarItem, pode } = useDados()
   const { abrir } = useModais()
   const [lente, setLente] = useState<Lente>('minhas')
   const [pessoa, setPessoa] = useState('')
   const [canalAberto, setCanalAberto] = useState<string | null>(null)
   const [face, setFace] = useState<Face>('conversa')
   const celular = useCelular()
+
+  /**
+   * Sem canal não há duas faces: a coluna do meio é o caderno e pronto, e o
+   * seletor sai junto, porque botão de um lado só é decoração.
+   *
+   * Isto é derivado a cada pintura, e não estado inicial: os dados da
+   * organização chegam depois da primeira, então quem lesse `pode` uma vez só
+   * decidiria com o valor de antes de saber em que espaço está.
+   */
+  const aberta: Face = pode.canais ? face : 'notas'
 
   /** Toda tarefa aberta que eu enxergo, com o endereço dela. */
   const tarefas = useMemo<Linha[]>(() => {
@@ -124,6 +134,17 @@ export function Painel() {
    * abrir a tela de verdade, e aí eram dois toques para responder uma frase.
    */
   if (celular) {
+    // Sozinho a inicial é o caderno, na mesma posição em que a conversa está na
+    // empresa: a lista de notas tem a mesma forma da lista de conversas, então
+    // quem troca de espaço encontra a mesma tela com outro conteúdo, e não um
+    // app diferente.
+    if (!pode.canais) {
+      return (
+        <div className="fwd-cel">
+          <div className="fwd-cel-notas"><Caderno /></div>
+        </div>
+      )
+    }
     return (
       <div className="fwd-cel">
         <div className="seg fwd-face" role="group" aria-label="O que mostrar aqui">
@@ -139,7 +160,7 @@ export function Painel() {
             Abrir dentro de uma conversa é o app decidir com quem você vai
             falar, e a primeira pergunta de quem pega o telefone é "quem falou
             comigo", não "responde isso aqui". */}
-        {face === 'notas'
+        {aberta === 'notas'
           ? <div className="fwd-cel-notas"><Caderno /></div>
           : <TelaChat />}
       </div>
@@ -175,7 +196,7 @@ export function Painel() {
             <p className="lede">
               {minhas.length
                 ? <>{minhas.length} {minhas.length === 1 ? 'tarefa com você' : 'tarefas com você'}
-                    {tarefas.length - minhas.length > 0
+                    {pode.delegar && tarefas.length - minhas.length > 0
                       && <> · {tarefas.length - minhas.length} com o resto da equipe</>}</>
                 : 'Nada com você agora.'}
             </p>
@@ -209,15 +230,20 @@ export function Painel() {
         ) : (
           <>
             <div className="filtros">
-              <div className="seg" role="group" aria-label="De quem">
-                <button className={lente === 'minhas' ? 'on' : ''}
-                  onClick={() => { setLente('minhas'); setPessoa('') }}>
-                  Minhas<span className="num">{minhas.length}</span>
-                </button>
-                <button className={lente === 'equipe' ? 'on' : ''} onClick={() => setLente('equipe')}>
-                  Toda a equipe<span className="num">{tarefas.filter((t) => !t.avulsa).length}</span>
-                </button>
-              </div>
+              {/* Sozinho não há duas lentes: toda tarefa é sua, e "Minhas"
+                  sobrando ao lado de nada é botão que não escolhe coisa
+                  nenhuma. */}
+              {pode.delegar && (
+                <div className="seg" role="group" aria-label="De quem">
+                  <button className={lente === 'minhas' ? 'on' : ''}
+                    onClick={() => { setLente('minhas'); setPessoa('') }}>
+                    Minhas<span className="num">{minhas.length}</span>
+                  </button>
+                  <button className={lente === 'equipe' ? 'on' : ''} onClick={() => setLente('equipe')}>
+                    Toda a equipe<span className="num">{tarefas.filter((t) => !t.avulsa).length}</span>
+                  </button>
+                </div>
+              )}
               {lente === 'equipe' && ativos.length > 1 && (
                 <label className="sel-quem">
                   <Ic.team />
@@ -307,17 +333,19 @@ export function Painel() {
           e o que fica aqui é um atalho que diz quanto tem por ler. */}
       {!celular && (
         <section className="forward-conversa">
-          <div className="seg fwd-face" role="group" aria-label="O que mostrar aqui">
-            <button className={face === 'conversa' ? 'on' : ''} onClick={() => setFace('conversa')}>
-              Conversa
-              {!!porLer && <span className="num">{porLer > 9 ? '9+' : porLer}</span>}
-            </button>
-            <button className={face === 'notas' ? 'on' : ''} onClick={() => setFace('notas')}>
-              Notas
-            </button>
-          </div>
+          {pode.canais && (
+            <div className="seg fwd-face" role="group" aria-label="O que mostrar aqui">
+              <button className={face === 'conversa' ? 'on' : ''} onClick={() => setFace('conversa')}>
+                Conversa
+                {!!porLer && <span className="num">{porLer > 9 ? '9+' : porLer}</span>}
+              </button>
+              <button className={face === 'notas' ? 'on' : ''} onClick={() => setFace('notas')}>
+                Notas
+              </button>
+            </div>
+          )}
 
-          {face === 'notas' ? <Caderno /> : canal ? (
+          {aberta === 'notas' ? <Caderno /> : canal ? (
             <>
               <ListaCanais atual={canal.id} aoEscolher={setCanalAberto} />
               <Conversa canal={canal} titulo="Conversa" quantas={8} />

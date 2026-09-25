@@ -36,7 +36,7 @@ export type Pedido =
       /** Um exemplo escolhido na tela, para o formulário nascer preenchido. */
       inicial?: { nome: string; reconhecer: string }
     }
-  | { tipo: 'espaco' }
+  | { tipo: 'espaco'; pessoal?: boolean }
   | { tipo: 'excluir'; titulo: string; texto: string; acao: () => void | Promise<void> }
 
 const Ctx = createContext<{ abrir: (p: Pedido) => void; fechar: () => void } | null>(null)
@@ -73,7 +73,7 @@ export function Modais({ children }: { children: ReactNode }) {
           {pedido.tipo === 'compromisso' && <MCompromisso pedido={pedido} fechar={fechar} />}
           {pedido.tipo === 'canal' && <MCanal canal={pedido.canal} fechar={fechar} />}
           {pedido.tipo === 'agente' && <MAgente pedido={pedido} fechar={fechar} />}
-          {pedido.tipo === 'espaco' && <MEspaco fechar={fechar} />}
+          {pedido.tipo === 'espaco' && <MEspaco pessoal={pedido.pessoal} fechar={fechar} />}
           {pedido.tipo === 'excluir' && <MExcluir pedido={pedido} fechar={fechar} />}
         </div>
       )}
@@ -162,16 +162,38 @@ function MArea({ area, fechar }: { area?: Area; fechar: () => void }) {
  * holding. Não mistura nada com a empresa de agora, é outro espaço inteiro, e o
  * seletor no alto da lateral troca entre eles.
  */
-function MEspaco({ fechar }: { fechar: () => void }) {
+function MEspaco({ pessoal, fechar }: { pessoal?: boolean; fechar: () => void }) {
   const { abrirEspaco } = useDados()
   const [nome, setNome] = useState('')
   const [indo, setIndo] = useState(false)
 
   const criar = async () => {
-    if (!nome.trim() || indo) return
+    if (indo) return
+    if (!pessoal && !nome.trim()) return
     setIndo(true)
-    await abrirEspaco(nome.trim(), 'equipe')
+    await abrirEspaco(pessoal ? 'Pessoal' : nome.trim(), pessoal ? 'pessoal' : 'equipe')
   }
+
+  /* O espaço pessoal não pede nome. Ele é um só, é seu, e perguntar como ele se
+     chama é cobrar uma decisão de quem só quer começar a escrever. */
+  if (pessoal) return (
+    <div className="dlg" role="dialog" aria-modal="true" aria-labelledby="esp-t">
+      <div className="dlg-h">
+        <h3 id="esp-t">Abrir seu espaço pessoal</h3>
+        <p>
+          É o mesmo app, só seu: as mesmas tracks, tarefas, rotinas, notas, processos e
+          agenda, sem canal, sem equipe e sem ninguém para aprovar nada.
+        </p>
+      </div>
+      <div className="dlg-b">
+        <p className="hint">
+          Ninguém entra nele, nem administrador de empresa nenhuma, e ele continua seu
+          mesmo que você saia daqui. O seletor lá em cima troca entre os dois.
+        </p>
+      </div>
+      <Rodape fechar={fechar} rotulo={indo ? 'Abrindo…' : 'Abrir meu espaço'} acao={() => void criar()} />
+    </div>
+  )
 
   return (
     <div className="dlg" role="dialog" aria-modal="true" aria-labelledby="esp-t">
@@ -249,7 +271,7 @@ function MEmpresa({ empresa, fechar }: { empresa?: Empresa; fechar: () => void }
 // ------------------------------------------------------------------ fluxo
 
 function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>; fechar: () => void }) {
-  const { eu, perfis, areas, areaDe, nomeDe, empresas, org, pessoal, empresaAtiva, processos,
+  const { eu, perfis, areas, areaDe, nomeDe, empresas, org, pessoal, pode, empresaAtiva, processos,
     salvarFluxo, criarDoProcesso, salvarArea, toast } = useDados()
   const router = useRouter()
   const edicao = pedido.fluxo
@@ -450,12 +472,14 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
               </select>
             </div>
           )}
-          <div className="fld">
-            <label htmlFor="f-dono">Dono</label>
-            <select className="inp" id="f-dono" value={donoId || ''} onChange={(e) => setDonoId(e.target.value)}>
-              {ativos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
-            </select>
-          </div>
+          {pode.delegar && (
+            <div className="fld">
+              <label htmlFor="f-dono">Dono</label>
+              <select className="inp" id="f-dono" value={donoId || ''} onChange={(e) => setDonoId(e.target.value)}>
+                {ativos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+              </select>
+            </div>
+          )}
           {ciclo && (
             <>
               <div className="fld">
@@ -470,7 +494,7 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
               </div>
             </>
           )}
-          {!pessoal && (
+          {pode.visibilidade && (
           <div className="fld full">
             <span className="lbl">Quem vê</span>
             {souAutor ? (
@@ -605,10 +629,12 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
                 <span className="n num">{k + 1}</span>
                 <input className="inp" id={`cp-n-${k}`} value={e.nome} placeholder="Nome do checkpoint"
                   aria-label={`Nome do checkpoint ${k + 1}`} onChange={(ev) => mexer(k, 'nome', ev.target.value)} />
-                <select className="inp" value={e.aprovador_id || ''} aria-label="Aprovador"
-                  onChange={(ev) => mexer(k, 'aprovador_id', ev.target.value)}>
-                  {ativos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                </select>
+                {pode.aprovacao && (
+                  <select className="inp" value={e.aprovador_id || ''} aria-label="Aprovador"
+                    onChange={(ev) => mexer(k, 'aprovador_id', ev.target.value)}>
+                    {ativos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                  </select>
+                )}
                 <input className="inp" type="date" value={e.prazo} aria-label="Prazo"
                   onChange={(ev) => mexer(k, 'prazo', ev.target.value)} />
                 <span className="tools">
@@ -647,7 +673,8 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
                 <span>
                   <b>{e.nome || `Checkpoint ${k + 1}`}</b>
                   <small>
-                    {nomeDe(e.aprovador_id)}{e.prazo ? ` · ${curta(e.prazo)}` : ''}
+                    {pode.aprovacao ? nomeDe(e.aprovador_id) : e.criterio || 'Sem critério'}
+                    {e.prazo ? ` · ${curta(e.prazo)}` : ''}
                   </small>
                 </span>
               </li>
@@ -695,7 +722,7 @@ function MAvulsa({ fechar, pedido }: {
   fechar: () => void
   pedido: { texto?: string; resp?: string | null; prazo?: string | null }
 }) {
-  const { eu, perfis, fluxos, areaDe, minhaLista, pessoal,
+  const { eu, perfis, fluxos, areaDe, minhaLista, pessoal, pode,
     criarAvulsa, adicionarItem, toast } = useDados()
   const [texto, setTexto] = useState(pedido.texto || '')
   const [descricao, setDescricao] = useState('')
@@ -821,7 +848,7 @@ function MAvulsa({ fechar, pedido }: {
                 ))}
               </select>
             </div>
-            {!pessoal && (
+            {pode.delegar && (
               <div className="fld">
                 <label htmlFor="av-r">Responsável</label>
                 <select className="inp" id="av-r" value={resp}
@@ -852,7 +879,7 @@ function MAvulsa({ fechar, pedido }: {
 
 
 function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () => void }) {
-  const { eu, perfis, fluxos, areaDe, pessoal, adicionarItem, editarItem, definirTravas, cargaDe, toast } = useDados()
+  const { eu, perfis, fluxos, areaDe, pode, adicionarItem, editarItem, definirTravas, cargaDe, toast } = useDados()
   const ativos = perfis.filter((p) => p.ativo)
   const fluxo = fluxos.find((f) => f.id === etapa.fluxo_id)
   const mandaNoPrazo = !!fluxo && podeMexerNoPrazo(eu, fluxo, perfis)
@@ -943,7 +970,7 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
         </div>
         <div className="fgrid">
           {/* Numa conta de uma pessoa só, a resposta é sempre você. */}
-          {!pessoal && (
+          {pode.delegar && (
             <div className="fld">
               <label htmlFor="i-r">Responsável</label>
               <select className="inp" id="i-r" value={resp || ''} onChange={(e) => setResp(e.target.value)}>
@@ -955,7 +982,7 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
               </select>
             </div>
           )}
-          {!pessoal && resp !== item?.resp_id && (() => {
+          {pode.delegar && resp !== item?.resp_id && (() => {
             const c = cargaDe(resp)
             if (!c || c.faixa === 'tranquilo' || c.faixa === 'sem-base') return null
             return (

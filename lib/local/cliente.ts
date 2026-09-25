@@ -361,6 +361,11 @@ class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
     const lista = b[this.tabela] || []
 
     if (this.modo === 'insert') {
+      // Mesma recusa da seção 20 do banco: espaço pessoal não tem canal, porque
+      // sozinho não há com quem conversar.
+      if (this.tabela === 'canais' && orgAtual()?.tipo === 'pessoal') {
+        return { data: null as T, error: { message: 'Espaço pessoal não tem canal.' } }
+      }
       const linha: Linha = { id: uid('x'), criado_em: agora(), ...this.corpo }
       // A etiqueta é do servidor, nunca do que veio na requisição.
       if (this.tabela !== 'organizacoes') linha.org_id = minhaOrg() ?? linha.org_id
@@ -974,11 +979,24 @@ function trocarEspacoLocal(perfilId: string): string {
   return perfilId
 }
 
+/** A organização do perfil em uso, para as recusas que dependem do tipo dela. */
+function orgAtual() {
+  const b = ler()
+  const eu = b.perfis.find((p) => p.id === euLocal())
+  return b.organizacoes.find((o) => o.id === eu?.org_id) || null
+}
+
 function abrirEspacoLocal(nome: string, tipo: string): string {
   const b = ler()
   const u = usuarioLocal()
   if (!u) throw new Error('Entre na sua conta primeiro.')
   if (!nome.trim()) throw new Error('Dê um nome ao espaço.')
+  // Um espaço pessoal por login: dois cadernos particulares são duas metades do
+  // mesmo acervo que nunca se encontram. Igual à seção 20 do banco.
+  if (tipo === 'pessoal' && b.perfis.some((p) => p.user_id === u
+      && b.organizacoes.find((o) => o.id === p.org_id)?.tipo === 'pessoal')) {
+    throw new Error('Você já tem um espaço pessoal.')
+  }
   const meu = b.perfis.find((x) => x.user_id === u)
   const orgId = uid('org')
   b.organizacoes.push({

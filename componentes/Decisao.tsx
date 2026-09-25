@@ -26,13 +26,25 @@ import type { Etapa, Fluxo, TipoDecisao } from '@/lib/tipos'
  * o que fazer, e "devolvido" sozinho não diz nada a ninguém.
  */
 
-const SAIDAS: { id: TipoDecisao; rotulo: string; sobre: string; icone: React.ReactNode }[] = [
-  { id: 'aprovou', rotulo: 'Aprovar', icone: <Ic.check />,
+type Saida = { id: TipoDecisao; rotulo: string; sobre: string; icone: React.ReactNode }
+
+/**
+ * As três saídas, e as mesmas três sozinho.
+ *
+ * O que muda é só a palavra: sem ninguém para dar aceite, "aprovar" vira
+ * "fechar", e devolver deixa de ser mandar de volta para alguém e passa a ser
+ * voltar atrás. A tela é a mesma de propósito, porque o valor dela não é a
+ * assinatura, é ver o que foi entregue antes de seguir.
+ */
+const saidasDe = (sozinho: boolean): Saida[] => [
+  { id: 'aprovou', rotulo: sozinho ? 'Fechar' : 'Aprovar', icone: <Ic.check />,
     sobre: 'Está de acordo com o critério. A esteira segue para o próximo checkpoint.' },
-  { id: 'ressalva', rotulo: 'Aprovar com ressalva', icone: <Ic.ressalva />,
+  { id: 'ressalva', rotulo: sozinho ? 'Fechar com pendência' : 'Aprovar com ressalva', icone: <Ic.ressalva />,
     sobre: 'Segue, mas fica uma pendência anotada, que vira tarefa do próximo checkpoint.' },
-  { id: 'devolveu', rotulo: 'Devolver', icone: <Ic.devolver />,
-    sobre: 'Não segue. As tarefas que você marcar voltam a ficar em aberto para quem as fez.' },
+  { id: 'devolveu', rotulo: sozinho ? 'Voltar atrás' : 'Devolver', icone: <Ic.devolver />,
+    sobre: sozinho
+      ? 'Não segue. As tarefas que você marcar voltam a ficar em aberto.'
+      : 'Não segue. As tarefas que você marcar voltam a ficar em aberto para quem as fez.' },
 ]
 
 export function Decisao({ f, etapa, fechar }: {
@@ -40,7 +52,8 @@ export function Decisao({ f, etapa, fechar }: {
   etapa: Etapa
   fechar: () => void
 }) {
-  const { eu, perfilDe, nomeDe, anexosDe, decidir, decisoesDe } = useDados()
+  const { eu, perfilDe, nomeDe, anexosDe, decidir, decisoesDe, pode } = useDados()
+  const SAIDAS = useMemo(() => saidasDe(!pode.aprovacao), [pode.aprovacao])
   const [saida, setSaida] = useState<TipoDecisao>('aprovou')
   const [nota, setNota] = useState('')
   const [reabrir, setReabrir] = useState<Set<string>>(new Set())
@@ -89,7 +102,7 @@ export function Decisao({ f, etapa, fechar }: {
 
         <header className="dec-h">
           <div>
-            <span className="rot">Decidir a saída</span>
+            <span className="rot">{pode.aprovacao ? 'Decidir a saída' : 'Fechar o checkpoint'}</span>
             <h3 id="dec-t">{etapa.nome}</h3>
             <p>{f.nome}</p>
           </div>
@@ -99,7 +112,7 @@ export function Decisao({ f, etapa, fechar }: {
         <div className="dec-corpo">
           {!!etapa.criterio && (
             <div className="dec-criterio">
-              <span>O critério que vocês combinaram</span>
+              <span>{pode.aprovacao ? 'O critério que vocês combinaram' : 'O critério que você combinou'}</span>
               <b>{etapa.criterio}</b>
             </div>
           )}

@@ -730,10 +730,19 @@ function LadoDoCanal({ canal }: { canal: Canal }) {
 }
 
 export function TelaChat({ id }: { id?: string }) {
-  const { canais, carregando } = useDados()
+  const { canais, carregando, pode } = useDados()
   const { abrir } = useModais()
+  const router = useRouter()
+
+  /* Espaço pessoal não tem canal, então esta tela não existe lá. Quem chega
+     pelo endereço (favorito, link antigo, botão de voltar) volta para a
+     inicial em vez de encontrar uma sala que nunca vai ter gente. */
+  useEffect(() => {
+    if (!carregando && !pode.canais) router.replace('/')
+  }, [carregando, pode.canais, router])
 
   if (carregando) return <Carregando />
+  if (!pode.canais) return <Carregando />
 
   const canal = id ? canais.find((c) => c.id === id) : null
 

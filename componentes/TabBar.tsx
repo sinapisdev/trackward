@@ -19,7 +19,7 @@ import { aplicarTema, temaAtual, TEMAS, type Tema } from '@/lib/tema'
  */
 export function TabBar() {
   const { eu, fluxos, areas, agenda, org, empresas, empresaAtiva, focarEmpresa, canais, naoLidas,
-    pessoal } = useDados()
+    pode } = useDados()
   const { abrir } = useModais()
   const caminho = usePathname()
   const [mais, setMais] = useState(false)
@@ -66,7 +66,13 @@ export function TabBar() {
         {/* A inicial é a lista de conversas, e entrar numa delas leva para
             /chat/<id>: a aba continua acesa, senão a pessoa fica sem saber
             onde está no exato momento em que ela está no lugar principal. */}
-        <Aba href="/" icone={<Ic.chat />} rotulo="Conversa" conta={porLer} quente tambem="/chat" />
+        {pode.canais
+          ? <Aba href="/" icone={<Ic.chat />} rotulo="Conversa" conta={porLer} quente tambem="/chat" />
+          /* Sozinho a inicial é o caderno, que é a mesma lista com outro
+             conteúdo. A aba segue sendo a primeira e segue apontando para a
+             raiz: quem trocou de espaço não deve ter que reaprender onde fica
+             o que ele abre o dia inteiro. */
+          : <Aba href="/" icone={<Ic.edit />} rotulo="Notas" tambem="/notas" />}
         <Aba href="/minhas" icone={<Ic.inbox />} rotulo="Trabalho" conta={minhas} />
         <Aba href="/tracks" icone={<Ic.proj />} rotulo="Tracks" />
         <Aba href="/agenda" icone={<Ic.agenda />} rotulo="Agenda" conta={hoje} />
@@ -119,18 +125,22 @@ export function TabBar() {
               <Ic.agenda />Agenda
               {!!hoje && <span className="ct num" style={{ marginLeft: 'auto' }}>{hoje} hoje</span>}
             </Link>
-            <Link className="folha-item" href="/chat">
-              <Ic.chat />Todos os canais
-              {!!porLer && <span className="ct num" style={{ marginLeft: 'auto' }}>{porLer}</span>}
-            </Link>
-            <Link className="folha-item" href="/notas"><Ic.edit />Notas</Link>
+            {pode.canais && (
+              <>
+                <Link className="folha-item" href="/chat">
+                  <Ic.chat />Todos os canais
+                  {!!porLer && <span className="ct num" style={{ marginLeft: 'auto' }}>{porLer}</span>}
+                </Link>
+                <Link className="folha-item" href="/notas"><Ic.edit />Notas</Link>
+              </>
+            )}
             <Link className="folha-item" href="/avisos"><Ic.sino />Avisos</Link>
             <Link className="folha-item" href="/desempenho"><Ic.grafico />Desempenho</Link>
             <Link className="folha-item" href="/relatorios"><Ic.processo />Relatórios</Link>
             <Link className="folha-item" href="/processos"><Ic.processo />Processos</Link>
             <Link className="folha-item" href="/agentes"><Ic.faisca />Agentes</Link>
             <Link className="folha-item" href="/conectores"><Ic.raio />Conectores</Link>
-            {!pessoal && <Link className="folha-item" href="/equipe"><Ic.team />Equipe</Link>}
+            {pode.equipe && <Link className="folha-item" href="/equipe"><Ic.team />Equipe</Link>}
             <Link className="folha-item" href="/ajustes"><Ic.ajustes />Ajustes</Link>
             <button className="folha-item" onClick={() => {
               const k = TEMAS.findIndex((t) => t.id === tema)

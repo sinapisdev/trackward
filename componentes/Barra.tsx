@@ -45,6 +45,15 @@ function Espaco() {
   const atual = empresaDe(empresaAtiva)
   const nome = pessoal ? 'Pessoal' : org.multi && atual ? atual.nome : org.nome
 
+  /* O espaço desligado continua na lista, e dizendo que acabou. Sumir com ele
+     seria a mesma tela de quem nunca esteve lá, e quem saiu de uma empresa
+     ontem lê isso como perda do que escreveu. */
+  const lista = espacos.length ? espacos : [{
+    perfil_id: eu.id, org_id: org.id, nome: org.nome,
+    tipo: org.tipo, papel: eu.papel, ativo: eu.ativo, atual: true,
+  }]
+  const temPessoal = lista.some((x) => x.tipo === 'pessoal')
+
   return (
     <div className="tw-esp" ref={caixa}>
       <button className="tw-esp-btn" onClick={() => setAberto((a) => !a)} aria-expanded={aberto}>
@@ -54,16 +63,25 @@ function Espaco() {
       {aberto && (
         <div className="tw-menu">
           <div className="tw-menu-rot">Seus espaços</div>
-          {(espacos.length ? espacos : [{
-            perfil_id: eu.id, org_id: org.id, nome: org.nome,
-            tipo: org.tipo, papel: eu.papel, ativo: eu.ativo, atual: true,
-          }]).map((x) => (
-            <button key={x.perfil_id} className={x.atual ? 'on' : ''}
+          {lista.map((x) => (
+            <button key={x.perfil_id} className={`${x.atual ? 'on' : ''} ${x.ativo ? '' : 'fora'}`}
+              disabled={!x.ativo}
+              title={x.ativo ? '' : 'Seu acesso a este espaço foi encerrado'}
               onClick={() => { if (!x.atual) void trocarEspaco(x.perfil_id); setAberto(false) }}>
               <span className="nm">{x.nome}</span>
+              {x.tipo === 'pessoal' && x.ativo && <i className="tw-esp-et">só seu</i>}
+              {!x.ativo && <i className="tw-esp-et">acesso encerrado</i>}
               {x.atual && <Ic.check />}
             </button>
           ))}
+          {/* O pessoal se contrata aqui, e não no cadastro: quem entrou por uma
+              empresa descobre que ele existe no único lugar em que já vem
+              trocar de espaço. É o mesmo app, sem o que exige outra pessoa. */}
+          {!temPessoal && (
+            <button onClick={() => { setAberto(false); abrir({ tipo: 'espaco', pessoal: true }) }}>
+              <Ic.eu /><span className="nm">Abrir meu espaço pessoal</span>
+            </button>
+          )}
           <button onClick={() => { setAberto(false); abrir({ tipo: 'espaco' }) }}>
             <Ic.plus /><span className="nm">Abrir outra empresa</span>
           </button>
@@ -323,7 +341,7 @@ function Sino() {
 }
 
 export function Barra() {
-  const { eu, fluxos, canais, naoLidas, pessoal } = useDados()
+  const { eu, fluxos, canais, naoLidas, pode } = useDados()
   const caminho = usePathname()
   const minhas = pendencias(fluxos, eu.id).length
   const porLer = canais.reduce((n, c) => n + naoLidas(c.id), 0)
@@ -345,7 +363,9 @@ export function Barra() {
             "Mais" por ser montagem, e não operação: quem mexe em processo senta
             para fazer isso, não passa por ali entre duas reuniões. */}
         <Aba href="/" rotulo="Forward" ativo={caminho === '/'} />
-        <Aba href="/chat" rotulo="Conversa" conta={porLer} quente ativo={caminho.startsWith('/chat')} />
+        {pode.canais && (
+          <Aba href="/chat" rotulo="Conversa" conta={porLer} quente ativo={caminho.startsWith('/chat')} />
+        )}
         <Aba href="/notas" rotulo="Notas" ativo={caminho === '/notas'} />
         {/* Objetivos e rotinas moram na mesma tela: são o mesmo objeto, e a
             diferença entre eles é um filtro, não um endereço. */}
@@ -359,7 +379,7 @@ export function Barra() {
       <div className="tw-dir">
         <Busca />
         <Sino />
-        {!pessoal && (
+        {pode.equipe && (
           <Link className="iconbtn grd" href="/equipe" title="Equipe" aria-label="Equipe"><Ic.team /></Link>
         )}
         <Link className="iconbtn grd" href="/ajustes" title="Ajustes" aria-label="Ajustes"><Ic.ajustes /></Link>

@@ -30,7 +30,7 @@ import { mandaNoProcesso, podeConcluir, podeMexerNoItem } from '@/lib/acesso'
  */
 export function TelaFluxo({ id }: { id: string }) {
   const { eu, perfis, fluxos, carregando, areaDe, perfilDe, nomeDe, totalItens,
-    alternarItem, excluirItem, excluirFluxo, destravar, decisoesDe } = useDados()
+    alternarItem, excluirItem, excluirFluxo, destravar, decisoesDe, pode } = useDados()
   const { abrir } = useModais()
   const router = useRouter()
   const [sel, setSel] = useState<number | null>(null)
@@ -80,7 +80,10 @@ export function TelaFluxo({ id }: { id: string }) {
   const feitos = etapa.itens.filter((x) => x.feito).length
   const faltam = etapa.itens.length - feitos
   const completo = faltam === 0
-  const podeAprovar = etapa.aprovador_id === eu.id
+  // Sozinho não há aceite: o checkpoint fecha quando as tarefas dele acabam, e
+  // quem fecha é você. Aprovar a própria saída é assinar autorização para si
+  // mesmo, e o app pedia isso a cada checkpoint.
+  const podeAprovar = !pode.aprovacao || etapa.aprovador_id === eu.id
   const travado = !!f.travado_motivo
   const mandaAqui = mandaNoProcesso(eu, f, perfis)
   const ocultos = Math.max(0, totalItens(f.id) - f.etapas.reduce((n, et) => n + et.itens.length, 0))
@@ -107,8 +110,12 @@ export function TelaFluxo({ id }: { id: string }) {
   else if (!naAtual) nota = 'Libera quando a track chegar aqui. Já dá para adicionar tarefas.'
   else if (travado) nota = 'Destrave a track para seguir.'
   else if (completo && ocultos) nota = `Suas tarefas saíram. Ainda há ${ocultos === 1 ? 'uma tarefa' : `${ocultos} tarefas`} com outras pessoas.`
-  else if (completo) nota = `Tudo pronto, aguardando ${nomeDe(etapa.aprovador_id)}.`
-  else nota = `Conclua ${faltam === 1 ? 'a tarefa restante' : `as ${faltam} tarefas restantes`} para aprovar.`
+  else if (completo) {
+    nota = pode.aprovacao
+      ? `Tudo pronto, aguardando ${nomeDe(etapa.aprovador_id)}.`
+      : 'Tudo pronto. Dá para fechar este checkpoint.'
+  }
+  else nota = `Conclua ${faltam === 1 ? 'a tarefa restante' : `as ${faltam} tarefas restantes`} para ${pode.aprovacao ? 'aprovar' : 'fechar'}.`
 
   return (
     <>
@@ -124,7 +131,9 @@ export function TelaFluxo({ id }: { id: string }) {
         <div>
           <h1>{f.nome}</h1>
           <div className="meta-row">
-            <span><Av p={perfilDe(f.dono_id)} tam="sm" />Responsável: {nomeDe(f.dono_id)}</span>
+            {pode.delegar && (
+              <span><Av p={perfilDe(f.dono_id)} tam="sm" />Responsável: {nomeDe(f.dono_id)}</span>
+            )}
             <span className="sep">·</span>
             <span className={`track-st ${st}`}><IconeStatus st={st} p={progresso(f)} />{LBL[st]}</span>
             {f.visib !== 'equipe' && (
@@ -157,7 +166,10 @@ export function TelaFluxo({ id }: { id: string }) {
       </div>
 
       <div className="abas track-abas" role="tablist">
-        {(['trilha', 'conversa', 'atividade'] as const).map((k) => (
+        {(pode.canais
+          ? (['trilha', 'conversa', 'atividade'] as const)
+          : (['trilha', 'atividade'] as const)
+        ).map((k) => (
           <button key={k} role="tab" aria-selected={aba === k} className={aba === k ? 'on' : ''}
             onClick={() => setAba(k)}>
             {k === 'trilha' ? 'Track' : k === 'conversa' ? 'Conversa' : 'Atividade'}
@@ -206,10 +218,12 @@ export function TelaFluxo({ id }: { id: string }) {
                     <div className="eyebrow">Checkpoint {idx + 1} de {f.etapas.length}</div>
                     <h2>{etapa.nome}</h2>
                   </div>
-                  <div className="cp-aprov">
-                    Aprovação: {nomeDe(etapa.aprovador_id)}
-                    <Av p={perfilDe(etapa.aprovador_id)} tam="sm" />
-                  </div>
+                  {pode.aprovacao && (
+                    <div className="cp-aprov">
+                      Aprovação: {nomeDe(etapa.aprovador_id)}
+                      <Av p={perfilDe(etapa.aprovador_id)} tam="sm" />
+                    </div>
+                  )}
                 </div>
 
                 <div className="cp-crit">
@@ -310,7 +324,7 @@ export function TelaFluxo({ id }: { id: string }) {
                       onClick={() => setDecidindo(true)}
                       disabled={travado || !podeAprovar}
                       title={podeAprovar ? '' : `Somente ${nomeDe(etapa.aprovador_id)} decide este checkpoint`}>
-                      {!completo && <Ic.lock />}Aprovar saída
+                      {!completo && <Ic.lock />}{pode.aprovacao ? 'Aprovar saída' : 'Fechar checkpoint'}
                     </button>
                   )}
                   <span className="cp-nota">{nota}</span>
@@ -328,14 +342,26 @@ export function TelaFluxo({ id }: { id: string }) {
         <aside className="rail">
           {aba === 'trilha' ? (
             <>
-              <ConversaTrack f={f} />
-              {/* A atividade fechada por padrão: ela é o histórico, e histórico
-                  se consulta, não se acompanha. Aberta, ela comia a altura que
-                  a conversa precisa para caber mais de quatro mensagens. */}
-              <details className="track-atv">
-                <summary><Ic.chev />Atividade<i className="num">{f.log.length}</i></summary>
-                <AtividadeTrack f={f} />
-              </details>
+              {pode.canais ? (
+                <>
+                  <ConversaTrack f={f} />
+                  {/* A atividade fechada por padrão: ela é o histórico, e histórico
+                      se consulta, não se acompanha. Aberta, ela comia a altura que
+                      a conversa precisa para caber mais de quatro mensagens. */}
+                  <details className="track-atv">
+                    <summary><Ic.chev />Atividade<i className="num">{f.log.length}</i></summary>
+                    <AtividadeTrack f={f} />
+                  </details>
+                </>
+              ) : (
+                /* Sem canal a coluna é só a atividade, e ela deixa de ser botão:
+                   o que sobra na coluna é ela, e retrair o único conteúdo para
+                   mostrar espaço vazio não esconde nada de ninguém. */
+                <>
+                  <h2 className="track-rot">Atividade</h2>
+                  <AtividadeTrack f={f} quantas={30} />
+                </>
+              )}
             </>
           ) : (
             <>
@@ -343,8 +369,12 @@ export function TelaFluxo({ id }: { id: string }) {
               <dl className="kv">
                 <dt>Checkpoint</dt>
                 <dd>{f.concluido ? 'Concluído' : f.etapas[f.atual]?.nome}</dd>
-                <dt>Responsável</dt>
-                <dd><Av p={perfilDe(f.dono_id)} tam="sm" />{nomeDe(f.dono_id)}</dd>
+                {pode.delegar && (
+                  <>
+                    <dt>Responsável</dt>
+                    <dd><Av p={perfilDe(f.dono_id)} tam="sm" />{nomeDe(f.dono_id)}</dd>
+                  </>
+                )}
                 <dt>Checkpoints</dt>
                 <dd className="num">{f.etapas.length}</dd>
                 <dt>Progresso</dt>

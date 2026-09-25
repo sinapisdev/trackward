@@ -240,6 +240,12 @@ svg{display:block;flex:none}
 .tw-menu-rot{font:var(--fw-semibold) var(--fs-kicker)/1.2 var(--sans);letter-spacing:var(--ls-kicker);
   text-transform:uppercase;color:var(--tx-3);padding:9px 10px 5px}
 .tw-menu-sep{height:1px;background:var(--line);margin:5px 0}
+/* A etiqueta do espaço: diz o que a linha é (o pessoal) ou por que ela não
+   abre (acesso encerrado). Some ela e a lista vira nomes sem explicação. */
+.tw-esp-et{font:var(--fw-medium) var(--fs-micro)/1 var(--sans);letter-spacing:.02em;
+  color:var(--tx-3);border:1px solid var(--line);border-radius:999px;padding:3px 7px;font-style:normal}
+.tw-menu button.fora{opacity:.55;cursor:default}
+.tw-menu button.fora:hover{background:none}
 .tw-menu-eu{display:flex;align-items:center;gap:10px;padding:9px 10px 5px}
 .tw-menu-eu b{display:block;font-size:var(--fs-ui);font-weight:var(--fw-semibold)}
 .tw-menu-eu small{display:block;font-size:var(--fs-micro);color:var(--tx-3)}
