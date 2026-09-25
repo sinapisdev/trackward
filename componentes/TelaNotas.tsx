@@ -252,11 +252,15 @@ export function TelaNotas() {
                       title={de ? `Compartilhada por ${de}`
                         : quantos ? `Compartilhada com ${quantos} pessoa${quantos === 1 ? '' : 's'}` : undefined}>
                       <b>
-                        {de || quantos ? <i className="nt-comp-mk"><Ic.team /></i> : n.fixada && <Ic.flag />}
+                        {n.fixada && <Ic.flag />}
                         {n.titulo}
                       </b>
-                      <span>{resumo(n).slice(0, 90) || 'vazia'}</span>
                       <i>{rel(isoDe(n.mexido_em)).toLowerCase()}</i>
+                      <span>{resumo(n).slice(0, 90) || 'vazia'}</span>
+                      {/* A marca fica na coluna da direita, embaixo da hora, e
+                          não grudada no título: ali ela empurrava o nome da
+                          nota, que é a única coisa que se lê de relance. */}
+                      {!!(de || quantos) && <em className="nt-comp-mk"><Ic.team /></em>}
                     </button>
                     )
                   })}

@@ -482,8 +482,9 @@ Duas consequências, e as duas são de propósito: quem abriu **aparece** em "Co
 com", então o dono vê quem foi ler; e tirar alguém dali **não adianta** enquanto o cartão
 estiver no canal, porque ele abre de novo. Quem quer cortar o acesso apaga a mensagem.
 
-**Nota que passou por outra pessoa fica marcada na lista**, com o ícone de duas pessoas, nas
-duas direções: a que compartilharam com você e a que você compartilhou. No meio das suas
+**Nota que passou por outra pessoa fica marcada na lista**, com o ícone de duas pessoas na
+direita da linha, embaixo da hora, que é onde a lista de conversas põe o selo do que falta
+ler. Vale nas duas direções: a que compartilharam com você e a que você compartilhou. No meio das suas
 ela some, e o risco não é pequeno: você leria o que outra pessoa escreveu como se tivesse
 escrito. Vale nas duas listas, a do celular (`Caderno`) e a do computador (`TelaNotas`), e
 `/notas?nota=<id>` é como o cartão do chat chega lá.
@@ -849,6 +850,11 @@ da dobra, que é o mesmo que não existirem. A regra mora em `app/globals.css`, 
 `/notas` no computador e o caderno no celular mostram a mesma coisa e precisam parecer a
 mesma coisa. Duas regras seguram isso:
 
+- **A linha da lista ocupa a coluna inteira**, e tem a forma da lista de conversas: nome e
+  hora em cima, começo do texto embaixo, marca na direita. Eram três linhas empilhadas, e a
+  terceira só levava a hora. O `width:100%` não é enfeite: botão com largura automática
+  encolhe até o conteúdo mesmo sendo grid, e o realce da nota aberta ficava do tamanho do
+  título, boiando no meio da coluna em vez de marcar a linha.
 - **Nada de cabeçalho de página em cima da folha.** A palavra "Notas" já está acesa na
   fileira de abas, e repeti-la em corpo 34 custava 150px, que é exatamente a altura que
   faltava para o texto. Procurar e criar dividem uma linha no alto da lista.

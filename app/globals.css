@@ -2483,17 +2483,37 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
 .nt-grupo{font:var(--fw-semibold) var(--fs-kicker)/1.2 var(--sans);
   letter-spacing:var(--ls-kicker);text-transform:uppercase;color:var(--tx-3);
   padding:16px 12px 6px;display:flex;align-items:center;gap:6px}
-.nt-item{text-align:left;display:grid;gap:2px;padding:10px 12px;
+/* A linha ocupa a coluna inteira, e por isso o `width:100%`: botão com largura
+   automática encolhe até o conteúdo mesmo sendo grid, e o realce da nota aberta
+   ficava do tamanho do título, boiando no meio da coluna em vez de marcar a
+   linha. É o mesmo desenho da lista de conversas: nome e hora em cima, começo
+   do texto embaixo, e a marca na direita. Eram três linhas empilhadas, e a
+   terceira só levava a hora. */
+.nt-item{width:100%;text-align:left;display:grid;column-gap:8px;row-gap:2px;
+  grid-template-columns:minmax(0,1fr) auto;align-items:center;padding:9px 12px;
   border:1px solid transparent;border-radius:var(--r);background:none;transition:var(--t)}
 .nt-item:hover{background:var(--hover)}
 .nt-item.on{background:var(--alto);border-color:var(--line-2)}
-.nt-item b{font-size:var(--fs-ui);font-weight:var(--fw-medium);display:flex;
-  align-items:center;gap:6px;color:var(--tx)}
-.nt-item b svg{width:11px;height:11px;color:var(--ac-tinta);flex:none}
-.nt-comp-mk{display:inline-grid;place-items:center;flex:none}
-.nt-item span{font-size:var(--fs-sm);color:var(--tx-3);overflow:hidden;
-  text-overflow:ellipsis;white-space:nowrap}
-.nt-item i{font-size:var(--fs-micro);color:var(--tx-3);font-style:normal}
+/* `display:block`, e não flex: num flex o texto vira item anônimo e as
+   reticências não aparecem, então o título era cortado no seco, encostando na
+   hora. O alfinete entra como ícone na linha mesmo. */
+.nt-item b{grid-column:1;grid-row:1;min-width:0;font-size:var(--fs-ui);
+  font-weight:var(--fw-medium);color:var(--tx);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* `inline-block` contra o `svg{display:block}` global: em bloco o alfinete
+   cai numa linha só dele e empurra o título para baixo. */
+.nt-item b svg{display:inline-block;width:11px;height:11px;color:var(--ac-tinta);
+  vertical-align:-1px;margin-right:5px}
+.nt-item span{grid-column:1;grid-row:2;min-width:0;font-size:var(--fs-sm);color:var(--tx-3);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nt-item i{grid-column:2;grid-row:1;justify-self:end;font-size:var(--fs-micro);
+  color:var(--tx-3);font-style:normal;white-space:nowrap}
+/* Debaixo da hora, que é onde a lista de conversas põe o selo do que falta ler.
+   Sem ela a nota de outra pessoa fica no meio das suas sem dizer nada. */
+.nt-comp-mk{grid-column:2;grid-row:2;justify-self:end;display:grid;place-items:center;
+  width:20px;height:20px;border-radius:var(--r-pill);color:var(--ac-tinta);
+  background:color-mix(in srgb,var(--ac) 14%,transparent)}
+.nt-comp-mk svg{width:11px;height:11px}
 .nt-nada,.nt-solta{font-size:var(--fs-sm);color:var(--tx-3);padding:8px 12px}
 .nt-solta{flex:none}
 
