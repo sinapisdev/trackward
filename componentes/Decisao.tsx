@@ -36,9 +36,11 @@ type Saida = { id: TipoDecisao; rotulo: string; sobre: string; icone: React.Reac
  * voltar atrás. A tela é a mesma de propósito, porque o valor dela não é a
  * assinatura, é ver o que foi entregue antes de seguir.
  */
-const saidasDe = (sozinho: boolean): Saida[] => [
-  { id: 'aprovou', rotulo: sozinho ? 'Fechar' : 'Aprovar', icone: <Ic.check />,
-    sobre: 'Está de acordo com o critério. A esteira segue para o próximo checkpoint.' },
+const saidasDe = (sozinho: boolean, ultimo: boolean): Saida[] => [
+  { id: 'aprovou', rotulo: ultimo ? 'Concluir' : sozinho ? 'Fechar' : 'Aprovar', icone: <Ic.check />,
+    sobre: ultimo
+      ? 'Está de acordo com o critério. A track é concluída e vai para Arquivadas, inteira.'
+      : 'Está de acordo com o critério. A esteira segue para o próximo checkpoint.' },
   { id: 'ressalva', rotulo: sozinho ? 'Fechar com pendência' : 'Aprovar com ressalva', icone: <Ic.ressalva />,
     sobre: 'Segue, mas fica uma pendência anotada, que vira tarefa do próximo checkpoint.' },
   { id: 'devolveu', rotulo: sozinho ? 'Voltar atrás' : 'Devolver', icone: <Ic.devolver />,
@@ -53,7 +55,11 @@ export function Decisao({ f, etapa, fechar }: {
   fechar: () => void
 }) {
   const { eu, perfilDe, nomeDe, anexosDe, decidir, decisoesDe, pode } = useDados()
-  const SAIDAS = useMemo(() => saidasDe(!pode.aprovacao), [pode.aprovacao])
+  const ultimoDeObjetivo = f.tipo === 'esteira' && f.atual === f.etapas.length - 1
+  const SAIDAS = useMemo(
+    () => saidasDe(!pode.aprovacao, ultimoDeObjetivo),
+    [pode.aprovacao, ultimoDeObjetivo],
+  )
   const [saida, setSaida] = useState<TipoDecisao>('aprovou')
   const [nota, setNota] = useState('')
   const [reabrir, setReabrir] = useState<Set<string>>(new Set())
@@ -102,7 +108,10 @@ export function Decisao({ f, etapa, fechar }: {
 
         <header className="dec-h">
           <div>
-            <span className="rot">{pode.aprovacao ? 'Decidir a saída' : 'Fechar o checkpoint'}</span>
+            <span className="rot">
+              {ultimoDeObjetivo ? 'Concluir a track'
+                : pode.aprovacao ? 'Decidir a saída' : 'Fechar o checkpoint'}
+            </span>
             <h3 id="dec-t">{etapa.nome}</h3>
             <p>{f.nome}</p>
           </div>

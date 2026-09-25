@@ -11,6 +11,7 @@ import { Av } from './atomos'
 import Link from 'next/link'
 import { curta, dias, hojeIso } from '@/lib/datas'
 import { podeMexerNoPrazo } from '@/lib/acesso'
+import { MOTIVOS } from '@/lib/desfecho'
 import { faixa, minutos, ocupados } from '@/lib/agenda'
 import { esqueletoEmBranco, periodoAtual, type RascunhoEtapa } from '@/lib/modelos'
 import { MOLDES, servico } from '@/lib/conectores'
@@ -28,6 +29,7 @@ export type Pedido =
   /** Tarefa que não pertence a objetivo nem a rotina. Privada de quem cria. */
   | { tipo: 'avulsa'; texto?: string; resp?: string | null; prazo?: string | null }
   | { tipo: 'travar'; fluxo: Fluxo }
+  | { tipo: 'arquivar'; fluxo: Fluxo }
   | { tipo: 'compromisso'; compromisso?: Compromisso; quando?: string; inicio?: string }
   | { tipo: 'canal'; canal?: Canal }
   | {
@@ -70,6 +72,7 @@ export function Modais({ children }: { children: ReactNode }) {
           {pedido.tipo === 'item' && <MItem etapa={pedido.etapa} item={pedido.item} fechar={fechar} />}
           {pedido.tipo === 'avulsa' && <MAvulsa fechar={fechar} pedido={pedido} />}
           {pedido.tipo === 'travar' && <MTravar fluxo={pedido.fluxo} fechar={fechar} />}
+          {pedido.tipo === 'arquivar' && <MArquivar fluxo={pedido.fluxo} fechar={fechar} />}
           {pedido.tipo === 'compromisso' && <MCompromisso pedido={pedido} fechar={fechar} />}
           {pedido.tipo === 'canal' && <MCanal canal={pedido.canal} fechar={fechar} />}
           {pedido.tipo === 'agente' && <MAgente pedido={pedido} fechar={fechar} />}
@@ -162,6 +165,73 @@ function MArea({ area, fechar }: { area?: Area; fechar: () => void }) {
  * holding. Não mistura nada com a empresa de agora, é outro espaço inteiro, e o
  * seletor no alto da lateral troca entre eles.
  */
+/**
+ * Arquivar uma track que não vai terminar.
+ *
+ * O motivo é escolhido, e não digitado, porque este campo existe para virar
+ * número: trinta jeitos de escrever "o cliente desistiu" não viram gráfico
+ * nenhum. O texto livre continua embaixo, para o que só aquele caso explica.
+ */
+function MArquivar({ fluxo, fechar }: { fluxo: Fluxo; fechar: () => void }) {
+  const { arquivarFluxo } = useDados()
+  const router = useRouter()
+  const [motivo, setMotivo] = useState('')
+  const [detalhe, setDetalhe] = useState('')
+  const [indo, setIndo] = useState(false)
+
+  const escolhido = MOTIVOS.find((m) => m.id === motivo)
+  const pronto = !!motivo && (motivo !== 'outro' || !!detalhe.trim()) && !indo
+
+  const salvar = async () => {
+    if (!pronto) return
+    setIndo(true)
+    const ok = await arquivarFluxo(fluxo.id, motivo, detalhe.trim())
+    setIndo(false)
+    if (ok) { fechar(); router.push('/tracks') }
+  }
+
+  return (
+    <div className="dlg" role="dialog" aria-modal="true" aria-labelledby="arq-t">
+      <div className="dlg-h">
+        <h3 id="arq-t">Arquivar {fluxo.nome}</h3>
+        <p>
+          Ela sai da lista principal e continua inteira em Arquivadas, com a trilha, as
+          tarefas, a conversa e os anexos. Nada é apagado, e dá para tirar do arquivo
+          depois.
+        </p>
+      </div>
+      <div className="dlg-b">
+        <div className="fld">
+          <span className="lbl">Por que ela está parando</span>
+          <div className="arq-motivos">
+            {MOTIVOS.map((m) => (
+              <button key={m.id} className={`arq-motivo ${motivo === m.id ? 'on' : ''}`}
+                onClick={() => setMotivo(m.id)}>
+                <b>{m.nome}</b>
+                <small>{m.sobre}</small>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="fld">
+          <label htmlFor="arq-d">
+            O que só este caso explica {escolhido?.id === 'outro' ? '' : '(opcional)'}
+          </label>
+          <textarea className="inp" id="arq-d" rows={3} value={detalhe}
+            placeholder="Ex.: o cliente adiou para o ano que vem e pediu para retomarmos em janeiro."
+            onChange={(e) => setDetalhe(e.target.value)} />
+          <p className="hint">
+            Isto fica na track e não entra na conta dos relatórios: quem conta é o motivo
+            escolhido em cima.
+          </p>
+        </div>
+      </div>
+      <Rodape fechar={fechar} rotulo={indo ? 'Arquivando...' : 'Arquivar'}
+        acao={() => void salvar()} />
+    </div>
+  )
+}
+
 function MEspaco({ pessoal, fechar }: { pessoal?: boolean; fechar: () => void }) {
   const { abrirEspaco } = useDados()
   const [nome, setNome] = useState('')

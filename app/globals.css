@@ -4025,6 +4025,21 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 .doc-bloco{margin-bottom:12px}
 .doc-bloco:last-child{margin-bottom:0}
 
+/* Como a track terminou, na linha dela dentro do arquivo. Neutro de propósito:
+   o arquivo não cobra ninguém, e cor aqui seria alarme sobre coisa parada. */
+.tk-arq{display:inline-flex;align-items:center;gap:6px;color:var(--tx-3)}
+.tk-arq>svg{width:12px;height:12px}
+
+/* Os motivos de arquivar: cartão com o nome e o que ele quer dizer. A frase
+   embaixo não é enfeite, é o que evita todo mundo escolher o nome mais curto. */
+.arq-motivos{display:grid;gap:8px}
+.arq-motivo{text-align:left;display:grid;gap:2px;padding:11px 13px;border-radius:var(--r);
+  border:1px solid var(--line-2);background:var(--brilho);transition:var(--t)}
+.arq-motivo:hover{background:var(--alto);border-color:var(--line-3)}
+.arq-motivo.on{border-color:var(--ac-tinta);background:var(--ac-luz)}
+.arq-motivo b{font:var(--fw-medium) var(--fs-ui)/1.3 var(--sans);color:var(--tx)}
+.arq-motivo small{font-size:var(--fs-sm);color:var(--tx-3)}
+
 /* o menu de detalhes da nota */
 .nt-det{position:relative}
 .nt-det-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:30;width:280px;

@@ -12,6 +12,7 @@ import { Pastas, type Pasta } from './Pastas'
 import { TrilhaH } from './Trilha'
 import { rotuloTipo } from '@/lib/rotulos'
 import { rel } from '@/lib/datas'
+import { nomeDoMotivo } from '@/lib/desfecho'
 import { envolve, etapaAtual, LBL, progresso, proxPrazo, status } from '@/lib/regras'
 import type { Fluxo, Tipo } from '@/lib/tipos'
 
@@ -34,7 +35,7 @@ type Corte = 'tudo' | 'esteira' | 'ciclo'
  * contrário custava caro: o arquivo é bonito para passear e ruim para achar.
  */
 export function TelaTracks() {
-  const { fluxos, areas, perfis, areaDe, perfilDe, nomeDe, minhaLista, carregando } = useDados()
+  const { fluxos, arquivadas, areas, perfis, areaDe, perfilDe, nomeDe, minhaLista, carregando } = useDados()
   const { abrir } = useModais()
   const router = useRouter()
   const params = useSearchParams()
@@ -45,20 +46,28 @@ export function TelaTracks() {
   const [termo, setTermo] = useState('')
   const [modo, setModo] = useState<'lista' | 'pastas'>('lista')
   const [naVez, setNaVez] = useState(0)
-  const [fechadas, setFechadas] = useState(false)
+  /**
+   * O arquivo é um lugar, e não um filtro escondido no rodapé.
+   *
+   * Era um "Mostrar as concluídas" na última linha da tela, que é onde ninguém
+   * olha, e a track concluída continuava no meio das vivas quando ligado. Agora
+   * é uma face: ou você está vendo o que anda, ou o que terminou. As duas listas
+   * têm a mesma tabela e os mesmos filtros, porque procurar no arquivo é a mesma
+   * pergunta feita sobre outro conjunto.
+   */
+  const [noArquivo, setNoArquivo] = useState(false)
 
   const todas = useMemo(
     // A lista pessoal não é uma track: não tem checkpoint, não tem quem aprove,
     // e ninguém mais a enxerga. Ela é onde moram as tarefas avulsas.
-    () => fluxos.filter((f) => f.id !== minhaLista?.id),
-    [fluxos, minhaLista],
+    () => (noArquivo ? arquivadas : fluxos).filter((f) => f.id !== minhaLista?.id),
+    [fluxos, arquivadas, noArquivo, minhaLista],
   )
 
   const lista = useMemo(() => {
     const limpa = (x: string) => x.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
     return todas
       .filter((f) => corte === 'tudo' || f.tipo === corte)
-      .filter((f) => (fechadas ? true : !f.concluido))
       .filter((f) => !area || (area === 'sem' ? !f.area_id : f.area_id === area))
       .filter((f) => !pessoa || envolve(f, pessoa))
       .filter((f) => !termo.trim() || limpa(f.nome).includes(limpa(termo)))
@@ -66,7 +75,7 @@ export function TelaTracks() {
         const peso = { late: 0, hold: 1, soon: 2, ok: 3, done: 4 } as Record<string, number>
         return peso[status(a)] - peso[status(b)] || a.nome.localeCompare(b.nome, 'pt-BR')
       })
-  }, [todas, corte, area, pessoa, termo, fechadas])
+  }, [todas, corte, area, pessoa, termo])
 
   const pastas = useMemo<Pasta[]>(() => lista.map((f) => {
     const et = etapaAtual(f)
@@ -94,9 +103,7 @@ export function TelaTracks() {
 
   if (carregando) return <Carregando />
 
-  const conta = (c: Corte) => todas
-    .filter((f) => !f.concluido)
-    .filter((f) => c === 'tudo' || f.tipo === c).length
+  const conta = (c: Corte) => todas.filter((f) => c === 'tudo' || f.tipo === c).length
 
   const vazio = !todas.length
   const idx = Math.min(naVez, Math.max(0, pastas.length - 1))
@@ -149,6 +156,14 @@ export function TelaTracks() {
                     {nome}<span className="num">{conta(c)}</span>
                   </button>
                 ))}
+            </div>
+            <div className="seg" role="group" aria-label="Vivas ou arquivadas">
+              <button className={!noArquivo ? 'on' : ''}
+                onClick={() => { setNoArquivo(false); setNaVez(0) }}>Em andamento</button>
+              <button className={noArquivo ? 'on' : ''}
+                onClick={() => { setNoArquivo(true); setNaVez(0) }}>
+                Arquivadas<span className="num">{arquivadas.length}</span>
+              </button>
             </div>
             <label className="campo-busca">
               <Ic.lupa />
@@ -213,10 +228,24 @@ export function TelaTracks() {
                         )}
                       </p>
                       <p className="tk-dono">
-                        <span className={`tk-st ${st}`}>
-                          <IconeStatus st={st} p={progresso(f)} />{LBL[st]}
-                        </span>
-                        {pp && !f.concluido && <><span className="sep">·</span><span>{rel(pp)}</span></>}
+                        {/* No arquivo o que interessa não é o prazo nem a
+                            situação: a track parou, e "Atrasado" ali é uma
+                            cobrança que não cabe mais a ninguém. O que se lê é
+                            como ela terminou. */}
+                        {f.desfecho ? (
+                          <span className="tk-arq" title={f.detalhe || ''}>
+                            {f.desfecho === 'concluido' ? <Ic.check /> : <Ic.pause />}
+                            {f.desfecho === 'concluido' ? 'Concluída' : nomeDoMotivo(f.motivo)}
+                            {f.arquivado_em && ` · ${rel(f.arquivado_em.slice(0, 10))}`}
+                          </span>
+                        ) : (
+                          <>
+                            <span className={`tk-st ${st}`}>
+                              <IconeStatus st={st} p={progresso(f)} />{LBL[st]}
+                            </span>
+                            {pp && <><span className="sep">·</span><span>{rel(pp)}</span></>}
+                          </>
+                        )}
                         <span className="sep">·</span>
                         <Av p={perfilDe(f.dono_id)} tam="sm" />{nomeDe(f.dono_id)}
                       </p>
@@ -242,12 +271,9 @@ export function TelaTracks() {
 
           <div className="tb-pe">
             <span>
-              {lista.length} de {todas.filter((f) => fechadas || !f.concluido).length}{' '}
-              {lista.length === 1 ? 'track' : 'tracks'}
+              {lista.length} de {todas.length} {lista.length === 1 ? 'track' : 'tracks'}
+              {noArquivo && ' no arquivo'}
             </span>
-            <button onClick={() => setFechadas((v) => !v)}>
-              {fechadas ? 'Esconder as concluídas' : 'Mostrar as concluídas'}
-            </button>
           </div>
         </>
       )}

@@ -1916,7 +1916,10 @@ begin
     return 'volta';
   end if;
 
-  update fluxos set concluido = true where id = f.id;
+  -- Concluir arquiva: a track sai da lista principal e continua inteira em
+  -- Arquivadas, que é onde ficam os documentos e o histórico dela. Seção 21.
+  update fluxos set concluido = true, desfecho = 'concluido', arquivado_em = now()
+  where id = f.id;
   return 'concluido';
 end $$;
 
@@ -3674,3 +3677,93 @@ end $$;
 drop trigger if exists canais_so_equipe on public.canais;
 create trigger canais_so_equipe after insert on public.canais
   for each row execute function public.ao_criar_canal();
+
+-- --------------------------------------------------------------------------
+-- 21. A track termina, e termina dizendo como
+--
+--     Antes havia dois fins e nenhum registro: concluir marcava `concluido` e
+--     a track continuava na lista para sempre, e excluir apagava a linha e com
+--     ela tudo que se poderia aprender daquilo. Um ano depois ninguém sabe
+--     quantas obras foram entregues nem por que as outras pararam.
+--
+--     Agora todo fim é um **desfecho**, e desfecho arquiva: sai da lista
+--     principal e continua inteira em Arquivadas, com trilha, tarefas,
+--     conversa e anexos. É de lá que saem os dois números que interessam,
+--     quanto se entrega e por que se para.
+--
+--     O motivo é **escolhido de uma lista**, e não digitado. Motivo digitado
+--     vira trinta frases diferentes para a mesma coisa, e trinta frases não
+--     viram gráfico nenhum: é por isso que existe `motivo` (o código) e
+--     `detalhe` (o que só aquele caso explica).
+-- --------------------------------------------------------------------------
+
+alter table public.fluxos add column if not exists desfecho text;
+alter table public.fluxos add column if not exists motivo text;
+alter table public.fluxos add column if not exists detalhe text;
+alter table public.fluxos add column if not exists arquivado_em timestamptz;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'fluxos_desfecho_check') then
+    alter table public.fluxos add constraint fluxos_desfecho_check
+      check (desfecho is null or desfecho in ('concluido','cancelado'));
+  end if;
+end $$;
+
+create index if not exists fluxos_arquivo_idx on public.fluxos (org_id, arquivado_em);
+
+-- As tracks já concluídas antes disto entram no arquivo com a data que dá para
+-- saber: a da criação não serve, e mentir uma data de conclusão é pior do que
+-- não ter. Fica o desfecho, sem carimbo de hora.
+update public.fluxos set desfecho = 'concluido'
+where concluido and desfecho is null;
+
+/**
+ * Arquivar uma track sem concluí-la: o que antes era excluir.
+ *
+ * Não apaga linha nenhuma, de propósito. Quem cancela um projeto está dizendo
+ * a coisa mais útil que vai dizer sobre ele, e apagar a linha jogava justamente
+ * essa parte fora.
+ */
+create or replace function public.arquivar_fluxo(
+  p_fluxo uuid, p_motivo text, p_detalhe text default null
+) returns void language plpgsql security definer set search_path = public as $$
+declare v_eu uuid := meu_perfil(); f fluxos%rowtype;
+begin
+  select * into f from fluxos where id = p_fluxo;
+  if f.id is null then raise exception 'Track não encontrada.'; end if;
+  if not minha(f.org_id) then raise exception 'Esta track não é do seu espaço.'; end if;
+  if not (f.autor_id = v_eu or f.dono_id = v_eu or eh_admin()) then
+    raise exception 'Só o autor, o dono ou um administrador pode arquivar.';
+  end if;
+  if btrim(coalesce(p_motivo, '')) = '' then
+    raise exception 'Diga por que ela está parando.';
+  end if;
+
+  update fluxos set desfecho = 'cancelado', motivo = btrim(p_motivo),
+    detalhe = nullif(btrim(coalesce(p_detalhe, '')), ''), arquivado_em = now()
+  where id = p_fluxo;
+
+  insert into atividades (fluxo_id, quem_id, texto)
+  values (p_fluxo, v_eu, 'arquivou: ' || btrim(p_motivo));
+end $$;
+
+/** Tirar do arquivo. Cancelar por engano acontece, e não pode ser definitivo. */
+create or replace function public.reabrir_fluxo(p_fluxo uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_eu uuid := meu_perfil(); f fluxos%rowtype;
+begin
+  select * into f from fluxos where id = p_fluxo;
+  if f.id is null then raise exception 'Track não encontrada.'; end if;
+  if not minha(f.org_id) then raise exception 'Esta track não é do seu espaço.'; end if;
+  if not (f.autor_id = v_eu or f.dono_id = v_eu or eh_admin()) then
+    raise exception 'Só o autor, o dono ou um administrador pode reabrir.';
+  end if;
+
+  update fluxos set desfecho = null, motivo = null, detalhe = null,
+    arquivado_em = null, concluido = false
+  where id = p_fluxo;
+
+  insert into atividades (fluxo_id, quem_id, texto)
+  values (p_fluxo, v_eu, 'tirou do arquivo');
+end $$;

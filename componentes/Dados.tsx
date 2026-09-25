@@ -22,6 +22,7 @@ import { preencher } from '@/lib/conectores'
 import { comoBloco, parecidas, parecidasCom, tituloDe } from '@/lib/notas'
 import { novoId } from '@/lib/id'
 import { recursos, type Recursos } from '@/lib/espaco'
+import { arquivada } from '@/lib/desfecho'
 import {
   daDecisao, jaFoiRecusada, paraOModelo, quemCostuma, termosDaConversa, ultimoAprendizado,
   type Aprendizado, type Lembranca,
@@ -113,6 +114,12 @@ type Contexto = {
   excluirArea: (id: string) => Promise<void>
   salvarFluxo: (f: Record<string, unknown>, etapas: RascunhoEtapa[]) => Promise<string | null>
   excluirFluxo: (id: string) => Promise<void>
+  /** Arquivar sem concluir: o que antes era excluir, agora com motivo. */
+  arquivarFluxo: (id: string, motivo: string, detalhe: string) => Promise<boolean>
+  /** Tirar do arquivo. Cancelar por engano acontece. */
+  reabrirFluxo: (id: string) => Promise<void>
+  /** As que saíram da lista principal, concluídas ou canceladas. */
+  arquivadas: Fluxo[]
   travar: (f: Fluxo, motivo: string) => Promise<void>
   destravar: (f: Fluxo) => Promise<void>
   adicionarItem: (et: Etapa, d: DadosItem, porIa?: boolean) => Promise<string | null>
@@ -660,9 +667,24 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   }, [sb, carregar, recarregar])
 
   /** O filtro de empresa é global: escolhida uma, o app inteiro fala só dela. */
-  const fluxos = useMemo(
+  const doEspaco = useMemo(
     () => (!org.multi || !empresaAtiva ? todosFluxos : todosFluxos.filter((f) => f.empresa_id === empresaAtiva)),
     [todosFluxos, empresaAtiva, org.multi],
+  )
+
+  /**
+   * A lista principal não tem track terminada.
+   *
+   * Concluída ou cancelada, ela sai daqui e vai para Arquivadas, que é a única
+   * tela que pergunta por `arquivadas`. Antes a concluída ficava para sempre no
+   * meio das vivas, e um ano de operação deixava a tela ilegível justamente
+   * para quem mais usa o app.
+   */
+  const fluxos = useMemo(() => doEspaco.filter((f) => !arquivada(f)), [doEspaco])
+  const arquivadas = useMemo(
+    () => doEspaco.filter(arquivada)
+      .sort((a, b) => (b.arquivado_em || '').localeCompare(a.arquivado_em || '')),
+    [doEspaco],
   )
   const totalItens = useCallback((id: string) => totais.get(id) ?? 0, [totais])
   const indiceEmpresas = useMemo(() => new Map(empresas.map((e) => [e.id, e])), [empresas])
@@ -787,6 +809,30 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     const { error } = await sb.from('fluxos').delete().eq('id', id)
     if (error) return falhou(error, 'Só o autor, o dono ou um administrador pode excluir.')
     toast('Excluído.')
+    recarregar()
+  }, [sb, falhou, toast, recarregar])
+
+  /**
+   * Arquivar sem concluir.
+   *
+   * Isto substituiu o excluir, e a diferença é o ponto: quem cancela um projeto
+   * está dizendo a coisa mais útil que vai dizer sobre ele, e apagar a linha
+   * jogava justamente essa parte fora. A track continua inteira em Arquivadas.
+   */
+  const arquivarFluxo: Contexto['arquivarFluxo'] = useCallback(async (id, motivo, detalhe) => {
+    const { error } = await sb.rpc('arquivar_fluxo', {
+      p_fluxo: id, p_motivo: motivo, p_detalhe: detalhe || null,
+    })
+    if (error) { falhou(error, 'Só o autor, o dono ou um administrador pode arquivar.'); return false }
+    toast('Arquivada.')
+    recarregar()
+    return true
+  }, [sb, falhou, toast, recarregar])
+
+  const reabrirFluxo: Contexto['reabrirFluxo'] = useCallback(async (id) => {
+    const { error } = await sb.rpc('reabrir_fluxo', { p_fluxo: id })
+    if (error) return falhou(error, 'Só o autor, o dono ou um administrador pode reabrir.')
+    toast('De volta à lista.')
     recarregar()
   }, [sb, falhou, toast, recarregar])
 
@@ -2740,7 +2786,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     eu, perfis, areas, empresas, org, pessoal: org.tipo === 'pessoal', pode: recursos(org), fluxos, todosFluxos, totalItens, agenda, minhaAgendaExterna, processos, convites,
     empresaAtiva, focarEmpresa, empresaDe, carregando,
     perfilDe, nomeDe, areaDe, aviso, toast,
-    salvarArea, excluirArea, salvarFluxo, excluirFluxo,
+    salvarArea, excluirArea, salvarFluxo, excluirFluxo, arquivarFluxo, reabrirFluxo, arquivadas,
     travar, destravar, adicionarItem, editarItem, definirTravas, excluirItem, alternarItem, aprovar,
     salvarPerfil, salvarEmpresa, excluirEmpresa, salvarOrg,
     salvarCompromisso, excluirCompromisso, ligarAgendaExterna, desligarAgendaExterna,

@@ -30,7 +30,7 @@ import { mandaNoProcesso, podeConcluir, podeMexerNoItem } from '@/lib/acesso'
  */
 export function TelaFluxo({ id }: { id: string }) {
   const { eu, perfis, fluxos, carregando, areaDe, perfilDe, nomeDe, totalItens,
-    alternarItem, excluirItem, excluirFluxo, destravar, decisoesDe, pode } = useDados()
+    alternarItem, excluirItem, destravar, decisoesDe, pode, reabrirFluxo } = useDados()
   const { abrir } = useModais()
   const router = useRouter()
   const [sel, setSel] = useState<number | null>(null)
@@ -84,6 +84,14 @@ export function TelaFluxo({ id }: { id: string }) {
   // quem fecha é você. Aprovar a própria saída é assinar autorização para si
   // mesmo, e o app pedia isso a cada checkpoint.
   const podeAprovar = !pode.aprovacao || etapa.aprovador_id === eu.id
+  /**
+   * No último checkpoint de um objetivo, o botão não aprova uma saída: ele
+   * termina a coisa. "Aprovar saída" ali dizia que vinha outro checkpoint
+   * depois, e não vem, então a pessoa aprovava sem saber que estava concluindo.
+   * Rotina não entra nisso: ela dá voltas, e o último checkpoint dela é o
+   * começo do próximo período.
+   */
+  const fecharTudo = f.tipo === 'esteira' && idx === f.etapas.length - 1
   const travado = !!f.travado_motivo
   const mandaAqui = mandaNoProcesso(eu, f, perfis)
   const ocultos = Math.max(0, totalItens(f.id) - f.etapas.reduce((n, et) => n + et.itens.length, 0))
@@ -110,6 +118,9 @@ export function TelaFluxo({ id }: { id: string }) {
   else if (!naAtual) nota = 'Libera quando a track chegar aqui. Já dá para adicionar tarefas.'
   else if (travado) nota = 'Destrave a track para seguir.'
   else if (completo && ocultos) nota = `Suas tarefas saíram. Ainda há ${ocultos === 1 ? 'uma tarefa' : `${ocultos} tarefas`} com outras pessoas.`
+  else if (completo && fecharTudo) {
+    nota = 'Tudo pronto. Concluir arquiva a track, e ela continua inteira em Arquivadas.'
+  }
   else if (completo) {
     nota = pode.aprovacao
       ? `Tudo pronto, aguardando ${nomeDe(etapa.aprovador_id)}.`
@@ -154,13 +165,17 @@ export function TelaFluxo({ id }: { id: string }) {
           {mandaAqui && !f.concluido && (travado
             ? <button className="btn" onClick={() => void destravar(f)}><Ic.pause />Destravar</button>
             : <button className="btn" onClick={() => abrir({ tipo: 'travar', fluxo: f })}><Ic.lock />Travar</button>)}
-          {mandaAqui && (
-            <button className="btn ghost" aria-label="Excluir track" title="Excluir track" onClick={() => abrir({
-              tipo: 'excluir',
-              titulo: `Excluir ${f.nome}?`,
-              texto: 'A track, seus checkpoints, tarefas e histórico serão removidos para todos. Não dá para desfazer.',
-              acao: async () => { await excluirFluxo(f.id); router.push('/tracks') },
-            })}><Ic.mais /></button>
+          {/* Não existe mais excluir: existe arquivar, e arquivar pede o motivo.
+              Quem cancela um projeto está dizendo a coisa mais útil que vai
+              dizer sobre ele, e apagar a linha jogava essa parte fora. */}
+          {mandaAqui && !f.desfecho && (
+            <button className="btn ghost" aria-label="Arquivar track" title="Arquivar track"
+              onClick={() => abrir({ tipo: 'arquivar', fluxo: f })}><Ic.mais /></button>
+          )}
+          {mandaAqui && !!f.desfecho && (
+            <button className="btn" onClick={() => void reabrirFluxo(f.id)}>
+              <Ic.volta />Tirar do arquivo
+            </button>
           )}
         </div>
       </div>
@@ -324,7 +339,9 @@ export function TelaFluxo({ id }: { id: string }) {
                       onClick={() => setDecidindo(true)}
                       disabled={travado || !podeAprovar}
                       title={podeAprovar ? '' : `Somente ${nomeDe(etapa.aprovador_id)} decide este checkpoint`}>
-                      {!completo && <Ic.lock />}{pode.aprovacao ? 'Aprovar saída' : 'Fechar checkpoint'}
+                      {!completo && <Ic.lock />}{fecharTudo
+                        ? 'Concluir'
+                        : pode.aprovacao ? 'Aprovar saída' : 'Fechar checkpoint'}
                     </button>
                   )}
                   <span className="cp-nota">{nota}</span>

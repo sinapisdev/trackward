@@ -6,6 +6,7 @@ import { Carregando } from '@/componentes/Shell'
 import { Ic } from '@/componentes/Icones'
 import { CADENCIAS, PUBLICOS, comoTexto, montar, type Cadencia, type Publico } from '@/lib/relatorio'
 import { curta } from '@/lib/datas'
+import { nomeDoMotivo } from '@/lib/desfecho'
 
 /**
  * Relatórios.
@@ -55,7 +56,7 @@ function Secao({ titulo, sobre, vazio, children }: {
 
 export function TelaRelatorios() {
   const {
-    eu, perfis, fluxos, areas, canais, mensagens, sugestoes, org,
+    eu, perfis, fluxos, arquivadas, areas, canais, mensagens, sugestoes, org,
     decisoesDe, anexosDe, nomeDe, carregando, salvarPerfil, toast,
     pessoal,
   } = useDados()
@@ -70,6 +71,33 @@ export function TelaRelatorios() {
   const [cadencia, setCadencia] = useState<Cadencia>('semanal')
   const [copiado, setCopiado] = useState(false)
   const [texto, setTexto] = useState<string | null>(null)
+
+  /**
+   * O fim das tracks, contado.
+   *
+   * Isto é o que o arquivo devolve em troca de nada ser apagado: antes, excluir
+   * levava embora justamente a informação mais útil sobre um projeto, que é por
+   * que ele parou. Agora a pergunta "o que está nos fazendo perder trabalho"
+   * tem resposta, e ela não depende de ninguém lembrar.
+   */
+  const arquivo = useMemo(() => {
+    const concluidas = arquivadas.filter((f) => f.desfecho === 'concluido').length
+    const canceladas = arquivadas.filter((f) => f.desfecho === 'cancelado')
+    const mapa = new Map<string, { id: string; nome: string; n: number; tracks: string[] }>()
+    for (const f of canceladas) {
+      const id = f.motivo || 'outro'
+      const g = mapa.get(id) || { id, nome: nomeDoMotivo(id), n: 0, tracks: [] }
+      g.n += 1
+      if (g.tracks.length < 4) g.tracks.push(f.nome)
+      mapa.set(id, g)
+    }
+    return {
+      total: arquivadas.length,
+      concluidas,
+      canceladas: canceladas.length,
+      porMotivo: [...mapa.values()].sort((a, b) => b.n - a.n),
+    }
+  }, [arquivadas])
 
   const r = useMemo(() => {
     const decisoes = fluxos.flatMap((f) => decisoesDe(f.id))
@@ -169,6 +197,43 @@ export function TelaRelatorios() {
               </div>
             ))}
           </div>
+        </Secao>
+
+        {/* O fim das tracks, que é a conta que só existe porque nada é apagado:
+            quem cancela escolhe o motivo de uma lista, e lista vira número. Com
+            motivo digitado seriam trinta frases para a mesma coisa. */}
+        <Secao titulo="Como as tracks terminaram" vazio={!arquivo.total}
+          sobre={`${arquivo.total} arquivada${arquivo.total === 1 ? '' : 's'}`}>
+          <div className="rel-nums">
+            <div>
+              <b>{arquivo.concluidas}</b>
+              <span>Concluídas</span>
+              <small>chegaram ao último checkpoint</small>
+            </div>
+            <div>
+              <b>{arquivo.total ? Math.round((arquivo.concluidas / arquivo.total) * 100) : 0}%</b>
+              <span>Taxa de conclusão</span>
+              <small>do que terminou, quanto terminou entregue</small>
+            </div>
+            <div>
+              <b>{arquivo.canceladas}</b>
+              <span>Canceladas</span>
+              <small>pararam antes do fim</small>
+            </div>
+          </div>
+          {arquivo.porMotivo.map((m) => (
+            <div className="rel-l" key={m.id}>
+              <span className="rel-mk"><Ic.pause /></span>
+              <span className="rel-txt">
+                <b>{m.nome}</b>
+                <small>{m.tracks.join(', ')}</small>
+              </span>
+              <span className="rel-lado">
+                {m.n} {m.n === 1 ? 'track' : 'tracks'}
+                {' · '}{Math.round((m.n / Math.max(1, arquivo.canceladas)) * 100)}%
+              </span>
+            </div>
+          ))}
         </Secao>
 
         <Secao titulo="Entregue no período" vazio={!r.entregou.length}>

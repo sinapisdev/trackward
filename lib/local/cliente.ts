@@ -14,7 +14,7 @@ const CHAVE_EU = 'track.local.eu'
 const CHAVE_USUARIO = 'track.local.user'
 const CHAVE_VERSAO = 'track.local.versao'
 /** Sobe quando o exemplo ganha tabelas novas. Ver completar(). */
-const VERSAO = 17
+const VERSAO = 18
 const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], fluxos: [], etapas: [], itens: [],
   dependencias: [], processos: [], processo_etapas: [], processo_itens: [], fluxo_pessoas: [],
   convites: [],
@@ -761,9 +761,45 @@ function decidirEtapa(
     return 'volta'
   }
 
+  // Concluir arquiva, igual à seção 21 do banco.
   f.concluido = true
+  f.desfecho = 'concluido'
+  f.arquivado_em = agora()
   gravar()
   return 'concluido'
+}
+
+/** Espelha arquivar_fluxo() e reabrir_fluxo() do banco. */
+function arquivarFluxoLocal(fluxoId: string, motivo: string, detalhe: string | null) {
+  const b = ler()
+  const f = b.fluxos.find((x) => x.id === fluxoId)
+  if (!f) throw new Error('Track não encontrada.')
+  if (!String(motivo || '').trim()) throw new Error('Diga por que ela está parando.')
+  f.desfecho = 'cancelado'
+  f.motivo = motivo.trim()
+  f.detalhe = (detalhe || '').trim() || null
+  f.arquivado_em = agora()
+  b.atividades.push({
+    id: uid('at'), fluxo_id: fluxoId, quem_id: euLocal(),
+    texto: `arquivou: ${motivo.trim()}`, criado_em: agora(), org_id: f.org_id,
+  })
+  gravar()
+}
+
+function reabrirFluxoLocal(fluxoId: string) {
+  const b = ler()
+  const f = b.fluxos.find((x) => x.id === fluxoId)
+  if (!f) throw new Error('Track não encontrada.')
+  f.desfecho = null
+  f.motivo = null
+  f.detalhe = null
+  f.arquivado_em = null
+  f.concluido = false
+  b.atividades.push({
+    id: uid('at'), fluxo_id: fluxoId, quem_id: euLocal(),
+    texto: 'tirou do arquivo', criado_em: agora(), org_id: f.org_id,
+  })
+  gravar()
 }
 
 const aprovarEtapa = (fluxoId: string, periodo: string | null) =>
@@ -1260,6 +1296,15 @@ function montarCliente() {
             ),
             error: null,
           }
+        }
+        if (nome === 'arquivar_fluxo') {
+          arquivarFluxoLocal(args.p_fluxo as string, String(args.p_motivo || ''),
+            (args.p_detalhe as string) || null)
+          return { data: null, error: null }
+        }
+        if (nome === 'reabrir_fluxo') {
+          reabrirFluxoLocal(args.p_fluxo as string)
+          return { data: null, error: null }
         }
         if (nome === 'aprovar_etapa') {
           return { data: aprovarEtapa(args.p_fluxo as string, (args.p_periodo as string) || null), error: null }

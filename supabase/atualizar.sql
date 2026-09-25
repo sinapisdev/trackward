@@ -1055,8 +1055,204 @@ create trigger canais_so_equipe after insert on public.canais
   for each row execute function public.ao_criar_canal();
 
 -- ==========================================================================
--- Conferência. As treze contas abaixo têm que dar
--- 29, 3, 3, 3, true, 1, 2, 1, 2, 0, true, 3 e true.
+-- --------------------------------------------------------------------------
+-- 21. A track termina, e termina dizendo como
+--
+--     Antes havia dois fins e nenhum registro: concluir marcava `concluido` e
+--     a track continuava na lista para sempre, e excluir apagava a linha e com
+--     ela tudo que se poderia aprender daquilo. Um ano depois ninguém sabe
+--     quantas obras foram entregues nem por que as outras pararam.
+--
+--     Agora todo fim é um **desfecho**, e desfecho arquiva: sai da lista
+--     principal e continua inteira em Arquivadas, com trilha, tarefas,
+--     conversa e anexos. É de lá que saem os dois números que interessam,
+--     quanto se entrega e por que se para.
+--
+--     O motivo é **escolhido de uma lista**, e não digitado. Motivo digitado
+--     vira trinta frases diferentes para a mesma coisa, e trinta frases não
+--     viram gráfico nenhum: é por isso que existe `motivo` (o código) e
+--     `detalhe` (o que só aquele caso explica).
+-- --------------------------------------------------------------------------
+
+alter table public.fluxos add column if not exists desfecho text;
+alter table public.fluxos add column if not exists motivo text;
+alter table public.fluxos add column if not exists detalhe text;
+alter table public.fluxos add column if not exists arquivado_em timestamptz;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'fluxos_desfecho_check') then
+    alter table public.fluxos add constraint fluxos_desfecho_check
+      check (desfecho is null or desfecho in ('concluido','cancelado'));
+  end if;
+end $$;
+
+create index if not exists fluxos_arquivo_idx on public.fluxos (org_id, arquivado_em);
+
+-- As tracks já concluídas antes disto entram no arquivo com a data que dá para
+-- saber: a da criação não serve, e mentir uma data de conclusão é pior do que
+-- não ter. Fica o desfecho, sem carimbo de hora.
+update public.fluxos set desfecho = 'concluido'
+where concluido and desfecho is null;
+
+/**
+ * Arquivar uma track sem concluí-la: o que antes era excluir.
+ *
+ * Não apaga linha nenhuma, de propósito. Quem cancela um projeto está dizendo
+ * a coisa mais útil que vai dizer sobre ele, e apagar a linha jogava justamente
+ * essa parte fora.
+ */
+create or replace function public.arquivar_fluxo(
+  p_fluxo uuid, p_motivo text, p_detalhe text default null
+) returns void language plpgsql security definer set search_path = public as $$
+declare v_eu uuid := meu_perfil(); f fluxos%rowtype;
+begin
+  select * into f from fluxos where id = p_fluxo;
+  if f.id is null then raise exception 'Track não encontrada.'; end if;
+  if not minha(f.org_id) then raise exception 'Esta track não é do seu espaço.'; end if;
+  if not (f.autor_id = v_eu or f.dono_id = v_eu or eh_admin()) then
+    raise exception 'Só o autor, o dono ou um administrador pode arquivar.';
+  end if;
+  if btrim(coalesce(p_motivo, '')) = '' then
+    raise exception 'Diga por que ela está parando.';
+  end if;
+
+  update fluxos set desfecho = 'cancelado', motivo = btrim(p_motivo),
+    detalhe = nullif(btrim(coalesce(p_detalhe, '')), ''), arquivado_em = now()
+  where id = p_fluxo;
+
+  insert into atividades (fluxo_id, quem_id, texto)
+  values (p_fluxo, v_eu, 'arquivou: ' || btrim(p_motivo));
+end $$;
+
+/** Tirar do arquivo. Cancelar por engano acontece, e não pode ser definitivo. */
+create or replace function public.reabrir_fluxo(p_fluxo uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_eu uuid := meu_perfil(); f fluxos%rowtype;
+begin
+  select * into f from fluxos where id = p_fluxo;
+  if f.id is null then raise exception 'Track não encontrada.'; end if;
+  if not minha(f.org_id) then raise exception 'Esta track não é do seu espaço.'; end if;
+  if not (f.autor_id = v_eu or f.dono_id = v_eu or eh_admin()) then
+    raise exception 'Só o autor, o dono ou um administrador pode reabrir.';
+  end if;
+
+  update fluxos set desfecho = null, motivo = null, detalhe = null,
+    arquivado_em = null, concluido = false
+  where id = p_fluxo;
+
+  insert into atividades (fluxo_id, quem_id, texto)
+  values (p_fluxo, v_eu, 'tirou do arquivo');
+end $$;
+
+-- A conclusão passa a arquivar, então a função inteira vai junto.
+create or replace function public.decidir_etapa(
+  p_fluxo    uuid,
+  p_tipo     text,
+  p_nota     text default '',
+  p_reabrir  uuid[] default '{}',
+  p_periodo  text default null,
+  p_prazo    date default null
+)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  uid     uuid := meu_perfil();
+  f       fluxos%rowtype;
+  e       etapas%rowtype;
+  n       int;
+  passo   int;
+  atrasou boolean;
+begin
+  if not ativo() then raise exception 'Sem acesso.'; end if;
+
+  select * into f from fluxos where id = p_fluxo for update;
+  if not found then raise exception 'Fluxo não encontrado.'; end if;
+  if not ve_fluxo(f.id) then raise exception 'Sem acesso a esta esteira.'; end if;
+  if f.concluido then raise exception 'Este projeto já está concluído.'; end if;
+  if f.travado_motivo is not null then raise exception 'O fluxo está travado. Destrave para seguir.'; end if;
+
+  select * into e from etapas where fluxo_id = f.id and ordem = f.atual;
+  if not found then raise exception 'Checkpoint não encontrado.'; end if;
+  if e.aprovador_id is distinct from uid then raise exception 'Somente o aprovador deste checkpoint pode decidir a saída.'; end if;
+  if p_tipo not in ('aprovou','ressalva','devolveu') then raise exception 'Decisão desconhecida.'; end if;
+  if p_tipo <> 'aprovou' and btrim(coalesce(p_nota, '')) = '' then
+    raise exception 'Escreva o motivo: quem recebe precisa saber o que fazer.';
+  end if;
+
+  -- Devolver para em cima do mesmo checkpoint e reabre o que o aprovador apontou.
+  if p_tipo = 'devolveu' then
+    update itens set feito = false
+    where etapa_id = e.id and id = any(coalesce(p_reabrir, '{}'::uuid[]));
+
+    insert into decisoes (fluxo_id, etapa_id, quem_id, tipo, nota)
+    values (f.id, e.id, uid, 'devolveu', btrim(p_nota));
+
+    insert into atividades (fluxo_id, quem_id, texto)
+    values (f.id, uid, 'devolveu ' || e.nome || ': ' || btrim(p_nota));
+    return 'devolveu';
+  end if;
+
+  if exists (
+    select 1 from itens i
+    where i.etapa_id = e.id and not i.feito and (not i.priv or i.autor_id = uid)
+  ) then raise exception 'Ainda existem itens pendentes neste checkpoint.'; end if;
+
+  select count(*) into n from etapas where fluxo_id = f.id;
+
+  insert into decisoes (fluxo_id, etapa_id, quem_id, tipo, nota)
+  values (f.id, e.id, uid, p_tipo, btrim(coalesce(p_nota, '')));
+
+  insert into atividades (fluxo_id, quem_id, texto)
+  values (f.id, uid, case when p_tipo = 'ressalva'
+    then 'aprovou ' || e.nome || ' com ressalva: ' || btrim(p_nota)
+    else 'aprovou a saída de ' || e.nome end);
+
+  -- A ressalva vira tarefa do checkpoint seguinte, senão ela morre na linha do
+  -- tempo e a pendência que justificou a ressalva não é cobrada de ninguém.
+  if p_tipo = 'ressalva' and f.atual < n - 1 then
+    insert into itens (etapa_id, fluxo_id, texto, resp_id, prazo, autor_id, ordem)
+    select et.id, f.id, 'Ressalva: ' || btrim(p_nota), f.dono_id, p_prazo, uid,
+           coalesce((select max(i.ordem) + 1 from itens i where i.etapa_id = et.id), 0)
+    from etapas et where et.fluxo_id = f.id and et.ordem = f.atual + 1;
+  end if;
+
+  if f.atual < n - 1 then
+    update fluxos set atual = f.atual + 1 where id = f.id;
+    return 'avancou';
+  end if;
+
+  if f.tipo = 'ciclo' then
+    passo := case f.freq when 'semanal' then 7 when 'quinzenal' then 15 else 30 end;
+    select exists (
+      select 1 from etapas et where et.fluxo_id = f.id and et.prazo is not null and et.prazo < current_date
+      union all
+      select 1 from itens it where it.fluxo_id = f.id and it.prazo is not null and it.prazo < current_date
+    ) into atrasou;
+
+    insert into historico (fluxo_id, periodo, situacao)
+    values (f.id, coalesce(f.periodo, ''), case when atrasou then 'late' else 'ok' end);
+
+    delete from historico h
+    where h.fluxo_id = f.id
+      and h.id not in (select id from historico where fluxo_id = f.id order by criado_em desc limit 12);
+
+    update etapas set prazo = prazo + passo where fluxo_id = f.id and prazo is not null;
+    update itens  set feito = false, prazo = prazo + passo where fluxo_id = f.id and prazo is not null;
+    update itens  set feito = false where fluxo_id = f.id and prazo is null;
+    update fluxos set atual = 0, periodo = coalesce(nullif(btrim(p_periodo), ''), periodo) where id = f.id;
+    return 'volta';
+  end if;
+
+  -- Concluir arquiva: a track sai da lista principal e continua inteira em
+  -- Arquivadas, que é onde ficam os documentos e o histórico dela. Seção 21.
+  update fluxos set concluido = true, desfecho = 'concluido', arquivado_em = now()
+  where id = f.id;
+  return 'concluido';
+end $$;
+
+-- ==========================================================================
+-- Conferência. As quinze contas abaixo têm que dar
+-- 29, 3, 3, 3, true, 1, 2, 1, 2, 0, true, 3, true, 4 e true.
 -- ==========================================================================
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
@@ -1103,4 +1299,12 @@ select
   (select prosrc like '%já tem um espaço pessoal%' from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'abrir_espaco')
-    as "um pessoal por login (true)";
+    as "um pessoal por login (true)",
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'fluxos'
+      and column_name in ('desfecho','motivo','detalhe','arquivado_em'))
+    as "o fim da track (4)",
+  (select prosrc like '%desfecho%' from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'decidir_etapa')
+    as "concluir arquiva (true)";

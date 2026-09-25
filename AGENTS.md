@@ -709,6 +709,35 @@ um bloco `max-width:1180px` escrito depois vencia o bloco de celular. Ao
 escrever faixa intermediária, fechar embaixo também (`min-width:841px and
 max-width:1180px`).
 
+## Toda track termina, e termina dizendo como
+
+Havia dois fins e nenhum registro: concluir marcava `concluido` e a track ficava para
+sempre no meio das vivas, e excluir apagava a linha e com ela tudo que se poderia aprender
+daquilo. Um ano depois ninguém sabia quantas obras foram entregues nem por que as outras
+pararam.
+
+Agora todo fim é um **desfecho** (`concluido` ou `cancelado`) e desfecho **arquiva**: a
+track sai da lista principal e continua inteira em Arquivadas, com trilha, tarefas,
+conversa e anexos. Nada é apagado, e dá para tirar do arquivo. **Não existe mais excluir
+track na interface**, e não voltar a colocar: o que se perde apagando é justamente a parte
+útil.
+
+- **O último checkpoint de um objetivo diz "Concluir"**, e não "Aprovar saída". Ali não vem
+  outro checkpoint depois, e o rótulo antigo fazia a pessoa aprovar sem saber que estava
+  terminando. Rotina não entra nisso: ela dá voltas.
+- **O motivo do cancelamento é escolhido, nunca digitado** (`MOTIVOS`, em
+  `lib/desfecho.ts`). Motivo digitado vira trinta frases para a mesma coisa, e trinta
+  frases não viram número. O texto livre continua em `detalhe`, para o que só aquele caso
+  explica, e ele não entra em conta nenhuma.
+- **Quem lê a conta é Relatórios**, em "Como as tracks terminaram": concluídas, taxa de
+  conclusão e o ranking de motivos. Essa seção é o que o arquivo devolve em troca de nada
+  ser apagado.
+- No arquivo, a linha da track **não mostra situação nem prazo**. "Atrasado" numa track
+  parada é cobrança que não cabe mais a ninguém.
+
+Quem decide é `arquivada()` em `lib/desfecho.ts`, e em `Dados` a lista `fluxos` já sai sem
+elas: só `arquivadas` as devolve. Tela nova não precisa lembrar de filtrar.
+
 ## A coluna da track é a conversa
 
 Na track aberta, a coluna da direita acompanha a rolagem e tem a altura da janela, e a

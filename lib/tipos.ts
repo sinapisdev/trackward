@@ -399,6 +399,16 @@ export type Fluxo = {
   periodo: string | null
   atual: number
   concluido: boolean
+  /**
+   * Como ela terminou: `concluido` (último checkpoint fechado) ou `cancelado`
+   * (parou por algum motivo). Nulo enquanto ela está viva. Ver `lib/desfecho.ts`.
+   */
+  desfecho: 'concluido' | 'cancelado' | null
+  /** O motivo escolhido da lista, só quando cancelada. */
+  motivo: string | null
+  /** O que só aquele caso explica, em texto livre. Não entra em conta nenhuma. */
+  detalhe: string | null
+  arquivado_em: string | null
   travado_motivo: string | null
   travado_desde: string | null
   criado_em: string
