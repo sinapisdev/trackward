@@ -13,6 +13,7 @@ import { MODO_LOCAL } from '@/lib/modo'
 import { reiniciarLocal } from '@/lib/local/cliente'
 import { aplicarTema, temaAtual, TEMAS, type Tema } from '@/lib/tema'
 import { toursDe } from '@/lib/tutorial'
+import { esquecerTutoriais } from './Tutorial'
 
 export function TelaAjustes() {
   const { eu, org, empresas, todosFluxos, carregando, salvarOrg, salvarPerfil, excluirEmpresa,
@@ -349,7 +350,10 @@ export function TelaAjustes() {
                 : `São ${tours.length} telas.`} Esvaziar aqui faz todas voltarem a abrir.
             </p>
             <button className="btn" disabled={!vistos.length}
-              onClick={() => void salvarPerfil(eu.id, { tutoriais: [] }, true)}>
+              onClick={() => {
+                esquecerTutoriais()
+                void salvarPerfil(eu.id, { tutoriais: [] }, true)
+              }}>
               <Ic.faisca />Ver tudo de novo
             </button>
           </div>

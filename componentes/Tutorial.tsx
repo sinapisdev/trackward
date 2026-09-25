@@ -31,6 +31,27 @@ const FOLGA = 8
  * passo aparece centralizado e sem o foco, e a pessoa segue. Travar aqui é
  * travar o app inteiro na primeira vez que ele abre.
  */
+/**
+ * Os tours fechados nesta sessão.
+ *
+ * Fora do componente de propósito, porque ele desmonta e monta a cada troca de
+ * tela. Serve de rede para quando a gravação no perfil não pega (o banco atrás
+ * do código, a rede caiu): sem isto o tutorial reabriria a cada visita, e um
+ * tutorial que volta depois de fechado é pior do que não ter tutorial.
+ */
+const fechadosAqui = new Set<string>()
+
+/**
+ * Esquecer o que foi fechado nesta sessão.
+ *
+ * Quem pede "ver tudo de novo" em Ajustes precisa disto: sem ele a lista no
+ * perfil esvazia e os tours continuam sem abrir, porque a rede de segurança
+ * acima ainda lembra deles.
+ */
+export function esquecerTutoriais() {
+  fechadosAqui.clear()
+}
+
 export function Tutorial() {
   const { eu, pode, salvarPerfil, carregando } = useDados()
   const caminho = usePathname()
@@ -68,7 +89,7 @@ export function Tutorial() {
   useEffect(() => {
     setLigado(false)
     if (carregando || !eu.id || !tourId) return
-    if (vistos.split(',').includes(tourId)) return
+    if (vistos.split(',').includes(tourId) || fechadosAqui.has(tourId)) return
     const t = setTimeout(() => { setN(0); setLigado(true) }, 420)
     return () => clearTimeout(t)
   }, [carregando, eu.id, vistos, tourId])
@@ -164,9 +185,10 @@ export function Tutorial() {
   const fechar = useCallback(() => {
     setLigado(false)
     if (!eu.id || !tour) return
-    const vistos = eu.tutoriais ?? []
-    if (vistos.includes(tour.id)) return
-    void salvarPerfil(eu.id, { tutoriais: [...vistos, tour.id] }, true)
+    fechadosAqui.add(tour.id)
+    const jaVistos = eu.tutoriais ?? []
+    if (jaVistos.includes(tour.id)) return
+    void salvarPerfil(eu.id, { tutoriais: [...jaVistos, tour.id] }, true)
   }, [eu.id, eu.tutoriais, tour, salvarPerfil])
 
   const seguir = () => { if (n + 1 >= passos.length) fechar(); else setN(n + 1) }

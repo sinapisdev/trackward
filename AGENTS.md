@@ -664,6 +664,13 @@ rodaram.
   tour antigo, e a coluna `tutorial_em` da seção 28 nasce preenchida para quem já usava o
   app, dentro do `if` que a cria, senão uma segunda passada do `atualizar.sql` marcaria como
   visto quem se cadastrou ontem. Esvaziar a lista é o "Ver tudo de novo", em Ajustes.
+- **Gravação que a pessoa não pediu falha calada.** Marcar "já viu" é
+  contabilidade do app, não ação de ninguém: com o banco atrás do código, o erro aparecia
+  no fim de cada um dos catorze tours, catorze vezes a mesma frase. A queixa vai para o
+  console, e um conjunto fora do componente (`fechadosAqui`) guarda o que foi fechado nesta
+  sessão, para o tour não voltar a abrir quando a gravação não pega. "Ver tudo de novo"
+  precisa esvaziar esse conjunto junto (`esquecerTutoriais`), senão a lista no perfil zera e
+  nada reabre.
 - **As dependências do efeito que liga o tutorial são texto, nunca os objetos.** `pode` era
   um `recursos(org)` novo a cada render e `tutoriais` é um array novo a cada leitura dos
   dados: comparando objeto, o efeito rodava a cada render e o tutorial fechava sozinho na

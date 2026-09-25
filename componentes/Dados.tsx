@@ -1821,7 +1821,14 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   const salvarPerfil: Contexto['salvarPerfil'] = useCallback(async (id, d, calado) => {
     const { error } = await sb.from('perfis').update(d).eq('id', id)
-    if (error) return falhou(error, 'Não foi possível salvar.')
+    // Calado é calado nos dois sentidos: quem grava por conta própria, como o
+    // tutorial marcando que já foi visto, não pediu nada e não pode receber um
+    // erro na cara a cada tela. A queixa fica no console, que é onde quem
+    // mantém o app olha.
+    if (error) {
+      if (calado) { console.warn('perfil não salvo:', error.message); return }
+      return falhou(error, 'Não foi possível salvar.')
+    }
     if (!calado) toast('Salvo.')
     recarregar()
   }, [sb, falhou, toast, recarregar])
