@@ -457,6 +457,33 @@ banco garante isso em vez da boa vontade de quem escreve o insert: anexo
 pendurado em nada é arquivo que ninguém acha e ninguém apaga. Quem vê segue a
 coisa a que ele pertence, e anexo de nota abre só para o dono dela.
 
+## A nota que se mostra
+
+A nota continua do dono e de mais ninguém, **sem exceção nem para administrador**, e
+ninguém passa a ver nada por mudança de regra: só por gesto de quem escreveu. Mostrar tem
+duas formas, e elas não são a mesma coisa:
+
+- **Mandar para um canal é cópia.** O texto vira mensagem e a partir dali a vida dele é a
+  da conversa. É o caminho de "olhem isto". Não precisa de tabela nem de política.
+- **Liberar para pessoas é acesso continuado**: quem recebeu abre a nota e lê o que ela
+  for virando. É o caminho de "acompanhe isto", e mora em `nota_pessoas` (seção 23).
+
+**O que não vai junto é a conversa de dentro.** Quem compartilha está mostrando o que
+escreveu, não o que perguntou à leitura enquanto pensava, e a segunda é a mais íntima das
+duas. Por isso existem duas funções e não uma: `ve_nota()` (dono ou convidado) responde
+pela nota e pelos anexos dela, e `minha_nota()` (só o dono) responde por mensagem e
+proposta. Ao mexer numa política de nota, escolher qual das duas é a pergunta certa.
+
+**Compartilhar é só leitura.** Duas pessoas editando o mesmo texto sem tempo real é o
+caminho mais curto para alguém perder o que escreveu. A tela bloqueia e o banco recusa: a
+tela sozinha deixaria digitar e engoliria em silêncio.
+
+Cuidado que já custou caro aqui: a política de `notas` pergunta por `nota_pessoas` e a de
+`nota_pessoas` pergunta por `notas`. Escritas como subconsulta normal, as duas se chamam
+em círculo e o Postgres devolve **"recursão infinita detectada na política"**. Quem quebra
+o círculo é `nota_comigo()` e `minha_nota()`, que são `security definer` e por isso rodam
+fora das políticas.
+
 ## A linguagem do chat
 
 O chat é onde o trabalho nasce, então ele precisa ser onde o trabalho **é

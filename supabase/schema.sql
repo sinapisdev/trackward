@@ -3933,3 +3933,158 @@ begin
   where id = f.id;
   return 'concluido';
 end $$;
+
+-- --------------------------------------------------------------------------
+-- 23. A nota que se mostra
+--
+--     Até aqui a nota era do dono e de mais ninguém, sem exceção nem para
+--     administrador, e isso continua sendo o padrão: ninguém passa a ver nada
+--     por mudança de regra, só por gesto de quem escreveu.
+--
+--     São duas formas de mostrar, e elas não são a mesma coisa:
+--
+--     - **Mandar para um canal** é uma cópia. O texto vira mensagem, e a
+--       partir dali a vida dele é a da conversa. A nota não muda de dono.
+--       Isso não precisa de tabela nem de política: é escrever uma mensagem.
+--     - **Liberar para pessoas** é acesso continuado: quem recebeu abre a nota
+--       e lê o que ela for virando. É esta seção.
+--
+--     O que NÃO vai junto é a conversa de dentro. Quem compartilha uma nota
+--     está mostrando o que escreveu, e não o que perguntou à leitura enquanto
+--     pensava: são coisas diferentes, e a segunda é a mais íntima das duas.
+--     Por isso `ve_nota()` deixa de servir às duas perguntas e vira duas:
+--     `ve_nota` (dono ou convidado) para a nota e os anexos dela, e
+--     `minha_nota` (só o dono) para mensagem e proposta.
+--
+--     Compartilhar é **só leitura**. Duas pessoas editando o mesmo texto sem
+--     tempo real é o caminho mais curto para alguém perder o que escreveu.
+-- --------------------------------------------------------------------------
+
+create table if not exists public.nota_pessoas (
+  nota_id   uuid not null references public.notas on delete cascade,
+  perfil_id uuid not null references public.perfis on delete cascade,
+  criado_em timestamptz not null default now(),
+  primary key (nota_id, perfil_id)
+);
+
+alter table public.nota_pessoas enable row level security;
+
+do $$
+begin
+  execute 'alter table public.nota_pessoas add column if not exists org_id uuid references public.organizacoes on delete cascade';
+  execute 'create index if not exists nota_pessoas_org_idx on public.nota_pessoas (org_id)';
+  execute 'drop trigger if exists ao_inserir_org on public.nota_pessoas';
+  execute 'create trigger ao_inserir_org before insert on public.nota_pessoas
+             for each row execute function public.carimbar_org()';
+end $$;
+
+create index if not exists nota_pessoas_perfil_idx on public.nota_pessoas (perfil_id);
+
+/**
+ * Esta nota foi compartilhada comigo?
+ *
+ * `security definer` e não um `exists` solto dentro da política, porque a
+ * política de `notas` pergunta por `nota_pessoas` e a de `nota_pessoas`
+ * pergunta por `notas`: escritas como subconsulta normal, as duas se chamam em
+ * círculo e o Postgres devolve "recursão infinita detectada na política". A
+ * função quebra o círculo porque roda fora das políticas.
+ */
+create or replace function public.nota_comigo(n uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from nota_pessoas p where p.nota_id = n and p.perfil_id = meu_perfil()
+  );
+$$;
+
+/** Sou o dono desta nota? Também definer, e pelo mesmo motivo. */
+create or replace function public.minha_nota(n uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from notas x
+    where x.id = n and minha(x.org_id) and x.dono_id = meu_perfil()
+  );
+$$;
+
+-- Só o dono da nota convida e desconvida. Quem recebeu vê a própria linha, que
+-- é o que deixa a tela dizer "compartilhada com você" sem consultar a nota.
+drop policy if exists np_sel on public.nota_pessoas;
+create policy np_sel on public.nota_pessoas for select
+  using (minha(org_id) and (perfil_id = meu_perfil() or minha_nota(nota_id)));
+
+drop policy if exists np_ins on public.nota_pessoas;
+create policy np_ins on public.nota_pessoas for insert
+  with check (minha(org_id) and ativo() and minha_nota(nota_id));
+
+drop policy if exists np_del on public.nota_pessoas;
+create policy np_del on public.nota_pessoas for delete
+  using (minha(org_id) and minha_nota(nota_id));
+
+-- A nota: o dono, e quem ele convidou.
+create or replace function public.ve_nota(n uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from notas x
+    where x.id = n and minha(x.org_id) and (
+      x.dono_id = meu_perfil()
+      or exists (select 1 from nota_pessoas p
+                 where p.nota_id = x.id and p.perfil_id = meu_perfil())
+    )
+  );
+$$;
+
+-- A conversa de dentro é só do dono, e quem responde por isso é `minha_nota`,
+-- definida acima. Compartilhar mostra o que você escreveu, não o que você
+-- perguntou à leitura enquanto pensava.
+drop policy if exists nt_sel on public.notas;
+create policy nt_sel on public.notas for select
+  using (minha(org_id) and (dono_id = meu_perfil() or nota_comigo(id)));
+
+-- Escrever continua sendo só do dono: compartilhar é mostrar, não entregar.
+-- Duas pessoas editando o mesmo texto sem tempo real é perder texto.
+
+drop policy if exists msg_sel on public.mensagens;
+create policy msg_sel on public.mensagens for select
+  using (minha(org_id) and (ve_canal(canal_id) or minha_nota(nota_id)));
+
+drop policy if exists msg_ins on public.mensagens;
+create policy msg_ins on public.mensagens for insert
+  with check (minha(org_id) and ativo()
+              and (ve_canal(canal_id) or minha_nota(nota_id)));
+
+drop policy if exists sug_sel on public.sugestoes;
+create policy sug_sel on public.sugestoes for select
+  using (minha(org_id) and (ve_canal(canal_id) or minha_nota(nota_id)));
+
+drop policy if exists sug_ins on public.sugestoes;
+create policy sug_ins on public.sugestoes for insert
+  with check (minha(org_id) and (ve_canal(canal_id) or minha_nota(nota_id)));
+
+drop policy if exists sug_upd on public.sugestoes;
+create policy sug_upd on public.sugestoes for update
+  using (minha(org_id) and (ve_canal(canal_id) or minha_nota(nota_id)))
+  with check (minha(org_id) and (ve_canal(canal_id) or minha_nota(nota_id)));
+
+-- O anexo segue a nota: quem pode abrir a nota abre o que está pendurado nela,
+-- que é o que faz compartilhar significar alguma coisa quando o assunto é um
+-- arquivo. Pendurar continua sendo do dono.
+drop policy if exists anx_sel on public.anexos;
+create policy anx_sel on public.anexos for select using (
+  minha(org_id) and ativo() and (
+    (item_id is not null and ve_item(item_id))
+    or (nota_id is not null and ve_nota(nota_id))
+  ));
+
+drop policy if exists anx_ins on public.anexos;
+create policy anx_ins on public.anexos for insert with check (
+  minha(org_id) and ativo() and autor_id = meu_perfil() and (
+    (item_id is not null and ve_item(item_id))
+    or (nota_id is not null and minha_nota(nota_id))
+  ));
+
+do $$
+begin
+  begin
+    execute 'alter publication supabase_realtime add table public.nota_pessoas';
+  exception when duplicate_object then null;
+  end;
+end $$;

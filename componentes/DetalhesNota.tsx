@@ -5,6 +5,7 @@ import { useDados } from './Dados'
 import { useFora } from './partes'
 import { Ic } from './Icones'
 import { Anexos } from './Anexos'
+import { Av } from './atomos'
 import { rotuloTipo } from '@/lib/rotulos'
 import type { Nota } from '@/lib/tipos'
 
@@ -21,7 +22,9 @@ export function DetalhesNota({ nota, aoApagar }: {
   /** O que fazer depois de apagar: a tela que abriu a nota decide. */
   aoApagar: () => void
 }) {
-  const { areas, fluxos, minhaLista, salvarNota, excluirNota, anexosDe } = useDados()
+  const { areas, fluxos, minhaLista, salvarNota, excluirNota, anexosDe,
+    eu, perfis, canais, comQuem, compartilharNota, notaParaCanal, pode } = useDados()
+  const [mostrando, setMostrando] = useState(false)
   const [aberto, setAberto] = useState(false)
   const caixa = useFora(aberto, () => setAberto(false))
 
@@ -32,6 +35,8 @@ export function DetalhesNota({ nota, aoApagar }: {
   })
 
   const quantos = anexosDe(nota.id).length
+  const comigo = comQuem(nota.id)
+  const outros = perfis.filter((p) => p.ativo && p.id !== eu.id)
 
   return (
     <div className="nt-det" ref={caixa}>
@@ -74,6 +79,60 @@ export function DetalhesNota({ nota, aoApagar }: {
             <span className="lbl">Arquivos{quantos ? ` (${quantos})` : ''}</span>
             <Anexos nota={nota} podeAnexar />
           </div>
+
+          {/* Mostrar a nota é gesto de quem escreveu, e nunca acontece sozinho.
+              São duas coisas diferentes e a palavra "compartilhar" esconde
+              isso: liberar a leitura é acompanhar, e mandar para um canal é
+              cópia, que a partir dali vive a vida da conversa. */}
+          {pode.canais && (
+            <div className="nt-det-arq">
+              <button className="nt-det-item" onClick={() => setMostrando((v) => !v)}>
+                <Ic.team />
+                {comigo.length
+                  ? `Compartilhada com ${comigo.length}`
+                  : 'Compartilhar'}
+              </button>
+              {mostrando && (
+                <div className="nt-comp">
+                  <span className="lbl">Quem pode ler</span>
+                  {outros.map((p) => {
+                    const tem = comigo.includes(p.id)
+                    return (
+                      <label className="nt-comp-p" key={p.id}>
+                        <input type="checkbox" checked={tem} onChange={() => void compartilharNota(
+                          nota.id,
+                          tem ? comigo.filter((x) => x !== p.id) : [...comigo, p.id],
+                        )} />
+                        <Av p={p} tam="sm" />
+                        <span>{p.nome}</span>
+                      </label>
+                    )
+                  })}
+                  <p className="hint">
+                    Quem recebe lê e abre os anexos. Não edita, e não vê o que você
+                    perguntou à leitura aqui dentro.
+                  </p>
+
+                  <span className="lbl">Mandar para um canal</span>
+                  <label className="sel-quem">
+                    <select defaultValue="" aria-label="Mandar esta nota para um canal"
+                      onChange={(e) => {
+                        if (!e.target.value) return
+                        void notaParaCanal(nota.id, e.target.value)
+                        e.target.value = ''
+                      }}>
+                      <option value="">Escolher canal</option>
+                      {canais.filter((c) => !c.arquivado).map((c) => (
+                        <option key={c.id} value={c.id}>{c.nome}</option>
+                      ))}
+                    </select>
+                    <Ic.chev />
+                  </label>
+                  <p className="hint">Manda o texto como mensagem. É cópia, não acesso.</p>
+                </div>
+              )}
+            </div>
+          )}
 
           <button className="nt-det-item" onClick={() => salvar({ fixada: !nota.fixada })}>
             <Ic.flag />{nota.fixada ? 'Soltar do topo' : 'Fixar no topo'}

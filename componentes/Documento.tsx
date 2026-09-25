@@ -31,7 +31,15 @@ export function Documento({ nota, ir, acoes }: {
   /** Outros botões da barra de baixo, como Organizar. */
   acoes?: React.ReactNode
 }) {
-  const { notas, salvarNota, perguntarNaNota, respondendo, org } = useDados()
+  const { notas, salvarNota, perguntarNaNota, respondendo, org, eu } = useDados()
+  /**
+   * Nota compartilhada comigo é só leitura.
+   *
+   * Duas pessoas editando o mesmo texto sem tempo real é o caminho mais curto
+   * para alguém perder o que escreveu, e o banco recusa o update do mesmo
+   * jeito: sem isto, a tela deixaria digitar e engoliria em silêncio.
+   */
+  const meu = !nota.dono_id || nota.dono_id === eu.id
   const [editando, setEditando] = useState(false)
   const [texto, setTexto] = useState(() => documento(nota))
   const [cursor, setCursor] = useState<number | null>(null)
@@ -60,6 +68,7 @@ export function Documento({ nota, ir, acoes }: {
   }
 
   const editar = (onde?: number) => {
+    if (!meu) return
     setEditando(true)
     requestAnimationFrame(() => {
       const el = area.current
@@ -105,7 +114,7 @@ export function Documento({ nota, ir, acoes }: {
           onBlur={() => { void guardar(); setEditando(false) }}
         />
       ) : (
-        <div className="doc-lido" onClick={() => editar()}>
+        <div className={`doc-lido ${meu ? '' : 'so-leitura'}`} onClick={() => editar()}>
           {texto.trim()
             ? emPedacos(texto).map((p, k) => (p.daLeitura ? (
               <div className="doc-leitura" key={k}>
@@ -132,7 +141,7 @@ export function Documento({ nota, ir, acoes }: {
                 )}
               </div>
             )))
-            : <p className="doc-vazio">Toque para escrever.</p>}
+            : <p className="doc-vazio">{meu ? 'Toque para escrever.' : 'Nota vazia.'}</p>}
           {pensando && (
             <div className="doc-leitura doc-pensando">
               <span className="doc-leitura-h"><Ic.faisca />Leitura</span>
@@ -146,17 +155,25 @@ export function Documento({ nota, ir, acoes }: {
           de empurrar os botões para fora da tela. Numa nota longa, perguntar
           exigia rolar até o fim, que é o contrário do que a barra existe para
           resolver. */}
+      {!meu && (
+        <p className="doc-emprestada">
+          <Ic.team />
+          Compartilhada com você. Dá para ler e abrir os anexos, e quem escreve é quem
+          criou a nota.
+        </p>
+      )}
+
       <div className="doc-acoes">
         {/* onMouseDown segura o foco: sem ele o clique tira o cursor do campo,
             o campo vira texto lido, o botão sai do lugar e o clique se perde. */}
-        {org.ia_ativa && (
+        {meu && org.ia_ativa && (
           <button className="btn" disabled={pensando}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => void perguntar()}>
             <Ic.faisca />{pensando ? 'Perguntando...' : 'Perguntar'}
           </button>
         )}
-        {acoes}
+        {meu && acoes}
         <span className="hint">
           {org.ia_ativa
             ? 'Responde sobre a linha onde você está.'

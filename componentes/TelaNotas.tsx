@@ -32,7 +32,7 @@ import type { Nota } from '@/lib/tipos'
 function Aberta({ nota, ir, aoApagar }: {
   nota: Nota; ir: (titulo: string) => void; aoApagar: () => void
 }) {
-  const { notas, salvarNota, toast } = useDados()
+  const { notas, salvarNota, toast, eu } = useDados()
 
   const aponta = saidas(nota, notas)
   const citam = entradas(nota, notas)
@@ -56,7 +56,9 @@ function Aberta({ nota, ir, aoApagar }: {
           {nota.mexido_em.slice(0, 10) !== nota.criado_em.slice(0, 10)
             && `, mexida ${rel(isoDe(nota.mexido_em)).toLowerCase()}`}
         </p>
-        <DetalhesNota nota={nota} aoApagar={aoApagar} />
+        {/* Nota compartilhada comigo não tem cadastro: área, track, arquivos,
+            fixar e apagar são de quem escreveu. */}
+        {nota.dono_id === eu.id && <DetalhesNota nota={nota} aoApagar={aoApagar} />}
       </div>
 
       {/* Um texto só, e a leitura escreve dentro dele. A primeira linha é o

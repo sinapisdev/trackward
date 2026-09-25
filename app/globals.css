@@ -4025,6 +4025,22 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 .doc-bloco{margin-bottom:12px}
 .doc-bloco:last-child{margin-bottom:0}
 
+/* A folha de quem só pode ler: sem cursor de escrita, com a frase dizendo por
+   quê. Sem a frase, o campo que não aceita digitação parece defeito. */
+.doc-lido.so-leitura{cursor:default}
+.doc-emprestada{display:flex;align-items:flex-start;gap:8px;margin:10px 0 0;
+  padding:9px 11px;border-radius:var(--r-sm);background:var(--brilho);
+  color:var(--tx-3);font-size:var(--fs-sm)}
+.doc-emprestada>svg{flex:none;margin-top:1px}
+
+/* Compartilhar uma nota. Lista simples de gente, porque a pergunta é só "quem",
+   e qualquer coisa mais elaborada aqui vira formulário dentro de um menu. */
+.nt-comp{display:grid;gap:8px;padding-top:8px}
+.nt-comp .lbl{margin-top:4px}
+.nt-comp-p{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:var(--fs-ui)}
+.nt-comp-p input{accent-color:var(--ac-tinta)}
+.nt-comp .hint{margin:0}
+
 /* A tarefa que veio de uma ressalva. Âmbar, que já é a cor de "vence em breve",
    e sempre com a frase: a cor sozinha não diz que este checkpoint não fecha
    sem ela, e é isso que a pessoa precisa saber. */

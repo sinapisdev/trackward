@@ -244,7 +244,9 @@ export function Caderno({ abas }: { abas?: ReactNode }) {
             aria-label="Abrir o caderno inteiro"><Ic.caber /></Link>
           {/* Área, track, arquivos, fixar e apagar: o cadastro da nota, atrás
               de um botão só. Ver componentes/DetalhesNota.tsx. */}
-          {!aberta.conversa && <DetalhesNota nota={aberta} aoApagar={() => setAbertaId(null)} />}
+          {!aberta.conversa && aberta.dono_id === eu.id && (
+            <DetalhesNota nota={aberta} aoApagar={() => setAbertaId(null)} />
+          )}
         </span>
       </div>
 

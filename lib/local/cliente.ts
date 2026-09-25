@@ -18,7 +18,7 @@ const VERSAO = 18
 const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], fluxos: [], etapas: [], itens: [],
   dependencias: [], processos: [], processo_etapas: [], processo_itens: [], fluxo_pessoas: [],
   convites: [],
-  canais: [], canal_membros: [], mensagens: [], sugestoes: [],
+  canais: [], canal_membros: [], mensagens: [], sugestoes: [], nota_pessoas: [],
   compromissos: [], convidados: [], agendas_externas: [], ocupacao_externa: [],
   historico: [], atividades: [],
   anexos: [], decisoes: [], pedidos_prazo: [], memoria: [], consumo: [], agentes: [], conectores: [], notas: [],
@@ -292,8 +292,16 @@ function visiveis(tabela: string, todas: Linha[]): Linha[] {
     return linhas.filter((v) => ok.has(v.compromisso_id) || v.perfil_id === eu)
   }
   if (tabela === 'canais') return linhas.filter((c) => podeVerCanal(c, eu))
-  // A nota é de uma pessoa, e ponto: sem exceção para admin, igual ao banco.
-  if (tabela === 'notas') return linhas.filter((n) => n.dono_id === eu)
+  // A nota é de uma pessoa, e de quem ela mostrou: sem exceção para admin,
+  // igual à seção 23 do banco. A conversa de dentro continua só do dono.
+  if (tabela === 'notas') {
+    const comigo = new Set(ler().nota_pessoas.filter((p) => p.perfil_id === eu).map((p) => p.nota_id))
+    return linhas.filter((n) => n.dono_id === eu || comigo.has(n.id))
+  }
+  if (tabela === 'nota_pessoas') {
+    const minhas = new Set(ler().notas.filter((n) => n.dono_id === eu).map((n) => n.id))
+    return linhas.filter((x) => x.perfil_id === eu || minhas.has(x.nota_id))
+  }
   if (tabela === 'mensagens' || tabela === 'sugestoes') {
     const ok = canaisAbertos(eu)
     const b = ler()

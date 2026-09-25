@@ -182,6 +182,12 @@ type Contexto = {
   desligarPushAqui: () => Promise<void>
   esquecerAparelho: (id: string) => Promise<void>
   salvarNota: (n: Partial<Nota>) => Promise<string | null>
+  /** Com quem esta nota está compartilhada. */
+  comQuem: (notaId: string) => string[]
+  /** Liberar a leitura da nota para pessoas escolhidas. Só o dono. */
+  compartilharNota: (notaId: string, perfis: string[]) => Promise<void>
+  /** Mandar o texto da nota para um canal. É cópia, não acesso. */
+  notaParaCanal: (notaId: string, canalId: string) => Promise<void>
   excluirNota: (id: string) => Promise<void>
   /**
    * A conversa solta com a leitura: a nota sem assunto.
@@ -381,6 +387,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [agentes, setAgentes] = useState<Agente[]>([])
   const [conectores, setConectores] = useState<Conector[]>([])
   const [todasNotas, setTodasNotas] = useState<Nota[]>([])
+  const [notaPessoas, setNotaPessoas] = useState<{ nota_id: string; perfil_id: string }[]>([])
   const [respondendo, setRespondendo] = useState<string | null>(null)
   const [avisos, setAvisos] = useState<Aviso[]>([])
   const [contato, setContato] = useState<AvisoContato | null>(null)
@@ -421,7 +428,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   /** Recolhe tudo que a pessoa pode ver e monta a árvore de fluxos. */
   const carregar = useCallback(async () => {
-    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns, ags, cnc, nts, avs, ctt, psh] = await Promise.all([
+    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns, ags, cnc, nts, notaPes, avs, ctt, psh] = await Promise.all([
       sb.from('perfis').select('*').order('nome'),
       sb.from('areas').select('*').order('ordem'),
       sb.from('fluxos').select('*').order('criado_em'),
@@ -455,6 +462,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       sb.from('agentes').select('*').order('criado_em'),
       sb.from('conectores').select('id,nome,base_url,auth_tipo,auth_nome,dica,dono_id,ativo,criado_por,criado_em').order('criado_em'),
       sb.from('notas').select('*').order('mexido_em', { ascending: false }),
+      sb.from('nota_pessoas').select('*'),
       // A caixa é curta de propósito: aviso de duas semanas atrás não é aviso,
       // é histórico, e histórico já mora na atividade de cada track.
       sb.from('avisos').select('*').order('criado_em', { ascending: false }).limit(80),
@@ -608,6 +616,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     // O segredo cifrado nem é pedido acima: a tela não tem o que fazer com ele.
     setConectores((cnc.data || []) as Conector[])
     setTodasNotas((nts.data || []) as Nota[])
+    setNotaPessoas((notaPes.data || []) as { nota_id: string; perfil_id: string }[])
     setAvisos((avs.data || []) as Aviso[])
     setContato((ctt.data as AvisoContato | null) ?? null)
     setAparelhos((psh.data || []) as PushAssinatura[])
@@ -1176,6 +1185,59 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     recarregar()
     return id
   }, [sb, eu.id, falhou, toast, recarregar])
+
+  const comQuem: Contexto['comQuem'] = useCallback(
+    (notaId) => notaPessoas.filter((x) => x.nota_id === notaId).map((x) => x.perfil_id),
+    [notaPessoas],
+  )
+
+  /**
+   * Liberar a leitura de uma nota.
+   *
+   * Compartilhar é mostrar, e não entregar: quem recebe lê o texto e abre os
+   * anexos, e não edita nem enxerga a conversa de dentro. O que você perguntou
+   * à leitura enquanto pensava é a parte mais íntima da nota, e não é ela que
+   * se está mostrando.
+   */
+  const compartilharNota: Contexto['compartilharNota'] = useCallback(async (notaId, escolhidos) => {
+    const antes = new Set(comQuem(notaId))
+    const agora = new Set(escolhidos.filter((x) => x !== eu.id))
+    const sair = [...antes].filter((x) => !agora.has(x))
+    const entrar = [...agora].filter((x) => !antes.has(x))
+
+    if (sair.length) {
+      const { error } = await sb.from('nota_pessoas').delete().eq('nota_id', notaId).in('perfil_id', sair)
+      if (error) return falhou(error, 'Não deu para tirar o acesso.')
+    }
+    if (entrar.length) {
+      for (const perfil_id of entrar) {
+        const { error } = await sb.from('nota_pessoas').insert({ nota_id: notaId, perfil_id })
+        if (error) return falhou(error, 'Não deu para compartilhar.')
+      }
+    }
+    toast(agora.size ? `Compartilhada com ${agora.size} pessoa${agora.size === 1 ? '' : 's'}.` : 'Só sua de novo.')
+    recarregar()
+  }, [sb, comQuem, eu.id, falhou, toast, recarregar])
+
+  /**
+   * Mandar a nota para um canal.
+   *
+   * Isto é cópia, e não acesso: o texto vira mensagem e a partir dali a vida
+   * dele é a da conversa. É o caminho certo para "olhem isto", e o outro, o de
+   * liberar a leitura, é para "acompanhe isto".
+   */
+  const notaParaCanal: Contexto['notaParaCanal'] = useCallback(async (notaId, canalId) => {
+    const nota = todasNotas.find((n) => n.id === notaId)
+    if (!nota) return
+    const corpo = `**${nota.titulo}**\n\n${nota.texto}`.trim()
+    const { error } = await sb.from('mensagens').insert({
+      id: novoId(), canal_id: canalId, nota_id: null, autor_id: eu.id,
+      texto: corpo, sistema: false, responde_a: null,
+    })
+    if (error) return falhou(error, 'Não deu para mandar a nota.')
+    toast('Mandada para o canal.')
+    recarregar()
+  }, [sb, todasNotas, eu.id, falhou, toast, recarregar])
 
   const excluirNota: Contexto['excluirNota'] = useCallback(async (id) => {
     const { error } = await sb.from('notas').delete().eq('id', id)
@@ -2797,7 +2859,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     desfazerSugestao, palpites, distribuirTarefa, cargas, cargaDe,
     memoria, esquecer, consumo, agentes, salvarAgente, excluirAgente,
     conectores, salvarConector, guardarChave, excluirConector, testarConector,
-    notas, salvarNota, excluirNota, conversaIA, abrirConversaIA,
+    notas, salvarNota, excluirNota, comQuem, compartilharNota, notaParaCanal, conversaIA, abrirConversaIA,
     mensagensDaNota, sugestoesDaNota, escreverNaNota, perguntarNaNota, respondendo,
     minhaLista, abrirMinhaLista, criarAvulsa,
     avisos, naoVistos: avisos.filter((a) => !a.lido_em).length,
