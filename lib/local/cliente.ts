@@ -1004,10 +1004,14 @@ function cadastrarLocal(email: string, dados: Linha): { erro?: string } {
     ativo = true
     cv.usado_em = agora()
   } else {
+    // Espaço novo. O tipo vem do que a pessoa escolheu no cadastro, e o nome do
+    // pessoal é o nome dela: quem disse "só para mim" já respondeu de quem é.
+    // Espelha a seção 26 do schema.
+    const pessoal = String(dados.espaco || '') === 'pessoal'
     orgId = uid('org')
     b.organizacoes.push({
-      id: orgId, nome: String(dados.organizacao || nome).trim(),
-      tipo: 'equipe', dominio: null,
+      id: orgId, nome: pessoal ? nome : String(dados.organizacao || nome).trim(),
+      tipo: pessoal ? 'pessoal' : 'equipe', dominio: null,
       entrada_por_dominio: false, dono_id: null,
       multi: false, rotulo: 'Empresa', rotulo_plural: 'Empresas',
       ia_ativa: true, ia_modo: 'sugerir', criado_em: agora(),

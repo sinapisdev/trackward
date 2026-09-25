@@ -1569,10 +1569,118 @@ begin
   return true;
 end $$;
 
+
 -- ==========================================================================
--- Conferência. As vinte contas abaixo têm que dar
--- 31, 3, 3, 3, true, 1, 2, 1, 2, 0, true, 3, true, 4, true, true, 1, true, 1
--- e 1.
+-- 26. No cadastro se escolhe empresarial ou pessoal
+--
+--     A escolha existia só depois de entrar, no seletor de espaços: quem se
+--     cadastrava abria uma empresa, sempre, mesmo tendo dito que era para si.
+--     Agora `novo_usuario` lê `espaco` nos dados do cadastro e abre a
+--     organização com `tipo='pessoal'`, com o nome da própria pessoa.
+--
+--     O resto não muda, e é de propósito: é o mesmo perfil, admin e dono do
+--     que abriu, o mesmo trigger e a mesma sessão. O que diferencia os dois
+--     produtos é `organizacoes.tipo`, lido por `recursos()` em lib/espaco.ts, e
+--     as quatro recusas da seção 20. Um segundo caminho de cadastro seria uma
+--     segunda chance de os dois saírem do lugar.
+--
+--     O nome do espaço pessoal é o nome da pessoa porque não há o que
+--     perguntar: quem escolheu "só para mim" já respondeu de quem é. Pedir
+--     "nome da organização" ali é devolver a pergunta que ela acabou de
+--     responder.
+-- ==========================================================================
+
+create or replace function public.novo_usuario()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  cv        convites%rowtype;
+  v_org     uuid;
+  v_nome    text := nullif(btrim(new.raw_user_meta_data->>'organizacao'), '');
+  v_codigo  text := upper(btrim(coalesce(new.raw_user_meta_data->>'convite', '')));
+  v_espaco  text := lower(btrim(coalesce(new.raw_user_meta_data->>'espaco', '')));
+  v_eu      text := nullif(btrim(new.raw_user_meta_data->>'nome'), '');
+  v_papel   text := 'colaborador';
+  v_ativo   boolean := false;
+  v_dono    boolean := false;
+  v_perfil  uuid;
+  v_ve_area boolean := false;
+  v_area    uuid;
+  v_gestor  uuid;
+  n int;
+  paleta text[] := array['#8A8A8A','#B0B0B0','#C9884A','#6F6F6F','#A0704A','#9A9A9A','#7A6A5E','#B5A08C'];
+begin
+  select * into cv from convites
+  where usado_em is null
+    and (vence_em is null or vence_em > now())
+    and (
+      (v_codigo <> '' and codigo = v_codigo)
+      or lower(email) = lower(new.email)
+    )
+  order by (v_codigo <> '' and codigo = v_codigo) desc
+  limit 1;
+
+  if cv.id is not null then
+    -- 1. Convite manda em tudo. A conta nasce pronta e liberada, e o convite
+    --    nunca aponta para espaço pessoal (gatilho convites_so_equipe, seção 20).
+    v_org := cv.org_id;
+    v_papel := coalesce(cv.papel, 'colaborador');
+    v_area := cv.area_id;
+    v_gestor := cv.gestor_id;
+    v_ve_area := coalesce(cv.ve_area, false);
+    v_ativo := true;
+  else
+    -- 2. Espaço novo, e quem abre é a administradora dele. É o único jeito de a
+    --    conta nascer admin sem alguém ter dito que pode. O tipo vem do que a
+    --    pessoa escolheu no cadastro; o nome do pessoal é o nome dela.
+    insert into organizacoes (nome, tipo)
+    values (
+      case when v_espaco = 'pessoal'
+        then coalesce(v_eu, initcap(split_part(new.email, '@', 1)))
+        else coalesce(v_nome, initcap(split_part(new.email, '@', 1)))
+      end,
+      case when v_espaco = 'pessoal' then 'pessoal' else 'equipe' end
+    )
+    returning id into v_org;
+    v_papel := 'admin';
+    v_ativo := true;
+    v_dono := true;
+    v_ve_area := true;
+  end if;
+
+  select count(*) into n from perfis where org_id = v_org;
+
+  insert into perfis (user_id, org_id, nome, email, cor, papel, area_id, gestor_id, ve_area, ativo)
+  values (
+    new.id, v_org,
+    coalesce(
+      v_eu,
+      nullif(btrim(cv.nome), ''),
+      split_part(new.email, '@', 1)
+    ),
+    new.email,
+    paleta[(n % 8) + 1],
+    v_papel, v_area, v_gestor, v_ve_area, v_ativo
+  )
+  on conflict (user_id, org_id) do nothing
+  returning id into v_perfil;
+
+  if v_dono and v_perfil is not null then
+    update organizacoes set dono_id = v_perfil where id = v_org;
+  end if;
+  if v_perfil is not null then
+    insert into sessoes (user_id, perfil_id) values (new.id, v_perfil)
+    on conflict (user_id) do update set perfil_id = excluded.perfil_id;
+  end if;
+  if cv.id is not null then
+    update convites set usado_em = now(), usado_por = v_perfil where id = cv.id;
+  end if;
+  return new;
+end $$;
+
+-- ==========================================================================
+-- Conferência. As vinte e uma contas abaixo têm que dar
+-- 31, 3, 3, 3, true, 1, 2, 1, 2, 0, true, 3, true, 4, true, true, 1, true, 1,
+-- 1 e true.
 -- ==========================================================================
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
@@ -1642,4 +1750,8 @@ select
     as "feedback de quem recebeu (1)",
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'abrir_nota_do_canal')
-    as "a nota do canal abre (1)";
+    as "a nota do canal abre (1)",
+  (select prosrc like '%v_espaco%' from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'novo_usuario')
+    as "pessoal no cadastro (true)";

@@ -6,16 +6,27 @@ import { supabase } from '@/lib/supabase/browser'
 import { Ic } from './Icones'
 
 type Modo = 'entrar' | 'escolher' | 'criar' | 'esqueci'
-/** Os dois jeitos de a conta nascer. Ver novo_usuario() em supabase/schema.sql. */
-type Jeito = 'equipe' | 'convite'
+/** Os três jeitos de a conta nascer. Ver novo_usuario() em supabase/schema.sql. */
+type Jeito = 'equipe' | 'pessoal' | 'convite'
 
+/**
+ * A escolha do cadastro, e o que cada uma muda na tela.
+ *
+ * Os textos moram aqui, e não em ternário no meio do JSX: eram dois jeitos e
+ * cada rótulo virava um `a ? b : c`; com três, isso vira um encadeado que
+ * ninguém lê. Ver "Dois workspaces" no AGENTS.md.
+ */
 const ESCOLHAS: {
-  id: Jeito; titulo: string; resumo: string; passos: [string, string][]
+  id: Jeito; titulo: string; resumo: string
+  /** O título do formulário, o do lado direito e o texto do botão. */
+  forma: string; lado: string; acao: string
+  passos: [string, string][]
 }[] = [
   {
     id: 'equipe',
     titulo: 'Para minha equipe',
     resumo: 'Crie o espaço da sua organização.',
+    forma: 'Crie seu espaço', lado: 'Comece e avance juntos', acao: 'Criar espaço',
     passos: [
       ['Crie seu espaço', 'Configure sua organização em poucos passos.'],
       ['Organize projetos e rotinas', 'Estruture o trabalho da sua equipe.'],
@@ -23,9 +34,22 @@ const ESCOLHAS: {
     ],
   },
   {
+    id: 'pessoal',
+    titulo: 'Só para mim',
+    resumo: 'Seu espaço, sem equipe e sem convite.',
+    forma: 'Crie seu espaço pessoal', lado: 'O app inteiro, para uma pessoa',
+    acao: 'Criar meu espaço',
+    passos: [
+      ['Guarde o que aparece', 'Notas, tarefas e compromissos no mesmo lugar.'],
+      ['Ponha as rotinas para andar', 'O que se repete volta sozinho, com prazo.'],
+      ['Ninguém entra aqui', 'O espaço é seu, e continua seu se você entrar numa empresa.'],
+    ],
+  },
+  {
     id: 'convite',
     titulo: 'Tenho um convite',
     resumo: 'Entre com um código de 6 letras.',
+    forma: 'Entre com o convite', lado: 'O convite já traz tudo', acao: 'Entrar na empresa',
     passos: [
       ['Use o código', 'Quem convidou mandou um código de 6 letras.'],
       ['Entre já liberado', 'Sem esperar aprovação de ninguém.'],
@@ -94,6 +118,9 @@ function Formulario() {
       if (modo === 'criar') {
         if (!nome.trim()) { setErro('Diga seu nome, é assim que as pessoas vão te reconhecer.'); return }
         if (jeito === 'equipe' && !empresa.trim()) { setErro('Diga o nome da empresa.'); return }
+        // O pessoal não pede mais nada: o espaço é a pessoa, e o nome dele é o
+        // nome dela. Pedir "nome da organização" para quem escolheu "só para
+        // mim" é devolver a pergunta que ela acabou de responder.
         if (jeito === 'convite' && !convite.trim()) { setErro('Cole o código que te mandaram.'); return }
         const { data, error } = await sb.auth.signUp({
           email: email.trim(),
@@ -104,6 +131,7 @@ function Formulario() {
               // Um campo por jeito. O banco decide o resto, e o papel nunca vem daqui.
               ...(jeito === 'convite' ? { convite: convite.trim().toUpperCase() } : {}),
               ...(jeito === 'equipe' ? { organizacao: empresa.trim() } : {}),
+              ...(jeito === 'pessoal' ? { espaco: 'pessoal' } : {}),
             },
           },
         })
@@ -252,7 +280,9 @@ function Formulario() {
           <button key={x.id} role="radio" aria-checked={jeito === x.id}
             className={`ent-jeito ${jeito === x.id ? 'on' : ''}`}
             onClick={() => { setJeito(x.id); setModo('criar'); setErro(''); setOk('') }}>
-            <span className="ic">{x.id === 'equipe' ? <Ic.team /> : <Ic.carta />}</span>
+            <span className="ic">
+              {x.id === 'equipe' ? <Ic.team /> : x.id === 'pessoal' ? <Ic.eu /> : <Ic.carta />}
+            </span>
             <span className="txt"><b>{x.titulo}</b><small>{x.resumo}</small></span>
             <span className="radio" aria-hidden />
           </button>
@@ -261,7 +291,7 @@ function Formulario() {
 
       <div className="ent-duas">
           <div>
-            <h2>{jeito === 'equipe' ? 'Crie seu espaço' : 'Entre com o convite'}</h2>
+            <h2>{escolha.forma}</h2>
             {erro && <div className="erro"><Ic.x />{erro}</div>}
             {ok && <div className="ok-box"><Ic.check />{ok}</div>}
 
@@ -271,13 +301,14 @@ function Formulario() {
                 <input className="inp" id="a-nome" value={nome} autoFocus placeholder="Como podemos chamar você?"
                   onChange={(e) => setNome(e.target.value)} />
               </div>
-              {jeito === 'equipe' ? (
+              {jeito === 'equipe' && (
                 <div className="fld">
                   <label htmlFor="a-empresa">Nome da organização</label>
                   <input className="inp" id="a-empresa" value={empresa} placeholder="Nome da sua equipe"
                     onChange={(e) => setEmpresa(e.target.value)} />
                 </div>
-              ) : (
+              )}
+              {jeito === 'convite' && (
                 <div className="fld">
                   <label htmlFor="a-convite">Código do convite</label>
                   <input className="inp" id="a-convite" value={convite} placeholder="Ex.: ENG7K2"
@@ -288,8 +319,11 @@ function Formulario() {
               <div className="ent-par">
                 <div className="fld">
                   <label htmlFor="a-email">E-mail</label>
+                  {/* Quem escolheu "só para mim" não tem empresa, e o exemplo
+                      não pode sugerir que precisa de uma. */}
                   <input className="inp" id="a-email" type="email" required value={email}
-                    autoComplete="email" placeholder="voce@empresa.com"
+                    autoComplete="email"
+                    placeholder={jeito === 'pessoal' ? 'voce@email.com' : 'voce@empresa.com'}
                     onChange={(e) => setEmail(e.target.value)} />
                 </div>
                 <div className="fld">
@@ -309,22 +343,33 @@ function Formulario() {
                 <button type="button" className="btn"
                   onClick={() => { setModo('escolher'); setErro(''); setOk('') }}>Voltar</button>
                 <button className="btn pri" type="submit" disabled={indo}>
-                  {indo ? 'Um instante...' : jeito === 'equipe' ? 'Criar espaço' : 'Entrar na empresa'}<Ic.seta />
+                  {indo ? 'Um instante...' : escolha.acao}<Ic.seta />
                 </button>
               </div>
             </form>
           </div>
 
           <aside className="ent-lado">
-            <h3>{jeito === 'equipe' ? 'Comece e avance juntos' : 'O convite já traz tudo'}</h3>
+            <h3>{escolha.lado}</h3>
             <ol>
               {escolha.passos.map((t, k) => (
                 <li key={k}><span className="n num">{k + 1}</span><span><b>{t[0]}</b><small>{t[1]}</small></span></li>
               ))}
             </ol>
             <div className="ent-lado-notas">
-              <p><Ic.team />Você poderá acessar outros espaços com o mesmo login.</p>
-              <p><Ic.carta />Com convite, o papel e a área vêm definidos por quem convidou.</p>
+              {jeito === 'pessoal' ? (
+                <>
+                  {/* O que a pessoa precisa saber antes de escolher: aqui não
+                      tem canal nem gente, e ela não fica presa a isso. */}
+                  <p><Ic.eu />Sem canais, sem equipe e sem ninguém aprovando o seu trabalho.</p>
+                  <p><Ic.team />Depois dá para abrir uma empresa ao lado, com o mesmo login.</p>
+                </>
+              ) : (
+                <>
+                  <p><Ic.team />Você poderá acessar outros espaços com o mesmo login.</p>
+                  <p><Ic.carta />Com convite, o papel e a área vêm definidos por quem convidou.</p>
+                </>
+              )}
             </div>
           </aside>
       </div>

@@ -204,9 +204,19 @@ coisa que o chefe dela pode cancelar, e aí não era dela.
 
 **Onde cada um entra.** Já de dentro, o pessoal é contratado no seletor de espaços, que
 é onde a pessoa já vem trocar de lugar, e o espaço desligado continua listado dizendo
-"acesso encerrado" em vez de sumir. No cadastro escolhe-se **empresarial** ou **pessoal**. Quem escolhe
-pessoal não vê opção de empresa em lugar nenhum: não é assunto dele naquele momento. Quem
+"acesso encerrado" em vez de sumir. No cadastro são **três** cartões: para minha equipe,
+**só para mim** e tenho um convite. Quem escolhe pessoal não vê opção de empresa em lugar
+nenhum, nem o campo, nem o exemplo de e-mail: não é assunto dele naquele momento. Quem
 escolhe empresarial entra como é hoje, com assentos e podendo abrir mais de uma empresa.
+
+Quem decide isso no banco é `novo_usuario` (seção 26), pelo campo `espaco` dos dados do
+cadastro, e é **o mesmo caminho** dos outros dois: mesmo perfil, admin e dono do que abriu,
+mesma sessão. O que separa os dois produtos continua sendo `organizacoes.tipo`, lido por
+`recursos()`. Um segundo caminho de cadastro seria uma segunda chance de os dois saírem do
+lugar. **Convite vence a escolha**: quem chega com código entra na empresa que convidou,
+mesmo tendo pedido pessoal, porque o convite é combinado com alguém e a escolha não.
+O **nome do espaço pessoal é o nome da pessoa**, e não se pergunta: quem disse "só para
+mim" já respondeu de quem é.
 Depois de dentro, o espaço pessoal aparece para todo mundo no seletor de espaços, ao lado
 das empresas, e é contratado à parte, porque não é da empresa.
 
