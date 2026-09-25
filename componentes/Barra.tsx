@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDados } from './Dados'
 import { useModais } from './Modais'
@@ -229,19 +230,34 @@ function Eu() {
       <button onClick={() => setAberto(true)} aria-label={`${eu.nome} e mais`} aria-expanded={aberto}>
         <Av p={eu} />
       </button>
-      {aberto && (
+      {/*
+        A folha sai por um portal, e isso NÃO é preferência de organização.
+
+        `.tw-topo` tem `backdrop-filter`, e elemento com backdrop-filter vira o
+        bloco de contenção de todo `position:fixed` que estiver dentro dele. A
+        folha nascia aqui dentro, então `inset:0` não era a janela, era a barra
+        de cima: ela abria como uma tira de 60px colada no topo, com o conteúdo
+        cortado, e quem tocasse na bolinha via o painel sumir em vez de abrir.
+
+        Vale para qualquer coisa fixa que nasça dentro da barra. Ao criar outra,
+        mandar para o `body` também, ou tirar o desfoque da barra, que é pior.
+      */}
+      {aberto && createPortal((
         <div className="folha-fundo" onClick={() => setAberto(false)}>
           <div className="folha" onClick={(e) => e.stopPropagation()}>
             <div className="puxador" />
 
-            <button className="folha-eu" onClick={() => void sair()}>
+            {/* Quem você é, e não um botão de sair disfarçado de perfil. Sair
+                tem linha própria lá embaixo, junto das outras: o bloco de cima
+                é identificação, e clicar em identificação para sair da conta é
+                o tipo de coisa que só se descobre errando. */}
+            <div className="folha-eu">
               <Av p={eu} tam="lg" />
               <span>
                 <b>{eu.nome}</b>
-                <small>{MODO_LOCAL ? 'Trocar de pessoa' : 'Sair'}</small>
+                <small>{eu.email}</small>
               </span>
-              {MODO_LOCAL ? <Ic.team /> : <Ic.sair />}
-            </button>
+            </div>
 
             {pode.empresas && !!empresas.length && (
               <>
@@ -290,9 +306,13 @@ function Eu() {
               {tema === 'claro' ? <Ic.lua /> : <Ic.sol />}
               Tema: {TEMAS.find((t) => t.id === tema)?.nome}
             </button>
+            <button className="folha-item" onClick={() => void sair()}>
+              {MODO_LOCAL ? <Ic.team /> : <Ic.sair />}
+              {MODO_LOCAL ? 'Trocar de pessoa' : 'Sair da conta'}
+            </button>
           </div>
         </div>
-      )}
+      ), document.body)}
     </div>
   )
 

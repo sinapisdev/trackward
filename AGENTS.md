@@ -696,6 +696,13 @@ passa do fim da janela, e o que fica escondido é sempre a última coisa da tela
 que na conversa é o campo de escrever. Ao criar tela de altura fixa, usar essas
 duas variáveis.
 
+**`backdrop-filter` engole o `position:fixed` de dentro dele.** Elemento com
+backdrop-filter (ou transform, ou filter) vira o bloco de contenção dos descendentes
+fixos, e `inset:0` passa a ser ele, não a janela. A barra de cima tem desfoque, então a
+folha do celular, que nasce dentro dela, abria como uma tira colada no topo com o conteúdo
+cortado: quem tocava na bolinha via o painel sumir em vez de abrir. Coisa fixa que nasça
+dentro da barra vai para o `body` por portal.
+
 **Dois `@media` que se sobrepõem é empate, e empate quem decide é a ordem no
 arquivo.** A tela de conversa ficou espremida em 248px de 390 por meses porque
 um bloco `max-width:1180px` escrito depois vencia o bloco de celular. Ao
