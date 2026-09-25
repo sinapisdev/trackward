@@ -81,7 +81,7 @@ export function Equipe() {
 
       {!pessoal && (
       <div className="eq">
-        <div className="eq-lista">
+        <div className="eq-lista" data-tut="equipe-lista">
           {admin && !!esperando.length && (
             <section className="sec">
               <div className="sec-h">
@@ -197,7 +197,7 @@ export function Equipe() {
           </section>
         </div>
 
-        <aside className="eq-lado">
+        <aside className="eq-lado" data-tut="equipe-convidar">
           {admin && (
             <>
               <h2>Convidar alguém</h2>

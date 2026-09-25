@@ -163,7 +163,7 @@ export function Documento({ nota, ir, acoes }: {
         </p>
       )}
 
-      <div className="doc-acoes">
+      <div className="doc-acoes" data-tut="notas-acoes">
         {/* onMouseDown segura o foco: sem ele o clique tira o cursor do campo,
             o campo vira texto lido, o botão sai do lugar e o clique se perde. */}
         {meu && org.ia_ativa && (

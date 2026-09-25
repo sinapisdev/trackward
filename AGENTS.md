@@ -629,12 +629,19 @@ todos os espaços, porque é o que alimenta o seletor de empresa. Misturar isso 
 escolha de responsável cria tarefa que o dono nunca enxerga. `Dados.tsx` filtra por
 `org_id`, e no banco existe `gente_daqui()` para quem precisar da lista certa.
 
-## O tutorial da primeira vez
+## O tutorial de cada tela
 
 O app não se explica sozinho: a tela inicial mostra conversa, fila e radar ao mesmo tempo,
 e quem chega não sabe que a conversa é o lugar onde o trabalho nasce nem que existe uma
-linguagem de barra. Sem isso a pessoa usa o TrackWard como um chat com lista de tarefas ao
-lado, que é exatamente o que ela já tinha.
+linguagem de barra. Em Tracks é pior, porque ali mora a ideia inteira do produto e nada na
+tela diz o que é um checkpoint. Sem isso a pessoa usa o TrackWard como um chat com lista de
+tarefas ao lado, que é exatamente o que ela já tinha.
+
+**É um tour curto por tela, e ele abre quando a pessoa CHEGA naquela tela**, não tudo no
+primeiro acesso. Quarenta passos de enfiada no primeiro dia é um folheto, e ninguém lê
+folheto: a pessoa pula e nunca mais vê. Três passos no dia em que ela abriu Tracks pela
+primeira vez, ela lê. São catorze telas, e `perfis.tutoriais` guarda os ids dos que já
+rodaram.
 
 - **Ele aponta para a tela de verdade**, e não mostra desenho de tela. O que se aprende é
   ONDE a coisa fica, e isso não se aprende olhando figura dentro de um modal.
@@ -644,20 +651,31 @@ lado, que é exatamente o que ela já tinha.
 - **Passo sem alvo na tela não trava a fila**: o cartão vai para o meio, sem foco, e a
   pessoa segue. E ele **sai por qualquer porta**, Esc, clique fora, Pular e Fechar, porque
   a primeira coisa que alguém faz num app novo é tentar sair da caixa que apareceu.
-- **Ao ligar, ele leva para a inicial.** O roteiro é o das três colunas, e quem pediu para
-  rever em Ajustes está noutra tela, onde metade dos passos não tem âncora.
 - **O cartão se posiciona medindo a si mesmo**, e tenta embaixo, em cima, à direita, à
-  esquerda e por fim o meio da tela. Metade dos alvos é uma coluna inteira, que ocupa a
-  janela de cima a baixo: chutando a altura, o cartão nascia metade fora.
-- **Quem já viu fica marcado no perfil** (`perfis.tutorial_em`), e não no navegador: é da
-  pessoa, não do aparelho. A coluna nasce preenchida para quem já usa o app, dentro do `if`
-  que a cria, senão uma segunda passada do `atualizar.sql` marcaria como visto quem se
-  cadastrou ontem. Limpar o campo é o "Ver de novo", em Ajustes.
+  esquerda e por fim o meio da tela, prendendo o resultado dentro da janela no fim. Metade
+  dos alvos é uma coluna inteira, que ocupa a janela de cima a baixo: chutando a altura, o
+  cartão nascia metade fora, e sem o prender ele ainda nascia fora quando o alvo começava
+  fora.
+- **Alvo abaixo da dobra é trazido para o meio da janela**, e esta é a única rolagem
+  deliberada do app: apontar para algo que a pessoa não está vendo é não apontar para nada.
+  Vale só aqui; o resto do app não rola sozinho.
+- **Quem já viu fica marcado no perfil** (`perfis.tutoriais`), e não no navegador: é da
+  pessoa, não do aparelho. A migração da seção 29 dá `inicio` a quem já tinha passado pelo
+  tour antigo, e a coluna `tutorial_em` da seção 28 nasce preenchida para quem já usava o
+  app, dentro do `if` que a cria, senão uma segunda passada do `atualizar.sql` marcaria como
+  visto quem se cadastrou ontem. Esvaziar a lista é o "Ver tudo de novo", em Ajustes.
+- **As dependências do efeito que liga o tutorial são texto, nunca os objetos.** `pode` era
+  um `recursos(org)` novo a cada render e `tutoriais` é um array novo a cada leitura dos
+  dados: comparando objeto, o efeito rodava a cada render e o tutorial fechava sozinho na
+  cara de quem estava lendo. `pode` agora é memorizado em `Dados`, e aqui comparam-se o id
+  do tour e a lista juntada por vírgula.
 
-O roteiro mora em `lib/tutorial.ts`, e é um só para os dois workspaces: o passo diz em qual
-deles existe (`quando`), e pode trocar o texto no celular (`textoCel`), porque lá a
-conversa é a tela inicial em vez da coluna do meio e o radar desceu para o fim de Meu
-trabalho. Escrever dois roteiros seria a mesma armadilha do fork do espaço pessoal.
+O roteiro mora em `lib/tutorial.ts`, e é um só para os dois workspaces: o tour e o passo
+dizem em qual deles existem (`quando`), e o passo pode trocar o texto no celular
+(`textoCel`), porque lá a conversa é a tela inicial em vez da coluna do meio e o radar
+desceu para o fim de Meu trabalho. Escrever dois roteiros seria a mesma armadilha do fork
+do espaço pessoal. Qual tour abre é decidido pelo endereço (`tourDe`), e entre dois que
+casam vence o caminho mais longo: `/fluxo/abc` é a track aberta, não a lista.
 
 ## Avisos
 

@@ -131,7 +131,7 @@ export function TelaAgenda() {
         </div>
       </div>
 
-      <div className="ag-ctl">
+      <div className="ag-ctl" data-tut="agenda-ctl">
         <button className="iconbtn grd" aria-label="Anterior" onClick={() => andar(-1)}><Ic.volta /></button>
         <button className="iconbtn grd" aria-label="Próximo" onClick={() => andar(1)}><Ic.seta /></button>
         <button className="btn" onClick={() => setAncora(hj)}>Hoje</button>
@@ -175,7 +175,7 @@ export function TelaAgenda() {
       )}
 
       <div className="ag">
-      <div className="ag-grade">
+      <div className="ag-grade" data-tut="agenda-grade">
       {modo === 'semana' ? (
         <div className={`ag-semana ${estreito ? 'um-dia' : ''}`}
           style={{ '--colunas': dias.length } as CSSProperties}>

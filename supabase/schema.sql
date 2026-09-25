@@ -4486,3 +4486,31 @@ begin
     update public.perfis set tutorial_em = now();
   end if;
 end $$;
+
+-- --------------------------------------------------------------------------
+-- 29. Um tutorial por tela, e não um só
+--
+--     Era uma coluna de sim ou não (`tutorial_em`), porque era um tour só, o
+--     da tela inicial. Agora cada tela tem a volta guiada dela, que abre na
+--     primeira vez que a pessoa chega ali, e a pergunta deixou de ser "ela já
+--     viu?" para ser "esta tela aqui, ela já viu?". Daí a lista.
+--
+--     Quarenta passos de enfiada no primeiro acesso é um folheto, e ninguém lê
+--     folheto: a pessoa pula e nunca mais vê. Três passos no dia em que ela
+--     abriu Tracks pela primeira vez, ela lê.
+--
+--     A migração respeita quem já passou pelo tour da inicial: quem tem
+--     `tutorial_em` preenchido nasce com 'inicio' na lista, e não vê aquele de
+--     novo. As outras telas ele ainda não viu, então essas abrem normalmente.
+--
+--     `tutorial_em` fica onde está. Ela não custa nada e é o registro de quando
+--     a pessoa entrou de primeira; apagar coluna por causa de rótulo novo é
+--     trocar dívida barata por cara.
+-- --------------------------------------------------------------------------
+
+alter table public.perfis add column if not exists tutoriais text[] not null default '{}';
+
+update public.perfis
+   set tutoriais = array['inicio']
+ where tutorial_em is not null
+   and not ('inicio' = any(tutoriais));

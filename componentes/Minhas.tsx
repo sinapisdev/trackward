@@ -122,7 +122,7 @@ export function Minhas() {
       </div>
 
       <div className="fila">
-        <div className="fila-lista">
+        <div className="fila-lista" data-tut="minhas-lista">
           <div className="filtros">
             <div className="seg" role="group" aria-label="Filtrar a fila">
               {abas.map((a) => (
@@ -250,7 +250,7 @@ function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoA
   const feito = p.tipo === 'item' && p.item.feito
 
   return (
-    <aside className="gaveta">
+    <aside className="gaveta" data-tut="minhas-gaveta">
       <div className="gaveta-topo">
         <span className="gaveta-onde">{avulsa ? AVULSA : `${p.fluxo.nome} / ${et?.nome}`}</span>
         <button className="iconbtn so-celular" aria-label="Fechar" onClick={aoFechar}><Ic.x /></button>

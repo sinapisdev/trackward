@@ -59,7 +59,11 @@ function Aberta({ nota, ir, aoApagar }: {
         </p>
         {/* Nota compartilhada comigo não tem cadastro: área, track, arquivos,
             fixar e apagar são de quem escreveu. */}
-        {nota.dono_id === eu.id && <DetalhesNota nota={nota} aoApagar={aoApagar} />}
+        {nota.dono_id === eu.id && (
+          <span data-tut="notas-detalhes">
+            <DetalhesNota nota={nota} aoApagar={aoApagar} />
+          </span>
+        )}
       </div>
 
       {/* Um texto só, e a leitura escreve dentro dele. A primeira linha é o
@@ -202,7 +206,7 @@ export function TelaNotas() {
         </div>
       ) : (
         <div className="nt-tela">
-          <aside className="nt-lado">
+          <aside className="nt-lado" data-tut="notas-lista">
             {/* Procurar e criar na mesma linha, no alto, e nada de cabeçalho de
                 página em cima disso. A palavra "Notas" já está acesa na fileira
                 de abas: repetir em corpo 34 custava 150px de altura, que é

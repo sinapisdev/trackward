@@ -225,10 +225,12 @@ export function TelaFluxo({ id }: { id: string }) {
               {/* Sem rótulo: a aba escolhida já diz o que é isto, e repetir o
                   nome dela como título gasta a linha mais cara da tela, que é a
                   primeira. */}
+              <div data-tut="track-trilha">
               {deitada
                 ? <TrilhaH f={f} sel={idx} aoEscolher={setSel} numerada={cabemOsNomes}
                     soMarcas={!cabemOsNomes} decisoes={decisoesDe(f.id)} />
                 : <Trilha f={f} sel={idx} aoEscolher={setSel} decisoes={decisoesDe(f.id)} />}
+              </div>
 
               {f.tipo === 'ciclo' && (
                 <p className="loopnote">
@@ -237,7 +239,7 @@ export function TelaFluxo({ id }: { id: string }) {
                 </p>
               )}
 
-              <div className="cp">
+              <div className="cp" data-tut="track-checkpoint">
                 <div className="cp-h">
                   <div>
                     <div className="eyebrow">Checkpoint {idx + 1} de {f.etapas.length}</div>
@@ -353,7 +355,7 @@ export function TelaFluxo({ id }: { id: string }) {
                   </div>
                 )}
 
-                <div className="cp-f">
+                <div className="cp-f" data-tut="track-decisao">
                   {naAtual && (
                     <button className={`btn ${completo && podeAprovar && !travado ? 'pri' : ''}`}
                       onClick={() => setDecidindo(true)}
@@ -395,7 +397,7 @@ export function TelaFluxo({ id }: { id: string }) {
           )}
         </div>
 
-        <aside className="rail">
+        <aside className="rail" data-tut="track-conversa">
           {aba === 'trilha' ? (
             <>
               {pode.canais ? (

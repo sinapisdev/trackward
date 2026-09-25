@@ -103,7 +103,7 @@ function Lista({ atual }: { atual?: string }) {
   }
 
   return (
-    <aside className="chat-lista">
+    <aside className="chat-lista" data-tut="chat-lista">
       <div className="chat-lista-topo">
         <b>Conversa</b>
         <button className="iconbtn" title="Novo canal" aria-label="Novo canal"
@@ -366,7 +366,7 @@ function Campo({ canalId, respondendo, fecharResposta }: {
   }
 
   return (
-    <div className="chat-campo">
+    <div className="chat-campo" data-tut="chat-campo">
       {respondendo && (
         <div className="chat-resp">
           <Ic.responder />
@@ -518,7 +518,7 @@ function Conversa({ canal }: { canal: Canal }) {
               : canal.area_id ? areaDe(canal.area_id).nome : canal.descricao || `${canal.membros.length || perfis.length} pessoas`}
           </span>
         </div>
-        <div className="chat-acoes">
+        <div className="chat-acoes" data-tut="chat-ler">
           {org.ia_ativa && (
             <button className="btn" onClick={() => void ler()} disabled={lendo}>
               <Ic.faisca />

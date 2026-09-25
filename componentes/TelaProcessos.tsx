@@ -71,7 +71,7 @@ export function TelaProcessos() {
         </div>
       )}
 
-      <div className="filtros">
+      <div className="filtros" data-tut="processos-lista">
         <div className="seg" role="group" aria-label="Filtrar processos">
           <button className={aba === 'todos' ? 'on' : ''} onClick={() => setAba('todos')}>
             Todos<span className="num">{processos.length}</span>

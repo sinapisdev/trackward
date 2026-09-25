@@ -148,7 +148,7 @@ export function TelaTracks() {
         </div>
       ) : (
         <>
-          <div className="filtros">
+          <div className="filtros" data-tut="tracks-filtros">
             <div className="seg" role="group" aria-label="O que mostrar">
               {([['tudo', 'Tudo'], ['esteira', 'Objetivos'], ['ciclo', 'Rotinas']] as [Corte, string][])
                 .map(([c, nome]) => (
@@ -157,7 +157,7 @@ export function TelaTracks() {
                   </button>
                 ))}
             </div>
-            <div className="seg" role="group" aria-label="Vivas ou arquivadas">
+            <div className="seg" role="group" aria-label="Vivas ou arquivadas" data-tut="tracks-arquivadas">
               <button className={!noArquivo ? 'on' : ''}
                 onClick={() => { setNoArquivo(false); setNaVez(0) }}>Em andamento</button>
               <button className={noArquivo ? 'on' : ''}

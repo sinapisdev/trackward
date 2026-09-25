@@ -12,12 +12,16 @@ import { isoDe, rel } from '@/lib/datas'
 import { MODO_LOCAL } from '@/lib/modo'
 import { reiniciarLocal } from '@/lib/local/cliente'
 import { aplicarTema, temaAtual, TEMAS, type Tema } from '@/lib/tema'
+import { toursDe } from '@/lib/tutorial'
 
 export function TelaAjustes() {
   const { eu, org, empresas, todosFluxos, carregando, salvarOrg, salvarPerfil, excluirEmpresa,
-    minhaAgendaExterna, agenda, ligarAgendaExterna, desligarAgendaExterna } = useDados()
+    minhaAgendaExterna, agenda, ligarAgendaExterna, desligarAgendaExterna, pode } = useDados()
   const { abrir } = useModais()
   const [tema, setTema] = useState<Tema>('escuro')
+  // As voltas guiadas deste espaço, e quais desta pessoa já rodaram.
+  const tours = toursDe(pode)
+  const vistos = (eu.tutoriais ?? []).filter((id) => tours.some((t) => t.id === id))
   const [nomeOrg, setNomeOrg] = useState(org.nome)
   const [rotulo, setRotulo] = useState(org.rotulo)
   const [rotuloP, setRotuloP] = useState(org.rotulo_plural)
@@ -339,12 +343,14 @@ export function TelaAjustes() {
           </div>
           <div className="card" style={{ padding: 15 }}>
             <p className="hint" style={{ margin: '0 0 12px' }}>
-              Ele aponta para as peças da tela e diz para que serve cada uma: onde o trabalho
-              nasce, o que é objetivo e o que é rotina, e o que o sino avisa. São nove passos, e
-              dá para sair em qualquer um.
+              Cada tela tem uma volta guiada curta, que abre sozinha na primeira vez que você
+              chega nela e aponta para as peças de verdade. {vistos.length
+                ? `Você já viu ${vistos.length} de ${tours.length}.`
+                : `São ${tours.length} telas.`} Esvaziar aqui faz todas voltarem a abrir.
             </p>
-            <button className="btn" onClick={() => void salvarPerfil(eu.id, { tutorial_em: null }, true)}>
-              <Ic.faisca />Ver de novo
+            <button className="btn" disabled={!vistos.length}
+              onClick={() => void salvarPerfil(eu.id, { tutoriais: [] }, true)}>
+              <Ic.faisca />Ver tudo de novo
             </button>
           </div>
         </div>

@@ -1852,10 +1852,39 @@ begin
   end if;
 end $$;
 
+
 -- ==========================================================================
--- Conferência. As vinte e três contas abaixo têm que dar
+-- 29. Um tutorial por tela, e não um só
+--
+--     Era uma coluna de sim ou não (`tutorial_em`), porque era um tour só, o
+--     da tela inicial. Agora cada tela tem a volta guiada dela, que abre na
+--     primeira vez que a pessoa chega ali, e a pergunta deixou de ser "ela já
+--     viu?" para ser "esta tela aqui, ela já viu?". Daí a lista.
+--
+--     Quarenta passos de enfiada no primeiro acesso é um folheto, e ninguém lê
+--     folheto: a pessoa pula e nunca mais vê. Três passos no dia em que ela
+--     abriu Tracks pela primeira vez, ela lê.
+--
+--     A migração respeita quem já passou pelo tour da inicial: quem tem
+--     `tutorial_em` preenchido nasce com 'inicio' na lista, e não vê aquele de
+--     novo. As outras telas ele ainda não viu, então essas abrem normalmente.
+--
+--     `tutorial_em` fica onde está. Ela não custa nada e é o registro de quando
+--     a pessoa entrou de primeira; apagar coluna por causa de rótulo novo é
+--     trocar dívida barata por cara.
+-- ==========================================================================
+
+alter table public.perfis add column if not exists tutoriais text[] not null default '{}';
+
+update public.perfis
+   set tutoriais = array['inicio']
+ where tutorial_em is not null
+   and not ('inicio' = any(tutoriais));
+
+-- ==========================================================================
+-- Conferência. As vinte e quatro contas abaixo têm que dar
 -- 31, 3, 3, 3, true, 1, 2, 1, 2, 0, true, 3, true, 4, true, true, 1, true, 1,
--- 1, true, 3 e 1.
+-- 1, true, 3, 1 e 1.
 -- ==========================================================================
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
@@ -1935,4 +1964,7 @@ select
     as "avisos novos (3)",
   (select count(*) from information_schema.columns
     where table_schema = 'public' and table_name = 'perfis' and column_name = 'tutorial_em')
-    as "tutorial da primeira vez (1)";
+    as "tutorial da primeira vez (1)",
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'perfis' and column_name = 'tutoriais')
+    as "um tutorial por tela (1)";

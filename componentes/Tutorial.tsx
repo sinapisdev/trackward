@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { useDados } from './Dados'
 import { Ic } from './Icones'
-import { passosDe } from '@/lib/tutorial'
+import { tourDe } from '@/lib/tutorial'
 
 /** Onde o passo cabe na tela, medido de verdade. */
 type Foco = { top: number; left: number; width: number; height: number } | null
@@ -13,7 +13,7 @@ type Foco = { top: number; left: number; width: number; height: number } | null
 const FOLGA = 8
 
 /**
- * O tutorial da primeira vez.
+ * O tutorial de cada tela, na primeira vez que a pessoa chega nela.
  *
  * Ele acende um pedaço da interface de verdade e escreve ao lado: o que a
  * pessoa precisa aprender é ONDE a coisa fica, e isso não se aprende olhando
@@ -33,9 +33,16 @@ const FOLGA = 8
  */
 export function Tutorial() {
   const { eu, pode, salvarPerfil, carregando } = useDados()
-  const passos = useMemo(() => passosDe(pode), [pode])
-  const router = useRouter()
   const caminho = usePathname()
+  /**
+   * O tour desta tela, se ela tiver um.
+   *
+   * Ele é escolhido pelo endereço e não pelo componente que está montado: a
+   * tela decide o que mostrar, o tutorial decide o que explicar, e nenhuma das
+   * duas precisa saber da outra.
+   */
+  const tour = useMemo(() => tourDe(caminho, pode), [caminho, pode])
+  const passos = useMemo(() => tour?.passos ?? [], [tour])
 
   const [ligado, setLigado] = useState(false)
   const [n, setN] = useState(0)
@@ -43,18 +50,28 @@ export function Tutorial() {
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
   const cartao = useRef<HTMLDivElement>(null)
 
-  // A primeira vez é a que conta. Quem já viu só volta aqui pedindo, por
-  // Ajustes, e aí `tutorial_em` é limpo e este efeito liga de novo.
+  /**
+   * Abrir na primeira vez que a pessoa chega nesta tela.
+   *
+   * O que ela já viu é uma lista de ids em `perfis.tutoriais`, e não um sim ou
+   * não: são catorze telas, e a pergunta é sempre "esta aqui, ela já viu?".
+   *
+   * O atraso existe porque a tela ainda está nascendo quando a rota muda, e o
+   * primeiro passo mede o alvo: sem ele, o foco nasce em cima de um esqueleto
+   * de carregamento e fica do tamanho errado.
+   */
+  // As dependências são texto, e não os objetos: `tutoriais` é um array novo a
+  // cada leitura dos dados, e comparar o array faria este efeito rodar de novo
+  // a cada recarga, fechando o tutorial na cara de quem está lendo.
+  const vistos = (eu.tutoriais ?? []).join(',')
+  const tourId = tour?.id ?? ''
   useEffect(() => {
-    if (carregando || !eu.id) return
-    if (eu.tutorial_em) return
-    // O roteiro é o da tela inicial, que é onde as três colunas existem. Quem
-    // pediu para rever em Ajustes está noutra tela, e ali metade dos passos
-    // apontaria para o nada: o tutorial leva a pessoa para casa primeiro.
-    if (caminho !== '/') router.push('/')
-    setLigado(true)
-    setN(0)
-  }, [carregando, eu.id, eu.tutorial_em, caminho, router])
+    setLigado(false)
+    if (carregando || !eu.id || !tourId) return
+    if (vistos.split(',').includes(tourId)) return
+    const t = setTimeout(() => { setN(0); setLigado(true) }, 420)
+    return () => clearTimeout(t)
+  }, [carregando, eu.id, vistos, tourId])
 
   const passo = ligado ? passos[n] : null
   const celular = typeof window !== 'undefined' && window.innerWidth <= 840
@@ -69,6 +86,15 @@ export function Tutorial() {
       if (!el) { setFoco(null); return }
       const r = el.getBoundingClientRect()
       if (!r.width || !r.height) { setFoco(null); return }
+      // Alvo fora da janela é trazido para o meio dela, e só aqui a rolagem é
+      // de propósito: um tutorial que aponta para algo que a pessoa não está
+      // vendo não está apontando para nada. O resto do app não rola sozinho.
+      if (r.bottom < 0 || r.top > window.innerHeight) {
+        el.scrollIntoView({ block: 'center' })
+        const d = el.getBoundingClientRect()
+        setFoco({ top: d.top, left: d.left, width: d.width, height: d.height })
+        return
+      }
       setFoco({ top: r.top, left: r.left, width: r.width, height: r.height })
     }
     medir()
@@ -107,25 +133,41 @@ export function Tutorial() {
     const meioX = preso(foco.left + foco.width / 2 - c.width / 2, FOLGA, vw - c.width - FOLGA)
     const meioY = preso(foco.top + foco.height / 2 - c.height / 2, FOLGA, vh - c.height - FOLGA)
 
+    // O preso() no fim de cada saída é rede: um alvo mais alto que a janela, ou
+    // que começou fora dela, dava conta boa e posição fora da tela mesmo assim,
+    // e aí o cartão existia sem ninguém poder clicar nele.
+    const dentro = (p: { top: number; left: number }) => setPos({
+      top: preso(p.top, FOLGA, vh - c.height - FOLGA),
+      left: preso(p.left, FOLGA, vw - c.width - FOLGA),
+    })
+
     if (vh - (foco.top + foco.height) - gap >= c.height + FOLGA) {
-      setPos({ top: foco.top + foco.height + gap, left: meioX })
+      dentro({ top: foco.top + foco.height + gap, left: meioX })
     } else if (foco.top - gap >= c.height + FOLGA) {
-      setPos({ top: foco.top - c.height - gap, left: meioX })
+      dentro({ top: foco.top - c.height - gap, left: meioX })
     } else if (vw - (foco.left + foco.width) - gap >= c.width + FOLGA) {
-      setPos({ top: meioY, left: foco.left + foco.width + gap })
+      dentro({ top: meioY, left: foco.left + foco.width + gap })
     } else if (foco.left - gap >= c.width + FOLGA) {
-      setPos({ top: meioY, left: foco.left - c.width - gap })
+      dentro({ top: meioY, left: foco.left - c.width - gap })
     } else {
       setPos(null)
     }
   }, [passo, foco, celular, n])
 
+  /**
+   * Sair, por qualquer porta, e gravar que esta tela já foi vista.
+   *
+   * Pular, Esc, clique fora e Fechar fazem a mesma coisa. Tutorial que só
+   * termina de um jeito é armadilha, e a primeira coisa que alguém faz num app
+   * novo é tentar sair da caixa que apareceu na frente.
+   */
   const fechar = useCallback(() => {
     setLigado(false)
-    if (eu.id && !eu.tutorial_em) {
-      void salvarPerfil(eu.id, { tutorial_em: new Date().toISOString() }, true)
-    }
-  }, [eu.id, eu.tutorial_em, salvarPerfil])
+    if (!eu.id || !tour) return
+    const vistos = eu.tutoriais ?? []
+    if (vistos.includes(tour.id)) return
+    void salvarPerfil(eu.id, { tutoriais: [...vistos, tour.id] }, true)
+  }, [eu.id, eu.tutoriais, tour, salvarPerfil])
 
   const seguir = () => { if (n + 1 >= passos.length) fechar(); else setN(n + 1) }
   const voltar = () => setN((k) => Math.max(0, k - 1))
@@ -167,7 +209,7 @@ export function Tutorial() {
         <b>{passo.titulo}</b>
         <p>{texto}</p>
         <div className="tut-pontos" aria-hidden>
-          {passos.map((x, k) => <i key={x.id} className={k === n ? 'on' : ''} />)}
+          {passos.map((x, k) => <i key={x.titulo} className={k === n ? "on" : ""} />)}
         </div>
         <div className="tut-acoes">
           <button className="tut-pular" onClick={fechar}>

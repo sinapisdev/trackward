@@ -357,7 +357,8 @@ export function useDados() {
 
 const SEM_PERFIL: Perfil = {
   id: '', user_id: '', org_id: '', nome: 'Sem responsável', email: '', cor: '#8A909C', papel: 'colaborador',
-  area_id: null, gestor_id: null, ve_area: false, ativo: false, tutorial_em: null, criado_em: '',
+  area_id: null, gestor_id: null, ve_area: false, ativo: false,
+  tutoriais: [], tutorial_em: null, criado_em: '',
 }
 const SEM_AREA: Area = { id: '', nome: 'Sem área', cor: '#8A909C', ordem: 999, responsavel_id: null }
 const ORG_PADRAO: Organizacao = {
@@ -2906,8 +2907,17 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   }, [sb, canais, mensagens, perfis, todosFluxos, nomeDe, sugestoesDe, org.ia_modo, oQueACasaTem,
       memoria, guardar, agentes, processos, areaDe, aceitarSugestao, toast, recarregar])
 
+  /**
+   * O que este espaço pode fazer.
+   *
+   * Memorizado porque `recursos()` devolve um objeto novo a cada chamada, e
+   * quem depender dele num `useEffect` (o tutorial, por exemplo) veria uma
+   * dependência diferente a cada render e ficaria reiniciando para sempre.
+   */
+  const pode = useMemo(() => recursos(org), [org])
+
   const valor: Contexto = {
-    eu, perfis, areas, empresas, org, pessoal: org.tipo === 'pessoal', pode: recursos(org), fluxos, todosFluxos, totalItens, agenda, minhaAgendaExterna, processos, convites,
+    eu, perfis, areas, empresas, org, pessoal: org.tipo === 'pessoal', pode, fluxos, todosFluxos, totalItens, agenda, minhaAgendaExterna, processos, convites,
     empresaAtiva, focarEmpresa, empresaDe, carregando,
     perfilDe, nomeDe, areaDe, aviso, toast,
     salvarArea, excluirArea, salvarFluxo, excluirFluxo, arquivarFluxo, reabrirFluxo, arquivadas,

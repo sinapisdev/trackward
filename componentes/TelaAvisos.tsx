@@ -86,7 +86,7 @@ export function TelaAvisos() {
       </div>
 
       {!!avisos.length && (
-        <div className="filtros">
+        <div className="filtros" data-tut="avisos-lista">
           <div className="seg" role="group" aria-label="Filtrar avisos">
             {abas.filter((x) => x.id === 'tudo' || x.id === 'novos' || conta(x.id)).map((x) => (
               <button key={x.id} className={filtro === x.id ? 'on' : ''} onClick={() => setFiltro(x.id)}>

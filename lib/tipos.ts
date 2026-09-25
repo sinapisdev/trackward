@@ -28,12 +28,16 @@ export type Perfil = {
   /** Enxerga tudo da própria área, não só as tarefas em que entra. */
   ve_area: boolean
   /**
-   * Quando esta pessoa terminou (ou pulou) o tutorial da primeira vez.
+   * Quais telas esta pessoa já viu explicadas.
    *
-   * Fica no perfil, e não no navegador: é da pessoa, não do aparelho. Quem viu
-   * no computador não deve ver de novo ao abrir no telefone. Limpar este campo
-   * é o que faz "ver o tutorial de novo", em Ajustes.
+   * Uma lista de ids, e não um sim ou não: cada tela tem a volta guiada dela, e
+   * a pergunta é sempre "esta aqui, ela já viu?". Fica no perfil, e não no
+   * navegador, porque é da pessoa e não do aparelho: quem viu no computador não
+   * deve ver de novo ao abrir no telefone. Esvaziar a lista é o que faz "ver
+   * tudo de novo", em Ajustes.
    */
+  tutoriais: string[]
+  /** O fim do tour da inicial, de quando existia um tutorial só. Ver seção 29. */
   tutorial_em: string | null
   criado_em: string
 }

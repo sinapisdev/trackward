@@ -143,7 +143,7 @@ export function TelaRelatorios() {
         </div>
       </div>
 
-      <div className="rel-escolhas nao-imprime">
+      <div className="rel-escolhas nao-imprime" data-tut="rel-periodo">
         {!pessoal && (
         <div className="fld">
           <span className="lbl">Qual pergunta este relatório responde</span>

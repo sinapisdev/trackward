@@ -175,7 +175,7 @@ export function TelaAgentes() {
           <h2>{agentes.length ? `${agentes.length} agente${agentes.length === 1 ? '' : 's'}` : 'Nenhum agente ainda'}</h2>
         </div>
         {agentes.length ? (
-          <div className="ag-lista">
+          <div className="ag-lista" data-tut="agentes-lista">
             {agentes.map((a) => <Cartao key={a.id} a={a} />)}
           </div>
         ) : (

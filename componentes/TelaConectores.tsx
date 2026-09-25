@@ -215,7 +215,7 @@ export function TelaConectores() {
             <button className="btn" onClick={() => setCriando('minha')}><Ic.plus />Ligar serviço</button>
           </div>
           {visiveis.length ? (
-            <div className="cn-lista">{visiveis.map((c) => <Cartao key={c.id} c={c} />)}</div>
+            <div className="cn-lista" data-tut="conectores-lista">{visiveis.map((c) => <Cartao key={c.id} c={c} />)}</div>
           ) : (
             <div className="card empty" style={{ padding: 30 }}>
               Nada ligado ainda. Escolha um serviço, cole a chave, e o Track passa a falar com ele.
