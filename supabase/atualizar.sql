@@ -1821,10 +1821,41 @@ create trigger ao_falar_direto
   after insert on public.mensagens
   for each row execute function public.aviso_direto();
 
+
 -- ==========================================================================
--- Conferência. As vinte e duas contas abaixo têm que dar
+-- 28. O tutorial da primeira vez
+--
+--     Quem viu o tutorial fica marcado no PERFIL, e não no navegador: é da
+--     pessoa, não do aparelho. Quem passou por ele no computador não deve ver
+--     tudo de novo ao abrir no telefone, e o contrário é pior ainda.
+--
+--     A coluna nasce preenchida para quem já está aqui. Tutorial existe para a
+--     primeira vez, e soltá-lo na cara de quem usa o app há meses é uma caixa
+--     na frente do trabalho dela. O preenchimento acontece só no momento em que
+--     a coluna é criada, e é por isso que ele está dentro do `if`: solto, uma
+--     segunda passada deste arquivo marcaria como visto quem se cadastrou
+--     ontem e ainda não abriu o app.
+--
+--     Limpar o campo é o que faz "ver o tutorial de novo", em Ajustes, e por
+--     isso a pessoa precisa poder escrever nele: `proteger_perfil` já deixa,
+--     porque só trava organização, login, papel, e-mail e acesso.
+-- ==========================================================================
+
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'perfis' and column_name = 'tutorial_em'
+  ) then
+    alter table public.perfis add column tutorial_em timestamptz;
+    update public.perfis set tutorial_em = now();
+  end if;
+end $$;
+
+-- ==========================================================================
+-- Conferência. As vinte e três contas abaixo têm que dar
 -- 31, 3, 3, 3, true, 1, 2, 1, 2, 0, true, 3, true, 4, true, true, 1, true, 1,
--- 1, true e 3.
+-- 1, true, 3 e 1.
 -- ==========================================================================
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
@@ -1901,4 +1932,7 @@ select
     as "pessoal no cadastro (true)",
   (select count(*) from pg_trigger
     where tgname in ('ao_compartilhar_nota','ao_responder_feedback','ao_falar_direto'))
-    as "avisos novos (3)";
+    as "avisos novos (3)",
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'perfis' and column_name = 'tutorial_em')
+    as "tutorial da primeira vez (1)";

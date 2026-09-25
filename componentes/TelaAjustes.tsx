@@ -14,7 +14,7 @@ import { reiniciarLocal } from '@/lib/local/cliente'
 import { aplicarTema, temaAtual, TEMAS, type Tema } from '@/lib/tema'
 
 export function TelaAjustes() {
-  const { eu, org, empresas, todosFluxos, carregando, salvarOrg, excluirEmpresa,
+  const { eu, org, empresas, todosFluxos, carregando, salvarOrg, salvarPerfil, excluirEmpresa,
     minhaAgendaExterna, agenda, ligarAgendaExterna, desligarAgendaExterna } = useDados()
   const { abrir } = useModais()
   const [tema, setTema] = useState<Tema>('escuro')
@@ -52,6 +52,7 @@ export function TelaAjustes() {
           <a href="#aj-avisos">Como quero ser avisado</a>
           <a href="#aj-agenda">Minha agenda externa</a>
           <a href="#aj-tema">Aparência</a>
+          <a href="#aj-tutorial">Como o app funciona</a>
         </nav>
 
         <div className="aj-corpo">
@@ -325,6 +326,26 @@ export function TelaAjustes() {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+
+        {/* O tutorial da primeira vez, de novo. Ele é da pessoa, e está no
+            perfil dela: limpar `tutorial_em` faz ele voltar a abrir sozinho na
+            próxima tela, em qualquer aparelho. */}
+        <div className="blk" id="aj-tutorial">
+          <div className="bh">
+            <h2>Como o app funciona</h2>
+            <span className="c">a volta guiada que você viu ao entrar</span>
+          </div>
+          <div className="card" style={{ padding: 15 }}>
+            <p className="hint" style={{ margin: '0 0 12px' }}>
+              Ele aponta para as peças da tela e diz para que serve cada uma: onde o trabalho
+              nasce, o que é objetivo e o que é rotina, e o que o sino avisa. São nove passos, e
+              dá para sair em qualquer um.
+            </p>
+            <button className="btn" onClick={() => void salvarPerfil(eu.id, { tutorial_em: null }, true)}>
+              <Ic.faisca />Ver de novo
+            </button>
           </div>
         </div>
 

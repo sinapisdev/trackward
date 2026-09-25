@@ -30,12 +30,14 @@ export function TabBar() {
   const porLer = canais.reduce((n, c) => n + naoLidas(c.id), 0)
 
   /** @param tambem outros começos de caminho que acendem esta aba. */
-  const Aba = ({ href, icone, rotulo, conta, quente, tambem }: {
+  const Aba = ({ href, icone, rotulo, conta, quente, tambem, tut }: {
     href: string; icone: React.ReactNode; rotulo: string; conta?: number; quente?: boolean
     tambem?: string
+    /** Onde o tutorial da primeira vez aponta. Ver lib/tutorial.ts. */
+    tut?: string
   }) => (
     <Link className={`aba ${caminho === href || (href !== '/' && caminho.startsWith(href))
-      || (tambem && caminho.startsWith(tambem)) ? 'on' : ''}`} href={href}>
+      || (tambem && caminho.startsWith(tambem)) ? 'on' : ''}`} href={href} data-tut={tut}>
       <span className="ic">
         {icone}
         {!!conta && <i className={`selo ${quente ? 'hot' : ''}`}>{conta > 9 ? '9+' : conta}</i>}
@@ -51,15 +53,16 @@ export function TabBar() {
             /chat/<id>: a aba continua acesa, senão a pessoa fica sem saber
             onde está no exato momento em que ela está no lugar principal. */}
         {pode.canais
-          ? <Aba href="/" icone={<Ic.chat />} rotulo="Conversa" conta={porLer} quente tambem="/chat" />
+          ? <Aba href="/" icone={<Ic.chat />} rotulo="Conversa" conta={porLer} quente tambem="/chat"
+              tut="tab-conversa" />
           /* Sozinho a inicial é o caderno, que é a mesma lista com outro
              conteúdo. A aba segue sendo a primeira e segue apontando para a
              raiz: quem trocou de espaço não deve ter que reaprender onde fica
              o que ele abre o dia inteiro. */
-          : <Aba href="/" icone={<Ic.edit />} rotulo="Notas" tambem="/notas" />}
-        <Aba href="/minhas" icone={<Ic.inbox />} rotulo="Trabalho" conta={minhas} />
-        <Aba href="/tracks" icone={<Ic.proj />} rotulo="Tracks" />
-        <Aba href="/agenda" icone={<Ic.agenda />} rotulo="Agenda" conta={hoje} />
+          : <Aba href="/" icone={<Ic.edit />} rotulo="Notas" tambem="/notas" tut="tab-notas" />}
+        <Aba href="/minhas" icone={<Ic.inbox />} rotulo="Trabalho" conta={minhas} tut="tab-trabalho" />
+        <Aba href="/tracks" icone={<Ic.proj />} rotulo="Tracks" tut="tab-tracks" />
+        <Aba href="/agenda" icone={<Ic.agenda />} rotulo="Agenda" conta={hoje} tut="tab-agenda" />
       </nav>
 
       {/* Ação principal flutuante, como em app de celular.

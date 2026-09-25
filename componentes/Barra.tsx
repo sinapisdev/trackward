@@ -56,7 +56,7 @@ function Espaco() {
   const temPessoal = lista.some((x) => x.tipo === 'pessoal')
 
   return (
-    <div className="tw-esp" ref={caixa}>
+    <div className="tw-esp" data-tut="espaco" ref={caixa}>
       <button className="tw-esp-btn" onClick={() => setAberto((a) => !a)} aria-expanded={aberto}>
         <span className="nm">{nome}</span>
         <Ic.chev />
@@ -226,7 +226,7 @@ function Eu() {
   const porLer = canais.reduce((n, c) => n + naoLidas(c.id), 0)
 
   if (celular) return (
-    <div className="tw-eu">
+    <div className="tw-eu" data-tut="eu">
       <button onClick={() => setAberto(true)} aria-label={`${eu.nome} e mais`} aria-expanded={aberto}>
         <Av p={eu} />
       </button>
@@ -317,7 +317,7 @@ function Eu() {
   )
 
   return (
-    <div className="tw-eu" ref={caixa}>
+    <div className="tw-eu" data-tut="eu" ref={caixa}>
       <button onClick={() => setAberto((a) => !a)} aria-label={eu.nome} aria-expanded={aberto}>
         <Av p={eu} />
       </button>
@@ -416,7 +416,7 @@ function Sino() {
   }
 
   return (
-    <div className="tw-sino" ref={caixa}>
+    <div className="tw-sino" data-tut="sino" ref={caixa}>
       <button className="iconbtn grd" onClick={alternar} aria-expanded={aberto}
         aria-label={naoVistos ? `Avisos, ${naoVistos} sem ler` : 'Avisos'} title="Avisos">
         <Ic.sino />
@@ -477,7 +477,7 @@ export function Barra() {
       <span className="tw-risco" aria-hidden />
       <Espaco />
 
-      <nav className="tw-nav" aria-label="Navegação">
+      <nav className="tw-nav" data-tut="abas" aria-label="Navegação">
         {/* A ordem é a do produto, não a do histórico: conversa, notas e
             tarefas primeiro, porque é onde o dia acontece. Processos foi para
             "Mais" por ser montagem, e não operação: quem mexe em processo senta

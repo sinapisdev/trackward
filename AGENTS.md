@@ -629,6 +629,36 @@ todos os espaços, porque é o que alimenta o seletor de empresa. Misturar isso 
 escolha de responsável cria tarefa que o dono nunca enxerga. `Dados.tsx` filtra por
 `org_id`, e no banco existe `gente_daqui()` para quem precisar da lista certa.
 
+## O tutorial da primeira vez
+
+O app não se explica sozinho: a tela inicial mostra conversa, fila e radar ao mesmo tempo,
+e quem chega não sabe que a conversa é o lugar onde o trabalho nasce nem que existe uma
+linguagem de barra. Sem isso a pessoa usa o TrackWard como um chat com lista de tarefas ao
+lado, que é exatamente o que ela já tinha.
+
+- **Ele aponta para a tela de verdade**, e não mostra desenho de tela. O que se aprende é
+  ONDE a coisa fica, e isso não se aprende olhando figura dentro de um modal.
+- **O alvo é um `data-tut`, nunca uma classe de CSS.** Classe muda quando alguém mexe no
+  estilo, e aí o tutorial passa a apontar para o nada sem quebrar nada visível, que é o
+  jeito mais silencioso de ele morrer. O atributo existe só para isto.
+- **Passo sem alvo na tela não trava a fila**: o cartão vai para o meio, sem foco, e a
+  pessoa segue. E ele **sai por qualquer porta**, Esc, clique fora, Pular e Fechar, porque
+  a primeira coisa que alguém faz num app novo é tentar sair da caixa que apareceu.
+- **Ao ligar, ele leva para a inicial.** O roteiro é o das três colunas, e quem pediu para
+  rever em Ajustes está noutra tela, onde metade dos passos não tem âncora.
+- **O cartão se posiciona medindo a si mesmo**, e tenta embaixo, em cima, à direita, à
+  esquerda e por fim o meio da tela. Metade dos alvos é uma coluna inteira, que ocupa a
+  janela de cima a baixo: chutando a altura, o cartão nascia metade fora.
+- **Quem já viu fica marcado no perfil** (`perfis.tutorial_em`), e não no navegador: é da
+  pessoa, não do aparelho. A coluna nasce preenchida para quem já usa o app, dentro do `if`
+  que a cria, senão uma segunda passada do `atualizar.sql` marcaria como visto quem se
+  cadastrou ontem. Limpar o campo é o "Ver de novo", em Ajustes.
+
+O roteiro mora em `lib/tutorial.ts`, e é um só para os dois workspaces: o passo diz em qual
+deles existe (`quando`), e pode trocar o texto no celular (`textoCel`), porque lá a
+conversa é a tela inicial em vez da coluna do meio e o radar desceu para o fim de Meu
+trabalho. Escrever dois roteiros seria a mesma armadilha do fork do espaço pessoal.
+
 ## Avisos
 
 Um app de prazo que não avisa é um caderno: só serve para quem lembra de abrir.

@@ -198,7 +198,7 @@ export function Painel() {
 
   return (
     <div className="forward">
-      <div className="corpo">
+      <div className="corpo" data-tut="fila">
         <div className="hdr">
           <div>
             <div className="eyebrow">
@@ -344,7 +344,7 @@ export function Painel() {
           onde ninguém chega. Lá ela é uma aba da TabBar, a um toque de distância,
           e o que fica aqui é um atalho que diz quanto tem por ler. */}
       {!celular && (
-        <section className="forward-conversa">
+        <section className="forward-conversa" data-tut="conversa">
           {aberta === 'conversa' && seletor}
 
           {aberta === 'notas' ? <Caderno abas={seletor} /> : canal ? (
@@ -367,7 +367,7 @@ export function Painel() {
         </section>
       )}
 
-      <aside className="rail">
+      <aside className="rail" data-tut="radar">
         {celular && (
           <div className="fwd-atalhos">
             <Link className="fwd-at" href="/chat">

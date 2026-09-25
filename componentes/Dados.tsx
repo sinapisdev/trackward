@@ -267,7 +267,8 @@ type Contexto = {
   /** Pedidos de prazo em aberto que esperam decisão de alguém. */
   pedidosPrazo: PedidoPrazo[]
   decidirPrazo: (p: PedidoPrazo, aceita: boolean) => Promise<void>
-  salvarPerfil: (id: string, d: Partial<Perfil>) => Promise<void>
+  /** `calado` grava sem o "Salvo.": serve a quem grava sozinho, como o tutorial. */
+  salvarPerfil: (id: string, d: Partial<Perfil>, calado?: boolean) => Promise<void>
   salvarEmpresa: (d: { id?: string; nome: string; sigla: string; cor: string }) => Promise<void>
   excluirEmpresa: (id: string) => Promise<void>
   salvarOrg: (d: Partial<Organizacao>) => Promise<void>
@@ -356,7 +357,7 @@ export function useDados() {
 
 const SEM_PERFIL: Perfil = {
   id: '', user_id: '', org_id: '', nome: 'Sem responsável', email: '', cor: '#8A909C', papel: 'colaborador',
-  area_id: null, gestor_id: null, ve_area: false, ativo: false, criado_em: '',
+  area_id: null, gestor_id: null, ve_area: false, ativo: false, tutorial_em: null, criado_em: '',
 }
 const SEM_AREA: Area = { id: '', nome: 'Sem área', cor: '#8A909C', ordem: 999, responsavel_id: null }
 const ORG_PADRAO: Organizacao = {
@@ -1817,10 +1818,10 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     [sb, falhou, recarregar, gravarConvidados],
   )
 
-  const salvarPerfil: Contexto['salvarPerfil'] = useCallback(async (id, d) => {
+  const salvarPerfil: Contexto['salvarPerfil'] = useCallback(async (id, d, calado) => {
     const { error } = await sb.from('perfis').update(d).eq('id', id)
     if (error) return falhou(error, 'Não foi possível salvar.')
-    toast('Salvo.')
+    if (!calado) toast('Salvo.')
     recarregar()
   }, [sb, falhou, toast, recarregar])
 

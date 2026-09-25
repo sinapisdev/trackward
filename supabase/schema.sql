@@ -4456,3 +4456,33 @@ drop trigger if exists ao_falar_direto on public.mensagens;
 create trigger ao_falar_direto
   after insert on public.mensagens
   for each row execute function public.aviso_direto();
+
+-- --------------------------------------------------------------------------
+-- 28. O tutorial da primeira vez
+--
+--     Quem viu o tutorial fica marcado no PERFIL, e não no navegador: é da
+--     pessoa, não do aparelho. Quem passou por ele no computador não deve ver
+--     tudo de novo ao abrir no telefone, e o contrário é pior ainda.
+--
+--     A coluna nasce preenchida para quem já está aqui. Tutorial existe para a
+--     primeira vez, e soltá-lo na cara de quem usa o app há meses é uma caixa
+--     na frente do trabalho dela. O preenchimento acontece só no momento em que
+--     a coluna é criada, e é por isso que ele está dentro do `if`: solto, uma
+--     segunda passada deste arquivo marcaria como visto quem se cadastrou
+--     ontem e ainda não abriu o app.
+--
+--     Limpar o campo é o que faz "ver o tutorial de novo", em Ajustes, e por
+--     isso a pessoa precisa poder escrever nele: `proteger_perfil` já deixa,
+--     porque só trava organização, login, papel, e-mail e acesso.
+-- --------------------------------------------------------------------------
+
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'perfis' and column_name = 'tutorial_em'
+  ) then
+    alter table public.perfis add column tutorial_em timestamptz;
+    update public.perfis set tutorial_em = now();
+  end if;
+end $$;

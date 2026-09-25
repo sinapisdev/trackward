@@ -27,6 +27,14 @@ export type Perfil = {
   gestor_id: string | null
   /** Enxerga tudo da própria área, não só as tarefas em que entra. */
   ve_area: boolean
+  /**
+   * Quando esta pessoa terminou (ou pulou) o tutorial da primeira vez.
+   *
+   * Fica no perfil, e não no navegador: é da pessoa, não do aparelho. Quem viu
+   * no computador não deve ver de novo ao abrir no telefone. Limpar este campo
+   * é o que faz "ver o tutorial de novo", em Ajustes.
+   */
+  tutorial_em: string | null
   criado_em: string
 }
 

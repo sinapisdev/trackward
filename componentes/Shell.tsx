@@ -6,6 +6,7 @@ import { Barra, Rodape } from './Barra'
 import { TabBar } from './TabBar'
 import { Ic } from './Icones'
 import { PedeNome } from './PedeNome'
+import { Tutorial } from './Tutorial'
 
 /**
  * Quanto as barras do app ocupam, medido de verdade.
@@ -63,6 +64,9 @@ export function Shell({ children }: { children: ReactNode }) {
 
       {/* Quem entrou sem nome é chamado pelo e-mail, e a equipe inteira vê isso. */}
       <PedeNome />
+
+      {/* A primeira vez de cada pessoa, apontando para a tela de verdade. */}
+      <Tutorial />
 
       <div className={`toast ${aviso ? 'show' : ''}`} role="status">
         {aviso && (
