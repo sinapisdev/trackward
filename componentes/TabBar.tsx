@@ -2,44 +2,32 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
 import { useDados } from './Dados'
 import { useModais } from './Modais'
 import { Ic } from './Icones'
-import { Av } from './atomos'
-import { supabase } from '@/lib/supabase/browser'
-import { comProblema, pendencias } from '@/lib/regras'
+import { pendencias } from '@/lib/regras'
 import { hojeIso } from '@/lib/datas'
-import { MODO_LOCAL } from '@/lib/modo'
-import { aplicarTema, temaAtual, TEMAS, type Tema } from '@/lib/tema'
 
 /**
  * Navegação de celular: barra de abas no rodapé, como em app.
- * Aparece só em tela estreita; no desktop quem manda é a lateral.
+ * Aparece só em tela estreita; no desktop quem manda é a barra de cima.
+ *
+ * São QUATRO lugares, e nenhum deles é "Mais". O sexto botão de uma barra de
+ * cinco é sempre o balaio, e balaio no rodapé rouba um quinto da largura para
+ * guardar o que ninguém abre todo dia. O balaio subiu para a bolinha do seu
+ * perfil, lá em cima, que é onde já moravam tema, ajustes e sair: são todas a
+ * mesma pergunta, "o que mais tem aqui", e agora têm um botão só.
  */
 export function TabBar() {
-  const { eu, fluxos, areas, agenda, org, empresas, empresaAtiva, focarEmpresa, canais, naoLidas,
-    pode } = useDados()
+  const { eu, fluxos, agenda, canais, naoLidas, pode } = useDados()
   const { abrir } = useModais()
   const caminho = usePathname()
-  const [mais, setMais] = useState(false)
-  const [tema, setTema] = useState<Tema>('claro')
-
-  useEffect(() => { setTema(temaAtual()) }, [])
-  useEffect(() => { setMais(false) }, [caminho])
 
   const minhas = pendencias(fluxos, eu.id).length
-  const problemas = comProblema(fluxos)
   const hoje = agenda.filter(
     (c) => c.quando === hojeIso() && [c.dono_id, ...c.convidados].includes(eu.id),
   ).length
   const porLer = canais.reduce((n, c) => n + naoLidas(c.id), 0)
-
-  const sair = async () => {
-    await supabase().auth.signOut()
-    if (MODO_LOCAL) { location.reload(); return }
-    location.assign('/entrar')
-  }
 
   /** @param tambem outros começos de caminho que acendem esta aba. */
   const Aba = ({ href, icone, rotulo, conta, quente, tambem }: {
@@ -59,10 +47,6 @@ export function TabBar() {
   return (
     <>
       <nav className="tabbar" aria-label="Navegação">
-        {/* Cinco lugares. O primeiro É a conversa: no celular a página inicial
-            abre no chat, com o seletor de Notas em cima dela. Por isso não
-            existe aba separada de Conversa nem de Notas, seria a mesma tela
-            duas vezes. O que saiu dali está nas outras quatro. */}
         {/* A inicial é a lista de conversas, e entrar numa delas leva para
             /chat/<id>: a aba continua acesa, senão a pessoa fica sem saber
             onde está no exato momento em que ela está no lugar principal. */}
@@ -76,96 +60,20 @@ export function TabBar() {
         <Aba href="/minhas" icone={<Ic.inbox />} rotulo="Trabalho" conta={minhas} />
         <Aba href="/tracks" icone={<Ic.proj />} rotulo="Tracks" />
         <Aba href="/agenda" icone={<Ic.agenda />} rotulo="Agenda" conta={hoje} />
-        <button className={`aba ${mais ? 'on' : ''}`} onClick={() => setMais((v) => !v)}>
-          <span className="ic"><Ic.mais /></span>
-          <span>Mais</span>
-        </button>
       </nav>
 
-      {mais && (
-        <div className="folha-fundo" onClick={() => setMais(false)}>
-          <div className="folha" onClick={(e) => e.stopPropagation()}>
-            <div className="puxador" />
-
-            <button className="folha-eu" onClick={() => void sair()}>
-              <Av p={eu} tam="lg" />
-              <span>
-                <b>{eu.nome}</b>
-                <small>{MODO_LOCAL ? 'Trocar de pessoa' : 'Sair'}</small>
-              </span>
-              {MODO_LOCAL ? <Ic.team /> : <Ic.sair />}
-            </button>
-
-            {org.multi && !!empresas.length && (
-              <>
-                <div className="folha-rot">{org.rotulo_plural}</div>
-                <div className="folha-chips">
-                  <button className={`tpl ${!empresaAtiva ? 'on' : ''}`} onClick={() => focarEmpresa(null)}>
-                    Todas
-                  </button>
-                  {empresas.map((e) => (
-                    <button key={e.id} className={`tpl ${empresaAtiva === e.id ? 'on' : ''}`}
-                      onClick={() => focarEmpresa(e.id)}>{e.nome}</button>
-                  ))}
-                </div>
-              </>
-            )}
-
-            <div className="folha-rot">Áreas</div>
-            {areas.map((a) => (
-              <Link className="folha-item" key={a.id} href={`/area/${a.id}`}>
-                <span className="sdot" style={{ background: a.cor }} />
-                {a.nome}
-              </Link>
-            ))}
-            {!areas.length && <div className="folha-item" style={{ color: 'var(--tx-3)' }}>Nenhuma área ainda</div>}
-
-            <div className="folha-rot">Mais</div>
-            <Link className="folha-item" href="/agenda">
-              <Ic.agenda />Agenda
-              {!!hoje && <span className="ct num" style={{ marginLeft: 'auto' }}>{hoje} hoje</span>}
-            </Link>
-            {pode.canais && (
-              <>
-                <Link className="folha-item" href="/chat">
-                  <Ic.chat />Todos os canais
-                  {!!porLer && <span className="ct num" style={{ marginLeft: 'auto' }}>{porLer}</span>}
-                </Link>
-                <Link className="folha-item" href="/notas"><Ic.edit />Notas</Link>
-              </>
-            )}
-            <Link className="folha-item" href="/avisos"><Ic.sino />Avisos</Link>
-            <Link className="folha-item" href="/desempenho"><Ic.grafico />Desempenho</Link>
-            <Link className="folha-item" href="/relatorios"><Ic.processo />Relatórios</Link>
-            <Link className="folha-item" href="/processos"><Ic.processo />Processos</Link>
-            <Link className="folha-item" href="/agentes"><Ic.faisca />Agentes</Link>
-            <Link className="folha-item" href="/conectores"><Ic.raio />Conectores</Link>
-            {pode.equipe && <Link className="folha-item" href="/equipe"><Ic.team />Equipe</Link>}
-            <Link className="folha-item" href="/ajustes"><Ic.ajustes />Ajustes</Link>
-            <button className="folha-item" onClick={() => {
-              const k = TEMAS.findIndex((t) => t.id === tema)
-              const proximo = TEMAS[(k + 1) % TEMAS.length]
-              aplicarTema(proximo.id)
-              setTema(proximo.id)
-            }}>
-              {tema === 'claro' ? <Ic.lua /> : <Ic.sol />}
-              Tema: {TEMAS.find((t) => t.id === tema)?.nome}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Ação principal flutuante, como em app de celular. Dentro de uma conversa
-          ela sai, senão ficaria em cima do campo de escrever. */}
-      {/* Some só DENTRO de uma conversa, onde ele ficaria em cima do campo de
+      {/* Ação principal flutuante, como em app de celular.
+          Some só DENTRO de uma conversa, onde ele ficaria em cima do campo de
           escrever. Na lista ele é o botão de conversa nova, como em qualquer
           app de mensagem. */}
-      {!mais && !caminho.startsWith('/chat/') && (
+      {/* Na inicial do espaço pessoal quem cria é o "+" do caderno, que já está
+          na tela: duas ações de criar na mesma tela é uma a mais. */}
+      {!caminho.startsWith('/chat/') && (pode.canais || caminho !== '/') && (
         <button className="fab" aria-label="Criar"
           onClick={() => abrir(
             // A inicial do celular é a lista de conversas, então ali o que se
             // cria é canal.
-            caminho === '/' || caminho === '/chat' ? { tipo: 'canal' }
+            (caminho === '/' || caminho === '/chat') && pode.canais ? { tipo: 'canal' }
               : caminho === '/agenda' ? { tipo: 'compromisso', quando: hojeIso() }
                 // Na sua fila o que se cria é tarefa. Objetivo e rotina são
                 // decisão, e decisão se toma em Tracks: o botão redondo é da

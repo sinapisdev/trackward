@@ -28,7 +28,13 @@ function useAlturaDasBarras() {
       raiz.style.setProperty('--alt-topo-real', (topo?.offsetHeight || 0) + 'px')
       // Zero quando a barra de abas não está na tela: no computador ela não
       // existe, e descontar altura de barra que não existe encolhe a tela à toa.
-      raiz.style.setProperty('--alt-abas-real', (abas?.offsetHeight || 0) + 'px')
+      /* A barra flutua: o que as telas de altura fixa precisam descontar é a
+         altura dela MAIS a folga até o fim da janela, senão o campo de escrever
+         nasce embaixo dela. Por isso mede-se o topo da barra até a base da
+         janela, e não a altura da caixa. */
+      const r = abas?.getBoundingClientRect()
+      const ocupa = r ? Math.max(0, Math.round(window.innerHeight - r.top)) : 0
+      raiz.style.setProperty('--alt-abas-real', ocupa + 'px')
     }
     medir()
     const ro = new ResizeObserver(medir)

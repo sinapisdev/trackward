@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDados } from './Dados'
 import { useModais } from './Modais'
 import { Ic } from './Icones'
-import { useFora } from './partes'
+import { useFora, useCelular } from './partes'
 import { rotuloTipo } from '@/lib/rotulos'
 import { Av, IconeStatus } from './atomos'
 import { supabase } from '@/lib/supabase/browser'
@@ -185,15 +185,28 @@ function Busca() {
   )
 }
 
-/** Você: tema, equipe e saída. */
+/**
+ * Você: tema, equipe e saída. E, no celular, tudo o mais.
+ *
+ * Ali embaixo havia um botão "Mais" na barra de abas, e ele gastava um quinto
+ * da largura do rodapé para guardar o que não se abre todo dia. Aqui em cima já
+ * moravam tema, ajustes e sair, que são a mesma pergunta: "o que mais tem
+ * aqui". Juntar os dois num botão só devolve a largura para as quatro abas que
+ * a pessoa usa, e tira a lupa de perto da bolinha, que eram dois botões
+ * vizinhos para duas coisas que ninguém confunde de propósito.
+ */
 function Eu() {
-  const { eu, pessoal } = useDados()
+  const { eu, pessoal, pode, areas, org, empresas, empresaAtiva, focarEmpresa,
+    canais, naoLidas } = useDados()
   const router = useRouter()
+  const celular = useCelular()
+  const caminho = usePathname()
   const [aberto, setAberto] = useState(false)
   const [tema, setTema] = useState<Tema>('escuro')
-  const caixa = useFora(aberto, () => setAberto(false))
+  const caixa = useFora(aberto && !celular, () => setAberto(false))
 
   useEffect(() => { setTema(temaAtual()) }, [])
+  useEffect(() => { setAberto(false) }, [caminho])
 
   const sair = async () => {
     await supabase().auth.signOut()
@@ -201,6 +214,87 @@ function Eu() {
     router.push('/entrar')
     router.refresh()
   }
+
+  const trocarTema = () => {
+    const k = TEMAS.findIndex((t) => t.id === tema)
+    const proximo = TEMAS[(k + 1) % TEMAS.length]
+    aplicarTema(proximo.id)
+    setTema(proximo.id)
+  }
+
+  const porLer = canais.reduce((n, c) => n + naoLidas(c.id), 0)
+
+  if (celular) return (
+    <div className="tw-eu">
+      <button onClick={() => setAberto(true)} aria-label={`${eu.nome} e mais`} aria-expanded={aberto}>
+        <Av p={eu} />
+      </button>
+      {aberto && (
+        <div className="folha-fundo" onClick={() => setAberto(false)}>
+          <div className="folha" onClick={(e) => e.stopPropagation()}>
+            <div className="puxador" />
+
+            <button className="folha-eu" onClick={() => void sair()}>
+              <Av p={eu} tam="lg" />
+              <span>
+                <b>{eu.nome}</b>
+                <small>{MODO_LOCAL ? 'Trocar de pessoa' : 'Sair'}</small>
+              </span>
+              {MODO_LOCAL ? <Ic.team /> : <Ic.sair />}
+            </button>
+
+            {pode.empresas && !!empresas.length && (
+              <>
+                <div className="folha-rot">{org.rotulo_plural}</div>
+                <div className="folha-chips">
+                  <button className={`tpl ${!empresaAtiva ? 'on' : ''}`} onClick={() => focarEmpresa(null)}>
+                    Todas
+                  </button>
+                  {empresas.map((e) => (
+                    <button key={e.id} className={`tpl ${empresaAtiva === e.id ? 'on' : ''}`}
+                      onClick={() => focarEmpresa(e.id)}>{e.nome}</button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {!!areas.length && (
+              <>
+                <div className="folha-rot">Áreas</div>
+                {areas.map((a) => (
+                  <Link className="folha-item" key={a.id} href={`/area/${a.id}`}>
+                    <span className="sdot" style={{ background: a.cor }} />
+                    {a.nome}
+                  </Link>
+                ))}
+              </>
+            )}
+
+            <div className="folha-rot">Mais</div>
+            {pode.canais && (
+              <Link className="folha-item" href="/chat">
+                <Ic.chat />Todos os canais
+                {!!porLer && <span className="ct num" style={{ marginLeft: 'auto' }}>{porLer}</span>}
+              </Link>
+            )}
+            <Link className="folha-item" href="/notas"><Ic.edit />Notas</Link>
+            <Link className="folha-item" href="/avisos"><Ic.sino />Avisos</Link>
+            <Link className="folha-item" href="/desempenho"><Ic.grafico />Desempenho</Link>
+            <Link className="folha-item" href="/relatorios"><Ic.processo />Relatórios</Link>
+            <Link className="folha-item" href="/processos"><Ic.processo />Processos</Link>
+            <Link className="folha-item" href="/agentes"><Ic.faisca />Agentes</Link>
+            <Link className="folha-item" href="/conectores"><Ic.raio />Conectores</Link>
+            {pode.equipe && <Link className="folha-item" href="/equipe"><Ic.team />Equipe</Link>}
+            <Link className="folha-item" href="/ajustes"><Ic.ajustes />Ajustes</Link>
+            <button className="folha-item" onClick={trocarTema}>
+              {tema === 'claro' ? <Ic.lua /> : <Ic.sol />}
+              Tema: {TEMAS.find((t) => t.id === tema)?.nome}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <div className="tw-eu" ref={caixa}>
@@ -222,12 +316,7 @@ function Eu() {
           <Link href="/ajustes" onClick={() => setAberto(false)}>
             <Ic.ajustes /><span className="nm">Ajustes</span>
           </Link>
-          <button onClick={() => {
-            const k = TEMAS.findIndex((t) => t.id === tema)
-            const proximo = TEMAS[(k + 1) % TEMAS.length]
-            aplicarTema(proximo.id)
-            setTema(proximo.id)
-          }}>
+          <button onClick={trocarTema}>
             {tema === 'claro' ? <Ic.lua /> : <Ic.sol />}
             <span className="nm">Tema: {TEMAS.find((t) => t.id === tema)?.nome}</span>
           </button>

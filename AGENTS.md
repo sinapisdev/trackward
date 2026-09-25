@@ -634,8 +634,20 @@ lateral de uma tela é **contexto** (o radar da visão geral, a conversa da trac
 dos ajustes), nunca navegação. O que não cabe na fileira principal mora no menu "Mais",
 e continua a um clique: Relatórios, Desempenho, Notas, Agentes, Conectores, Processos.
 
-Abaixo de 840px as abas sacam e entra a `TabBar` (barra no rodapé, folha de "Mais" e
-botão redondo de criar). Não duplicar navegação: quem navega no celular é a TabBar, quem
+Abaixo de 840px as abas sacam e entra a `TabBar`: **quatro lugares e o botão redondo de
+criar, e nada de "Mais"**. O sexto botão de uma barra de cinco é sempre o balaio, e balaio
+no rodapé gasta um quinto da largura para guardar o que ninguém abre todo dia. O balaio
+subiu para a **bolinha do seu perfil**, no alto, onde já moravam tema, ajustes e sair: são
+todas a mesma pergunta, "o que mais tem aqui", e agora têm um botão só. A lupa saiu do
+celular junto, porque ficava colada na bolinha.
+
+A barra **flutua**, com folga dos lados e canto redondo. Colada no fim da tela ela dividia
+borda com a barra do navegador e com a faixa do aparelho, e as três viravam uma faixa
+cinza só. Quem calcula altura usa `--alt-abas-real`, que agora mede **do topo da barra até
+o fim da janela**, e não a altura da caixa: com ela flutuando, a folga de baixo também é
+espaço ocupado.
+
+Não duplicar navegação: quem navega no celular é a TabBar, quem
 navega no desktop é a Barra. Telas novas precisam caber nas duas formas.
 
 No celular a barra de cima é **uma linha só**: marca, nome da empresa ao lado dela, busca
@@ -701,6 +713,32 @@ entra na track quer falar e ver o checkpoint, não o histórico.
 Sem a coluna grudada e com altura de janela, o campo de escrever e o botão nascem abaixo
 da dobra, que é o mesmo que não existirem. A regra mora em `app/globals.css`, no bloco de
 `min-width:841px`.
+
+## A folha da nota é a mesma nos dois tamanhos
+
+`/notas` no computador e o caderno no celular mostram a mesma coisa e precisam parecer a
+mesma coisa. Duas regras seguram isso:
+
+- **Nada de cabeçalho de página em cima da folha.** A palavra "Notas" já está acesa na
+  fileira de abas, e repeti-la em corpo 34 custava 150px, que é exatamente a altura que
+  faltava para o texto. Procurar e criar dividem uma linha no alto da lista.
+- **A folha não tem moldura e a tela cabe na janela.** Quem rola é cada coluna, não a
+  página: com a página rolando, o campo de escrever descia junto e perguntar numa nota de
+  meia página exigia rolar até o fim.
+
+No celular, a linha de cima da nota carrega **voltar, o seletor Conversa | Notas e
+Detalhes**, os três juntos. Eram duas linhas, e a de cima só levava o seletor. Quem passa
+o seletor para o caderno é a tela que o tem (`<Caderno abas={...}>`), e não o caderno que
+o inventa: no computador ele continua sendo a primeira linha da coluna do meio quando a
+conversa está aberta.
+
+Perguntar e Organizar ficam **um embaixo do outro no celular**. Lado a lado eles cabiam,
+mas cabiam apertados, com o texto no limite de quebrar e o polegar tendo que mirar.
+
+Cuidado herdado: aquele arquivo usava `--linha`, `--fraco` e `--acento`, que **não
+existem** desde a identidade nova. O navegador ignora a declaração inteira e o resultado é
+contorno que some e cinza que não é cinza. Ao mexer em CSS antigo, conferir se o token
+existe antes de confiar nele.
 
 ## A trilha
 

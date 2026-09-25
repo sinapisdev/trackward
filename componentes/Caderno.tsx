@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useDados } from './Dados'
 import { Ic } from './Icones'
 import { ConversaNota } from './ConversaNota'
@@ -41,7 +41,7 @@ const ROTULO: Record<TipoProposta, string> = {
  * precise manter. O que costura o acervo continua sendo a ligação escrita no
  * meio do texto, [[outra nota]], porque pasta não sobrevive às trezentas notas.
  */
-export function Caderno() {
+export function Caderno({ abas }: { abas?: ReactNode }) {
   const { notas, areas, fluxos, areaDe, eu, minhaLista, abrirMinhaLista,
     conversaIA, abrirConversaIA, sugestoesDaNota, mensagensDaNota, salvarNota,
     lerNota, aceitarSugestao, recusarSugestao, org } = useDados()
@@ -160,8 +160,11 @@ export function Caderno() {
 
     return (
       <div className="dp">
+        {/* Quem chega por uma tela que já tem o seletor Conversa | Notas usa
+            ele como título: repetir "Notas" embaixo do botão "Notas" custa uma
+            linha inteira de altura para dizer o que já estava dito. */}
         <div className="ct-topo">
-          <h2>Notas</h2>
+          {abas ?? <h2>Notas</h2>}
           <Link className="iconbtn" href="/notas" title="Abrir o caderno inteiro"
             aria-label="Abrir o caderno inteiro"><Ic.caber /></Link>
         </div>
@@ -225,10 +228,14 @@ export function Caderno() {
 
   return (
     <div className="dp dp-dentro">
+      {/* Voltar, o seletor e Detalhes na mesma linha. Eram duas linhas, e a de
+          cima só carregava o seletor: numa tela de 844px de altura, cada linha
+          de moldura sai do texto, que é a única coisa que a pessoa veio ver. */}
       <div className="ct-topo dp-topo">
         <button className="iconbtn" aria-label="Voltar para as notas"
           onClick={() => setAbertaId(null)}><Ic.volta /></button>
-        {aberta.conversa && <h2>Conversa</h2>}
+        {abas}
+        {aberta.conversa && !abas && <h2>Conversa</h2>}
         <span className="dp-topo-fim">
           {/* O atalho para o caderno inteiro só no computador: no celular
               /notas é esta mesma tela noutra moldura, e um botão que leva ao

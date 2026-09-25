@@ -131,11 +131,28 @@ export const Ic = {
       <path d="M5.2 8.8 8.8 5.2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   ),
+  /**
+   * Ajustes: engrenagem com dente, e não círculo com raio.
+   *
+   * A versão antiga era um círculo com oito traços saindo dele, que é
+   * exatamente o desenho do sol do seletor de tema. Os dois moravam a dois
+   * centímetros um do outro na barra de cima, e ninguém sabia qual era qual: a
+   * diferença entre um ícone e outro tem que ser a silhueta, não o tamanho do
+   * traço.
+   */
   ajustes: () => (
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-      <circle cx="8" cy="8" r="2.1" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M8 1.6v1.6M8 12.8v1.6M14.4 8h-1.6M3.2 8H1.6M12.5 3.5l-1.1 1.1M4.6 11.4l-1.1 1.1M12.5 12.5l-1.1-1.1M4.6 4.6 3.5 3.5"
-        stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M8 1.4 9.5 2.6l1.8-.4.8 1.7 1.7.8-.4 1.8L14.6 8l-1.2 1.5.4 1.8-1.7.8-.8 1.7-1.8-.4L8 14.6l-1.5-1.2-1.8.4-.8-1.7-1.7-.8.4-1.8L1.4 8l1.2-1.5-.4-1.8 1.7-.8.8-1.7 1.8.4Z"
+        stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <circle cx="8" cy="8" r="2.3" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  ),
+  /** Detalhes: os controles de uma coisa, que não são os ajustes do app. */
+  reguas: () => (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+      <path d="M2.5 4.5h11M2.5 11.5h11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      <circle cx="6" cy="4.5" r="1.9" stroke="currentColor" strokeWidth="1.3" fill="var(--bg)" />
+      <circle cx="10.5" cy="11.5" r="1.9" stroke="currentColor" strokeWidth="1.3" fill="var(--bg)" />
     </svg>
   ),
   /**

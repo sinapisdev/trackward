@@ -172,16 +172,6 @@ export function TelaNotas() {
 
   return (
     <>
-      <div className="hdr">
-        <div>
-          <div className="eyebrow">O que você quer guardar e achar depois</div>
-          <h1>Notas</h1>
-        </div>
-        <div className="hdr-actions">
-          <button className="btn pri" onClick={() => void nova()}><Ic.plus />Nota nova</button>
-        </div>
-      </div>
-
       {!vivas.length ? (
         <div className="card ag-regua">
           <p>
@@ -207,16 +197,24 @@ export function TelaNotas() {
       ) : (
         <div className="nt-tela">
           <aside className="nt-lado">
-            <div className="nt-busca">
-              <Ic.lupa />
-              <input className="inp" value={termo} onChange={(e) => setTermo(e.target.value)}
-                placeholder={`Buscar em ${vivas.length} nota${vivas.length === 1 ? '' : 's'}`}
-                aria-label="Buscar nas notas" />
-              {!!termo && (
-                <button className="iconbtn" onClick={() => setTermo('')} aria-label="Limpar busca">
-                  <Ic.x />
-                </button>
-              )}
+            {/* Procurar e criar na mesma linha, no alto, e nada de cabeçalho de
+                página em cima disso. A palavra "Notas" já está acesa na fileira
+                de abas: repetir em corpo 34 custava 150px de altura, que é
+                exatamente a altura que faltava para o texto. */}
+            <div className="nt-topo">
+              <div className="nt-busca">
+                <Ic.lupa />
+                <input className="inp" value={termo} onChange={(e) => setTermo(e.target.value)}
+                  placeholder={`Buscar em ${vivas.length} nota${vivas.length === 1 ? '' : 's'}`}
+                  aria-label="Buscar nas notas" />
+                {!!termo && (
+                  <button className="iconbtn" onClick={() => setTermo('')} aria-label="Limpar busca">
+                    <Ic.x />
+                  </button>
+                )}
+              </div>
+              <button className="nt-nova" title="Nota nova" aria-label="Nota nova"
+                onClick={() => void nova()}><Ic.plus /></button>
             </div>
 
             {org.ia_ativa && !termo && (

@@ -150,15 +150,11 @@ function Lista({ atual }: { atual?: string }) {
           </div>
         )}
 
-        {/* O que você escreve para si mesmo não fica aqui: fica em Notas, que é
-            um caderno com conversa própria, e não um canal com um membro só. */}
-        <Link className="chat-despejo" href="/notas">
-          <span className="mk"><Ic.edit /></span>
-          <span>
-            <b>Notas</b>
-            <i>o que é seu, e a conversa com a leitura</i>
-          </span>
-        </Link>
+        {/* A linha de Notas saiu daqui. Ela existia para lembrar que o que se
+            escreve para si mesmo não é canal, e isso continua verdade, mas quem
+            abre esta lista já tem "Notas" a um toque, no seletor em cima no
+            celular e na fileira de abas no computador. Dizer a mesma coisa três
+            vezes na mesma tela não deixa ninguém mais informado. */}
       </div>
     </aside>
   )

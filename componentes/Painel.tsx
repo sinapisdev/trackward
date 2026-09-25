@@ -118,6 +118,26 @@ export function Painel() {
     || [...abertos].sort((a, b) => naoLidas(b.id) - naoLidas(a.id))[0]
     || null
 
+  /**
+   * O seletor das duas faces.
+   *
+   * Ele é uma peça e não um trecho de cada tela porque agora anda: com a
+   * conversa aberta ele é a primeira linha; com uma nota aberta ele entra na
+   * linha do voltar e do Detalhes, que antes era uma segunda linha de moldura
+   * só para ele. Sem canal nenhum ele não existe, porque não há o que escolher.
+   */
+  const seletor = pode.canais ? (
+    <div className="seg fwd-face" role="group" aria-label="O que mostrar aqui">
+      <button className={face === 'conversa' ? 'on' : ''} onClick={() => setFace('conversa')}>
+        Conversa
+        {!!porLer && <span className="num">{porLer > 9 ? '9+' : porLer}</span>}
+      </button>
+      <button className={face === 'notas' ? 'on' : ''} onClick={() => setFace('notas')}>
+        Notas
+      </button>
+    </div>
+  ) : null
+
 
   /**
    * No celular a página inicial é a CONVERSA, e só ela.
@@ -147,21 +167,13 @@ export function Painel() {
     }
     return (
       <div className="fwd-cel">
-        <div className="seg fwd-face" role="group" aria-label="O que mostrar aqui">
-          <button className={face === 'conversa' ? 'on' : ''} onClick={() => setFace('conversa')}>
-            Conversa
-            {!!porLer && <span className="num">{porLer > 9 ? '9+' : porLer}</span>}
-          </button>
-          <button className={face === 'notas' ? 'on' : ''} onClick={() => setFace('notas')}>
-            Notas
-          </button>
-        </div>
+        {aberta === 'conversa' && seletor}
         {/* Sem canal escolhido de propósito: abre na LISTA, como WhatsApp.
             Abrir dentro de uma conversa é o app decidir com quem você vai
             falar, e a primeira pergunta de quem pega o telefone é "quem falou
             comigo", não "responde isso aqui". */}
         {aberta === 'notas'
-          ? <div className="fwd-cel-notas"><Caderno /></div>
+          ? <div className="fwd-cel-notas"><Caderno abas={seletor} /></div>
           : <TelaChat />}
       </div>
     )
@@ -333,19 +345,9 @@ export function Painel() {
           e o que fica aqui é um atalho que diz quanto tem por ler. */}
       {!celular && (
         <section className="forward-conversa">
-          {pode.canais && (
-            <div className="seg fwd-face" role="group" aria-label="O que mostrar aqui">
-              <button className={face === 'conversa' ? 'on' : ''} onClick={() => setFace('conversa')}>
-                Conversa
-                {!!porLer && <span className="num">{porLer > 9 ? '9+' : porLer}</span>}
-              </button>
-              <button className={face === 'notas' ? 'on' : ''} onClick={() => setFace('notas')}>
-                Notas
-              </button>
-            </div>
-          )}
+          {aberta === 'conversa' && seletor}
 
-          {aberta === 'notas' ? <Caderno /> : canal ? (
+          {aberta === 'notas' ? <Caderno abas={seletor} /> : canal ? (
             <>
               <ListaCanais atual={canal.id} aoEscolher={setCanalAberto} />
               <Conversa canal={canal} titulo="Conversa" quantas={8} />

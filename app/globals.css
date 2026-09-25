@@ -677,9 +677,9 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns
 
 @media (max-width:840px){
   :root{--gutter:16px}
-  .conteudo{padding-block:14px calc(96px + env(safe-area-inset-bottom,0px))}
+  .conteudo{padding-block:14px calc(var(--alt-abas-real,68px) + 28px)}
   .grid2{grid-template-columns:1fr;gap:20px}
-  .duas{margin-block:-14px calc(-96px - env(safe-area-inset-bottom,0px));min-height:0}
+  .duas{margin-block:-14px calc(-1 * (var(--alt-abas-real,68px) + 28px));min-height:0}
   .duas>.corpo{padding:14px 16px 8px}
   .duas>.rail{padding:18px 16px 24px}
   .tw-rodape{display:none}
@@ -694,8 +694,11 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns
   .tw-risco{display:block;height:16px;margin-inline:2px}
   .tw-marca b{font-size:16px}
   .tw-marca svg{width:26px}
+  /* No celular a direita da barra é só o sino e você. A lupa saiu: ela ficava
+     colada na bolinha, e agora a bolinha é o botão de tudo que não é aba. */
   .tw-dir{margin-left:auto;gap:4px;flex:none}
   .tw-dir .iconbtn.grd{display:none}
+  .tw-dir .tw-busca{display:none}
   .tw-esp{min-width:0;flex:1}
   .tw-esp-btn{max-width:none;width:100%;padding:6px 6px}
   .tw-esp-btn .nm{flex:1;min-width:0}
@@ -774,9 +777,15 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns
   .pessoa .campos{gap:8px}
 
   /* ------------------------------------------------ barra de abas */
-  .tabbar{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;position:fixed;left:0;right:0;bottom:0;
-    z-index:40;background:color-mix(in srgb,var(--panel) 88%,transparent);backdrop-filter:blur(16px);
-    border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+  /* Ela flutua, e isso não é enfeite: colada no fim da tela, a barra dividia
+     borda com a barra do navegador e com a faixa do aparelho, e as três viravam
+     uma só faixa cinza. Solta, com canto redondo, a tela termina antes dela e
+     dá para ver que o conteúdo continua por baixo. */
+  .tabbar{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;position:fixed;
+    left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));
+    z-index:40;background:color-mix(in srgb,var(--panel) 92%,transparent);backdrop-filter:blur(18px);
+    border:1px solid var(--line-2);border-radius:var(--r-lg);
+    box-shadow:0 14px 34px -12px rgba(0,0,0,.55)}
   .aba{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:9px 0 8px;
     font-size:10px;font-weight:600;letter-spacing:.01em;color:var(--tx-3);transition:var(--t)}
   .aba.on{color:var(--tx)}
@@ -790,7 +799,7 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns
      e no celular ela já está na tela (concluir, aprovar, abrir a track). Dois
      limas na mesma tela é defeito, e aqui eles brigariam em toda tela. */
   .fab{display:grid;place-items:center;position:fixed;right:16px;
-    bottom:calc(80px + env(safe-area-inset-bottom,0px));z-index:41;width:50px;height:50px;
+    bottom:calc(var(--alt-abas-real,68px) + 12px);z-index:41;width:50px;height:50px;
     border-radius:50%;background:var(--alto);color:var(--tx);
     box-shadow:0 10px 26px -8px rgba(0,0,0,.7),0 0 0 1px var(--line-2)}
   .fab:active{transform:scale(.94)}
@@ -2428,82 +2437,82 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
    árvore de pasta, porque não existe pasta. O que organiza é a ligação dentro do
    texto, e ela aparece nos dois blocos do pé da nota. */
 
-.nt-tela { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
-.nt-lado { display: grid; gap: 10px; position: sticky; top: 12px; }
-.nt-busca {
-  display: flex; align-items: center; gap: 8px; padding: 0 10px;
-  border: 1px solid var(--linha); border-radius: 12px; background: var(--vidro);
-}
-.nt-busca svg { width: 14px; height: 14px; color: var(--fraco); flex: none; }
-.nt-busca .inp { border: 0; background: none; padding: 10px 0; flex: 1; min-width: 0; }
-.nt-busca .inp:focus { outline: none; box-shadow: none; }
+/* A tela cabe na janela, e quem rola é cada coluna.
 
-.nt-lista { display: grid; gap: 6px; max-height: calc(100vh - 210px); overflow: auto; }
-.nt-item {
-  text-align: left; display: grid; gap: 2px; padding: 10px 12px; cursor: pointer;
-  border: 1px solid transparent; border-radius: 12px; background: none;
-}
-.nt-item:hover { background: var(--vidro); }
-.nt-item.on { background: var(--vidro); border-color: color-mix(in oklab, var(--acento) 45%, var(--linha)); }
-.nt-item b { font-size: 13px; display: flex; align-items: center; gap: 6px; }
-.nt-item b svg { width: 11px; height: 11px; color: var(--acento); flex: none; }
-.nt-item span { font-size: 12px; color: var(--fraco); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nt-item i { font-size: 11px; color: var(--fraco); font-style: normal; opacity: .75; }
-.nt-nada, .nt-solta { font-size: 12px; color: var(--fraco); padding: 8px 12px; }
+   Ela rolava inteira, e com a página rolando o campo de escrever descia junto:
+   numa nota de meia página, perguntar exigia rolar até o fim. E metade das
+   cores vinha de `--linha`, `--fraco` e `--acento`, que não existem: eram os
+   nomes de antes da identidade nova, e o navegador simplesmente ignorava a
+   linha inteira. Daí o contorno que sumia e o cinza que não era cinza nenhum. */
+.nt-tela{display:grid;grid-template-columns:320px minmax(0,1fr);gap:22px;
+  height:calc(100dvh - var(--alt-topo-real,93px) - 96px);min-height:420px}
+/* os 96px são o recuo de cima e de baixo mais o rodapé da marca, que no
+   computador fica embaixo de tudo e é fácil esquecer que ocupa altura */
+/* Quem rola é cada coluna, então o recuo do conteúdo sobraria embaixo e faria a
+   página inteira rolar atrás da tela que já cabe. Mesma regra da conversa. */
+@media (min-width:901px){ .conteudo:has(>.nt-tela){padding-block:14px} }
+.nt-lado{display:flex;flex-direction:column;gap:10px;min-height:0;
+  padding-right:20px;border-right:1px solid var(--line)}
+.nt-busca{display:flex;align-items:center;gap:8px;padding:0 10px;flex:none;
+  border:1px solid var(--line-2);border-radius:var(--r);background:var(--brilho)}
+.nt-busca svg{width:14px;height:14px;color:var(--tx-3);flex:none}
+.nt-busca .inp{border:0;background:none;padding:10px 0;flex:1;min-width:0}
+.nt-busca .inp:focus{outline:none;box-shadow:none}
 
-.nt-aberta {
-  border: 1px solid var(--linha); border-radius: 18px; padding: 22px 24px;
-  background: var(--vidro); backdrop-filter: blur(14px); display: grid; gap: 12px;
-}
-.nt-a-h { display: flex; align-items: center; gap: 10px; }
-.nt-a-h h2 { flex: 1; font-size: 21px; letter-spacing: -.01em; }
-.nt-tit { flex: 1; font-size: 18px; }
-.nt-quando { font-size: 12px; color: var(--fraco); margin-top: -8px; }
-.nt-corpo { font-size: 14.5px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
-.nt-txt { font-size: 14.5px; line-height: 1.65; resize: vertical; }
-.nt-a-acoes { display: flex; gap: 8px; }
+.nt-lista{display:flex;flex-direction:column;gap:2px;flex:1;min-height:0;
+  overflow-y:auto;margin-right:-8px;padding-right:8px}
+.nt-grupo{font:var(--fw-semibold) var(--fs-kicker)/1.2 var(--sans);
+  letter-spacing:var(--ls-kicker);text-transform:uppercase;color:var(--tx-3);
+  padding:16px 12px 6px;display:flex;align-items:center;gap:6px}
+.nt-item{text-align:left;display:grid;gap:2px;padding:10px 12px;
+  border:1px solid transparent;border-radius:var(--r);background:none;transition:var(--t)}
+.nt-item:hover{background:var(--hover)}
+.nt-item.on{background:var(--alto);border-color:var(--line-2)}
+.nt-item b{font-size:var(--fs-ui);font-weight:var(--fw-medium);display:flex;
+  align-items:center;gap:6px;color:var(--tx)}
+.nt-item b svg{width:11px;height:11px;color:var(--ac-tinta);flex:none}
+.nt-item span{font-size:var(--fs-sm);color:var(--tx-3);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.nt-item i{font-size:var(--fs-micro);color:var(--tx-3);font-style:normal}
+.nt-nada,.nt-solta{font-size:var(--fs-sm);color:var(--tx-3);padding:8px 12px}
+.nt-solta{flex:none}
 
-/* A ligação dentro do texto. Laranja cheio quando a nota existe, laranja vazado
-   quando ainda não: o vazado é convite, não erro. */
-.nt-lig {
-  background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
-  color: var(--acento); border-bottom: 1px solid color-mix(in oklab, var(--acento) 45%, transparent);
-}
-.nt-lig:hover { border-bottom-color: var(--acento); }
-.nt-lig.vazio { border-bottom-style: dashed; opacity: .8; }
+/* A folha não tem moldura: o texto ocupa o espaço, sem borda e sem fundo.
+   Caixa em volta de folha faz o bloco de notas parecer formulário. */
+.nt-aberta{display:flex;flex-direction:column;min-height:0;overflow-y:auto;
+  padding-right:8px}
+.nt-aberta>.doc{flex:1;min-height:0}
+.nt-a-h{display:flex;align-items:center;gap:10px;flex:none}
+.nt-a-h h2{flex:1;font:var(--fw-semibold) var(--fs-h3)/var(--lh-h3) var(--sans)}
+.nt-quando{font-size:var(--fs-sm);color:var(--tx-3);flex:1;margin:0}
 
-.nt-bloco { display: grid; gap: 7px; padding-top: 12px; border-top: 1px solid var(--linha); }
-.nt-rot {
-  font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--fraco);
-}
-.nt-fichas { display: flex; flex-wrap: wrap; gap: 7px; }
-.nt-ficha {
-  font-size: 12.5px; padding: 5px 11px; cursor: pointer;
-  border: 1px solid var(--linha); border-radius: 999px; background: none; color: inherit;
-  display: inline-flex; align-items: center; gap: 5px;
-}
-.nt-ficha:hover { border-color: color-mix(in oklab, var(--acento) 55%, var(--linha)); }
-.nt-ficha svg { width: 10px; height: 10px; }
-.nt-ficha.vazio { border-style: dashed; color: var(--acento); }
-.nt-ficha.sug { color: var(--fraco); border-style: dashed; }
+/* A ligação dentro do texto. Cheia quando a nota existe, tracejada quando ela
+   ainda não existe: o tracejado é convite, não erro. */
+.nt-lig{background:none;border:0;padding:0;font:inherit;color:var(--ac-tinta);
+  border-bottom:1px solid color-mix(in srgb,var(--ac-tinta) 45%,transparent)}
+.nt-lig:hover{border-bottom-color:var(--ac-tinta)}
+.nt-lig.vazio{border-bottom-style:dashed;opacity:.8}
 
-/* O convite para abrir o despejo, na lista de conversas. */
-.chat-despejo {
-  display: flex; align-items: center; gap: 9px; width: 100%; cursor: pointer;
-  margin: 6px 0; padding: 10px 12px; text-align: left;
-  border: 1px dashed color-mix(in oklab, var(--acento) 45%, var(--linha));
-  border-radius: 12px; background: none; color: inherit;
-}
-.chat-despejo:hover { background: var(--vidro); border-style: solid; }
-.chat-despejo .mk { color: var(--acento); }
-.chat-despejo span { display: grid; }
-.chat-despejo b { font-size: 13px; }
-.chat-despejo i { font-size: 11.5px; color: var(--fraco); font-style: normal; }
+.nt-bloco{display:grid;gap:7px;padding-top:12px;margin-top:12px;
+  border-top:1px solid var(--line);flex:none}
+.nt-rot{font:var(--fw-semibold) var(--fs-kicker)/1.2 var(--sans);
+  letter-spacing:var(--ls-kicker);text-transform:uppercase;color:var(--tx-3)}
+.nt-fichas{display:flex;flex-wrap:wrap;gap:7px}
+.nt-ficha{font-size:var(--fs-sm);padding:5px 11px;border:1px solid var(--line-2);
+  border-radius:var(--r-pill);background:none;color:var(--tx-2);
+  display:inline-flex;align-items:center;gap:5px;transition:var(--t)}
+.nt-ficha:hover{border-color:var(--line-3);color:var(--tx)}
+.nt-ficha svg{width:10px;height:10px}
+.nt-ficha.vazio{border-style:dashed;color:var(--ac-tinta)}
+.nt-ficha.sug{color:var(--tx-3);border-style:dashed}
 
-@media (max-width: 900px) {
-  .nt-tela { grid-template-columns: 1fr; }
-  .nt-lado { position: static; }
-  .nt-lista { max-height: 300px; }
+@media (max-width:900px){
+  /* No telefone é uma coluna, e a nota aberta toma a tela: a lista e a folha
+     lado a lado em 390px não são duas colunas, são duas metades inúteis. */
+  .nt-tela{grid-template-columns:1fr;height:auto;min-height:0}
+  .nt-lado{padding-right:0;border-right:0}
+  .nt-lista{max-height:none;overflow:visible}
+  .nt-aberta{overflow:visible;padding-right:0}
 }
 
 /* A marca da lista pessoal na coluna de Tracks: mesma silhueta das outras, com
@@ -3895,7 +3904,6 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
     min-width:20px;height:20px;display:grid;place-items:center;padding:0 6px;
     font:var(--fw-semibold) var(--fs-micro)/1 var(--sans)}
   .chat-rolagem{padding:0}
-  .chat-despejo{margin:14px}
 }
 
 /* ==========================================================================
@@ -3909,7 +3917,7 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 
 /* procurar e criar dividem a mesma linha: são as duas coisas que se faz numa
    lista, achar uma nota ou começar outra */
-.nt-topo{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.nt-topo{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex:none}
 .nt-topo .nt-busca{flex:1;min-width:0;margin-bottom:0}
 .nt-nova{flex:none;width:38px;height:38px;border-radius:var(--r-pill);display:grid;
   place-items:center;background:var(--ac);color:var(--ac-tx);transition:var(--t)}
@@ -4059,6 +4067,14 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
   background:linear-gradient(to bottom,transparent,var(--bg));pointer-events:none}
 .doc-acoes .hint{margin:0;flex:1;min-width:120px}
 
+/* A linha de cima da nota: voltar, o seletor e Detalhes, nesta ordem. O
+   seletor encolhe antes de qualquer um dos dois, porque os outros são alvos de
+   toque e não podem apertar. */
+.dp-topo{gap:10px}
+.dp-topo .seg.fwd-face{margin:0;min-width:0;flex:0 1 auto}
+.dp-topo .seg.fwd-face>button{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.dp-topo .dp-topo-fim{margin-left:auto;flex:none}
+
 .nt-det-btn{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;
   border-radius:var(--r-pill);border:1px solid var(--line-2);background:var(--brilho);
   color:var(--tx-2);font:var(--fw-medium) var(--fs-ui)/1 var(--sans);transition:var(--t)}
@@ -4067,7 +4083,12 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 .nt-det-btn.on>svg{color:var(--tx-2)}
 
 @media (max-width:840px){
-  .doc-acoes{padding-bottom:10px}
+  /* Um embaixo do outro, e cada um ocupando a linha.
+     Lado a lado eles couberam, mas couberam apertados: dois botões de 160px
+     numa tela de 390 deixam o texto de cada um no limite de quebrar, e o polegar
+     precisa mirar. Empilhados, cada um é um alvo do tamanho da tela. */
+  .doc-acoes{flex-direction:column;align-items:stretch;gap:8px;padding-bottom:10px}
+  .doc-acoes>.btn{width:100%;justify-content:center}
   .doc-acoes .hint{display:none}
   .so-computador{display:none!important}
 }

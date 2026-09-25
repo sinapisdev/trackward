@@ -45,7 +45,7 @@ export function DetalhesNota({ nota, aoApagar }: {
           cor: com a palavra e o contorno, ninguém precisa adivinhar. */}
       <button className={`nt-det-btn ${aberto ? 'on' : ''}`} aria-expanded={aberto}
         title="Área, track, arquivos e mais" onClick={() => setAberto((a) => !a)}>
-        <Ic.ajustes />Detalhes
+        <Ic.reguas />Detalhes
       </button>
 
       {aberto && (
