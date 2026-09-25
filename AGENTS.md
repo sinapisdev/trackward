@@ -755,6 +755,34 @@ cobrá-la: ou a track conclui, ou a pendência vira tarefa antes. Numa **rotina*
 aceita e atravessa a volta, nascendo no primeiro checkpoint da seguinte, e a virada não a
 zera junto com o resto (zerar a dívida na virada seria pagá-la sozinha).
 
+## O feedback de quem recebeu o trabalho
+
+Uma track termina e a única opinião registrada é a de quem a executou. Quem recebeu, que é
+o cliente de um objetivo ou o chefe de uma rotina, **não tem conta no app e nunca vai
+ter**: pedir que ele se cadastre para dizer se gostou é o jeito mais eficiente de nunca
+saber. Então o feedback sai por um **link**, e o link é a credencial.
+
+**Nada sai sozinho.** Quem terminou decide pedir, e para quem. O app gera o link e não
+manda nada: mandar exigiria o e-mail do cliente guardado em algum lugar, e o cliente nunca
+combinou isso com ninguém.
+
+Três cuidados, nenhum opcional (seção 24 do schema e `/api/feedback`):
+
+1. O token é sorteado com 32 bytes. Ele é a única coisa entre um estranho e a resposta.
+2. Ele **vence** (60 dias) e vale **uma** resposta. Link eterno colado num e-mail de dois
+   anos atrás é uma porta que ninguém lembra que existe.
+3. Quem abre vê **o nome da track e quem pediu, e nada mais**: nem tarefa, nem gente, nem
+   as outras tracks, nem o id da track. O que vaza por um link público vaza para sempre.
+
+`/api/feedback` é a **segunda** rota a usar a chave de serviço, e a lista continua fechada
+nessas duas. O motivo é o mesmo de `/api/avisar`: quem chama não tem sessão. A diferença é
+que aqui quem chama é um estranho, e por isso a rota é estreita e devolve só o que pode
+ser visto. A página é `/feedback/[token]`, fora do grupo `(app)`: sem Shell, sem TabBar,
+sem navegação.
+
+`para` é só para quem pediu saber de quem veio a resposta ("Cliente Maurício"). **Não é
+e-mail, não convida ninguém e não aparece para quem responde.**
+
 ## Toda track termina, e termina dizendo como
 
 Havia dois fins e nenhum registro: concluir marcava `concluido` e a track ficava para

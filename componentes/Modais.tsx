@@ -30,6 +30,7 @@ export type Pedido =
   | { tipo: 'avulsa'; texto?: string; resp?: string | null; prazo?: string | null }
   | { tipo: 'travar'; fluxo: Fluxo }
   | { tipo: 'arquivar'; fluxo: Fluxo }
+  | { tipo: 'feedback'; fluxo: Fluxo }
   | { tipo: 'compromisso'; compromisso?: Compromisso; quando?: string; inicio?: string }
   | { tipo: 'canal'; canal?: Canal }
   | {
@@ -73,6 +74,7 @@ export function Modais({ children }: { children: ReactNode }) {
           {pedido.tipo === 'avulsa' && <MAvulsa fechar={fechar} pedido={pedido} />}
           {pedido.tipo === 'travar' && <MTravar fluxo={pedido.fluxo} fechar={fechar} />}
           {pedido.tipo === 'arquivar' && <MArquivar fluxo={pedido.fluxo} fechar={fechar} />}
+          {pedido.tipo === 'feedback' && <MFeedback fluxo={pedido.fluxo} fechar={fechar} />}
           {pedido.tipo === 'compromisso' && <MCompromisso pedido={pedido} fechar={fechar} />}
           {pedido.tipo === 'canal' && <MCanal canal={pedido.canal} fechar={fechar} />}
           {pedido.tipo === 'agente' && <MAgente pedido={pedido} fechar={fechar} />}
@@ -228,6 +230,90 @@ function MArquivar({ fluxo, fechar }: { fluxo: Fluxo; fechar: () => void }) {
       </div>
       <Rodape fechar={fechar} rotulo={indo ? 'Arquivando...' : 'Arquivar'}
         acao={() => void salvar()} />
+    </div>
+  )
+}
+
+/**
+ * Pedir a opinião de quem recebeu o trabalho.
+ *
+ * Nada sai daqui sozinho: o app gera o link e quem terminou decide para onde
+ * mandar. Mandar por conta própria exigiria o e-mail do cliente guardado em
+ * algum lugar, e o cliente nunca combinou isso com ninguém.
+ */
+function MFeedback({ fluxo, fechar }: { fluxo: Fluxo; fechar: () => void }) {
+  const { pedirFeedback, feedbacksDe, toast } = useDados()
+  const [para, setPara] = useState('')
+  const [link, setLink] = useState('')
+  const [indo, setIndo] = useState(false)
+  const jaTem = feedbacksDe(fluxo.id)
+
+  const abrir = async () => {
+    if (indo) return
+    setIndo(true)
+    const url = await pedirFeedback(fluxo.id, para)
+    setIndo(false)
+    if (url) setLink(url)
+  }
+
+  const copiar = async () => {
+    try { await navigator.clipboard.writeText(link); toast('Link copiado.') }
+    catch { toast('Copie o endereço da caixa acima.', true) }
+  }
+
+  return (
+    <div className="dlg" role="dialog" aria-modal="true" aria-labelledby="fb-t">
+      <div className="dlg-h">
+        <h3 id="fb-t">Pedir feedback de {fluxo.nome}</h3>
+        <p>
+          Gera um link para quem recebeu o trabalho responder sem ter conta aqui. Ele vale
+          por 60 dias e aceita uma resposta.
+        </p>
+      </div>
+      <div className="dlg-b">
+        {link ? (
+          <div className="fld">
+            <span className="lbl">Pronto. Mande este link para quem vai responder</span>
+            <input className="inp" readOnly value={link} onFocus={(e) => e.target.select()} />
+            <div className="row-inline" style={{ marginTop: 8 }}>
+              <button className="btn pri" onClick={() => void copiar()}><Ic.copiar />Copiar</button>
+            </div>
+            <p className="hint">
+              Quem abrir vê só o nome da track e quem pediu. Nada de tarefa, de gente nem
+              das outras tracks.
+            </p>
+          </div>
+        ) : (
+          <div className="fld">
+            <label htmlFor="fb-para">De quem é a opinião</label>
+            <input className="inp" id="fb-para" value={para} autoFocus
+              placeholder={fluxo.tipo === 'ciclo' ? 'Ex.: Renato, diretoria' : 'Ex.: Maurício e Fernanda'}
+              onChange={(e) => setPara(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void abrir() }} />
+            <p className="hint">
+              Só para você saber depois de quem veio a resposta. Não é e-mail, não convida
+              ninguém e não aparece para quem responde.
+            </p>
+          </div>
+        )}
+
+        {!!jaTem.length && (
+          <div className="fld">
+            <span className="lbl">Já pedidos</span>
+            {jaTem.map((f) => (
+              <div className="fb-l" key={f.id}>
+                <span>{f.para || 'sem nome'}</span>
+                <b>
+                  {f.respondido_em ? `respondeu ${f.nota}/5`
+                    : new Date(f.vence_em).getTime() < Date.now() ? 'venceu' : 'esperando'}
+                </b>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <Rodape fechar={fechar} rotulo={link ? 'Fechar' : indo ? 'Gerando...' : 'Gerar link'}
+        acao={() => (link ? fechar() : void abrir())} />
     </div>
   )
 }

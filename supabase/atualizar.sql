@@ -1469,12 +1469,83 @@ begin
 end $$;
 
 -- ==========================================================================
--- Conferência. As dezoito contas abaixo têm que dar
--- 30, 3, 3, 3, true, 1, 2, 1, 2, 0, true, 3, true, 4, true, true, 1 e true.
+-- --------------------------------------------------------------------------
+-- 24. O feedback de quem recebeu o trabalho
+--
+--     Uma track termina e a única opinião registrada é a de quem a executou.
+--     Quem recebeu, que é o cliente de um objetivo ou o chefe de uma rotina,
+--     não tem conta no app e nunca vai ter: pedir que ele se cadastre para
+--     dizer se gostou é o jeito mais eficiente de nunca saber.
+--
+--     Então o feedback sai por um **link**, e o link é a credencial. Três
+--     cuidados, e nenhum é opcional:
+--
+--     1. O `token` é longo e sorteado. Ele é a única coisa entre um estranho e
+--        a resposta, e link curto é link adivinhável.
+--     2. Ele **vence**. Link eterno colado num e-mail de dois anos atrás é uma
+--        porta que ninguém lembra que existe.
+--     3. Quem abre o link vê o **nome da track e de quem pediu**, e nada mais.
+--        Não vê tarefa, não vê gente, não vê as outras tracks. O que vaza por
+--        um link público vaza para sempre.
+--
+--     Nada aqui é enviado sozinho. Quem termina decide pedir, e para quem.
+-- --------------------------------------------------------------------------
+
+create table if not exists public.feedbacks (
+  id           uuid primary key default gen_random_uuid(),
+  fluxo_id     uuid not null references public.fluxos on delete cascade,
+  -- A credencial. 43 caracteres de base64url, que é o que 32 bytes dão.
+  token        text not null unique,
+  pediu_id     uuid references public.perfis on delete set null,
+  -- Para quem foi pedido, do jeito que quem pediu escreveu: "Cliente Maurício",
+  -- "Fernanda do financeiro". Serve para saber de quem é a resposta, e não é
+  -- e-mail nem convite: ninguém entra no app por aqui.
+  para         text not null default '',
+  vence_em     timestamptz not null default now() + interval '60 days',
+  -- A resposta, quando vier.
+  respondido_em timestamptz,
+  nota         int check (nota is null or nota between 1 and 5),
+  texto        text,
+  criado_em    timestamptz not null default now()
+);
+
+create index if not exists feedbacks_fluxo_idx on public.feedbacks (fluxo_id, criado_em desc);
+
+alter table public.feedbacks enable row level security;
+
+do $$
+begin
+  execute 'alter table public.feedbacks add column if not exists org_id uuid references public.organizacoes on delete cascade';
+  execute 'create index if not exists feedbacks_org_idx on public.feedbacks (org_id)';
+  execute 'drop trigger if exists ao_inserir_org on public.feedbacks';
+  execute 'create trigger ao_inserir_org before insert on public.feedbacks
+             for each row execute function public.carimbar_org()';
+end $$;
+
+-- Dentro do app: quem enxerga a track enxerga o que disseram dela. Quem pede é
+-- quem responde pelo processo, porque pedir feedback é falar em nome da casa.
+drop policy if exists fb_sel on public.feedbacks;
+create policy fb_sel on public.feedbacks for select
+  using (minha(org_id) and ativo() and ve_fluxo(fluxo_id));
+
+drop policy if exists fb_ins on public.feedbacks;
+create policy fb_ins on public.feedbacks for insert
+  with check (minha(org_id) and ativo() and manda_no_processo(fluxo_id));
+
+drop policy if exists fb_del on public.feedbacks;
+create policy fb_del on public.feedbacks for delete
+  using (minha(org_id) and ativo() and manda_no_processo(fluxo_id));
+
+-- De fora ninguém lê e ninguém escreve por aqui: quem atende o link é a rota
+-- /api/feedback, com a chave de serviço, e ela devolve só o que pode ser visto.
+
+-- ==========================================================================
+-- Conferência. As dezenove contas abaixo têm que dar
+-- 31, 3, 3, 3, true, 1, 2, 1, 2, 0, true, 3, true, 4, true, true, 1, true e 1.
 -- ==========================================================================
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
-    as "carimbo de organizacao (30)",
+    as "carimbo de organizacao (31)",
   (select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid
     where t.tgname = 'ao_assinar' and c.relname in ('itens','canais','notas'))
     as "carimbo de autor (3)",
@@ -1534,4 +1605,7 @@ select
   (select prosrc like '%nota_pessoas%' from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 've_nota')
-    as "ve_nota enxerga o convidado (true)";
+    as "ve_nota enxerga o convidado (true)",
+  (select count(*) from information_schema.tables
+    where table_schema = 'public' and table_name = 'feedbacks')
+    as "feedback de quem recebeu (1)";

@@ -4260,3 +4260,60 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 .trilhah.so-marcas.muitas .th-oca{font-size:10px;border-width:1.5px}
 .trilhah.so-marcas.muitas .th-est::after{top:10px;left:calc(50% + 13px);right:calc(-50% + 13px)}
 .trilhah.so-marcas.muitas .th-est.vez .th-marca{box-shadow:0 0 0 4px var(--ac-soft)}
+
+/* ==========================================================================
+   A página de feedback
+   Fora do app, sem navegação e sem sessão. Quem abre isto não é usuário do
+   produto: é o cliente de uma obra ou o chefe de uma rotina, e a página inteira
+   tem que caber numa olhada, no telefone, sem explicar nada.
+   ========================================================================== */
+
+.fb{max-width:560px;margin:0 auto;padding:48px 20px 64px;display:grid;gap:18px}
+.fb-marca{display:flex;align-items:center;gap:9px;color:var(--tx-2);margin-bottom:6px}
+.fb-marca b{font-size:16px;font-weight:var(--fw-semibold);letter-spacing:-.02em}
+.fb h1{font:var(--fw-semibold) var(--fs-h1)/var(--lh-h1) var(--sans);letter-spacing:var(--ls-h1)}
+.fb-lede{color:var(--tx-2);font-size:var(--fs-body);margin:0}
+.fb-ok{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;
+  background:var(--ac);color:var(--ac-tx)}
+
+.fb-notas{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.fb-notas button{display:grid;gap:3px;justify-items:center;padding:14px 4px;
+  border:1px solid var(--line-2);border-radius:var(--r);background:var(--brilho);
+  color:var(--tx-2);transition:var(--t)}
+.fb-notas button:hover{background:var(--alto);border-color:var(--line-3)}
+.fb-notas button.on{border-color:var(--ac-tinta);background:var(--ac-luz);color:var(--tx)}
+.fb-notas b{font-size:19px;font-weight:var(--fw-semibold)}
+.fb-notas small{font-size:var(--fs-micro);color:var(--tx-3);text-align:center}
+
+.fb-campo{display:grid;gap:7px}
+.fb-campo span{font-size:var(--fs-sm);color:var(--tx-2)}
+.fb-campo textarea{width:100%;padding:12px 14px;border-radius:var(--r);
+  border:1px solid var(--line-2);background:var(--brilho);color:var(--tx);
+  font:var(--fs-ui)/1.6 var(--sans);resize:vertical}
+.fb-campo textarea:focus{outline:none;border-color:var(--ac-tinta);
+  box-shadow:0 0 0 3px var(--ac-luz)}
+
+.fb-enviar{padding:13px 20px;border-radius:var(--r-pill);background:var(--ac);
+  color:var(--ac-tx);font:var(--fw-semibold) var(--fs-ui)/1 var(--sans);transition:var(--t)}
+.fb-enviar:hover{background:var(--ac-2)}
+.fb-enviar:disabled{opacity:.45}
+.fb-erro{color:var(--late);font-size:var(--fs-sm);margin:0}
+.fb-pe{color:var(--tx-3);font-size:var(--fs-sm);margin:0}
+
+@media (max-width:840px){
+  .fb{padding:28px 16px 48px;gap:16px}
+  .fb-notas{gap:6px}
+  .fb-notas button{padding:12px 2px}
+}
+
+/* O que disseram de fora, na coluna da track. Neutro: é opinião, não alarme. */
+.track-fb{display:grid;gap:8px;margin-bottom:18px}
+.track-fb-l{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;
+  border-radius:var(--r);background:var(--brilho)}
+.track-fb-n{flex:none;font:var(--fw-semibold) var(--fs-ui)/1 var(--sans);
+  color:var(--tx-2);padding:6px 9px;border-radius:var(--r-pill);background:var(--alto)}
+.track-fb-l b{display:block;font-size:var(--fs-ui);font-weight:var(--fw-medium)}
+.track-fb-l small{display:block;color:var(--tx-3);font-size:var(--fs-sm);margin-top:3px}
+.fb-l{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:7px 0;font-size:var(--fs-ui);border-bottom:1px solid var(--line)}
+.fb-l b{color:var(--tx-3);font-weight:var(--fw-medium);font-size:var(--fs-sm)}

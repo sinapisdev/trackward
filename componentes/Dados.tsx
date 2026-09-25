@@ -8,7 +8,7 @@ import { curta, hojeIso, isoDe } from '@/lib/datas'
 import { esqueletoEmBranco, proxPeriodo } from '@/lib/modelos'
 import type { RascunhoEtapa } from '@/lib/modelos'
 import { etapaAtual } from '@/lib/regras'
-import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta, Anexo, Decisao, TipoDecisao, NaCascata, PedidoPrazo, Agente, Conector, Nota,
+import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Feedback, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta, Anexo, Decisao, TipoDecisao, NaCascata, PedidoPrazo, Agente, Conector, Nota,
   Aviso, AvisoContato, PushAssinatura,
   } from '@/lib/tipos'
 import { chama } from '@/lib/mencao'
@@ -120,6 +120,10 @@ type Contexto = {
   reabrirFluxo: (id: string) => Promise<void>
   /** As que saíram da lista principal, concluídas ou canceladas. */
   arquivadas: Fluxo[]
+  /** O que disseram de uma track, pelo link de feedback. */
+  feedbacksDe: (fluxoId: string) => Feedback[]
+  /** Abre um link de feedback e devolve o endereço inteiro. */
+  pedirFeedback: (fluxoId: string, para: string) => Promise<string | null>
   travar: (f: Fluxo, motivo: string) => Promise<void>
   destravar: (f: Fluxo) => Promise<void>
   adicionarItem: (et: Etapa, d: DadosItem, porIa?: boolean) => Promise<string | null>
@@ -388,6 +392,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [conectores, setConectores] = useState<Conector[]>([])
   const [todasNotas, setTodasNotas] = useState<Nota[]>([])
   const [notaPessoas, setNotaPessoas] = useState<{ nota_id: string; perfil_id: string }[]>([])
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([])
   const [respondendo, setRespondendo] = useState<string | null>(null)
   const [avisos, setAvisos] = useState<Aviso[]>([])
   const [contato, setContato] = useState<AvisoContato | null>(null)
@@ -428,7 +433,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   /** Recolhe tudo que a pessoa pode ver e monta a árvore de fluxos. */
   const carregar = useCallback(async () => {
-    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns, ags, cnc, nts, notaPes, avs, ctt, psh] = await Promise.all([
+    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns, ags, cnc, nts, notaPes, fbk, avs, ctt, psh] = await Promise.all([
       sb.from('perfis').select('*').order('nome'),
       sb.from('areas').select('*').order('ordem'),
       sb.from('fluxos').select('*').order('criado_em'),
@@ -463,6 +468,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       sb.from('conectores').select('id,nome,base_url,auth_tipo,auth_nome,dica,dono_id,ativo,criado_por,criado_em').order('criado_em'),
       sb.from('notas').select('*').order('mexido_em', { ascending: false }),
       sb.from('nota_pessoas').select('*'),
+      sb.from('feedbacks').select('*').order('criado_em', { ascending: false }),
       // A caixa é curta de propósito: aviso de duas semanas atrás não é aviso,
       // é histórico, e histórico já mora na atividade de cada track.
       sb.from('avisos').select('*').order('criado_em', { ascending: false }).limit(80),
@@ -617,6 +623,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     setConectores((cnc.data || []) as Conector[])
     setTodasNotas((nts.data || []) as Nota[])
     setNotaPessoas((notaPes.data || []) as { nota_id: string; perfil_id: string }[])
+    setFeedbacks((fbk.data || []) as Feedback[])
     setAvisos((avs.data || []) as Aviso[])
     setContato((ctt.data as AvisoContato | null) ?? null)
     setAparelhos((psh.data || []) as PushAssinatura[])
@@ -837,6 +844,34 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     recarregar()
     return true
   }, [sb, falhou, toast, recarregar])
+
+  const feedbacksDe: Contexto['feedbacksDe'] = useCallback(
+    (fluxoId) => feedbacks.filter((f) => f.fluxo_id === fluxoId),
+    [feedbacks],
+  )
+
+  /**
+   * Abre um link de feedback.
+   *
+   * O token nasce aqui, no navegador, e não no banco: ele é a credencial, e
+   * pedi-lo de volta num insert é justamente o RETURNING que não funciona nas
+   * tabelas deste app. `crypto.getRandomValues` é o mesmo sorteio que o resto
+   * do app usa para id, com o dobro de bytes, porque este aqui é o que separa
+   * um estranho da resposta.
+   */
+  const pedirFeedback: Contexto['pedirFeedback'] = useCallback(async (fluxoId, para) => {
+    const bytes = new Uint8Array(32)
+    crypto.getRandomValues(bytes)
+    const token = btoa(String.fromCharCode(...bytes))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+
+    const { error } = await sb.from('feedbacks').insert({
+      id: novoId(), fluxo_id: fluxoId, token, pediu_id: eu.id, para: para.trim(),
+    })
+    if (error) { falhou(error, 'Só quem responde pelo processo pode pedir feedback.'); return null }
+    recarregar()
+    return `${location.origin}/feedback/${token}`
+  }, [sb, eu.id, falhou, recarregar])
 
   const reabrirFluxo: Contexto['reabrirFluxo'] = useCallback(async (id) => {
     const { error } = await sb.rpc('reabrir_fluxo', { p_fluxo: id })
@@ -2849,6 +2884,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     empresaAtiva, focarEmpresa, empresaDe, carregando,
     perfilDe, nomeDe, areaDe, aviso, toast,
     salvarArea, excluirArea, salvarFluxo, excluirFluxo, arquivarFluxo, reabrirFluxo, arquivadas,
+    feedbacksDe, pedirFeedback,
     travar, destravar, adicionarItem, editarItem, definirTravas, excluirItem, alternarItem, aprovar,
     salvarPerfil, salvarEmpresa, excluirEmpresa, salvarOrg,
     salvarCompromisso, excluirCompromisso, ligarAgendaExterna, desligarAgendaExterna,

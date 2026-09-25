@@ -3,10 +3,16 @@ import { createClient } from '@supabase/supabase-js'
 /**
  * O cliente de serviço: o único que enxerga o banco inteiro, sem RLS.
  *
- * Ele existe para uma coisa só, e a lista é fechada: entregar aviso fora do app,
- * em `/api/avisar`. Quem chama aquilo é um relógio, não uma pessoa, e um relógio
- * não tem sessão; sem este cliente, nenhuma política deixaria ler a assinatura de
- * push nem o telefone de quem vai ser avisado, e com razão.
+ * A lista de quem pode usá-lo é fechada, e tem dois:
+ *
+ *   - `/api/avisar`, que entrega aviso fora do app. Quem chama é um relógio, e
+ *     relógio não tem sessão.
+ *   - `/api/feedback`, que atende o link de quem recebeu o trabalho. Quem chama
+ *     é um estranho com um link, e ele não tem conta nem vai ter.
+ *
+ * Nos dois o motivo é o mesmo: quem chama não tem sessão, e sem este cliente
+ * nenhuma política deixaria ler o que precisa ser lido. Nos dois a rota é
+ * estreita de propósito, e devolve só o que aquele chamador pode ver.
  *
  * Três regras que não podem ser afrouxadas:
  *

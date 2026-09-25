@@ -625,3 +625,24 @@ export type PushAssinatura = {
   criado_em: string
   usado_em: string | null
 }
+
+/**
+ * O que quem recebeu o trabalho disse, pelo link.
+ *
+ * Quem responde não tem conta no app: o `token` é a credencial dele, e por isso
+ * ele vence e vale uma resposta só. Ver a seção 24 do schema e a rota
+ * `/api/feedback`.
+ */
+export type Feedback = {
+  id: string
+  fluxo_id: string
+  token: string
+  pediu_id: string | null
+  /** Para quem foi pedido, do jeito que quem pediu escreveu. Não é e-mail. */
+  para: string
+  vence_em: string
+  respondido_em: string | null
+  nota: number | null
+  texto: string | null
+  criado_em: string
+}

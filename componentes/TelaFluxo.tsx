@@ -30,7 +30,8 @@ import { mandaNoProcesso, podeConcluir, podeMexerNoItem } from '@/lib/acesso'
  */
 export function TelaFluxo({ id }: { id: string }) {
   const { eu, perfis, fluxos, carregando, areaDe, perfilDe, nomeDe, totalItens,
-    alternarItem, excluirItem, destravar, decisoesDe, pode, reabrirFluxo } = useDados()
+    alternarItem, excluirItem, destravar, decisoesDe, pode, reabrirFluxo,
+    feedbacksDe } = useDados()
   const { abrir } = useModais()
   const router = useRouter()
   const [sel, setSel] = useState<number | null>(null)
@@ -92,6 +93,7 @@ export function TelaFluxo({ id }: { id: string }) {
    * começo do próximo período.
    */
   const fecharTudo = f.tipo === 'esteira' && idx === f.etapas.length - 1
+  const respostas = feedbacksDe(f.id).filter((x) => x.respondido_em)
   const travado = !!f.travado_motivo
   const mandaAqui = mandaNoProcesso(eu, f, perfis)
   const ocultos = Math.max(0, totalItens(f.id) - f.etapas.reduce((n, et) => n + et.itens.length, 0))
@@ -171,6 +173,14 @@ export function TelaFluxo({ id }: { id: string }) {
           {mandaAqui && !f.desfecho && (
             <button className="btn ghost" aria-label="Arquivar track" title="Arquivar track"
               onClick={() => abrir({ tipo: 'arquivar', fluxo: f })}><Ic.mais /></button>
+          )}
+          {/* Pedir feedback só faz sentido depois de terminar alguma coisa:
+              numa rotina, depois de uma volta; num objetivo, no fim. Antes
+              disso é pedir opinião sobre o que ainda não aconteceu. */}
+          {mandaAqui && (!!f.desfecho || (f.tipo === 'ciclo' && f.atual > 0)) && (
+            <button className="btn" onClick={() => abrir({ tipo: 'feedback', fluxo: f })}>
+              <Ic.carta />Pedir feedback
+            </button>
           )}
           {mandaAqui && !!f.desfecho && (
             <button className="btn" onClick={() => void reabrirFluxo(f.id)}>
@@ -357,6 +367,25 @@ export function TelaFluxo({ id }: { id: string }) {
                   <span className="cp-nota">{nota}</span>
                 </div>
               </div>
+
+              {/* O que disseram de fora vem depois do checkpoint e antes do
+                  palpite: é a única coisa nesta tela que não dá para saber
+                  olhando a trilha, e quem abre uma track terminada vem por
+                  causa dela. */}
+              {!!respostas.length && (
+                <div className="track-fb">
+                  <h2 className="track-rot">O que disseram</h2>
+                  {respostas.map((r) => (
+                    <div className="track-fb-l" key={r.id}>
+                      <span className="track-fb-n">{r.nota}/5</span>
+                      <span>
+                        <b>{r.para || 'Quem recebeu'}</b>
+                        {!!r.texto && <small>{r.texto}</small>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* O palpite de quem faz vem DEPOIS do checkpoint: ele é sugestão,
                   e sugestão não passa na frente do trabalho. Antes ele empurrava

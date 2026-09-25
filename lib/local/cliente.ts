@@ -18,7 +18,7 @@ const VERSAO = 18
 const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], fluxos: [], etapas: [], itens: [],
   dependencias: [], processos: [], processo_etapas: [], processo_itens: [], fluxo_pessoas: [],
   convites: [],
-  canais: [], canal_membros: [], mensagens: [], sugestoes: [], nota_pessoas: [],
+  canais: [], canal_membros: [], mensagens: [], sugestoes: [], nota_pessoas: [], feedbacks: [],
   compromissos: [], convidados: [], agendas_externas: [], ocupacao_externa: [],
   historico: [], atividades: [],
   anexos: [], decisoes: [], pedidos_prazo: [], memoria: [], consumo: [], agentes: [], conectores: [], notas: [],
