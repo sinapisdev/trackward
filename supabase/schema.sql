@@ -3767,3 +3767,169 @@ begin
   insert into atividades (fluxo_id, quem_id, texto)
   values (p_fluxo, v_eu, 'tirou do arquivo');
 end $$;
+
+-- --------------------------------------------------------------------------
+-- 22. A ressalva é dívida, e dívida se paga
+--
+--     Aprovar com ressalva já criava uma tarefa no checkpoint seguinte, e até
+--     aí estava certo. Faltavam as duas metades que fazem a ressalva valer
+--     alguma coisa:
+--
+--     1. Ela era uma tarefa como qualquer outra, e quem não quisesse pagar a
+--        dívida simplesmente apagava a linha. Agora a tarefa nasce marcada e o
+--        banco recusa apagá-la em aberto: ressalva não se apaga, se conclui.
+--     2. No ÚLTIMO checkpoint ela não virava nada. Era o pior lugar para
+--        sumir, porque é exatamente onde alguém aprova "com uma pendência" e
+--        entrega assim mesmo. Num objetivo a ressalva deixa de ser oferecida
+--        ali (ou conclui, ou não conclui); numa rotina ela atravessa a volta e
+--        nasce no primeiro checkpoint da seguinte.
+--
+--     O que impede o checkpoint de fechar com ressalva aberta já existia, na
+--     regra geral de "ainda existem itens pendentes". O que faltava era a
+--     mensagem dizer qual é a dívida, porque "existem itens pendentes" numa
+--     lista de doze não aponta para nada.
+-- --------------------------------------------------------------------------
+
+alter table public.itens add column if not exists ressalva boolean not null default false;
+
+-- As que já existem por prefixo entram marcadas, senão a regra nova valeria só
+-- para o futuro e as dívidas de hoje continuariam apagáveis.
+update public.itens set ressalva = true
+where not ressalva and texto like 'Ressalva: %';
+
+create or replace function public.proteger_ressalva()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if old.ressalva and not old.feito then
+    raise exception 'Ressalva não se apaga, se conclui. Ela é a dívida que ficou do checkpoint anterior.';
+  end if;
+  return old;
+end $$;
+
+drop trigger if exists ressalva_nao_some on public.itens;
+create trigger ressalva_nao_some before delete on public.itens
+  for each row execute function public.proteger_ressalva();
+
+create or replace function public.decidir_etapa(
+  p_fluxo    uuid,
+  p_tipo     text,
+  p_nota     text default '',
+  p_reabrir  uuid[] default '{}',
+  p_periodo  text default null,
+  p_prazo    date default null
+) returns text language plpgsql security definer set search_path = public as $$
+declare
+  f      fluxos%rowtype;
+  e      etapas%rowtype;
+  uid    uuid := meu_perfil();
+  n      int;
+  passo  int;
+  atrasou boolean;
+  pendente text;
+begin
+  select * into f from fluxos where id = p_fluxo;
+  if f.id is null then raise exception 'Projeto não encontrado.'; end if;
+  if f.concluido then raise exception 'Este projeto já está concluído.'; end if;
+  if f.travado_motivo is not null then raise exception 'Este projeto está travado.'; end if;
+
+  select * into e from etapas where fluxo_id = f.id and ordem = f.atual;
+  if e.id is null then raise exception 'Checkpoint não encontrado.'; end if;
+  if e.aprovador_id is not null and e.aprovador_id <> uid and not eh_admin() then
+    raise exception 'Somente quem aprova este checkpoint pode decidir.';
+  end if;
+
+  if p_tipo not in ('aprovou','ressalva','devolveu') then raise exception 'Decisão desconhecida.'; end if;
+  if p_tipo <> 'aprovou' and btrim(coalesce(p_nota, '')) = '' then
+    raise exception 'Escreva o motivo: quem recebe precisa saber o que fazer.';
+  end if;
+
+  select count(*) into n from etapas where fluxo_id = f.id;
+
+  -- Ressalva no último checkpoint de um objetivo não tem para onde ir: o que
+  -- viria depois não existe, e aceitar aqui é entregar com pendência e sem
+  -- ninguém para cobrá-la. Rotina pode, porque a volta seguinte é o depois.
+  if p_tipo = 'ressalva' and f.atual = n - 1 and f.tipo = 'esteira' then
+    raise exception 'Este é o último checkpoint: ou a track conclui, ou a pendência vira tarefa aqui antes.';
+  end if;
+
+  if p_tipo = 'devolveu' then
+    update itens set feito = false, feito_em = null
+    where etapa_id = e.id and id = any(p_reabrir);
+
+    insert into decisoes (fluxo_id, etapa_id, quem_id, tipo, nota)
+    values (f.id, e.id, uid, 'devolveu', btrim(p_nota));
+
+    insert into atividades (fluxo_id, quem_id, texto)
+    values (f.id, uid, 'devolveu ' || e.nome || ': ' || btrim(p_nota));
+    return 'devolveu';
+  end if;
+
+  -- A dívida do checkpoint anterior vem antes de qualquer coisa, e a mensagem
+  -- diz qual é: "existem itens pendentes" numa lista de doze não aponta nada.
+  select i.texto into pendente from itens i
+  where i.etapa_id = e.id and i.ressalva and not i.feito
+  order by i.ordem limit 1;
+  if pendente is not null then
+    raise exception 'Falta a ressalva do checkpoint anterior: %', pendente;
+  end if;
+
+  if exists (
+    select 1 from itens i
+    where i.etapa_id = e.id and not i.feito and (not i.priv or i.autor_id = uid)
+  ) then raise exception 'Ainda existem itens pendentes neste checkpoint.'; end if;
+
+  insert into decisoes (fluxo_id, etapa_id, quem_id, tipo, nota)
+  values (f.id, e.id, uid, p_tipo, btrim(coalesce(p_nota, '')));
+
+  insert into atividades (fluxo_id, quem_id, texto)
+  values (f.id, uid, case when p_tipo = 'ressalva'
+    then 'aprovou ' || e.nome || ' com ressalva: ' || btrim(p_nota)
+    else 'aprovou a saída de ' || e.nome end);
+
+  -- A ressalva vira tarefa marcada do checkpoint seguinte, e numa rotina que
+  -- está virando, do primeiro da volta que vem.
+  if p_tipo = 'ressalva' then
+    insert into itens (etapa_id, fluxo_id, texto, resp_id, prazo, autor_id, ordem, ressalva)
+    select et.id, f.id, 'Ressalva: ' || btrim(p_nota), f.dono_id, p_prazo, uid,
+           coalesce((select max(i.ordem) + 1 from itens i where i.etapa_id = et.id), 0), true
+    from etapas et
+    where et.fluxo_id = f.id
+      and et.ordem = case when f.atual < n - 1 then f.atual + 1 else 0 end;
+  end if;
+
+  if f.atual < n - 1 then
+    update fluxos set atual = f.atual + 1 where id = f.id;
+    return 'avancou';
+  end if;
+
+  if f.tipo = 'ciclo' then
+    passo := case f.freq when 'semanal' then 7 when 'quinzenal' then 15 else 30 end;
+    select exists (
+      select 1 from etapas et where et.fluxo_id = f.id and et.prazo is not null and et.prazo < current_date
+      union all
+      select 1 from itens it where it.fluxo_id = f.id and it.prazo is not null and it.prazo < current_date
+    ) into atrasou;
+
+    insert into historico (fluxo_id, periodo, situacao)
+    values (f.id, coalesce(f.periodo, ''), case when atrasou then 'late' else 'ok' end);
+
+    delete from historico h
+    where h.fluxo_id = f.id
+      and h.id not in (select id from historico where fluxo_id = f.id order by criado_em desc limit 12);
+
+    update etapas set prazo = prazo + passo where fluxo_id = f.id and prazo is not null;
+    -- A ressalva que acabou de nascer não é "tarefa da volta passada": ela é a
+    -- dívida desta virada, e zerá-la junto com o resto seria pagá-la sozinha.
+    update itens set feito = false, prazo = prazo + passo
+    where fluxo_id = f.id and prazo is not null and not ressalva;
+    update itens set feito = false where fluxo_id = f.id and prazo is null and not ressalva;
+    update fluxos set atual = 0, periodo = coalesce(nullif(btrim(p_periodo), ''), periodo) where id = f.id;
+    return 'volta';
+  end if;
+
+  -- Concluir arquiva: a track sai da lista principal e continua inteira em
+  -- Arquivadas, que é onde ficam os documentos e o histórico dela. Seção 21.
+  update fluxos set concluido = true, desfecho = 'concluido', arquivado_em = now()
+  where id = f.id;
+  return 'concluido';
+end $$;

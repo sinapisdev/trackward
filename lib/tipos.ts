@@ -194,6 +194,13 @@ export type Item = {
   prazo_firme: boolean
   /** Tarefas que precisam sair antes desta, mesmo em outra esteira. */
   depende_de: string[]
+  /**
+   * Ela nasceu de uma ressalva do checkpoint anterior.
+   *
+   * Muda duas coisas: o banco recusa apagá-la em aberto, e o checkpoint em que
+   * ela mora não fecha enquanto ela não sair. Dívida não se apaga, se paga.
+   */
+  ressalva: boolean
 }
 
 /** Uma tarefa que trava outra, com o contexto de quem responde por ela. */

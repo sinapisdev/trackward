@@ -272,7 +272,7 @@ export function TelaFluxo({ id }: { id: string }) {
                   )
                   return (
                     <div className="tf-bloco" key={x.id}>
-                      <div className={`tf ${x.feito ? 'f' : ''}`}>
+                      <div className={`tf ${x.feito ? 'f' : ''} ${x.ressalva ? 'rsv' : ''}`}>
                         <button className={`ck ${x.feito ? 'on' : ''}`} disabled={!posso}
                           onClick={() => void alternarItem(x)}
                           title={bloqueada ? 'Espera outra tarefa sair antes' : ''}
@@ -286,6 +286,12 @@ export function TelaFluxo({ id }: { id: string }) {
                             )}
                             {x.texto}
                           </span>
+                          {x.ressalva && !x.feito && (
+                            <small className="tf-rsv">
+                              <Ic.ressalva />
+                              Ressalva do checkpoint anterior. Este não fecha sem ela.
+                            </small>
+                          )}
                           {!!x.descricao && <small className="tf-desc">{x.descricao}</small>}
                           {bloqueada && (
                             <small className="tf-bloq">
@@ -311,7 +317,11 @@ export function TelaFluxo({ id }: { id: string }) {
                             <button className="iconbtn" title="Editar tarefa" aria-label={`Editar ${x.texto}`}
                               onClick={() => abrir({ tipo: 'item', etapa, item: x })}><Ic.mais /></button>
                           )}
-                          {meu && (
+                          {/* Ressalva em aberto não tem botão de remover, e o
+                              banco recusa do mesmo jeito: ela é a dívida que
+                              ficou do checkpoint anterior, e apagar a dívida
+                              era a saída mais fácil para não pagá-la. */}
+                          {meu && !(x.ressalva && !x.feito) && (
                             <button className="iconbtn" title="Remover" aria-label={`Remover ${x.texto}`}
                               onClick={() => void excluirItem(x)}><Ic.x /></button>
                           )}

@@ -4025,6 +4025,15 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 .doc-bloco{margin-bottom:12px}
 .doc-bloco:last-child{margin-bottom:0}
 
+/* A tarefa que veio de uma ressalva. Âmbar, que já é a cor de "vence em breve",
+   e sempre com a frase: a cor sozinha não diz que este checkpoint não fecha
+   sem ela, e é isso que a pessoa precisa saber. */
+.tf.rsv{background:color-mix(in srgb,var(--warn) 7%,transparent);
+  border-radius:var(--r-sm);margin-inline:-8px;padding-inline:8px}
+.tf-rsv{display:flex;align-items:center;gap:6px;color:var(--warn);
+  font-size:var(--fs-sm);margin-top:3px}
+.tf-rsv>svg{width:12px;height:12px;flex:none}
+
 /* Como a track terminou, na linha dela dentro do arquivo. Neutro de propósito:
    o arquivo não cobra ninguém, e cor aqui seria alarme sobre coisa parada. */
 .tk-arq{display:inline-flex;align-items:center;gap:6px;color:var(--tx-3)}

@@ -56,8 +56,12 @@ export function Decisao({ f, etapa, fechar }: {
 }) {
   const { eu, perfilDe, nomeDe, anexosDe, decidir, decisoesDe, pode } = useDados()
   const ultimoDeObjetivo = f.tipo === 'esteira' && f.atual === f.etapas.length - 1
+  /* No último de um objetivo a ressalva sai da lista: não existe "próximo
+     checkpoint" para onde mandar a pendência, e aceitar ali é entregar com
+     dívida e sem ninguém para cobrá-la. O banco recusa do mesmo jeito. */
   const SAIDAS = useMemo(
-    () => saidasDe(!pode.aprovacao, ultimoDeObjetivo),
+    () => saidasDe(!pode.aprovacao, ultimoDeObjetivo)
+      .filter((o) => !(ultimoDeObjetivo && o.id === 'ressalva')),
     [pode.aprovacao, ultimoDeObjetivo],
   )
   const [saida, setSaida] = useState<TipoDecisao>('aprovou')

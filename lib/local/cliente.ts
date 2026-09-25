@@ -406,6 +406,15 @@ class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
     }
     if (this.modo === 'delete') {
       const fora = lista.filter((l) => this.casa(l)).map((l) => l.id)
+      // Mesma recusa do gatilho ressalva_nao_some: dívida não se apaga, se paga.
+      if (this.tabela === 'itens') {
+        const presa = lista.find((l) => fora.includes(l.id) && l.ressalva && !l.feito)
+        if (presa) {
+          return { data: null as T, error: {
+            message: 'Ressalva não se apaga, se conclui. Ela é a dívida que ficou do checkpoint anterior.',
+          } }
+        }
+      }
       b[this.tabela] = lista.filter((l) => !fora.includes(l.id))
       if (this.tabela === 'fluxos') {
         const ids = new Set(fora)
@@ -433,6 +442,15 @@ class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
       if (this.tabela === 'processo_etapas') {
         const ids = new Set(fora)
         b.processo_itens = b.processo_itens.filter((x) => !ids.has(x.etapa_id))
+      }
+      // Mesma recusa do gatilho ressalva_nao_some: dívida não se apaga.
+      if (this.tabela === 'itens') {
+        const presa = lista.find((l) => fora.includes(l.id) && l.ressalva && !l.feito)
+        if (presa) {
+          return { data: null as T, error: {
+            message: 'Ressalva não se apaga, se conclui. Ela é a dívida que ficou do checkpoint anterior.',
+          } }
+        }
       }
       if (this.tabela === 'canais') {
         const ids = new Set(fora)
@@ -691,6 +709,11 @@ function decidirEtapa(
   if (tipo !== 'aprovou' && !nota.trim()) {
     throw new Error('Escreva o motivo: quem recebe precisa saber o que fazer.')
   }
+  // Ressalva no último checkpoint de um objetivo não tem para onde ir.
+  if (tipo === 'ressalva' && f.tipo === 'esteira'
+      && Number(f.atual) === b.etapas.filter((x) => x.fluxo_id === f.id).length - 1) {
+    throw new Error('Este é o último checkpoint: ou a track conclui, ou a pendência vira tarefa aqui antes.')
+  }
 
   const anotar = (t: string) => {
     b.decisoes.push({
@@ -709,6 +732,10 @@ function decidirEtapa(
     return 'devolveu'
   }
 
+  // A dívida do checkpoint anterior vem antes, e a mensagem diz qual é.
+  const divida = b.itens.find((i) => i.etapa_id === et.id && i.ressalva && !i.feito)
+  if (divida) throw new Error(`Falta a ressalva do checkpoint anterior: ${divida.texto}`)
+
   const pendente = b.itens.some(
     (i) => i.etapa_id === et.id && !i.feito && (!i.priv || i.autor_id === eu),
   )
@@ -719,14 +746,16 @@ function decidirEtapa(
     ? `aprovou ${et.nome} com ressalva: ${nota.trim()}`
     : `aprovou a saída de ${et.nome}`)
 
-  // A ressalva vira tarefa do checkpoint seguinte, senão ninguém cobra dela.
-  const seguinte = etapas[Number(f.atual) + 1]
-  if (tipo === 'ressalva' && seguinte) {
-    const ordem = b.itens.filter((i) => i.etapa_id === seguinte.id).length
+  // A ressalva vira tarefa MARCADA do checkpoint seguinte, e numa rotina que
+  // está virando, do primeiro da volta que vem. Marcada porque o banco recusa
+  // apagar ressalva em aberto: dívida não se apaga, se paga.
+  const destino = etapas[Number(f.atual) + 1] || etapas[0]
+  if (tipo === 'ressalva' && destino) {
+    const ordem = b.itens.filter((i) => i.etapa_id === destino.id).length
     b.itens.push({
-      id: uid('i'), etapa_id: seguinte.id, fluxo_id: f.id,
+      id: uid('i'), etapa_id: destino.id, fluxo_id: f.id,
       texto: `Ressalva: ${nota.trim()}`, resp_id: f.dono_id, prazo: prazo || null,
-      feito: false, priv: false, autor_id: eu, ordem, criado_em: agora(),
+      feito: false, priv: false, ressalva: true, autor_id: eu, ordem, criado_em: agora(),
     })
   }
 
@@ -754,7 +783,13 @@ function decidirEtapa(
     }
 
     etapas.forEach((e) => { if (e.prazo) e.prazo = soma(String(e.prazo), passo) })
-    doFluxo.forEach((i) => { i.feito = false; if (i.prazo) i.prazo = soma(String(i.prazo), passo) })
+    // A ressalva que acabou de nascer não é tarefa da volta passada: ela é a
+    // dívida desta virada, e zerá-la junto seria pagá-la sozinha.
+    doFluxo.forEach((i) => {
+      if (i.ressalva) return
+      i.feito = false
+      if (i.prazo) i.prazo = soma(String(i.prazo), passo)
+    })
     f.atual = 0
     if (periodo) f.periodo = periodo
     gravar()

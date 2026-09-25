@@ -709,6 +709,25 @@ um bloco `max-width:1180px` escrito depois vencia o bloco de celular. Ao
 escrever faixa intermediária, fechar embaixo também (`min-width:841px and
 max-width:1180px`).
 
+## A ressalva é dívida, e dívida se paga
+
+Aprovar com ressalva já criava uma tarefa no checkpoint seguinte. Faltavam as duas metades
+que fazem a ressalva valer alguma coisa, e as duas estão no banco (seção 22), não na tela:
+
+- **Ressalva não se apaga, se conclui.** A tarefa nasce com `itens.ressalva` e um gatilho
+  recusa apagá-la em aberto. Era uma tarefa como outra qualquer, e quem não quisesse pagar
+  a dívida apagava a linha. A tela também esconde o botão de remover, mas quem garante é o
+  banco.
+- **O checkpoint não fecha com ressalva aberta**, e a mensagem diz **qual é**. A regra
+  geral de "ainda existem itens pendentes" já travava, mas numa lista de doze ela não
+  aponta para nada.
+
+**No último checkpoint de um objetivo a ressalva não é oferecida.** Não existe "próximo"
+para onde mandar a pendência, e aceitar ali é entregar com dívida e sem ninguém para
+cobrá-la: ou a track conclui, ou a pendência vira tarefa antes. Numa **rotina** ela é
+aceita e atravessa a volta, nascendo no primeiro checkpoint da seguinte, e a virada não a
+zera junto com o resto (zerar a dívida na virada seria pagá-la sozinha).
+
 ## Toda track termina, e termina dizendo como
 
 Havia dois fins e nenhum registro: concluir marcava `concluido` e a track ficava para
