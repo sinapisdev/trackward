@@ -35,10 +35,39 @@ import type { Agente, Canal, Fluxo, Mensagem } from '@/lib/tipos'
  */
 
 export const runtime = 'nodejs'
-export const maxDuration = 300
 
-/** Quantos canais lê por empresa em cada batida. Segura o tempo e o gasto. */
-const CANAIS_POR_VEZ = 12
+/**
+ * ====================  TETOS DO PLANO HOBBY DA VERCEL  ====================
+ *
+ * Os três números abaixo estão apertados de propósito, e não por desenho: o
+ * plano Hobby limita função a 60 segundos e **só aceita cron uma vez por dia**.
+ * Com o cron de hora em hora que este bloco pedia, o build nem chegava a
+ * compilar: ele falhava na validação, e por isso nenhum deploy aparecia na
+ * lista, nem como erro.
+ *
+ * AO ASSINAR O PRO, devolver os três de uma vez:
+ *
+ *   maxDuration      60  ->  300
+ *   CANAIS_POR_VEZ    4  ->   12
+ *   vercel.json       "0 20 * * *"  ->  "0 * * * *"
+ *
+ * O de hora em hora é o que o desenho quer: `devePulsar` distribui as leituras
+ * do dia pela janela da empresa, e só uma batida por hora consegue acertar cada
+ * horário. Uma vez por dia, a empresa lê uma vez em vez de três, sempre no
+ * horário mais tarde que já passou.
+ * ==========================================================================
+ */
+export const maxDuration = 60
+
+/**
+ * Quantos canais lê por empresa em cada batida. Segura o tempo e o gasto.
+ *
+ * Quatro, e não doze, porque em 60 segundos doze chamadas de modelo não cabem.
+ * Estourar o tempo no meio não perde trabalho (cada canal marca
+ * `lido_pela_ia_em` assim que termina), mas deixa metade da casa sem ler sem
+ * ninguém saber.
+ */
+const CANAIS_POR_VEZ = 4
 /** Quanto da conversa entra no pedido. O que ficou combinado está no fim. */
 const MENSAGENS = 40
 /** De quanto tempo atrás carregar conversa, para o aprendizado ter com o que comparar. */
