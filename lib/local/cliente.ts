@@ -538,6 +538,23 @@ function salvarFluxo(pFluxo: Linha, pEtapas: Linha[]): string {
       periodo: pFluxo.periodo || null,
       visib: f.autor_id === eu ? (pFluxo.visib || 'equipe') : f.visib,
     })
+    // O passado e o presente ficam onde estão: `atual` é um número, e mover um
+    // checkpoint vencido faria a track mudar de lugar em silêncio. Espelha a
+    // seção 31 do schema, e vale só depois que a track andou.
+    const atual = Number(f.atual)
+    const comecou = atual > 0
+      || b.itens.some((i) => i.fluxo_id === id && i.feito)
+      || b.decisoes.some((d) => d.fluxo_id === id)
+    if (comecou) {
+      for (let k = 0; k <= atual; k++) {
+        const antigo = b.etapas.find((x) => x.fluxo_id === id && Number(x.ordem) === k)
+        if (!antigo) continue
+        if (!pEtapas[k] || pEtapas[k].id !== antigo.id) {
+          throw new Error(`A track já começou: o checkpoint ${k + 1} e os anteriores não mudam `
+            + 'de lugar. Do próximo em diante, reordene à vontade.')
+        }
+      }
+    }
     logar(id, eu, 'editou a esteira')
   }
 

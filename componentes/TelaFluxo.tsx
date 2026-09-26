@@ -230,6 +230,14 @@ export function TelaFluxo({ id }: { id: string }) {
                 ? <TrilhaH f={f} sel={idx} aoEscolher={setSel} numerada={cabemOsNomes}
                     soMarcas={!cabemOsNomes} decisoes={decisoesDe(f.id)} />
                 : <Trilha f={f} sel={idx} aoEscolher={setSel} decisoes={decisoesDe(f.id)} />}
+              {/* A trilha se monta depois, e não toda no dia em que a track
+                  nasce: ninguém conhece os sete checkpoints de uma obra no
+                  primeiro dia. Só quem responde pelo processo mexe. */}
+              {mandaAqui && !f.concluido && (
+                <button className="trk-montar" onClick={() => abrir({ tipo: 'trilha', fluxo: f })}>
+                  <Ic.reguas />Montar a trilha
+                </button>
+              )}
               </div>
 
               {f.tipo === 'ciclo' && (

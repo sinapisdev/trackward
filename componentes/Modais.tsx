@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDados } from './Dados'
 import { Ic } from './Icones'
@@ -28,6 +28,8 @@ export type Pedido =
   | { tipo: 'item'; etapa: Etapa; item?: Item }
   /** Tarefa que não pertence a objetivo nem a rotina. Privada de quem cria. */
   | { tipo: 'avulsa'; texto?: string; resp?: string | null; prazo?: string | null }
+  /** Montar a trilha da track que já existe, um checkpoint de cada vez. */
+  | { tipo: 'trilha'; fluxo: Fluxo }
   | { tipo: 'travar'; fluxo: Fluxo }
   | { tipo: 'arquivar'; fluxo: Fluxo }
   | { tipo: 'feedback'; fluxo: Fluxo }
@@ -70,6 +72,7 @@ export function Modais({ children }: { children: ReactNode }) {
       : 'item' in p ? !!p.item : 'canal' in p ? !!p.canal
         : 'compromisso' in p ? !!p.compromisso : 'agente' in p ? !!p.agente : false
     const decide = p.tipo === 'travar' || p.tipo === 'arquivar' || p.tipo === 'feedback'
+      || p.tipo === 'trilha'
     if (!plano.cria && !editando && !decide) {
       toast('O teste acabou. Dá para ler e terminar o que já começou; para criar coisa nova, '
         + 'contrate um plano.', true)
@@ -94,6 +97,7 @@ export function Modais({ children }: { children: ReactNode }) {
           {pedido.tipo === 'area' && <MArea area={pedido.area} fechar={fechar} />}
           {pedido.tipo === 'empresa' && <MEmpresa empresa={pedido.empresa} fechar={fechar} />}
           {pedido.tipo === 'fluxo' && <MFluxo pedido={pedido} fechar={fechar} />}
+          {pedido.tipo === 'trilha' && <MTrilha fluxo={pedido.fluxo} fechar={fechar} />}
           {pedido.tipo === 'item' && <MItem etapa={pedido.etapa} item={pedido.item} fechar={fechar} />}
           {pedido.tipo === 'avulsa' && <MAvulsa fechar={fechar} pedido={pedido} />}
           {pedido.tipo === 'travar' && <MTravar fluxo={pedido.fluxo} fechar={fechar} />}
@@ -449,6 +453,147 @@ function MEmpresa({ empresa, fechar }: { empresa?: Empresa; fechar: () => void }
 }
 
 // ------------------------------------------------------------------ fluxo
+
+/**
+ * Montar a trilha da track que já existe, um checkpoint de cada vez.
+ *
+ * Ninguém conhece os sete checkpoints de uma obra no dia em que ela começa, e
+ * obrigar a decidir tudo no formulário de criação é pedir adivinhação. Aqui a
+ * trilha cresce junto com o trabalho: acrescenta no meio, tira o que não fazia
+ * sentido, troca a ordem do que ainda não chegou.
+ *
+ * **O que já passou fica onde está.** `atual` é um número, e mover um
+ * checkpoint vencido faria a track mudar de lugar em silêncio, com as decisões
+ * deixando de casar com a trilha. Congela a POSIÇÃO, não o conteúdo: nome,
+ * critério, aprovador e prazo desses continuam editáveis. Enquanto nada
+ * aconteceu, nada congela, porque rascunho se remonta à vontade. Quem garante é
+ * `salvar_fluxo` (seção 31), e não esta tela.
+ */
+function MTrilha({ fluxo, fechar }: { fluxo: Fluxo; fechar: () => void }) {
+  const { eu, perfis, pode, nomeDe, salvarFluxo, toast } = useDados()
+  const ativos = perfis.filter((p) => p.ativo)
+  const [etapas, setEtapas] = useState<RascunhoEtapa[]>(
+    fluxo.etapas.map((e) => ({
+      id: e.id, nome: e.nome, criterio: e.criterio,
+      aprovador_id: e.aprovador_id, prazo: e.prazo || '',
+    })),
+  )
+  const [indo, setIndo] = useState(false)
+
+  // Começou quando saiu do primeiro checkpoint, quando alguém decidiu algo ou
+  // quando alguma tarefa ficou pronta. Espelha `trilha_comecou` no banco.
+  const comecou = fluxo.atual > 0 || fluxo.etapas.some((e) => e.itens.some((i) => i.feito))
+  /** A posição está congelada? Só o passado e o de agora, e só depois de começar. */
+  const preso = (k: number) => comecou && k <= fluxo.atual
+
+  const mexer = (k: number, campo: keyof RascunhoEtapa, valor: string) =>
+    setEtapas((a) => a.map((e, i) => (i === k ? { ...e, [campo]: valor } : e)))
+  const mover = (k: number, d: number) =>
+    setEtapas((a) => { const b = [...a]; [b[k + d], b[k]] = [b[k], b[k + d]]; return b })
+  const novo = (): RascunhoEtapa =>
+    ({ id: null, nome: '', criterio: '', aprovador_id: eu.id, prazo: '' })
+  /** Entre dois checkpoints, e não só no fim: o trabalho cresce no meio. */
+  const inserir = (k: number) =>
+    setEtapas((a) => [...a.slice(0, k), novo(), ...a.slice(k)])
+
+  const salvar = async () => {
+    const falta = etapas.findIndex((e) => !e.nome.trim())
+    if (falta >= 0) {
+      toast('Todo checkpoint precisa de nome.', true)
+      document.getElementById(`tr-n-${falta}`)?.focus()
+      return
+    }
+    setIndo(true)
+    const id = await salvarFluxo({
+      id: fluxo.id, tipo: fluxo.tipo, nome: fluxo.nome, area_id: fluxo.area_id,
+      empresa_id: fluxo.empresa_id, dono_id: fluxo.dono_id, visib: fluxo.visib,
+      freq: fluxo.freq, periodo: fluxo.periodo,
+    }, etapas)
+    setIndo(false)
+    if (id) { toast('Trilha salva.'); fechar() }
+  }
+
+  return (
+    <div className="dlg wide" role="dialog" aria-modal="true" aria-labelledby="tr-t">
+      <div className="dlg-h">
+        <h3 id="tr-t">Montar a trilha</h3>
+        <p>
+          {fluxo.nome}. Acrescente no meio, tire o que não fazia sentido e troque a ordem
+          do que ainda não chegou.
+        </p>
+      </div>
+      <div className="dlg-b">
+        {comecou && (
+          <p className="hint" style={{ margin: '0 0 14px' }}>
+            Esta track já andou. O checkpoint de agora e os que já passaram ficam onde estão,
+            e continuam podendo ser renomeados. Do próximo em diante, monte como quiser.
+          </p>
+        )}
+        <div className="cpl">
+          {etapas.map((e, k) => (
+            /* Fragment, e não div: `.cpr` precisa continuar filho direto de
+               `.cpl`, senão cada linha vira uma grade própria e as colunas
+               param de se alinhar entre elas. */
+            <Fragment key={e.id || `novo-${k}`}>
+              {/* Inserir entre dois. Some onde a posição está congelada, porque
+                  entrar ali empurraria o passado para a frente. */}
+              {!preso(k) && k > 0 && (
+                <button className="cpl-meio" onClick={() => inserir(k)}
+                  aria-label={`Inserir checkpoint antes de ${e.nome || k + 1}`}>
+                  <Ic.plus />
+                </button>
+              )}
+              {/* `cpr-fixo`, e não `preso`: `.preso` já é a linha do radar de
+                  travadas, e vem com `display:flex`, que desmonta esta grade.
+                  Classe curta repetida é o jeito mais silencioso de uma tela
+                  quebrar a outra. */}
+              <div className={`cpr ${preso(k) ? 'cpr-fixo' : ''}`}
+                title={preso(k) ? (k < fluxo.atual ? 'Já passou: fica onde está' : 'É o checkpoint de agora: fica onde está') : undefined}>
+                <span className="n num">{k + 1}</span>
+                <input className="inp" id={`tr-n-${k}`} value={e.nome} placeholder="Nome do checkpoint"
+                  aria-label={`Nome do checkpoint ${k + 1}`}
+                  onChange={(ev) => mexer(k, 'nome', ev.target.value)} />
+                {pode.aprovacao && (
+                  <select className="inp" value={e.aprovador_id || ''} aria-label="Aprovador"
+                    onChange={(ev) => mexer(k, 'aprovador_id', ev.target.value)}>
+                    {ativos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                  </select>
+                )}
+                <input className="inp" type="date" value={e.prazo} aria-label="Prazo"
+                  onChange={(ev) => mexer(k, 'prazo', ev.target.value)} />
+                <span className="tools">
+                  <button className="iconbtn" aria-label="Subir"
+                    disabled={!k || preso(k) || preso(k - 1)}
+                    onClick={() => mover(k, -1)}><Ic.up /></button>
+                  <button className="iconbtn" aria-label="Descer"
+                    disabled={k >= etapas.length - 1 || preso(k)}
+                    style={{ transform: 'rotate(180deg)' }} onClick={() => mover(k, 1)}><Ic.up /></button>
+                  <button className="iconbtn" aria-label="Remover"
+                    disabled={etapas.length < 2 || preso(k)}
+                    title={preso(k) ? 'Já passou, fica no histórico' : 'Remover'}
+                    onClick={() => setEtapas((a) => a.filter((_, i) => i !== k))}><Ic.x /></button>
+                </span>
+                <input className="inp crit" value={e.criterio}
+                  placeholder="Critério de saída (o que precisa ser verdade para avançar)"
+                  onChange={(ev) => mexer(k, 'criterio', ev.target.value)} />
+              </div>
+            </Fragment>
+          ))}
+          <button className="cpl-add" onClick={() => setEtapas((a) => [...a, novo()])}>
+            <Ic.plus />Acrescentar checkpoint no fim
+          </button>
+        </div>
+        <p className="hint" style={{ margin: '14px 0 0' }}>
+          Tirar um checkpoint leva as tarefas dele junto. {pode.aprovacao
+            ? `Quem aprova cada um decide a passagem: hoje o primeiro é ${nomeDe(etapas[0]?.aprovador_id ?? null)}.`
+            : 'Cada checkpoint fecha quando as tarefas dele acabam.'}
+        </p>
+      </div>
+      <Rodape fechar={fechar} acao={() => void salvar()}
+        rotulo={indo ? 'Salvando...' : 'Salvar a trilha'} />
+    </div>
+  )
+}
 
 function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>; fechar: () => void }) {
   const { eu, perfis, areas, areaDe, nomeDe, empresas, org, pessoal, pode, empresaAtiva, processos,

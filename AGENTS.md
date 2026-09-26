@@ -1003,6 +1003,32 @@ existem** desde a identidade nova. O navegador ignora a declaração inteira e o
 contorno que some e cinza que não é cinza. Ao mexer em CSS antigo, conferir se o token
 existe antes de confiar nele.
 
+## A trilha se monta depois, e o passado fica onde está
+
+Montar a track inteira num formulário só é decidir tudo antes de saber: ninguém conhece os
+sete checkpoints de uma obra no dia em que ela começa. A trilha se edita dentro da track
+que já existe, um checkpoint de cada vez, pelo botão **Montar a trilha** colado na trilha
+(`MTrilha`, em `componentes/Modais.tsx`). Dá para acrescentar no fim, **inserir entre
+dois**, tirar e reordenar.
+
+**O que já passou e o de agora ficam onde estão.** `fluxos.atual` é um NÚMERO, e mover um
+checkpoint vencido faria a track mudar de lugar em silêncio, com as decisões registradas
+deixando de casar com a trilha: um defeito que ninguém percebe na hora e que ninguém
+explica depois. Congela a **posição**, não o conteúdo: nome, critério, aprovador e prazo
+desses continuam editáveis. Enquanto nada aconteceu, nada congela, porque rascunho se
+remonta à vontade (`trilha_comecou()`: saiu do primeiro checkpoint, alguém decidiu algo, ou
+alguma tarefa ficou pronta).
+
+Quem garante é `salvar_fluxo` (seção 31), e não a tela: ela desabilita os botões, e um
+`salvar_fluxo` mandado pela API reordena do mesmo jeito. A conferência acontece **antes de
+escrever qualquer coisa**, para a recusa não deixar a trilha pela metade.
+
+**A track continua linear, e isso é escolha.** O canvas livre estilo n8n, com posição e
+conexões desenhadas, pertence a **Processos**, que é o molde: lá o desenho não roda, ele
+descreve, e vira track ao ser instanciado. Na track, "onde ela está" precisa continuar
+tendo uma resposta só, senão a trilha, o radar, a ressalva, a virada da rotina e o relatório
+de onde o trabalho para perdem o chão de uma vez.
+
 ## A trilha
 
 A trilha existe para responder **onde a track está** antes de qualquer outra pergunta, e

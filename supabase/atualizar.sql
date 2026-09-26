@@ -2135,9 +2135,141 @@ create trigger ao_nascer_org before insert on public.organizacoes
   for each row execute function public.comecar_teste();
 
 -- ==========================================================================
--- Conferência. As vinte e cinco contas abaixo têm que dar
+-- 31. A trilha se monta checkpoint por checkpoint, e o passado fica onde está
+--
+--     Montar a track inteira num formulário só é decidir tudo antes de saber:
+--     ninguém conhece os sete checkpoints de uma obra no dia em que ela começa.
+--     Agora a trilha se edita depois, um checkpoint de cada vez, dentro da
+--     track que já existe.
+--
+--     Só que `salvar_fluxo` reescreve `ordem` pela posição no array, e `atual`
+--     é um NÚMERO. Reordenar um checkpoint que já passou faria `atual` apontar
+--     para a mesma posição e para outro checkpoint: a track mudaria de lugar em
+--     silêncio, e as decisões registradas deixariam de casar com a trilha. Um
+--     defeito que ninguém percebe na hora e que ninguém consegue explicar
+--     depois.
+--
+--     A regra, então: **enquanto nada aconteceu, mexa à vontade; depois que a
+--     track começou, o que já passou e o de agora ficam onde estão.** Continua
+--     dando para renomear, trocar critério, aprovador e prazo desses: o que
+--     congela é a POSIÇÃO, não o conteúdo. E do próximo em diante é livre,
+--     porque o futuro ainda não é história de ninguém.
+--
+--     Isto é trava de banco, e não de tela, pelo motivo de sempre: a tela
+--     esconde o botão de subir, e um `salvar_fluxo` mandado pela API reordena
+--     do mesmo jeito.
+-- ==========================================================================
+
+/**
+ * A track já começou?
+ *
+ * Começou quando ela saiu do primeiro checkpoint, quando alguém decidiu alguma
+ * coisa, ou quando alguma tarefa foi concluída. Antes disso ela é rascunho, e
+ * rascunho se remonta à vontade.
+ */
+create or replace function public.trilha_comecou(f uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((select atual from fluxos where id = f), 0) > 0
+     or exists (select 1 from decisoes where fluxo_id = f)
+     or exists (select 1 from itens where fluxo_id = f and feito);
+$$;
+
+create or replace function public.salvar_fluxo(p_fluxo jsonb, p_etapas jsonb)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare
+  uid   uuid := meu_perfil();
+  v_id  uuid := nullif(p_fluxo->>'id', '')::uuid;
+  e     jsonb;
+  k     int := 0;
+  eid   uuid;
+  ids   uuid[] := '{}';
+  v_atual int;
+  antigo  uuid;
+  novo    text;
+begin
+  if not ativo() then raise exception 'Sem acesso.'; end if;
+  if jsonb_array_length(p_etapas) < 1 then raise exception 'O fluxo precisa de pelo menos um checkpoint.'; end if;
+
+  if v_id is null then
+    insert into fluxos (tipo, nome, area_id, empresa_id, dono_id, autor_id, visib, freq, periodo)
+    values (
+      p_fluxo->>'tipo',
+      btrim(p_fluxo->>'nome'),
+      nullif(p_fluxo->>'area_id', '')::uuid,
+      nullif(p_fluxo->>'empresa_id', '')::uuid,
+      nullif(p_fluxo->>'dono_id', '')::uuid,
+      uid,
+      coalesce(nullif(p_fluxo->>'visib', ''), 'equipe'),
+      nullif(p_fluxo->>'freq', ''),
+      nullif(p_fluxo->>'periodo', '')
+    )
+    returning id into v_id;
+    insert into atividades (fluxo_id, quem_id, texto)
+    values (v_id, uid, case when p_fluxo->>'tipo' = 'ciclo' then 'criou a rotina' else 'criou o projeto' end);
+  else
+    if not ve_fluxo(v_id) then raise exception 'Sem acesso a esta esteira.'; end if;
+    if not manda_no_processo(v_id) then
+      raise exception 'Só quem responde por esta esteira pode mudar os checkpoints e os prazos.';
+    end if;
+
+    -- O passado e o presente ficam onde estão. Conferido antes de escrever
+    -- qualquer coisa, para a recusa não deixar a trilha pela metade.
+    if trilha_comecou(v_id) then
+      select atual into v_atual from fluxos where id = v_id;
+      for k in 0 .. v_atual loop
+        select id into antigo from etapas where fluxo_id = v_id and ordem = k;
+        novo := p_etapas->k->>'id';
+        if antigo is null then continue; end if;
+        if novo is null or novo = '' or novo::uuid <> antigo then
+          raise exception 'A track já começou: o checkpoint % e os anteriores não mudam de lugar. Do próximo em diante, reordene à vontade.', k + 1;
+        end if;
+      end loop;
+      k := 0;
+    end if;
+
+    update fluxos set
+      nome       = btrim(p_fluxo->>'nome'),
+      area_id    = nullif(p_fluxo->>'area_id', '')::uuid,
+      empresa_id = nullif(p_fluxo->>'empresa_id', '')::uuid,
+      dono_id  = nullif(p_fluxo->>'dono_id', '')::uuid,
+      visib    = case when autor_id = uid
+                      then coalesce(nullif(p_fluxo->>'visib', ''), 'equipe')
+                      else visib end,
+      freq     = nullif(p_fluxo->>'freq', ''),
+      periodo  = nullif(p_fluxo->>'periodo', '')
+    where id = v_id;
+    insert into atividades (fluxo_id, quem_id, texto) values (v_id, uid, 'editou a esteira');
+  end if;
+
+  for e in select value from jsonb_array_elements(p_etapas) loop
+    if nullif(e->>'id', '') is null then
+      insert into etapas (fluxo_id, ordem, nome, criterio, aprovador_id, prazo)
+      values (v_id, k, btrim(e->>'nome'), coalesce(e->>'criterio', ''),
+              nullif(e->>'aprovador_id', '')::uuid, nullif(e->>'prazo', '')::date)
+      returning id into eid;
+    else
+      eid := (e->>'id')::uuid;
+      update etapas set
+        ordem        = k,
+        nome         = btrim(e->>'nome'),
+        criterio     = coalesce(e->>'criterio', ''),
+        aprovador_id = nullif(e->>'aprovador_id', '')::uuid,
+        prazo        = nullif(e->>'prazo', '')::date
+      where id = eid and fluxo_id = v_id;
+    end if;
+    ids := ids || eid;
+    k := k + 1;
+  end loop;
+
+  delete from etapas where fluxo_id = v_id and not (id = any(ids));
+  update fluxos set atual = least(atual, k - 1) where id = v_id;
+  return v_id;
+end $$;
+
+-- ==========================================================================
+-- Conferência. As vinte e seis contas abaixo têm que dar
 -- 31, 3, 3, 3, true, 1, 2, 1, 2, 0, true, 3, true, 4, true, true, 1, true, 1,
--- 1, true, 3, 1, 1 e 4.
+-- 1, true, 3, 1, 1, 4 e true.
 -- ==========================================================================
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
@@ -2223,4 +2355,8 @@ select
     as "um tutorial por tela (1)",
   (select count(*) from pg_trigger
     where tgname in ('convite_cabe','perfil_cabe','ao_nascer_org','ao_perder_desconto'))
-    as "as travas do plano (4)";
+    as "as travas do plano (4)",
+  (select prosrc like '%trilha_comecou%' from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'salvar_fluxo')
+    as "o passado da trilha nao se reordena (true)";

@@ -559,11 +559,15 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns
 .tpl:hover{color:var(--tx);background:var(--hover)}
 .tpl.on{box-shadow:0 0 0 1.5px var(--ac-tinta);color:var(--ac-tinta);background:var(--ac-soft)}
 .cpl{display:flex;flex-direction:column;border-radius:var(--r);box-shadow:0 0 0 1px var(--line);overflow:hidden}
-.cpr{display:grid;grid-template-columns:22px minmax(120px,1.3fr) minmax(96px,.9fr) 132px auto;gap:8px;align-items:center;
+.cpr{display:grid;grid-template-columns:22px minmax(120px,1.3fr) minmax(96px,.9fr) 148px auto;gap:8px;align-items:center;
   padding:9px 10px;border-top:1px solid var(--line)}
 .cpr:first-child{border-top:0}
 .cpr .n{font-size:11.5px;color:var(--tx-3);text-align:center;font-variant-numeric:tabular-nums}
-.cpr .crit{grid-column:2/5}
+/* A linha do critério é sempre a segunda, dita explicitamente.
+   Por colocação automática ela caía ora na primeira linha, ora na segunda,
+   dependendo de onde o cursor do grid parava: linhas iguais no HTML saíam com
+   alturas diferentes na tela, e ninguém achava o porquê olhando o componente. */
+.cpr .crit{grid-column:2/5;grid-row:2}
 .cpr .tools{display:flex;gap:2px;grid-row:span 2;align-self:center}
 .cpl-add{display:flex;align-items:center;gap:7px;padding:10px 12px;color:var(--ac-tinta);font-weight:500;font-size:12.5px;
   border-top:1px solid var(--line);width:100%;text-align:left;transition:var(--t)}
@@ -4436,3 +4440,27 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 .eq-assentos{margin:0 0 14px;font-size:var(--fs-sm);color:var(--tx-3)}
 .eq-assentos.cheio{color:var(--tx-2)}
 .eq-assentos b{color:var(--tx)}
+
+/* A trilha se monta depois de a track existir, um checkpoint de cada vez.
+   O botão fica colado na trilha, e não no cabeçalho: ele age sobre ela. */
+.trk-montar{display:inline-flex;align-items:center;gap:7px;margin-top:10px;
+  padding:6px 12px;border-radius:var(--r-pill);border:1px solid var(--line-2);
+  background:var(--brilho);font-size:var(--fs-sm);color:var(--tx-2);transition:var(--t)}
+.trk-montar:hover{border-color:var(--line-3);color:var(--tx)}
+.trk-montar svg{width:13px;height:13px}
+
+/* Inserir um checkpoint ENTRE dois: o trabalho cresce no meio, não no fim.
+   Fica escondido até o ponteiro chegar perto, senão a lista vira uma fileira
+   de botões de mais e o que se lê deixa de ser a trilha. */
+.cpl-meio{display:flex;align-items:center;justify-content:center;width:100%;height:16px;
+  margin:-2px 0;border:0;background:none;color:var(--tx-3);opacity:0;transition:var(--t)}
+.cpl-meio:hover,.cpl-meio:focus-visible{opacity:1;color:var(--ac-tinta)}
+.cpl:hover .cpl-meio{opacity:.45}
+.cpl-meio svg{width:12px;height:12px}
+
+/* Checkpoint cuja POSIÇÃO está congelada: já passou, ou é o de agora.
+   O conteúdo continua editável, então ele não fica apagado: ganha um fio à
+   esquerda e as ferramentas perdem força. Sem etiqueta escrita em cima, que era
+   texto por cima de campo e não cabia; o porquê já está dito uma vez no alto. */
+.cpr.cpr-fixo{background:var(--brilho);box-shadow:inset 2px 0 0 var(--line-3)}
+.cpr.cpr-fixo .tools{opacity:.35}
