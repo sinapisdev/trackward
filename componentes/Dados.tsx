@@ -380,6 +380,7 @@ const ORG_PADRAO: Organizacao = {
   id: '', nome: 'Track', tipo: 'equipe', dominio: null, entrada_por_dominio: false,
   dono_id: null, multi: false, rotulo: 'Empresa', rotulo_plural: 'Empresas',
   ia_ativa: true, ia_modo: 'sugerir', criado_em: '',
+  leitura_por_dia: 3, leitura_janela: '08:00-19:00', fuso: 'America/Sao_Paulo', pulso_em: null,
   plano: 'interno', assentos: null, teste_ate: null, limite_leituras: null, modelo_ia: null,
   whats_conector: null, whats_sid: '', whats_de: '',
 }

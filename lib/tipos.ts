@@ -170,6 +170,19 @@ export type Organizacao = {
   ia_modo: 'sugerir' | 'aplicar'
 
   /**
+   * A leitura que roda sozinha, sem ninguém abrir o app. Ver lib/pulso.ts.
+   *
+   * 0 desliga e a conversa volta a ser lida só no botão. O intervalo não é
+   * escolhido: sai da janela dividida pelo número de leituras.
+   */
+  leitura_por_dia: number
+  /** A faixa de horário, no fuso da empresa. Formato "HH:MM-HH:MM". */
+  leitura_janela: string
+  fuso: string
+  /** Quando a última varredura rodou. Escrito só pelo servidor. */
+  pulso_em: string | null
+
+  /**
    * O plano contratado. O que cada um libera está em `lib/planos.ts`; os
    * limites desta conta moram nas colunas aqui embaixo, e não numa tabela de
    * planos, para mexer em número não virar mexer em código.

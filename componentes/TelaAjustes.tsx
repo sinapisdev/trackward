@@ -10,6 +10,7 @@ import { Ic } from './Icones'
 import { AjustesAvisos } from './AjustesAvisos'
 import { isoDe, rel } from '@/lib/datas'
 import { MODO_LOCAL } from '@/lib/modo'
+import { comoTexto } from '@/lib/pulso'
 import { reiniciarLocal } from '@/lib/local/cliente'
 import { aplicarTema, temaAtual, TEMAS, type Tema } from '@/lib/tema'
 import { toursDe } from '@/lib/tutorial'
@@ -113,6 +114,40 @@ export function TelaAjustes() {
                     ? 'A leitura mostra o que encontrou, com o trecho da conversa que deu origem, e alguém aceita com um toque.'
                     : 'Tarefa nova, tarefa concluída e decisão entram sozinhas. Prazo e trava continuam pedindo licença, porque prazo é compromisso com quem espera e trava para a frente inteira.'}
                 </p>
+              </div>
+            )}
+
+            {org.ia_ativa && (
+              <div className="fld" style={{ marginTop: 15 }}>
+                <span className="lbl">Ler sozinha, sem ninguém abrir o app</span>
+                <div className="seg" style={{ alignSelf: 'flex-start' }}>
+                  {[0, 1, 3, 6].map((n) => (
+                    <button key={n} className={org.leitura_por_dia === n ? 'on' : ''} disabled={!admin}
+                      onClick={() => void salvarOrg({ leitura_por_dia: n })}>
+                      {n === 0 ? 'Não' : `${n}x por dia`}
+                    </button>
+                  ))}
+                </div>
+                <p className="hint">{comoTexto(org)}</p>
+                {org.leitura_por_dia > 0 && (
+                  <>
+                    <div className="fld" style={{ marginTop: 12 }}>
+                      <label className="lbl" htmlFor="aj-janela">Entre que horas</label>
+                      <input className="inp" id="aj-janela" disabled={!admin}
+                        style={{ maxWidth: 160 }} defaultValue={org.leitura_janela}
+                        placeholder="08:00-19:00"
+                        onBlur={(e) => {
+                          const v = e.target.value.trim()
+                          if (v && v !== org.leitura_janela) void salvarOrg({ leitura_janela: v })
+                        }} />
+                    </div>
+                    <p className="hint">
+                      No fuso da empresa ({org.fuso}). Fora dessa faixa ela não lê, para
+                      ninguém receber proposta de madrugada.
+                      {org.pulso_em && ` A última varredura foi ${rel(isoDe(org.pulso_em)).toLowerCase()}.`}
+                    </p>
+                  </>
+                )}
               </div>
             )}
 

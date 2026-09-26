@@ -60,7 +60,25 @@ create table if not exists public.organizacoes (
   -- sugerir: a leitura propõe e alguém aceita com um toque.
   -- aplicar: tarefa nova e tarefa concluída entram sozinhas. Prazo nunca entra
   --          sozinho, porque prazo é compromisso com quem espera.
-  ia_modo        text not null default 'sugerir' check (ia_modo in ('sugerir','aplicar'))
+  ia_modo        text not null default 'sugerir' check (ia_modo in ('sugerir','aplicar')),
+
+  /**
+   * A leitura que roda sozinha, sem ninguém abrir o app.
+   *
+   * leitura_por_dia  quantas varreduras por dia. 0 desliga e volta ao botão.
+   * leitura_janela   a faixa de horário, no fuso da empresa. Ninguém quer
+   *                  proposta nascendo às três da manhã.
+   * fuso             o fuso da empresa, que é o que dá sentido à janela.
+   * pulso_em         quando a última varredura rodou, para espaçar a próxima.
+   *
+   * O intervalo não é configurado, é calculado: a janela dividida pelo número
+   * de leituras. Pedir "de quantas em quantas horas" faria a pessoa fazer uma
+   * conta que o app faz melhor.
+   */
+  leitura_por_dia int not null default 3 check (leitura_por_dia between 0 and 24),
+  leitura_janela  text not null default '08:00-19:00',
+  fuso            text not null default 'America/Sao_Paulo',
+  pulso_em        timestamptz
 );
 
 -- Empresa, negócio, unidade, centro de custo: o rótulo é escolhido em Ajustes.
@@ -336,7 +354,15 @@ create table if not exists public.canais (
   empresa_id  uuid references public.empresas on delete set null,
   criado_por  uuid references public.perfis on delete set null,
   criado_em   timestamptz not null default now(),
-  arquivado   boolean not null default false
+  arquivado   boolean not null default false,
+  /**
+   * Até onde a leitura automática já leu este canal.
+   *
+   * Sem isto, cada varredura reprocessaria a conversa inteira e o cliente
+   * pagaria duas vezes pela mesma mensagem. É a marca de leitura da máquina, e
+   * é diferente da marca de leitura de gente, que mora em canal_membros.
+   */
+  lido_pela_ia_em timestamptz
 );
 
 -- Estar aqui dentro é o que dá acesso a um canal fechado, e é também onde fica a
@@ -2202,6 +2228,12 @@ do $$ begin
   alter table public.agentes add constraint agentes_faz_check
     check (faz in ('processo','tarefa','webhook','conector'));
   alter table public.conectores add column if not exists dono_id uuid references public.perfis on delete cascade;
+  -- O pulso, para bancos criados antes dele.
+  alter table public.organizacoes add column if not exists leitura_por_dia int not null default 3;
+  alter table public.organizacoes add column if not exists leitura_janela text not null default '08:00-19:00';
+  alter table public.organizacoes add column if not exists fuso text not null default 'America/Sao_Paulo';
+  alter table public.organizacoes add column if not exists pulso_em timestamptz;
+  alter table public.canais add column if not exists lido_pela_ia_em timestamptz;
   -- O tipo pessoal de canal é novo: a restrição antiga não conhece ele.
   if exists (select 1 from pg_constraint where conname = 'canais_tipo_check') then
     alter table public.canais drop constraint canais_tipo_check;
@@ -4684,6 +4716,93 @@ returns boolean language sql stable security definer set search_path = public as
       from organizacoes o where o.id = minha_org()
   ), false);
 $$;
+
+-- --------------------------------------------------------------------------
+-- O pulso: as mesmas perguntas do teto, mas por organização
+-- --------------------------------------------------------------------------
+--
+-- A leitura automática roda num relógio, e relógio não tem sessão. Todas as
+-- funções acima respondem sobre `minha_org()`, e sem sessão `minha_org()` é
+-- nulo: elas devolveriam "não pode" para todo mundo, sempre.
+--
+-- Por isso estas três recebem a organização por parâmetro. E é exatamente aí
+-- que mora o perigo: uma função `security definer` que aceita o id de qualquer
+-- empresa é a forma clássica de vazamento, porque qualquer pessoa logada
+-- poderia perguntar pela empresa do vizinho, ou pior, gravar consumo na conta
+-- dela para estourar o teto alheio.
+--
+-- A trava não é um `if` dentro da função, é a permissão de execução: elas são
+-- negadas a anon e a authenticated, e liberadas só para service_role. O
+-- Postgres confere isso antes de a função rodar, então não há como contornar
+-- pelo corpo dela.
+
+create or replace function public.leituras_do_mes_de(p_org uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select coalesce(count(*), 0)::int
+  from consumo
+  where org_id = p_org and onde = 'leitor'
+    and criado_em >= date_trunc('month', now());
+$$;
+
+/** Esta organização pode gastar agora, e com qual modelo. */
+create or replace function public.pulso_pode(p_org uuid)
+returns table (pode boolean, modelo text)
+language sql stable security definer set search_path = public as $$
+  select
+    coalesce(
+      o.ia_ativa
+      and plano_em_vigor(o.id) <> 'reduzido'
+      and (o.limite_leituras is null
+           or leituras_do_mes_de(o.id) < o.limite_leituras
+             * case when plano_em_vigor(o.id) = 'equipe'
+                    then greatest(1, assentos_usados(o.id)) else 1 end),
+      false),
+    coalesce(nullif(btrim(o.modelo_ia), ''), '')
+  from organizacoes o
+  where o.id = p_org;
+$$;
+
+/**
+ * Grava o gasto de uma leitura automática.
+ *
+ * perfil_id fica nulo de propósito: ninguém fez, o relógio fez. É a mesma
+ * assinatura que o resto do app usa para separar o que foi gente do que foi
+ * máquina.
+ */
+create or replace function public.registrar_consumo_de(
+  p_org uuid, p_onde text, p_modelo text,
+  p_entrada int, p_saida int, p_cache_leitura int, p_cache_escrita int,
+  p_custo_micro bigint, p_canal uuid default null
+)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if p_org is null then return; end if;
+  insert into consumo (
+    org_id, onde, modelo, entrada, saida, cache_leitura, cache_escrita,
+    custo_micro, perfil_id, canal_id
+  ) values (
+    p_org, coalesce(nullif(btrim(p_onde), ''), 'leitor'), p_modelo,
+    greatest(0, coalesce(p_entrada, 0)), greatest(0, coalesce(p_saida, 0)),
+    greatest(0, coalesce(p_cache_leitura, 0)), greatest(0, coalesce(p_cache_escrita, 0)),
+    greatest(0, coalesce(p_custo_micro, 0)), null, p_canal
+  );
+end $$;
+
+-- A trava. Sem estas três linhas, as funções acima seriam um buraco na parede.
+do $$
+declare f text;
+begin
+  foreach f in array array[
+    'public.leituras_do_mes_de(uuid)',
+    'public.pulso_pode(uuid)',
+    'public.registrar_consumo_de(uuid,text,text,int,int,int,int,bigint,uuid)'
+  ] loop
+    execute format('revoke all on function %s from public, anon, authenticated', f);
+    execute format('grant execute on function %s to service_role', f);
+  end loop;
+exception when undefined_object then null;
+end $$;
+
 
 /**
  * Este login tem desconto no espaço pessoal?

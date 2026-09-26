@@ -104,6 +104,10 @@ export function semente(): Base {
     dominio: 'meridiano.com.br', entrada_por_dominio: false, dono_id: 'leo',
     multi: true, rotulo: 'Empresa', rotulo_plural: 'Empresas',
     ia_ativa: true, ia_modo: 'sugerir', criado_em: criado,
+    // O pulso não roda no modo demonstração, porque não existe servidor aqui.
+    // Os campos existem para a tela de Ajustes mostrar a mesma coisa que ela
+    // mostraria ligada no banco de verdade.
+    leitura_por_dia: 3, leitura_janela: '08:00-19:00', fuso: 'America/Sao_Paulo', pulso_em: null,
     // A empresa de exemplo é interna: sem teto e sem prazo. Em teste, ela
     // venceria e a demonstração abriria no modo reduzido, sem deixar criar nada.
     plano: 'interno', assentos: null, teste_ate: null,
