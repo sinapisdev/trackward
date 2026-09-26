@@ -17,8 +17,11 @@ import { NextResponse, type NextRequest } from 'next/server'
  * - `/api/feedback`  o outro lado da mesma página. O token é a credencial.
  * - `/api/avisar`    o relógio, que confere o próprio segredo antes de tudo.
  * - `/api/pulso`     idem.
+ * - `/api/whats`     o webhook do WhatsApp, que confere a assinatura da Twilio
+ *                    ou o segredo na url. Quem chega nele é gente de fora, e
+ *                    de fora não existe sessão nem nunca vai existir.
  */
-const ABERTAS = ['/auth', '/feedback', '/api/feedback', '/api/avisar', '/api/pulso']
+const ABERTAS = ['/auth', '/feedback', '/api/feedback', '/api/avisar', '/api/pulso', '/api/whats']
 /** Só faz sentido para quem ainda não entrou. */
 const SO_DESLOGADO = ['/entrar']
 
