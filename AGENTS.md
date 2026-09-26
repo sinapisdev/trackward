@@ -263,6 +263,14 @@ sempre o maior. Não existe tela de trocar de plano, e não voltar a criar uma. 
 motivo **preço não aparece em tela nenhuma**: um dia o número da tela e o do contrato
 discordam, e quem está errado é sempre o que o cliente viu.
 
+**A trava do plano olha a organização DA LINHA, não a de quem está logado.** Ela perguntava
+`minha_org()`, e quando quem escreve é o servidor (o pulso, o WhatsApp) não há ninguém
+logado: a função volta nula, a trava conclui modo reduzido, e toda criação feita sem sessão
+era recusada com plano em dia, falando de teste vencido. A pergunta certa é a do
+`new.org_id`, que o carimbo já preencheu, porque `ao_inserir_org` roda antes de
+`so_com_plano`: o Postgres dispara gatilhos do mesmo evento em ordem alfabética. Isso passa
+a valer mais do que valia, porque é assim que o app deixa de precisar que alguém o abra.
+
 **O modo reduzido deixa LER tudo e TERMINAR o que já estava em pé, e não deixa começar
 nada.** Apagar ou trancar os dados de quem estava avaliando é sequestro, e quem passa por
 isso não volta; sem poder criar, o app deixa de servir para trabalhar em duas horas, que é

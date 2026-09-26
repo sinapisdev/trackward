@@ -2409,10 +2409,44 @@ begin
   raise notice 'Carimbo acrescentado em % tabelas.', n;
 end $$;
 
+
 -- ==========================================================================
--- Conferência. As vinte e oito contas abaixo têm que dar
+-- 34. A trava do plano olha a linha, não quem está logado
+--
+--     `travar_criacao` perguntava `pode_criar()`, que usa `minha_org()`: a
+--     organização de quem está logado. Quando quem escreve é o SERVIDOR, com a
+--     chave de serviço, não há ninguém logado, `minha_org()` volta nulo e a
+--     trava conclui que a conta está no modo reduzido. Toda criação feita pelo
+--     servidor era recusada, com plano em dia, e a mensagem falava de teste
+--     vencido, que não tinha nada a ver.
+--
+--     A pergunta certa nunca foi "qual o plano de quem está logado". É "qual o
+--     plano da organização DESTA LINHA", e ela está em `new.org_id`, que o
+--     carimbo já preencheu: `ao_inserir_org` roda antes de `so_com_plano`
+--     porque o Postgres dispara gatilhos de mesmo evento em ordem alfabética, e
+--     "ao_" vem antes de "so_".
+--
+--     Isso importa daqui para a frente mais do que importava até aqui: o pulso
+--     e o WhatsApp escrevem sem sessão, e é assim que o app deixa de precisar
+--     que alguém o abra.
+-- ==========================================================================
+
+create or replace function public.travar_criacao()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  -- Sem organização na linha não há o que conferir: quem barra aí é o carimbo,
+  -- e recusar aqui esconderia o erro de verdade atrás da mensagem errada.
+  if new.org_id is null then return new; end if;
+  if plano_em_vigor(new.org_id) = 'reduzido' then
+    raise exception 'O teste acabou. Dá para ler e terminar o que já começou; para criar coisa nova, contrate um plano.';
+  end if;
+  return new;
+end $$;
+
+-- ==========================================================================
+-- Conferência. As vinte e nove contas abaixo têm que dar
 -- 34, 3, 3, 3, true, 1, 2, 1, 2, 0, true, 3, true, 4, true, true, 1, true, 1,
--- 1, true, 3, 1, 1, 4, true, 1 e 2.
+-- 1, true, 3, 1, 1, 4, true, 1, 2 e true.
 -- ==========================================================================
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
@@ -2509,4 +2543,8 @@ select
   (select count(*) from pg_trigger
     where tgname = 'ao_inserir_org'
       and tgrelid in ('public.avisos_contato'::regclass, 'public.push_assinaturas'::regclass))
-    as "o carimbo de quem guarda telefone (2)";
+    as "o carimbo de quem guarda telefone (2)",
+  (select prosrc like '%new.org_id%' from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'travar_criacao')
+    as "a trava do plano olha a linha (true)";
