@@ -5018,3 +5018,146 @@ begin
   update fluxos set atual = least(atual, k - 1) where id = v_id;
   return v_id;
 end $$;
+
+-- --------------------------------------------------------------------------
+-- 32. O que ficou perguntado e ainda não teve resposta
+--
+--     É o miolo do WhatsApp de ida e volta. Lá fora não existe tela: a pessoa
+--     responde "pronto" e pronto não quer dizer nada sozinho. Só quer dizer
+--     alguma coisa junto do que foi perguntado antes, e é isto que esta tabela
+--     guarda.
+--
+--     `msg_externa_id` é o id da mensagem no provedor, e é o que permite o
+--     casamento CERTO: quando a pessoa responde citando, não há o que
+--     interpretar. Os outros três mecanismos (uma só em aberto, a frase nomeia,
+--     a escolha por número) estão em `lib/casar.ts`, e a regra que manda em
+--     todos é a mesma: **na dúvida, perguntar**. Errar aqui não é mostrar a
+--     tela errada, é marcar como pronto o que não está, ou aprovar o que não
+--     devia, em nome de alguém.
+--
+--     **A pergunta vence.** Duas noites depois, um "pronto" solto quase
+--     certamente responde a outra coisa: a pessoa esqueceu, e o app não pode
+--     fingir que ela lembra. Vencida, ela sai do casamento e o app pergunta de
+--     novo se ainda importar.
+--
+--     A caixa é de uma pessoa e de mais ninguém, inclusive do administrador,
+--     pelo mesmo motivo de `avisos`: aqui dentro aparece texto de tarefa
+--     privada e de canal fechado, e isto não pode virar a porta dos fundos das
+--     regras de quem vê o quê. Quem escreve é o servidor, com a chave de
+--     serviço; não há política de insert para gente nenhuma.
+-- --------------------------------------------------------------------------
+
+create table if not exists public.perguntas_abertas (
+  id           uuid primary key default gen_random_uuid(),
+  org_id       uuid not null references public.organizacoes on delete cascade,
+  perfil_id    uuid not null references public.perfis on delete cascade,
+  sobre_tipo   text not null check (sobre_tipo in
+                 ('item','etapa','prazo','nota','diagnostico','triagem')),
+  -- Nulo em triagem e diagnóstico: ali a pergunta é sobre o que a pessoa
+  -- acabou de mandar, que ainda não é nada no banco.
+  sobre_id     uuid,
+  texto        text not null,
+  -- O id da mensagem no provedor. Nulo enquanto o envio não confirmou.
+  msg_externa_id text,
+  -- [{"chave":"1","rotulo":"Conciliação"}], quando a pergunta foi com lista.
+  opcoes       jsonb,
+  criado_em    timestamptz not null default now(),
+  respondido_em timestamptz,
+  -- Dois dias. Ver o comentário acima: pergunta velha casa errado.
+  expirou_em   timestamptz not null default now() + interval '2 days'
+);
+
+alter table public.perguntas_abertas enable row level security;
+
+create index if not exists pergunta_aberta_idx on public.perguntas_abertas (perfil_id, criado_em desc)
+  where respondido_em is null;
+create index if not exists pergunta_externa_idx on public.perguntas_abertas (msg_externa_id)
+  where msg_externa_id is not null;
+
+do $$
+begin
+  execute 'drop trigger if exists ao_inserir_org on public.perguntas_abertas';
+  execute 'create trigger ao_inserir_org before insert on public.perguntas_abertas
+             for each row execute function public.carimbar_org()';
+end $$;
+
+-- A pessoa lê e responde as dela. Escrever pergunta é do servidor: sem política
+-- de insert, e a chave de serviço passa por cima de RLS, que é o que se quer.
+drop policy if exists pa_sel on public.perguntas_abertas;
+create policy pa_sel on public.perguntas_abertas for select
+  using (minha(org_id) and perfil_id = meu_perfil());
+
+drop policy if exists pa_upd on public.perguntas_abertas;
+create policy pa_upd on public.perguntas_abertas for update
+  using (minha(org_id) and perfil_id = meu_perfil())
+  with check (minha(org_id) and perfil_id = meu_perfil());
+
+/**
+ * As perguntas que ainda valem para esta pessoa.
+ *
+ * `security definer` porque quem chama é a rota do WhatsApp, que não tem
+ * sessão: ela sabe de qual telefone veio a mensagem e resolve o perfil por
+ * `avisos_contato`, que é onde o telefone mora.
+ */
+create or replace function public.perguntas_de(p_perfil uuid)
+returns setof public.perguntas_abertas
+language sql stable security definer set search_path = public as $$
+  select * from perguntas_abertas
+  where perfil_id = p_perfil
+    and respondido_em is null
+    and expirou_em > now()
+  order by criado_em desc;
+$$;
+
+/**
+ * De quem é este telefone.
+ *
+ * Telefone NÃO é senha, e esta função não finge que é: ela só diz de quem é o
+ * número. O que exige confirmação (aprovar checkpoint, prorrogar prazo, aceitar
+ * cascata) pede botão explícito do outro lado, e não texto livre interpretado.
+ *
+ * Número desconhecido devolve nada, e a rota responde educadamente sem contar
+ * o que existe aqui dentro: quem manda mensagem para um número errado não pode
+ * descobrir quem é cliente do TrackWard.
+ */
+create or replace function public.perfil_do_telefone(p_fone text)
+returns uuid language sql stable security definer set search_path = public as $$
+  select c.perfil_id from avisos_contato c
+  join perfis p on p.id = c.perfil_id and p.ativo
+  where regexp_replace(c.telefone, '[^0-9]', '', 'g')
+      = regexp_replace(coalesce(p_fone, ''), '[^0-9]', '', 'g')
+    and regexp_replace(coalesce(p_fone, ''), '[^0-9]', '', 'g') <> ''
+  limit 1;
+$$;
+
+-- --------------------------------------------------------------------------
+-- 33. O carimbo faltava justo em quem guarda o telefone
+--
+--     `avisos_contato` e `push_assinaturas` exigem `org_id` e ficaram de fora
+--     da lista do carimbo. Como a tela não manda esse campo (e não deve: quem
+--     assina a organização é o banco), **salvar o próprio telefone falhava
+--     sempre**, com um "não deu para salvar" que não dizia o motivo.
+--
+--     O efeito passou quatro dias sem ninguém ver: as duas tabelas estavam
+--     vazias, e é nelas que mora quem quer ser avisado. Ou seja, push e
+--     WhatsApp nunca tiveram como ser ligados por ninguém, e o bloco B depende
+--     de `avisos_contato.telefone` para saber de quem é a mensagem que chega.
+--
+--     `avisos` continua FORA da lista, e isso é de propósito: quem escreve lá é
+--     `avisar()`, que já põe a organização da pessoa avisada. O carimbo usa
+--     `minha_org()`, que é a de quem age, e quem age quase nunca é quem precisa
+--     ser avisado: o gatilho poria a organização errada na caixa de alguém.
+-- --------------------------------------------------------------------------
+
+do $$
+declare t text; n int := 0;
+begin
+  for t in select unnest(array['avisos_contato','push_assinaturas']) loop
+    continue when to_regclass('public.' || t) is null;
+    execute format('drop trigger if exists ao_inserir_org on public.%I', t);
+    execute format('create trigger ao_inserir_org before insert on public.%I
+                      for each row execute function public.carimbar_org()', t);
+    n := n + 1;
+  end loop;
+  raise notice 'Carimbo acrescentado em % tabelas.', n;
+end $$;

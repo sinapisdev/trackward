@@ -22,7 +22,7 @@ const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], flu
   compromissos: [], convidados: [], agendas_externas: [], ocupacao_externa: [],
   historico: [], atividades: [],
   anexos: [], decisoes: [], pedidos_prazo: [], memoria: [], consumo: [], agentes: [], conectores: [], notas: [],
-  avisos: [], avisos_contato: [], push_assinaturas: [] }
+  avisos: [], avisos_contato: [], push_assinaturas: [], perguntas_abertas: [] }
 
 let base: Base | null = null
 const ouvintes = new Set<() => void>()

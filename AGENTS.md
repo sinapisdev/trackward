@@ -561,6 +561,44 @@ em círculo e o Postgres devolve **"recursão infinita detectada na política"**
 o círculo é `nota_comigo()` e `minha_nota()`, que são `security definer` e por isso rodam
 fora das políticas.
 
+## O WhatsApp de ida e volta: a qual pergunta isto responde
+
+Lá fora não existe tela. A pessoa responde **"pronto"**, e pronto não quer dizer nada
+sozinho: só quer dizer alguma coisa junto do que foi perguntado antes. Quem guarda o que
+foi perguntado é `perguntas_abertas` (seção 32); quem decide a qual pergunta a resposta
+pertence é `lib/casar.ts`.
+
+**A regra que manda em tudo: na dúvida, perguntar.** Nunca escolher a mais provável. Errar
+aqui não é mostrar a tela errada, é marcar como pronto o que não está, aprovar o que não
+devia ou prorrogar um prazo que alguém está esperando, **em nome de outra pessoa**. Uma
+pergunta a mais custa um toque; um casamento errado custa a confiança no app inteiro, e ela
+não volta.
+
+Quatro mecanismos, nesta ordem, e o primeiro que resolver resolve: a **citação** (o
+provedor entrega o id da mensagem respondida, e aí não há o que interpretar); **uma só em
+aberto**; a frase **nomeia**, e só vale quando o primeiro candidato ganha do segundo com
+folga, senão é empate técnico com cara de conta; e a **escolha por número**, que só vale
+quando uma única lista aceita aquela chave.
+
+**A pergunta vence em dois dias.** Um "pronto" de duas noites depois quase certamente
+responde a outra coisa: a pessoa esqueceu, e o app não pode fingir que ela lembra.
+
+**Telefone não é senha.** `perfil_do_telefone()` só diz de quem é o número. O que muda o
+trabalho de outra pessoa (aprovar checkpoint, prorrogar prazo, aceitar cascata) pede botão
+explícito, nunca texto livre interpretado. E número desconhecido recebe resposta educada e
+mais nada: quem erra o número não pode descobrir quem é cliente do TrackWard.
+
+**Quem escreve pergunta é o servidor**, com a chave de serviço. Não existe política de
+insert em `perguntas_abertas` para gente nenhuma, e a caixa é de uma pessoa só, inclusive
+do administrador, pelo mesmo motivo de `avisos`.
+
+**O carimbo de organização precisa existir em quem guarda telefone.** `avisos_contato` e
+`push_assinaturas` ficaram fora daquela lista e, como a tela não manda `org_id` (e não
+deve), salvar o próprio telefone falhava sempre, com um "não deu para salvar" que não
+dizia o motivo. Quatro dias com as duas tabelas vazias e ninguém viu. `avisos` continua
+fora da lista de propósito: lá quem escreve é `avisar()`, e o carimbo usa `minha_org()`,
+que é a de quem age, e quem age quase nunca é quem precisa ser avisado.
+
 ## A linguagem do chat
 
 O chat é onde o trabalho nasce, então ele precisa ser onde o trabalho **é
