@@ -770,6 +770,14 @@ Quatro regras, e nenhuma delas é detalhe de implementação.
   atenção dela e a credibilidade do app; se tudo é urgente, nada é, e a primeira
   coisa que a pessoa faz é desligar tudo.
 
+**O relógio chama por GET, e não passa pela porta da frente.** Duas coisas que só
+aparecem em produção e não falham, apenas nunca acontecem: o cron da Vercel usa GET (as
+rotas aceitam os dois métodos) e manda o segredo em `CRON_SECRET`, porque ele não deixa
+escrever cabeçalho à mão (as rotas aceitam os dois nomes). E o `proxy.ts` mandava
+`/api/avisar`, `/api/pulso`, `/api/feedback` e a página `/feedback/<token>` para a tela de
+entrar: **toda rota com credencial própria precisa estar em `ABERTAS`**, senão a porta da
+frente, que só sabe perguntar por sessão, transforma a recusa num 307 que ninguém depura.
+
 O sino mostra tudo, porque quem está no app já escolheu olhar. Fora do app sai
 só o que a pessoa ligou, respeitando "só urgente" e o não perturbe, e quem
 entrega é `/api/avisar`, a única parte do sistema que usa a chave de serviço.

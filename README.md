@@ -308,8 +308,10 @@ TRACK_AVISOS_SEGREDO=...       # qualquer texto longo e aleatório
 
 Depois, uma das três:
 
-- **Vercel Cron.** O `vercel.json` já tem a entrada, às 11h UTC (8h de Brasília). Na Vercel,
-  adicione `TRACK_AVISOS_SEGREDO` também como cabeçalho do cron, ou chame pela opção 3.
+- **Vercel Cron.** O `vercel.json` já tem as entradas. O cron da Vercel **chama por GET** e
+  **não deixa escrever cabeçalho à mão**: ele manda `authorization: Bearer <CRON_SECRET>` e
+  pronto. Por isso as rotas aceitam GET e POST, e aceitam o segredo com qualquer um dos dois
+  nomes. Na Vercel, crie `CRON_SECRET` com o **mesmo valor** de `TRACK_AVISOS_SEGREDO`.
 - **pg_cron mais pg_net**, se o projeto do Supabase tiver as duas extensões:
 
   ```sql

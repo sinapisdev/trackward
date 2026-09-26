@@ -53,13 +53,36 @@ type Org = Agenda & {
 
 type Linha = Record<string, unknown>
 
+
+/**
+ * O segredo que autoriza o relógio a chamar esta rota.
+ *
+ * São dois nomes para a mesma coisa, e o segundo existe por imposição da
+ * hospedagem: o cron da Vercel não deixa escrever cabeçalho à mão, ele manda
+ * `authorization: Bearer <CRON_SECRET>` e pronto. Aceitar os dois é o que faz
+ * a mesma rota servir ao cron da Vercel, ao pg_cron do Supabase e a um relógio
+ * de fora, sem ninguém ter que lembrar de qual é qual.
+ */
+function relogioAutorizado(req: Request): boolean {
+  const veio = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
+  if (!veio) return false
+  const aceitos = [process.env.TRACK_AVISOS_SEGREDO, process.env.CRON_SECRET].filter(Boolean)
+  return aceitos.some((s) => s === veio)
+}
+
+/**
+ * O cron da Vercel chama por GET, e um relógio de fora costuma chamar por POST.
+ * Os dois caem aqui: o método não diz nada sobre quem está chamando, e recusar
+ * por causa dele fazia o relógio da hospedagem bater todo dia numa porta
+ * fechada, em silêncio, sem ninguém nunca descobrir.
+ */
+export async function GET(req: Request) { return POST(req) }
+
 export async function POST(req: Request) {
   // O segredo é conferido ANTES de qualquer outra coisa, inclusive antes de
   // olhar se o servidor tem chave de serviço. Quem bate aqui sem credencial não
   // precisa nem saber como este servidor está configurado.
-  const segredo = process.env.TRACK_AVISOS_SEGREDO
-  const veio = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '')
-  if (!segredo || veio !== segredo) {
+  if (!relogioAutorizado(req)) {
     return NextResponse.json({ erro: 'Não autorizado.' }, { status: 401 })
   }
 

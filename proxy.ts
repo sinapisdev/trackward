@@ -1,8 +1,24 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-/** Aberta para quem está logado e para quem não está (o link do e-mail cai aqui). */
-const ABERTAS = ['/auth']
+/**
+ * Abertas para quem está logado e para quem não está.
+ *
+ * Não é frouxidão: **cada uma destas tem credencial própria**, e a porta da
+ * frente aqui só sabe perguntar por sessão. Quem chega nelas não tem sessão
+ * nem deveria ter, e mandá-lo para a tela de entrar transforma a recusa num
+ * redirecionamento que ninguém consegue depurar, porque nada falha: a chamada
+ * responde 307 e a coisa simplesmente nunca acontece.
+ *
+ * - `/auth`          o link do e-mail cai aqui para trocar o código por sessão.
+ * - `/feedback`      a página que o cliente abre pelo link. Ela não tem conta,
+ *                    e é esse o ponto: pedir cadastro para dizer se gostou é o
+ *                    jeito mais eficiente de nunca saber.
+ * - `/api/feedback`  o outro lado da mesma página. O token é a credencial.
+ * - `/api/avisar`    o relógio, que confere o próprio segredo antes de tudo.
+ * - `/api/pulso`     idem.
+ */
+const ABERTAS = ['/auth', '/feedback', '/api/feedback', '/api/avisar', '/api/pulso']
 /** Só faz sentido para quem ainda não entrou. */
 const SO_DESLOGADO = ['/entrar']
 
