@@ -2860,13 +2860,229 @@ begin
 end $$;
 
 -- ==========================================================================
--- Conferência. As trinta e duas contas abaixo têm que dar
--- 34, 3, 3, 3, true, 1, 2, 1, 2, 0, true, 3, true, 4, true, true, 1, true, 1,
--- 1, true, 3, 1, 1, 4, true, 1, 2, true, 2, 2 e 1.
+-- 38. O registro único de eventos: a grama pisada
+--
+--     Empresa sem processo JÁ TEM processo. Ele só não é constante, não é
+--     explícito e não tem dono. O app não inventa nenhum: ele mostra por onde
+--     as pessoas já andam.
+--
+--     Para isso é preciso uma coisa que não existia: **um lugar só onde tudo
+--     que aconteceu aparece com a mesma forma**. Hoje o que aconteceu está
+--     espalhado por seis tabelas com colunas diferentes (`atividades`,
+--     `decisoes`, `pedidos_prazo`, `itens`, `anexos`, `sugestoes`), e comparar
+--     execução com execução exigiria seis consultas e seis formatos.
+--
+--     **O setor sai da pessoa, e não de uma lista minha.** A área de quem fez o
+--     evento é o que dá setor a ele, e por isso a descoberta nunca precisa
+--     saber o que significa "financeiro" ou "jurídico": um trabalho em que a
+--     maioria dos eventos é de gente do Financeiro é financeiro, sem ninguém
+--     definir nada. Uma lista de setores minha estaria errada para metade das
+--     empresas, e a primeira com um jeito próprio cairia na gaveta errada.
+--
+--     Os que atravessam setor são os mais valiosos, e não os mais confusos: são
+--     eles que mostram onde trava entre áreas.
+--
+--     É VIEW, e não tabela: evento duplicado é pior que evento faltando, e
+--     manter uma cópia sincronizada com seis tabelas é a forma mais certa de
+--     ter as duas coisas. Aqui a verdade continua sendo a tabela de origem.
+-- ==========================================================================
+
+create or replace view public.eventos as
+  -- O que a linha do tempo da track registrou: criada, editada, concluída.
+  select a.org_id, a.criado_em as quando, 'atividade'::text as tipo,
+         a.texto as detalhe, a.fluxo_id, a.quem_id,
+         coalesce((select p.area_id from perfis p where p.id = a.quem_id),
+                  (select f.area_id from fluxos f where f.id = a.fluxo_id)) as area_id
+  from atividades a
+  union all
+  -- A decisão de um checkpoint: aprovou, com ressalva, devolveu.
+  select d.org_id, d.criado_em, 'decisao:' || d.tipo,
+         d.nota, d.fluxo_id, d.quem_id,
+         coalesce((select p.area_id from perfis p where p.id = d.quem_id),
+                  (select f.area_id from fluxos f where f.id = d.fluxo_id))
+  from decisoes d
+  union all
+  -- Tarefa nascendo.
+  select i.org_id, i.criado_em, 'tarefa:nasceu', i.texto, i.fluxo_id, i.autor_id,
+         coalesce((select p.area_id from perfis p where p.id = i.autor_id),
+                  (select f.area_id from fluxos f where f.id = i.fluxo_id))
+  from itens i
+  union all
+  -- Tarefa ficando pronta, que é o evento que mais diz sobre o caminho andado.
+  select i.org_id, i.feito_em, 'tarefa:feita', i.texto, i.fluxo_id, i.resp_id,
+         coalesce((select p.area_id from perfis p where p.id = i.resp_id),
+                  (select f.area_id from fluxos f where f.id = i.fluxo_id))
+  from itens i where i.feito and i.feito_em is not null
+  union all
+  -- Prazo pedido e prazo decidido: onde o combinado mudou.
+  select pp.org_id, pp.criado_em, 'prazo:pedido', pp.motivo, pp.fluxo_id, pp.pedido_por,
+         (select p.area_id from perfis p where p.id = pp.pedido_por)
+  from pedidos_prazo pp
+  union all
+  select pp.org_id, pp.decidido_em, 'prazo:' || pp.estado, pp.motivo, pp.fluxo_id, pp.decidido_por,
+         (select p.area_id from perfis p where p.id = pp.decidido_por)
+  from pedidos_prazo pp where pp.decidido_em is not null
+  union all
+  -- Documento entrando. Anexo costuma marcar a entrega de verdade.
+  select an.org_id, an.criado_em, 'anexo', an.nome, an.fluxo_id, an.autor_id,
+         (select p.area_id from perfis p where p.id = an.autor_id)
+  from anexos an where an.fluxo_id is not null
+  union all
+  -- O que a leitura propôs e alguém aceitou: combinado que virou coisa.
+  select s.org_id, s.decidido_em, 'proposta:' || s.tipo, s.texto,
+         nullif(s.dados->>'fluxo_id','')::uuid, s.decidido_por,
+         (select p.area_id from perfis p where p.id = s.decidido_por)
+  from sugestoes s where s.estado = 'aceita' and s.decidido_em is not null;
+
+/**
+ * Os eventos de uma organização, do mais novo para o mais velho.
+ *
+ * `security definer` porque quem chama é o pulso, sem sessão. A view em si
+ * respeita RLS pelas tabelas de origem quando alguém logado a consulta; esta
+ * função é a porta do servidor, e ela pede a organização explicitamente.
+ */
+create or replace function public.eventos_de(p_org uuid, p_desde timestamptz)
+returns table (
+  quando timestamptz, tipo text, detalhe text,
+  fluxo_id uuid, quem_id uuid, area_id uuid
+)
+language sql stable security definer set search_path = public as $$
+  select e.quando, e.tipo, e.detalhe, e.fluxo_id, e.quem_id, e.area_id
+  from eventos e
+  where e.org_id = p_org and e.quando >= p_desde and e.quando is not null
+  order by e.quando;
+$$;
+
+-- ==========================================================================
+-- 39. O que foi descoberto, e em que pé está
+--
+--     A descoberta não vira processo sozinha, e isso é o princípio 1.1 do
+--     plano: a IA observa, conclui, propõe e pergunta, mas não decide. O que
+--     ela produz é um CANDIDATO, com o estado dele à vista.
+--
+--     Os estados contam a história inteira: `observando` é pouco visto para
+--     propor; `pronto` já dá para conversar; `proposto` foi levado a alguém;
+--     `aceito` virou processo de verdade; `recusado` não era processo, era
+--     coincidência, e **fica guardado para não ser proposto de novo**. Propor
+--     duas vezes a mesma coisa que já foi recusada é o jeito mais rápido de a
+--     pessoa parar de ler o que o app diz.
+--
+--     `confianca` baixa não quer dizer erro: quer dizer que a casa faz de
+--     jeitos diferentes. Esse número é metade do valor da coisa, porque é dele
+--     que sai o mapa da inconstância, que numa empresa sem processo vale mais
+--     que o processo.
+--
+--     A `chave` é o que torna a varredura repetível: rodar de novo ATUALIZA o
+--     candidato em vez de criar um segundo igual, e por isso a contagem de
+--     execuções cresce em vez de duplicar.
+-- ==========================================================================
+
+create table if not exists public.processos_descobertos (
+  id            uuid primary key default gen_random_uuid(),
+  org_id        uuid not null references public.organizacoes on delete cascade,
+  -- A área onde ele mais acontece. Nulo quando atravessa várias, que é o caso
+  -- mais interessante: são esses que mostram onde trava entre setores.
+  area_id       uuid references public.areas on delete set null,
+  nome_sugerido text not null default '',
+  gatilho       text not null default '',
+  desfecho      text not null default '',
+  /** Os passos que aparecem na maioria das execuções. O resto é ruído. */
+  passos        jsonb not null default '[]'::jsonb,
+  areas         jsonb not null default '[]'::jsonb,
+  /** As tracks que ele agrupou, para quem quiser conferir de onde saiu. */
+  execucoes     jsonb not null default '[]'::jsonb,
+  vezes         int  not null default 0,
+  confianca     numeric not null default 0,
+  cadencia      text not null default 'pontual' check (cadencia in ('rotina','sazonal','pontual')),
+  /** Quantos dias cada execução levou. É daqui que sai a inconstância. */
+  duracoes      jsonb not null default '[]'::jsonb,
+  /** As frases que a tela mostra: "em 4 das 11 vezes ninguém conferiu". */
+  inconstancia  jsonb not null default '[]'::jsonb,
+  estado        text not null default 'observando'
+                check (estado in ('observando','pronto','proposto','aceito','recusado')),
+  /** Quando virou processo de verdade, o id dele. */
+  virou_id      uuid references public.processos on delete set null,
+  chave         text not null,
+  criado_em     timestamptz not null default now(),
+  mexido_em     timestamptz not null default now()
+);
+
+create unique index if not exists proc_desc_uk on public.processos_descobertos (org_id, chave);
+create index if not exists proc_desc_idx on public.processos_descobertos (org_id, vezes desc);
+
+alter table public.processos_descobertos enable row level security;
+
+do $$
+begin
+  execute 'drop trigger if exists ao_inserir_org on public.processos_descobertos';
+  execute 'create trigger ao_inserir_org before insert on public.processos_descobertos
+             for each row execute function public.carimbar_org()';
+end $$;
+
+-- Quem trabalha na casa vê o que foi descoberto dela. Quem decide o que fazer
+-- com isso é quem manda no processo, e essa conferência é da tela de proposta.
+drop policy if exists pd_sel on public.processos_descobertos;
+create policy pd_sel on public.processos_descobertos for select
+  using (minha(org_id) and ativo());
+
+drop policy if exists pd_upd on public.processos_descobertos;
+create policy pd_upd on public.processos_descobertos for update
+  using (minha(org_id) and ativo()) with check (minha(org_id) and ativo());
+
+-- Sem política de insert: quem descobre é o servidor, no pulso.
+
+/**
+ * Guarda ou atualiza um candidato.
+ *
+ * Um candidato que já foi RECUSADO não volta a ser proposto: o estado dele fica
+ * como está, e só os números são atualizados. Insistir no que a pessoa já disse
+ * que não é o jeito mais rápido de ela parar de ler o que o app diz.
+ */
+create or replace function public.guardar_descoberta(
+  p_org uuid, p_chave text, p_nome text, p_gatilho text, p_desfecho text,
+  p_passos jsonb, p_areas jsonb, p_execucoes jsonb, p_vezes int,
+  p_confianca numeric, p_cadencia text, p_duracoes jsonb, p_inconstancia jsonb,
+  p_area uuid default null
+) returns uuid language plpgsql security definer set search_path = public as $$
+declare v_id uuid; v_estado text;
+begin
+  select id, estado into v_id, v_estado
+  from processos_descobertos where org_id = p_org and chave = p_chave;
+
+  if v_id is null then
+    insert into processos_descobertos (
+      org_id, area_id, nome_sugerido, gatilho, desfecho, passos, areas, execucoes,
+      vezes, confianca, cadencia, duracoes, inconstancia, chave,
+      -- Três vezes já dá para conversar. Abaixo disso é coincidência com sorte.
+      estado)
+    values (p_org, p_area, p_nome, p_gatilho, p_desfecho, p_passos, p_areas, p_execucoes,
+            p_vezes, p_confianca, p_cadencia, p_duracoes, p_inconstancia, p_chave,
+            case when p_vezes >= 3 then 'pronto' else 'observando' end)
+    returning id into v_id;
+    return v_id;
+  end if;
+
+  update processos_descobertos set
+    area_id = p_area, nome_sugerido = p_nome, passos = p_passos, areas = p_areas,
+    execucoes = p_execucoes, vezes = p_vezes, confianca = p_confianca,
+    cadencia = p_cadencia, duracoes = p_duracoes, inconstancia = p_inconstancia,
+    estado = case
+      when v_estado in ('recusado','aceito','proposto') then v_estado
+      when p_vezes >= 3 then 'pronto'
+      else 'observando' end,
+    mexido_em = now()
+  where id = v_id;
+  return v_id;
+end $$;
+
+-- ==========================================================================
+-- Conferência. As trinta e quatro contas abaixo têm que dar
+-- 35, 3, 3, 3, true, 1, 2, 1, 2, 0, true, 3, true, 4, true, true, 1, true, 1,
+-- 1, true, 3, 1, 1, 4, true, 1, 2, true, 2, 2, 1, 1 e 1.
 -- ==========================================================================
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
-    as "carimbo de organizacao (34)",
+    as "carimbo de organizacao (35)",
   (select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid
     where t.tgname = 'ao_assinar' and c.relname in ('itens','canais','notas'))
     as "carimbo de autor (3)",
@@ -2973,4 +3189,10 @@ select
     as "o ritmo aprendido (2)",
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'varrer_o_dia')
-    as "a varredura do dia (1)";
+    as "a varredura do dia (1)",
+  (select count(*) from information_schema.views
+    where table_schema = 'public' and table_name = 'eventos')
+    as "o registro unico de eventos (1)",
+  (select count(*) from information_schema.tables
+    where table_schema = 'public' and table_name = 'processos_descobertos')
+    as "o processo descoberto (1)";

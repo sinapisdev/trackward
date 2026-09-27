@@ -4,6 +4,7 @@ import { MODELO, porModelo, semModelo, type Medida } from '@/lib/leitura'
 import { podar, type Contexto, type Proposta } from '@/lib/leitor'
 import { devePulsar, type Agenda } from '@/lib/pulso'
 import { horariosDoRitmo } from '@/lib/ritmo'
+import { descobrir, execucoesDe, inconstancia, type Evento } from '@/lib/descobrir'
 import { custoMicro } from '@/lib/precos'
 import { escutaAqui, oQueFaz, porPalavras } from '@/lib/agentes'
 import { jaFoiRecusada, paraOModelo, quemCostuma, termosDaConversa, ultimoAprendizado } from '@/lib/memoria'
@@ -34,6 +35,58 @@ import type { Agente, Canal, Fluxo, Mensagem } from '@/lib/tipos'
  * aceita é gente, pelo app ou (no bloco B) pelo WhatsApp. É a regra que vale no
  * produto inteiro: a IA observa, conclui, propõe e pergunta, mas não decide.
  */
+
+/**
+ * Mostrar a grama pisada: que processos esta casa já tem sem saber.
+ *
+ * Seis meses de eventos, agrupados por forma e não por sequência: em empresa
+ * desorganizada a ordem muda toda vez, e procurar sequência devolve "não achei
+ * nada" justamente para quem mais precisa. Ver `lib/descobrir.ts`.
+ *
+ * O resultado NÃO vira processo: vira candidato, com o estado à vista, para
+ * alguém aceitar ou recusar. A IA observa, conclui, propõe e pergunta.
+ */
+async function descobrirProcessos(
+  sb: NonNullable<ReturnType<typeof clienteDeServico>>, org: string, agora: Date,
+): Promise<number> {
+  const desde = new Date(agora.getTime() - 180 * 86400000).toISOString()
+  const { data: ev } = await sb.rpc('eventos_de', { p_org: org, p_desde: desde })
+  const eventos = (ev || []) as Evento[]
+  if (eventos.length < 20) return 0
+
+  const { data: fl } = await sb.from('fluxos')
+    .select('id,nome,concluido,desfecho,area_id').eq('org_id', org)
+  const tracks = (fl || []) as { id: string; nome: string; concluido: boolean
+    desfecho: string | null; area_id: string | null }[]
+  if (tracks.length < 3) return 0
+
+  const candidatos = descobrir(execucoesDe(eventos, tracks))
+  let n = 0
+  for (const c of candidatos) {
+    // A chave é a forma, não o nome: nome muda quando a casa muda de vocabulário,
+    // e aí o mesmo processo viraria um segundo candidato do zero.
+    const chave = `${c.gatilho}|${c.desfecho}|${c.passos.slice(0, 6).sort().join(',')}`
+    // A área do candidato é a da maioria das tracks dele. Empate, ou mistura,
+    // fica nulo: processo que atravessa área não pertence a uma.
+    const areas = c.execucoes
+      .map((e) => tracks.find((t) => t.id === e.fluxo_id)?.area_id)
+      .filter(Boolean) as string[]
+    const conta = new Map<string, number>()
+    for (const a of areas) conta.set(a, (conta.get(a) || 0) + 1)
+    const maior = [...conta.entries()].sort((a, b) => b[1] - a[1])[0]
+    const area = maior && maior[1] > c.vezes / 2 ? maior[0] : null
+
+    const { error } = await sb.rpc('guardar_descoberta', {
+      p_org: org, p_chave: chave, p_nome: c.nome, p_gatilho: c.gatilho,
+      p_desfecho: c.desfecho, p_passos: c.passos, p_areas: c.areas,
+      p_execucoes: c.execucoes.map((e) => ({ id: e.fluxo_id, nome: e.nome, dias: e.duracao })),
+      p_vezes: c.vezes, p_confianca: c.confianca, p_cadencia: c.cadencia,
+      p_duracoes: c.duracoes, p_inconstancia: inconstancia(c), p_area: area,
+    })
+    if (!error) n++
+  }
+  return n
+}
 
 /** "08:00-19:00" em minutos. Mesma leitura que `lib/pulso.ts` faz. */
 function faixa(j: string): { de: number; ate: number } {
@@ -172,6 +225,12 @@ export async function POST(req: Request) {
    */
   const { data: perseguiu } = await sb.rpc('varrer_o_dia')
 
+  // A descoberta de processos, uma vez por dia por empresa. Ver lib/descobrir.
+  let descobertos = 0
+  for (const o of (orgs || []) as Org[]) {
+    descobertos += await descobrirProcessos(sb, o.id, agora)
+  }
+
   const naVez = ((orgs || []) as Org[])
     .filter((o) => devePulsar(o, agora, ritmo.get(o.id) || []).bate)
   const relatorio: { org: string; canais: number; propostas: number; motor: string }[] = []
@@ -191,7 +250,8 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({
-    quando: agora.toISOString(), perseguiu: perseguiu ?? 0, organizacoes: relatorio,
+    quando: agora.toISOString(), perseguiu: perseguiu ?? 0,
+    descobertos, organizacoes: relatorio,
   })
 }
 
