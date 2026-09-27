@@ -607,6 +607,34 @@ dizia o motivo. Quatro dias com as duas tabelas vazias e ninguém viu. `avisos` 
 fora da lista de propósito: lá quem escreve é `avisar()`, e o carimbo usa `minha_org()`,
 que é a de quem age, e quem age quase nunca é quem precisa ser avisado.
 
+## O ritmo é aprendido, e o app sabe dizer por quê
+
+Horário fixo é honesto e é burro: a leitura das 13h30 cai no meio do almoço de uma empresa
+e no meio da tarde de outra, e nenhuma das duas pediu isso. O dado para acertar já estava
+no banco e ninguém usava.
+
+São **dois sinais, para duas perguntas diferentes** (`lib/ritmo.ts`):
+
+- **Quando a casa fala** diz a melhor hora de LER, e o certo não é ler no pico: é ler
+  **meia hora depois**. Ler no meio da conversa é pagar por uma leitura que fica velha em
+  dez minutos, e ainda propor tarefa sobre um assunto que a equipe está decidindo.
+- **Quando cada pessoa responde** diz a melhor hora de PERGUNTAR àquela pessoa. É diferente
+  por pessoa, e é o que separa um app que incomoda de um que chega na hora.
+
+**Pouco dado, nenhum palpite.** Abaixo de umas quarenta mensagens (ou seis respostas, no
+caso da pessoa), devolve vazio e vale o horário espalhado pela janela. Aprender de três
+mensagens é inventar padrão onde só há acaso.
+
+**Horário aprendido que não se explica é indistinguível de horário aleatório**, e o
+primeiro dia em que ele errar vira desconfiança no app inteiro. Por isso o pulso guarda o
+que escolheu e de quantas mensagens tirou (`pulso_horarios`, `pulso_amostra`, seção 36) e
+Ajustes diz a frase: "às 09h30 e 17h30, meia hora depois dos horários em que vocês mais
+conversam". E a janela continua na mão de quem quiser fixar.
+
+**Dois horários escolhidos nunca ficam a menos de uma hora um do outro**, senão as duas
+leituras leem a mesma conversa e cobram por isso. E quando há menos picos do que leituras
+contratadas, ele **não inventa horário** para completar a conta.
+
 ## A linguagem do chat
 
 O chat é onde o trabalho nasce, então ele precisa ser onde o trabalho **é

@@ -165,9 +165,45 @@ export async function POST(req: Request) {
     }
 
     // --- whatsapp --------------------------------------------------------
+    /**
+     * Aqui o aviso deixa de ser recado e vira PERGUNTA.
+     *
+     * É o que fecha o ciclo do bloco B: sem isto, nada cria pergunta sozinho, e
+     * o WhatsApp só responderia a quem já sabia o que perguntar. Um aviso que
+     * carrega uma decisão ("o checkpoint está pronto") é mais útil como
+     * pergunta do que como recado, porque a resposta resolve a coisa em vez de
+     * mandar a pessoa abrir o app.
+     *
+     * **Uma pergunta em aberto por pessoa por vez** (B6 do plano): com duas, um
+     * "pronto" solto vira desempate, e desempate por WhatsApp é um toque a mais
+     * para todo mundo. Quem já tem pergunta esperando recebe o recado normal.
+     */
     if (contato?.whats) {
       const fone = telefoneLimpo(contato.telefone)
-      if (fone && await mandarWhats(sb, aviso, fone, endereco)) porWhats++
+      if (fone) {
+        const q = comoPergunta(aviso)
+        const { count } = q
+          ? await sb.from('perguntas_abertas').select('id', { count: 'exact', head: true })
+            .eq('perfil_id', aviso.perfil_id).is('respondido_em', null)
+            .gt('expirou_em', new Date().toISOString())
+          : { count: 0 }
+
+        const vaiPerguntar = q && !count
+        const texto = vaiPerguntar ? q.texto : comoTexto(aviso, endereco)
+        const sid = await mandarWhats(sb, aviso, fone, texto)
+        if (sid) {
+          porWhats++
+          if (vaiPerguntar) {
+            const { data: p } = await sb.from('perfis').select('org_id').eq('id', aviso.perfil_id).single()
+            await sb.from('perguntas_abertas').insert({
+              org_id: (p as { org_id: string } | null)?.org_id,
+              perfil_id: aviso.perfil_id,
+              sobre_tipo: q.sobre_tipo, sobre_id: q.sobre_id,
+              texto: q.pergunta, opcoes: q.opcoes, msg_externa_id: sid,
+            })
+          }
+        }
+      }
     }
   }
 
@@ -183,6 +219,66 @@ export async function POST(req: Request) {
 }
 
 /**
+ * Este aviso carrega uma decisão? Então ele vale mais como pergunta.
+ *
+ * Só três dos dez tipos viram pergunta, e os outros continuam recado porque não
+ * há o que responder: "te chamaram numa conversa" não tem sim nem não.
+ *
+ * O id do pedido de prazo sai da CHAVE, e não de uma coluna: `avisos` não tem
+ * `pedido_id`, e a chave já carrega o que identifica cada aviso, por desenho.
+ */
+function comoPergunta(a: Aviso): {
+  sobre_tipo: 'item' | 'etapa' | 'prazo'
+  sobre_id: string
+  /** O que vai no telefone. */
+  texto: string
+  /** O que fica guardado, e é contra ele que a frase é comparada depois. */
+  pergunta: string
+  opcoes: { chave: string; rotulo: string }[] | null
+} | null {
+  if (a.tipo === 'aprovacao' && a.fluxo_id) {
+    return {
+      sobre_tipo: 'etapa', sobre_id: a.fluxo_id,
+      pergunta: `${a.titulo}: ${a.corpo}`,
+      texto: `${a.corpo}\n\nTudo terminou aqui. O que você decide?\n\n`
+        + '1) Aprovo\n2) Aprovo com ressalva\n3) Devolvo',
+      opcoes: [
+        { chave: '1', rotulo: 'Aprovo' },
+        { chave: '2', rotulo: 'Aprovo com ressalva' },
+        { chave: '3', rotulo: 'Devolvo' },
+      ],
+    }
+  }
+
+  if (a.tipo === 'prazo' && a.item_id) {
+    return {
+      sobre_tipo: 'item', sobre_id: a.item_id,
+      pergunta: a.titulo,
+      // Sem lista: aqui "pronto" resolve, e oferecer número para responder
+      // "sim" é pôr um passo onde a conversa já funcionava.
+      texto: `${a.titulo}\n${a.corpo}\n\nJá ficou pronta? Responda "pronto" se sim.`,
+      opcoes: null,
+    }
+  }
+
+  if (a.tipo === 'pedido_prazo') {
+    const id = (a.chave.split(':')[1] || '').trim()
+    if (!id) return null
+    return {
+      sobre_tipo: 'prazo', sobre_id: id,
+      pergunta: `${a.titulo}: ${a.corpo}`,
+      texto: `${a.corpo}\n\nO que você decide?\n\n1) Aceito o prazo novo\n2) Mantenho o que estava`,
+      opcoes: [
+        { chave: '1', rotulo: 'Aceito o prazo novo' },
+        { chave: '2', rotulo: 'Mantenho o que estava' },
+      ],
+    }
+  }
+
+  return null
+}
+
+/**
  * Manda pelo WhatsApp da empresa, pela Twilio.
  *
  * Não passa pela rota `/api/conector` de propósito: aquela rota manda JSON, e a
@@ -191,28 +287,28 @@ export async function POST(req: Request) {
  */
 async function mandarWhats(
   sb: NonNullable<ReturnType<typeof clienteDeServico>>,
-  aviso: Aviso, para: string, endereco: string,
-): Promise<boolean> {
+  aviso: Aviso, para: string, texto: string,
+): Promise<string | null> {
   const { data: org } = await sb.from('organizacoes')
     .select('whats_conector,whats_sid,whats_de')
     .eq('id', (await sb.from('perfis').select('org_id').eq('id', aviso.perfil_id).single()).data?.org_id || '')
     .single()
 
-  if (!org?.whats_conector || !org.whats_sid || !org.whats_de) return false
+  if (!org?.whats_conector || !org.whats_sid || !org.whats_de) return null
 
   const { data } = await sb.from('conectores')
     .select('base_url,auth_tipo,auth_nome,segredo_cifrado,ativo')
     .eq('id', org.whats_conector).single()
   const c = data as Conector | null
-  if (!c || !c.ativo) return false
+  if (!c || !c.ativo) return null
 
   const chave = decifrar(c.segredo_cifrado)
-  if (!chave) return false
+  if (!chave) return null
 
   const corpo = new URLSearchParams({
     To: `whatsapp:${para}`,
     From: org.whats_de.startsWith('whatsapp:') ? org.whats_de : `whatsapp:${org.whats_de}`,
-    Body: comoTexto(aviso, endereco),
+    Body: texto,
   })
 
   const cabecalhos: Record<string, string> = {
@@ -227,8 +323,12 @@ async function mandarWhats(
       `${c.base_url.replace(/\/+$/, '')}/Accounts/${encodeURIComponent(org.whats_sid)}/Messages.json`,
       { method: 'POST', headers: cabecalhos, body: corpo, signal: AbortSignal.timeout(15_000) },
     )
-    return r.ok
+    if (!r.ok) return null
+    // O sid da mensagem é o que deixa a resposta dela ser casada sem
+    // interpretar nada: a Twilio devolve o id da citada em quem responde.
+    const j = await r.json().catch(() => null) as { sid?: string } | null
+    return j?.sid || 'enviada'
   } catch {
-    return false
+    return null
   }
 }

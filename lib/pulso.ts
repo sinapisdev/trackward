@@ -109,8 +109,16 @@ export type Decisao =
  * Devolve também o porquê do não, porque "o pulso não rodou" sem motivo é a
  * classe de problema que se investiga por três dias.
  */
-export function devePulsar(a: Agenda, agora: Date = new Date()): Decisao {
-  const alvos = horarios(a)
+export function devePulsar(
+  a: Agenda, agora: Date = new Date(),
+  /**
+   * Os horários aprendidos do ritmo da casa, quando houver conversa suficiente
+   * para eles significarem alguma coisa. Vazio cai no espalhamento de sempre:
+   * inventar padrão com pouco dado é pior do que um horário honesto e fixo.
+   */
+  aprendidos: number[] = [],
+): Decisao {
+  const alvos = aprendidos.length ? aprendidos : horarios(a)
   if (!alvos.length) return { bate: false, porque: 'desligado' }
 
   const hoje = noFuso(agora, a.fuso)

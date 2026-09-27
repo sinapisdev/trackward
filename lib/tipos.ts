@@ -181,6 +181,13 @@ export type Organizacao = {
   fuso: string
   /** Quando a última varredura rodou. Escrito só pelo servidor. */
   pulso_em: string | null
+  /**
+   * Os horários que o pulso aprendeu, em minutos do dia. Vazio é sem conversa
+   * suficiente para aprender, e aí valem os espalhados pela janela.
+   */
+  pulso_horarios: number[] | null
+  /** De quantas mensagens saiu esse aprendizado, para a tela poder explicar. */
+  pulso_amostra: number | null
 
   /**
    * O plano contratado. O que cada um libera está em `lib/planos.ts`; os

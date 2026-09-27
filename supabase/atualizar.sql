@@ -2682,10 +2682,34 @@ begin
   return 'recusado';
 end $$;
 
+
 -- ==========================================================================
--- Conferência. As trinta contas abaixo têm que dar
+-- 36. O ritmo aprendido fica guardado, para o app poder explicá-lo
+--
+--     O pulso passa a escolher os horários pelo que a casa faz, e não por uma
+--     divisão igual da janela: ele lê meia hora depois das horas em que a
+--     empresa mais conversa. Ler no meio da conversa é pagar por uma leitura
+--     que fica velha em dez minutos.
+--
+--     Estes dois campos existem porque **horário aprendido que não se explica é
+--     indistinguível de horário aleatório**, e o primeiro dia em que ele errar
+--     vira desconfiança no app inteiro. Guardando o que foi escolhido e de
+--     quantas mensagens saiu, Ajustes consegue dizer a frase que faz a pessoa
+--     concordar: "leio às 09h30 e 17h30, meia hora depois de quando vocês mais
+--     conversam".
+--
+--     Vazio quer dizer que ainda não havia conversa suficiente, e aí valem os
+--     horários espalhados pela janela. Aprender de três mensagens é inventar
+--     padrão onde só há acaso.
+-- ==========================================================================
+
+alter table public.organizacoes add column if not exists pulso_horarios int[];
+alter table public.organizacoes add column if not exists pulso_amostra int;
+
+-- ==========================================================================
+-- Conferência. As trinta e uma contas abaixo têm que dar
 -- 34, 3, 3, 3, true, 1, 2, 1, 2, 0, true, 3, true, 4, true, true, 1, true, 1,
--- 1, true, 3, 1, 1, 4, true, 1, 2, true e 2.
+-- 1, true, 3, 1, 1, 4, true, 1, 2, true, 2 e 2.
 -- ==========================================================================
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
@@ -2789,4 +2813,8 @@ select
     as "a trava do plano olha a linha (true)",
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname in ('quem_age','manda_no_processo_como'))
-    as "o servidor age por alguem (2)";
+    as "o servidor age por alguem (2)",
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'organizacoes'
+      and column_name in ('pulso_horarios','pulso_amostra'))
+    as "o ritmo aprendido (2)";

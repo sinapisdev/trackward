@@ -3,6 +3,7 @@ import { clienteDeServico } from '@/lib/supabase/servico'
 import { MODELO, porModelo, semModelo, type Medida } from '@/lib/leitura'
 import { podar, type Contexto, type Proposta } from '@/lib/leitor'
 import { devePulsar, type Agenda } from '@/lib/pulso'
+import { horariosDoRitmo } from '@/lib/ritmo'
 import { custoMicro } from '@/lib/precos'
 import { escutaAqui, oQueFaz, porPalavras } from '@/lib/agentes'
 import { jaFoiRecusada, paraOModelo, quemCostuma, termosDaConversa, ultimoAprendizado } from '@/lib/memoria'
@@ -33,6 +34,13 @@ import type { Agente, Canal, Fluxo, Mensagem } from '@/lib/tipos'
  * aceita é gente, pelo app ou (no bloco B) pelo WhatsApp. É a regra que vale no
  * produto inteiro: a IA observa, conclui, propõe e pergunta, mas não decide.
  */
+
+/** "08:00-19:00" em minutos. Mesma leitura que `lib/pulso.ts` faz. */
+function faixa(j: string): { de: number; ate: number } {
+  const m = /^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/.exec((j || '').trim())
+  if (!m) return { de: 8 * 60, ate: 19 * 60 }
+  return { de: +m[1] * 60 + +m[2], ate: +m[3] * 60 + +m[4] }
+}
 
 export const runtime = 'nodejs'
 
@@ -129,7 +137,33 @@ export async function POST(req: Request) {
     .eq('ia_ativa', true)
     .gt('leitura_por_dia', 0)
 
-  const naVez = ((orgs || []) as Org[]).filter((o) => devePulsar(o, agora).bate)
+  /**
+   * O ritmo de cada casa, aprendido do que já aconteceu.
+   *
+   * A conversa dos últimos trinta dias diz em que horas a empresa fala, e a
+   * leitura acontece meia hora depois de cada pico. Sem conversa suficiente,
+   * `horariosDoRitmo` devolve vazio e o pulso volta a espalhar pela janela:
+   * aprender de três mensagens é inventar padrão onde só há acaso.
+   */
+  const desde = new Date(agora.getTime() - 30 * 86400000).toISOString()
+  const ritmo = new Map<string, number[]>()
+  for (const o of (orgs || []) as Org[]) {
+    const { data: q } = await sb.from('mensagens')
+      .select('criado_em').eq('org_id', o.id).gte('criado_em', desde)
+      .is('sistema', false).limit(2000)
+    const quando = ((q || []) as { criado_em: string }[]).map((x) => x.criado_em)
+    const { de, ate } = faixa(o.leitura_janela)
+    const aprendidos = horariosDoRitmo(quando, o.fuso, o.leitura_por_dia, de, ate)
+    ritmo.set(o.id, aprendidos)
+    // Guardado para a tela poder explicar a escolha. Horário aprendido que não
+    // se explica é indistinguível de horário aleatório.
+    await sb.from('organizacoes')
+      .update({ pulso_horarios: aprendidos, pulso_amostra: quando.length })
+      .eq('id', o.id)
+  }
+
+  const naVez = ((orgs || []) as Org[])
+    .filter((o) => devePulsar(o, agora, ritmo.get(o.id) || []).bate)
   const relatorio: { org: string; canais: number; propostas: number; motor: string }[] = []
 
   for (const org of naVez) {

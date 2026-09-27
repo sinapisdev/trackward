@@ -167,6 +167,28 @@ export async function POST(req: Request) {
       opcoes.map((o) => `${o.chave}) ${o.rotulo}`).join('\n')}`)
   }
 
+  /**
+   * Áudio, foto e documento.
+   *
+   * Eles viram nota com anexo, que é onde o despejo já mora: o WhatsApp é
+   * também o lugar de jogar coisa solta, e coisa solta sem assunto é nota.
+   *
+   * O arquivo é BAIXADO e guardado aqui. O endereço que a Twilio manda vence e
+   * exige a credencial dela: guardá-lo seria guardar um link que amanhã não
+   * abre, e é o tipo de coisa que só se descobre quando alguém precisa do
+   * arquivo, meses depois.
+   */
+  const quantos = Number(campos.NumMedia || '0')
+  if (quantos > 0) {
+    const guardados = await guardarMidia(sb, eu, campos, quantos, corpo)
+    if (guardados) {
+      return twiml(guardados === 1
+        ? 'Guardei o arquivo numa nota. Se quiser, me diga do que é e eu ponho o assunto.'
+        : `Guardei os ${guardados} arquivos numa nota.`)
+    }
+    return twiml('Recebi o arquivo mas não consegui guardar. Tente de novo em um minuto.')
+  }
+
   if (r.como === 'nada') {
     // Nada em aberto: o que chegou é coisa solta, e o app pergunta antes de
     // arquivar em vez de adivinhar. Ver B5 do plano.
@@ -221,6 +243,62 @@ const SAIDAS: { chave: string; rotulo: string; tipo: string }[] = [
   { chave: '2', rotulo: 'Aprovo com ressalva', tipo: 'ressalva' },
   { chave: '3', rotulo: 'Devolvo', tipo: 'devolveu' },
 ]
+
+/**
+ * Baixa o que veio junto e guarda como nota com anexo.
+ *
+ * A credencial da Twilio é a mesma do envio, e por isso ela é buscada no
+ * conector da empresa: o endereço da mídia só abre com ela.
+ */
+async function guardarMidia(
+  sb: Sb, eu: { id: string; org_id: string }, campos: Record<string, string>,
+  quantos: number, legenda: string,
+): Promise<number> {
+  const { data: org } = await sb.from('organizacoes')
+    .select('whats_conector,whats_sid').eq('id', eu.org_id).single()
+  const o = org as { whats_conector: string | null; whats_sid: string | null } | null
+  if (!o?.whats_conector || !o.whats_sid) return 0
+  const { data: cdata } = await sb.from('conectores')
+    .select('segredo_cifrado,ativo').eq('id', o.whats_conector).single()
+  const c = cdata as { segredo_cifrado: string; ativo: boolean } | null
+  if (!c?.ativo) return 0
+  const chave = decifrar(c.segredo_cifrado)
+  if (!chave) return 0
+  const basico = 'Basic ' + Buffer.from(`${o.whats_sid}:${chave}`).toString('base64')
+
+  const notaId = novoId()
+  const titulo = legenda || 'Recebido pelo WhatsApp'
+  await sb.from('notas').insert({
+    id: notaId, org_id: eu.org_id, dono_id: eu.id, titulo, texto: titulo,
+  })
+
+  let n = 0
+  for (let i = 0; i < quantos; i++) {
+    const url = campos[`MediaUrl${i}`]
+    const tipo = campos[`MediaContentType${i}`] || 'application/octet-stream'
+    if (!url) continue
+    try {
+      const r = await fetch(url, {
+        headers: { authorization: basico }, signal: AbortSignal.timeout(20_000),
+      })
+      if (!r.ok) continue
+      const bytes = new Uint8Array(await r.arrayBuffer())
+      const ext = (tipo.split('/')[1] || 'bin').split(';')[0]
+      // O caminho começa pela organização: é o que deixa a política do Storage
+      // barrar o arquivo de outra empresa.
+      const caminho = `${eu.org_id}/${novoId()}.${ext}`
+      const { error } = await sb.storage.from('anexos').upload(caminho, bytes, { contentType: tipo })
+      if (error) continue
+      await sb.from('anexos').insert({
+        id: novoId(), org_id: eu.org_id, nota_id: notaId, autor_id: eu.id,
+        nome: `whatsapp.${ext}`, tipo, tamanho: bytes.length, caminho,
+      })
+      n++
+    } catch { /* o próximo arquivo ainda pode dar certo */ }
+  }
+  if (!n) await sb.from('notas').delete().eq('id', notaId)
+  return n
+}
 
 /**
  * O que fazer com a resposta, agora que se sabe a qual pergunta ela é.

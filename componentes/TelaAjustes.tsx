@@ -11,6 +11,7 @@ import { AjustesAvisos } from './AjustesAvisos'
 import { isoDe, rel } from '@/lib/datas'
 import { MODO_LOCAL } from '@/lib/modo'
 import { comoTexto } from '@/lib/pulso'
+import { porque } from '@/lib/ritmo'
 import { reiniciarLocal } from '@/lib/local/cliente'
 import { aplicarTema, temaAtual, TEMAS, type Tema } from '@/lib/tema'
 import { toursDe } from '@/lib/tutorial'
@@ -128,7 +129,17 @@ export function TelaAjustes() {
                     </button>
                   ))}
                 </div>
-                <p className="hint">{comoTexto(org)}</p>
+                {/* O horário aprendido precisa se explicar. Sem a frase, ele é
+                    indistinguível de horário aleatório, e o primeiro dia em que
+                    errar vira desconfiança no app inteiro. */}
+                <p className="hint">
+                  {org.leitura_por_dia > 0 && org.pulso_horarios?.length
+                    ? porque(org.pulso_horarios, org.pulso_amostra ?? 0)
+                    : comoTexto(org)}
+                </p>
+                {org.leitura_por_dia > 0 && !org.pulso_horarios?.length && (org.pulso_amostra ?? 0) > 0 && (
+                  <p className="hint">{porque([], org.pulso_amostra ?? 0)}</p>
+                )}
                 {org.leitura_por_dia > 0 && (
                   <>
                     <div className="fld" style={{ marginTop: 12 }}>

@@ -5439,3 +5439,26 @@ begin
   from itens i where i.id = pd.item_id;
   return 'recusado';
 end $$;
+
+-- --------------------------------------------------------------------------
+-- 36. O ritmo aprendido fica guardado, para o app poder explicá-lo
+--
+--     O pulso passa a escolher os horários pelo que a casa faz, e não por uma
+--     divisão igual da janela: ele lê meia hora depois das horas em que a
+--     empresa mais conversa. Ler no meio da conversa é pagar por uma leitura
+--     que fica velha em dez minutos.
+--
+--     Estes dois campos existem porque **horário aprendido que não se explica é
+--     indistinguível de horário aleatório**, e o primeiro dia em que ele errar
+--     vira desconfiança no app inteiro. Guardando o que foi escolhido e de
+--     quantas mensagens saiu, Ajustes consegue dizer a frase que faz a pessoa
+--     concordar: "leio às 09h30 e 17h30, meia hora depois de quando vocês mais
+--     conversam".
+--
+--     Vazio quer dizer que ainda não havia conversa suficiente, e aí valem os
+--     horários espalhados pela janela. Aprender de três mensagens é inventar
+--     padrão onde só há acaso.
+-- --------------------------------------------------------------------------
+
+alter table public.organizacoes add column if not exists pulso_horarios int[];
+alter table public.organizacoes add column if not exists pulso_amostra int;
