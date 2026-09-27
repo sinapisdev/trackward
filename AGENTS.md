@@ -683,10 +683,28 @@ ninguém aprovar, porque aí não é variação, é buraco. E o passo que **cust
 mais que o que só variou: afirmar diferença que é ruído uma única vez derruba a
 credibilidade de tudo que o app disser depois.
 
-**O primeiro processo entregue tem três coisas e no máximo um checkpoint**
-(`PRIMEIRO_MAXIMO`). Não é preguiça: quem nunca teve processo recebe um de doze etapas,
-acha bonito e abandona em duas semanas, porque as etapas viram burocracia que ninguém
-pediu e o processo inteiro é descartado junto. Cada etapa a mais entra depois, com motivo.
+**Afirmar é melhor que perguntar, quando há maioria.** A pergunta cobra uma ação de quem
+já está ocupado; a afirmação entrega uma. *"Isto costuma levar 6 dias, então montei com
+esse prazo. Se preferir outro, é só me dizer"* é o app trabalhando; *"uso 6 dias?"* é o app
+pedindo que trabalhem por ele. Isso não fere a regra de a IA não decidir sozinha, porque o
+desenho inteiro ainda é proposta esperando aceite: escolher o padrão DENTRO de um rascunho
+é rascunhar. A linha é **maioria clara dentro do rascunho afirma; empate, buraco ou fora do
+rascunho pergunta**. Seis do Leo, três da Ana e duas sem ninguém não é maioria, e chutar ali
+é inventar dono para o processo. E toda afirmação carrega o `mudar`: afirmação sem porta de
+saída é imposição.
+
+**O primeiro processo entregue tem três CHECKPOINTS, com uma tarefa em cada**
+(`PRIMEIRO_MAXIMO`). O checkpoint é a porta e a tarefa mora dentro dele, então um processo
+com um checkpoint só não tem trilha, não tem "onde está" e não tem passagem: é a lista
+avulsa, que é exatamente o que o produto chama de não ser processo. Começar pequeno é
+**poucas tarefas por porta, nunca poucas portas**. Pelo outro lado, doze etapas de cara
+viram burocracia que ninguém pediu e o processo inteiro é descartado junto em duas semanas;
+cada checkpoint a mais entra depois, com motivo.
+
+**O checkpoint não se chama "tarefa:feita".** Os tipos da view `eventos` são de máquina, e
+um processo nomeado com eles parece log de sistema: a empresa lê e conclui, com razão, que
+aquilo não foi feito para ela. `rotuloDoPasso` traduz enquanto ninguém rebatizou, e o nome
+definitivo é sempre de quem usa.
 
 **O acervo entre clientes é de forma, e a fronteira é estrutura.** `acervo_forma` (seção 40)
 não tem `org_id`, não tem `perfil_id` e **não tem chave estrangeira nenhuma**, e a

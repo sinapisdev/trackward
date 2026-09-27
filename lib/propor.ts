@@ -25,11 +25,34 @@ import type { Candidato, Execucao } from './descobrir'
  * ter, que não é o que acontece. As duas entram bonitas no sistema e não batem
  * com nada.
  *
+ * ## Afirmar é melhor que perguntar, quando há maioria
+ *
+ * A pergunta cobra uma ação de quem já está ocupado. A afirmação entrega uma:
+ *
+ *   pergunta:  "Isto costuma levar 6 dias. Uso como padrão?"
+ *   afirmação: "Isto costuma levar 6 dias, então montei assim. Se quiser
+ *               outro prazo, é só me dizer."
+ *
+ * A segunda é o app trabalhando; a primeira é o app pedindo que trabalhem por
+ * ele. E ela não fere a regra de a IA não decidir sozinha, porque **o desenho
+ * inteiro ainda é uma proposta esperando aceite**: escolher o padrão DENTRO de
+ * um rascunho é rascunhar, não é decidir.
+ *
+ * A linha entre uma e outra:
+ *
+ *   **maioria clara, e dentro do rascunho**  ->  afirma, com o número à vista
+ *   **empate, buraco, ou fora do rascunho**  ->  pergunta
+ *
+ * Seis do Leo, três da Ana e duas sem ninguém não é maioria: chutar ali é
+ * inventar dono para o processo, que é o erro mais caro da lista. Nove do Leo
+ * em onze é maioria, e perguntar seria fingir dúvida que não existe.
+ *
  * ## Uma de cada vez
  *
- * A lista sai ordenada pelo que mais muda o desenho, e quem chama manda **uma**.
- * Cinco perguntas juntas viram formulário, e formulário é abandonado; uma
- * pergunta por vez, cada uma com o seu número, é conversa.
+ * As perguntas saem ordenadas pelo que mais muda o desenho, e quem chama manda
+ * **uma**. Cinco juntas viram formulário, e formulário é abandonado. As
+ * afirmações vão todas de uma vez, porque elas não pedem nada: são a lista do
+ * que já foi montado.
  */
 
 export type MudaOQue =
@@ -56,6 +79,26 @@ export type PerguntaDoProcesso = {
   /** O quanto responder isto melhora o desenho. Ordena a fila. */
   peso: number
 }
+
+/**
+ * O que o app já montou sozinho, com o número que o justifica.
+ *
+ * Cada uma carrega o `mudar`: a frase curta que diz como desfazer. Afirmação
+ * sem porta de saída é imposição, e imposição num rascunho que a pessoa ainda
+ * vai aceitar é o jeito mais rápido de ela recusar o rascunho inteiro.
+ */
+export type Afirmacao = {
+  chave: string
+  /** "Isto costuma levar 6 dias, então montei com esse prazo." */
+  texto: string
+  /** "Se preferir outro, é só me dizer." */
+  mudar: string
+  muda: MudaOQue
+  alvo?: string
+}
+
+/** Acima disto é maioria, e maioria o app resolve sozinho. */
+const MAIORIA = 0.7
 
 /** A mediana, que aguenta o caso extremo melhor que a média. */
 function mediana(ns: number[]): number {
@@ -100,8 +143,9 @@ const SIM_NAO = [
 export function perguntasDoProcesso(
   c: Candidato,
   quemAprovou: { execucao: string; quem: string | null; nome: string }[] = [],
-): PerguntaDoProcesso[] {
+): { afirma: Afirmacao[]; pergunta: PerguntaDoProcesso[] } {
   const saida: PerguntaDoProcesso[] = []
+  const afirma: Afirmacao[] = []
 
   // 1. O PASSO QUE ÀS VEZES ACONTECE. O mais valioso de todos, porque a
   //    resposta vira tarefa obrigatória ou checkpoint, que é desenho de verdade.
@@ -109,9 +153,21 @@ export function perguntasDoProcesso(
   for (const e of c.execucoes) for (const p of e.passos) conta.set(p, (conta.get(p) || 0) + 1)
 
   for (const [passo, n] of conta) {
-    if (n >= c.vezes || n < c.vezes * 0.3) continue
+    // Aconteceu em todas: não há o que perguntar, entra no desenho e o app diz
+    // que entrou. Fingir dúvida onde não há é fazer a pessoa confirmar o óbvio.
+    if (n >= c.vezes) {
+      afirma.push({
+        chave: 'passo-sempre',
+        texto: `"${rotuloDoPasso(passo)}" aconteceu nas ${c.vezes} vezes, então entrou como passo fixo.`,
+        mudar: 'Se não for sempre, me diga.',
+        muda: 'passo-obrigatorio',
+        alvo: passo,
+      })
+      continue
+    }
+    if (n < c.vezes * 0.3) continue
     const custo = custoDeFaltar(c.execucoes, passo)
-    const numero = `Das ${c.vezes} vezes, em ${c.vezes - n} ninguém fez "${passo}".`
+    const numero = `Das ${c.vezes} vezes, em ${c.vezes - n} ninguém fez "${rotuloDoPasso(passo)}".`
     const doeu = custo.piorou
       ? ` Nessas ${custo.quantasSem}, levou ${custo.sem} dias contra ${custo.com} das outras.`
       : ''
@@ -136,8 +192,18 @@ export function perguntasDoProcesso(
       if (atual) atual.n++
       else porPessoa.set(d.quem, { nome: d.nome, n: 1 })
     }
-    if (porPessoa.size > 1 || ninguem > 0) {
-      const lista = [...porPessoa.values()].sort((a, b) => b.n - a.n)
+    const lista = [...porPessoa.values()].sort((a, b) => b.n - a.n)
+    const dono = lista[0]
+    // Maioria clara e ninguém ficou de fora: o app resolve e diz por quê.
+    if (dono && !ninguem && dono.n / quemAprovou.length >= MAIORIA) {
+      afirma.push({
+        chave: 'quem-aprova',
+        texto: `${dono.nome} aprovou ${dono.n} das ${quemAprovou.length} vezes, `
+          + 'então pus como quem responde por esta passagem.',
+        mudar: 'Se for outra pessoa, me diga quem.',
+        muda: 'define-aprovador',
+      })
+    } else if (lista.length > 1 || ninguem > 0) {
       const trecho = lista.map((p) => `${p.nome} ${p.n}`).join(', ')
         + (ninguem ? `, e ${ninguem} sem ninguém` : '')
       saida.push({
@@ -177,44 +243,99 @@ export function perguntasDoProcesso(
     const meio = mediana(c.duracoes)
     const espalhado = c.duracoes[c.duracoes.length - 1] >= c.duracoes[0] * 3
     if (!espalhado && meio > 0) {
-      saida.push({
+      // Prazo é a afirmação mais fácil: ele está dentro do rascunho, é
+      // reversível com um toque, e o número que o justifica é o da própria casa.
+      afirma.push({
         chave: 'prazo-tipico',
-        texto: `Isto costuma levar ${meio} dias do começo ao fim. `
-          + 'Uso esse prazo como padrão quando criar os próximos?',
-        opcoes: [
-          { chave: '1', rotulo: `Sim, ${meio} dias` },
-          { chave: '2', rotulo: 'Não, eu defino caso a caso' },
-        ],
+        texto: `Isto costuma levar ${meio} dias do começo ao fim, então montei com esse prazo.`,
+        mudar: 'Se preferir outro, é só me dizer.',
         muda: 'define-prazo',
-        peso: 40,
       })
     }
   }
 
-  return saida.sort((a, b) => b.peso - a.peso)
+  return { afirma, pergunta: saida.sort((a, b) => b.peso - a.peso) }
 }
 
 /**
- * O primeiro processo entregue: três coisas e no máximo um checkpoint.
+ * O primeiro processo entregue: três checkpoints, uma tarefa em cada.
  *
- * Não é preguiça, é o que a empresa absorve. Quem nunca teve processo recebe um
- * de doze etapas, acha bonito, e abandona em duas semanas: as etapas viram
- * cobrança de burocracia que ninguém pediu, e o processo inteiro é descartado
- * junto. Cada etapa a mais entra depois, e com motivo: "três vezes alguém
- * refez porque isso não foi conferido. Quer virar checkpoint?"
+ * **O checkpoint é a porta, e a tarefa mora dentro dele.** Um processo com um
+ * checkpoint só não tem trilha, não tem "onde está" e não tem passagem: é a
+ * lista avulsa, que é exatamente o que o produto chama de NÃO ser processo. Os
+ * checkpoints são o processo; as tarefas são o recheio.
+ *
+ * Por isso começar pequeno é **poucas tarefas por porta**, nunca poucas portas.
+ * Três checkpoints com uma tarefa cada é um processo de verdade que cabe na
+ * cabeça. Três tarefas dentro de um checkpoint é uma lista de afazeres com nome
+ * bonito, e a empresa que nunca teve processo continua sem ter.
+ *
+ * O limite existe pelo outro lado também: doze etapas de cara viram burocracia
+ * que ninguém pediu, e o processo inteiro é descartado junto em duas semanas.
+ * Cada checkpoint a mais entra depois, e com motivo: "três vezes alguém refez
+ * porque isso não foi conferido. Quer virar checkpoint?"
  */
-export const PRIMEIRO_MAXIMO = { passos: 3, checkpoints: 1 }
+export const PRIMEIRO_MAXIMO = { checkpoints: 3, tarefasPorCheckpoint: 1 }
 
-export function primeiroDesenho(c: Candidato): {
-  nome: string; tipo: 'esteira' | 'ciclo'; passos: string[]; checkpoint: string | null
-} {
+export type Desenho = {
+  nome: string
+  tipo: 'esteira' | 'ciclo'
+  /** As portas, em ordem. Cada uma com no máximo uma tarefa no começo. */
+  checkpoints: { nome: string; tarefa: string | null }[]
+}
+
+/**
+ * O rascunho que vai para a mesa.
+ *
+ * Os três checkpoints saem de onde o trabalho realmente passa: como ele
+ * **começa** (o gatilho), o passo do meio que mais importa, e como ele
+ * **termina** (o desfecho). Começo, meio e fim é o menor processo que ainda é
+ * um processo.
+ */
+/**
+ * O nome do evento em português de gente.
+ *
+ * Os tipos da view `eventos` são de máquina: "tarefa:feita", "decisao:aprovou".
+ * Pôr isso como nome de checkpoint entrega um processo que parece log de
+ * sistema, e a empresa lê aquilo e conclui, com razão, que não foi feito para
+ * ela. O nome definitivo é de quem usa; este é o que se apresenta enquanto
+ * ninguém rebatizou.
+ */
+export function rotuloDoPasso(tipo: string): string {
+  const fixos: Record<string, string> = {
+    atividade: 'Começo',
+    concluido: 'Entrega',
+    cancelado: 'Encerramento',
+    aberto: 'Em andamento',
+    'tarefa:nasceu': 'Preparação',
+    'tarefa:feita': 'Execução',
+    anexo: 'Documentação',
+    'prazo:pedido': 'Replanejamento',
+    'decisao:aprovou': 'Aprovação',
+    'decisao:ressalva': 'Aprovação com ressalva',
+    'decisao:devolveu': 'Devolução',
+  }
+  if (fixos[tipo]) return fixos[tipo]
+  // O que não está na lista vira o que estiver depois dos dois pontos, com a
+  // primeira letra maiúscula: "conferir:estoque" fica "Estoque".
+  const parte = tipo.includes(':') ? tipo.split(':')[1] : tipo
+  return parte.charAt(0).toUpperCase() + parte.slice(1).replace(/[-_]/g, ' ')
+}
+
+export function primeiroDesenho(c: Candidato): Desenho {
+  const meio = c.passos.slice(0, PRIMEIRO_MAXIMO.checkpoints - 2)
+  const nomes = [c.gatilho, ...meio, c.desfecho].slice(0, PRIMEIRO_MAXIMO.checkpoints)
+
   return {
     nome: c.nome || 'Processo sem nome',
     // A cadência decide o tipo, e ela saiu do intervalo entre as execuções.
     tipo: c.cadencia === 'rotina' ? 'ciclo' : 'esteira',
-    passos: c.passos.slice(0, PRIMEIRO_MAXIMO.passos),
-    // O checkpoint é o desfecho: o único lugar onde alguém confere antes de
-    // dar a coisa por encerrada.
-    checkpoint: c.passos.length ? c.desfecho : null,
+    checkpoints: nomes.map((nome, i) => ({
+      nome: rotuloDoPasso(nome),
+      // Uma tarefa por porta, e só nas do meio: a primeira é o gatilho, que já
+      // aconteceu quando a track nasce, e a última é a conferência final.
+      tarefa: i > 0 && i < nomes.length - 1
+        ? (c.passos[i - 1] ? rotuloDoPasso(c.passos[i - 1]) : null) : null,
+    })),
   }
 }
