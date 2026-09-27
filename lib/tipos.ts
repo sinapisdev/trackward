@@ -635,6 +635,8 @@ export type TipoAviso =
   // O que acontece ao lado da track, e que só faz sentido se a outra pessoa
   // ficar sabendo. Ver a seção 27 do schema.
   | 'nota' | 'feedback' | 'mensagem'
+  // O sistema que persegue: o que está prestes a dar errado. Seção 37.
+  | 'parada' | 'carga' | 'rotina'
 
 /**
  * Um aviso é sempre de uma pessoa. Não existe aviso do grupo: aviso sem dono

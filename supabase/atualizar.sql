@@ -2707,9 +2707,162 @@ alter table public.organizacoes add column if not exists pulso_horarios int[];
 alter table public.organizacoes add column if not exists pulso_amostra int;
 
 -- ==========================================================================
--- Conferência. As trinta e uma contas abaixo têm que dar
+-- 37. O sistema que persegue: a varredura do dia
+--
+--     Até aqui o app avisava do que já tinha acontecido: o prazo venceu, o
+--     checkpoint ficou pronto. Isto é o contrário, e é o que separa uma
+--     ferramenta de um serviço: ele procura o que **está prestes a dar errado**
+--     e pergunta antes.
+--
+--     O critério do plano é o resumo: nenhum prazo vence sem alguém ter sido
+--     perguntado antes, e nenhum checkpoint fica pronto esperando alguém
+--     lembrar de aprovar.
+--
+--     Cinco coisas, e cada uma vira aviso com chave do dia, então rodar dez
+--     vezes escreve uma vez só:
+--
+--     1. **Prazo em dois dias.** Perguntar quando ainda dá para fazer algo.
+--        Avisar no dia em que venceu é dar notícia, não ajudar.
+--     2. **Tarefa parada.** Aberta há muito tempo sem ninguém mexer, no
+--        checkpoint corrente. A pergunta é "travou em quê?", porque parada
+--        quase nunca é preguiça: é dependência que ninguém registrou.
+--     3. **Sobrecarga**, e ela vai para QUEM DISTRIBUI, não para quem está
+--        afogado. Avisar a pessoa sobrecarregada de que ela está
+--        sobrecarregada é dar a ela mais uma coisa para carregar.
+--     4. **Ociosidade**, o par da sobrecarga, e também para quem distribui.
+--     5. **Rotina que não começou** no período em que devia.
+--
+--     **A frase fala de capacidade, nunca de esforço** (princípio 1.3 do
+--     plano). "A fila de Fulano não cabe no tempo que ele tem" é sobre
+--     distribuição; "Fulano está devagar" é sobre a pessoa, e é o tipo de
+--     frase que faz o time desligar o app.
+-- ==========================================================================
+
+do $$
+begin
+  alter table public.avisos drop constraint if exists avisos_tipo_check;
+  alter table public.avisos add constraint avisos_tipo_check check (tipo in (
+    'tarefa','aprovacao','prazo','travou','destravou','citacao','pedido_prazo',
+    'nota','feedback','mensagem','parada','carga','rotina'));
+end $$;
+
+/**
+ * A varredura do dia. Devolve quantos avisos novos escreveu.
+ *
+ * `security definer` e sem `minha_org()`: quem chama é o pulso, sem sessão, e
+ * ele varre todas as empresas. A organização de cada linha sai do próprio dado.
+ */
+create or replace function public.varrer_o_dia()
+returns int language plpgsql security definer set search_path = public as $$
+declare
+  hoje date := current_date;
+  n int := 0;
+  r record;
+begin
+  -- 1. PRAZO EM DOIS DIAS. Perguntar enquanto ainda dá para agir.
+  for r in
+    select i.id, i.texto, i.resp_id, i.prazo, f.id as fluxo_id, f.nome as fluxo
+    from itens i
+    join etapas e on e.id = i.etapa_id
+    join fluxos f on f.id = i.fluxo_id and e.ordem = f.atual
+    where not i.feito and i.resp_id is not null
+      and not f.concluido and f.travado_motivo is null
+      and i.prazo is not null and i.prazo > hoje and i.prazo <= hoje + 2
+  loop
+    if avisar(r.resp_id, 'prazo', 'Vence em breve: ' || r.texto,
+              r.fluxo || ' · ' || to_char(r.prazo, 'DD/MM'),
+              'quase:' || r.id::text || ':' || hoje::text,
+              false, r.fluxo_id, r.id, null, null, null) then n := n + 1; end if;
+  end loop;
+
+  -- 2. TAREFA PARADA. Catorze dias sem ninguém mexer, e ela é do checkpoint de
+  --    agora: parada num checkpoint futuro é normal, ainda não chegou a vez.
+  for r in
+    select i.id, i.texto, i.resp_id, f.id as fluxo_id, f.nome as fluxo
+    from itens i
+    join etapas e on e.id = i.etapa_id
+    join fluxos f on f.id = i.fluxo_id and e.ordem = f.atual
+    where not i.feito and i.resp_id is not null
+      and not f.concluido and f.travado_motivo is null
+      and i.criado_em < now() - interval '14 days'
+      and not exists (select 1 from dependencias d where d.item_id = i.id)
+  loop
+    if avisar(r.resp_id, 'parada', 'Parada há duas semanas: ' || r.texto,
+              r.fluxo || '. Travou em quê? Se depender de outra pessoa, dá para registrar.',
+              'parada:' || r.id::text || ':' || to_char(hoje, 'IYYY-IW'),
+              false, r.fluxo_id, r.id, null, null, null) then n := n + 1; end if;
+  end loop;
+
+  -- 3 e 4. CARGA. Vai para quem distribui, nunca para quem está afogado.
+  --        A conta é simples de propósito: tarefas abertas no checkpoint
+  --        corrente, comparadas com a média de quem trabalha na mesma casa.
+  for r in
+    with fila as (
+      select p.id, p.nome, p.org_id, count(i.id) as abertas,
+             count(i.id) filter (where i.prazo < hoje) as atrasadas
+      from perfis p
+      left join itens i on i.resp_id = p.id and not i.feito
+        and exists (select 1 from etapas e join fluxos f on f.id = e.fluxo_id
+                    where e.id = i.etapa_id and e.ordem = f.atual
+                      and not f.concluido and f.travado_motivo is null)
+      where p.ativo
+      group by p.id, p.nome, p.org_id
+    ),
+    media as (
+      select org_id, avg(abertas) as m, count(*) as gente from fila group by org_id
+    )
+    select f.*, m.m, m.gente,
+      (select o.dono_id from organizacoes o where o.id = f.org_id) as manda
+    from fila f join media m on m.org_id = f.org_id
+    -- Menos de três pessoas não tem média que signifique nada.
+    where m.gente >= 3
+  loop
+    if r.manda is null or r.manda = r.id then continue; end if;
+    if r.abertas > r.m * 1.8 and r.abertas >= 5 then
+      -- Sem pronome: o nome de quem recebe a tarefa não diz o gênero, e errar
+      -- isso numa frase que a casa inteira lê é um jeito bobo de ofender.
+      if avisar(r.manda, 'carga', 'A fila de ' || r.nome || ' não cabe no tempo que tem',
+                r.abertas::text || ' tarefas abertas, contra ' || round(r.m)::text
+                  || ' na média da casa' ||
+                  case when r.atrasadas > 0 then ', ' || r.atrasadas::text || ' já atrasadas' else '' end
+                  || '. Dá para passar alguma para outra pessoa?',
+                'carga:' || r.id::text || ':' || to_char(hoje, 'IYYY-IW'),
+                false, null, null, null, null, null) then n := n + 1; end if;
+    elsif r.abertas = 0 and r.m >= 3 then
+      if avisar(r.manda, 'carga', r.nome || ' está com a fila vazia',
+                'Nada aberto, contra ' || round(r.m)::text || ' na média da casa. '
+                  || 'Se tiver o que passar, é uma boa hora.',
+                'ocio:' || r.id::text || ':' || to_char(hoje, 'IYYY-IW'),
+                false, null, null, null, null, null) then n := n + 1; end if;
+    end if;
+  end loop;
+
+  -- 5. ROTINA QUE NÃO COMEÇOU. Está no primeiro checkpoint, sem nada feito, e
+  --    o período dela já passou da metade.
+  for r in
+    select f.id, f.nome, f.dono_id, f.periodo
+    from fluxos f
+    where f.tipo = 'ciclo' and not f.concluido and f.travado_motivo is null
+      and f.atual = 0 and f.dono_id is not null
+      and f.criado_em < now() - interval '10 days'
+      and not exists (
+        select 1 from itens i join etapas e on e.id = i.etapa_id
+        where e.fluxo_id = f.id and i.feito)
+  loop
+    if avisar(r.dono_id, 'rotina', r.nome || ' ainda não começou',
+              'A rotina está parada no primeiro checkpoint e nada foi feito nela. '
+                || 'Ainda vale para este período?',
+              'rotina:' || r.id::text || ':' || to_char(hoje, 'IYYY-IW'),
+              false, r.id, null, null, null, null) then n := n + 1; end if;
+  end loop;
+
+  return n;
+end $$;
+
+-- ==========================================================================
+-- Conferência. As trinta e duas contas abaixo têm que dar
 -- 34, 3, 3, 3, true, 1, 2, 1, 2, 0, true, 3, true, 4, true, true, 1, true, 1,
--- 1, true, 3, 1, 1, 4, true, 1, 2, true, 2 e 2.
+-- 1, true, 3, 1, 1, 4, true, 1, 2, true, 2, 2 e 1.
 -- ==========================================================================
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
@@ -2817,4 +2970,7 @@ select
   (select count(*) from information_schema.columns
     where table_schema = 'public' and table_name = 'organizacoes'
       and column_name in ('pulso_horarios','pulso_amostra'))
-    as "o ritmo aprendido (2)";
+    as "o ritmo aprendido (2)",
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'varrer_o_dia')
+    as "a varredura do dia (1)";

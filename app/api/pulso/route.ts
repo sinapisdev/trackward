@@ -162,6 +162,16 @@ export async function POST(req: Request) {
       .eq('id', o.id)
   }
 
+  /**
+   * A varredura do dia: o que está prestes a dar errado.
+   *
+   * Roda antes da leitura e para TODAS as empresas, não só as da vez: ela não
+   * chama modelo nenhum, é consulta de banco, e perder o dia de uma empresa
+   * porque o horário de leitura dela não bateu seria perder justamente o aviso
+   * que existe para chegar antes. Ver a seção 37.
+   */
+  const { data: perseguiu } = await sb.rpc('varrer_o_dia')
+
   const naVez = ((orgs || []) as Org[])
     .filter((o) => devePulsar(o, agora, ritmo.get(o.id) || []).bate)
   const relatorio: { org: string; canais: number; propostas: number; motor: string }[] = []
@@ -180,7 +190,9 @@ export async function POST(req: Request) {
     await sb.from('organizacoes').update({ pulso_em: agora.toISOString() }).eq('id', org.id)
   }
 
-  return NextResponse.json({ quando: agora.toISOString(), organizacoes: relatorio })
+  return NextResponse.json({
+    quando: agora.toISOString(), perseguiu: perseguiu ?? 0, organizacoes: relatorio,
+  })
 }
 
 // --------------------------------------------------------------- uma empresa

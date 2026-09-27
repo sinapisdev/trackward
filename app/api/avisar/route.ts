@@ -261,6 +261,21 @@ function comoPergunta(a: Aviso): {
     }
   }
 
+  /**
+   * "Travou em quê?" é pergunta de verdade, e a resposta é texto livre: não dá
+   * para oferecer lista de motivos que o app não conhece. Ela fecha a pergunta
+   * e fica registrada; transformar a resposta em dependência é o passo
+   * seguinte, e exige saber de qual tarefa ela depende.
+   */
+  if (a.tipo === 'parada' && a.item_id) {
+    return {
+      sobre_tipo: 'item', sobre_id: a.item_id,
+      pergunta: a.titulo,
+      texto: `${a.titulo}\n${a.corpo}\n\nSe já ficou pronta, responda "pronto".`,
+      opcoes: null,
+    }
+  }
+
   if (a.tipo === 'pedido_prazo') {
     const id = (a.chave.split(':')[1] || '').trim()
     if (!id) return null

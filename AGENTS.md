@@ -852,6 +852,24 @@ escrever cabeçalho à mão (as rotas aceitam os dois nomes). E o `proxy.ts` man
 entrar: **toda rota com credencial própria precisa estar em `ABERTAS`**, senão a porta da
 frente, que só sabe perguntar por sessão, transforma a recusa num 307 que ninguém depura.
 
+**O app persegue o que está prestes a dar errado, e não só relata o que já deu.** A
+varredura do dia (`varrer_o_dia`, seção 37) roda no pulso e procura cinco coisas: prazo
+vencendo em dois dias, tarefa parada há duas semanas no checkpoint corrente, gente em
+sobrecarga, gente com a fila vazia e rotina que não começou. Avisar no dia em que o prazo
+venceu é dar notícia; perguntar dois dias antes é ajudar.
+
+**Carga vai para quem distribui, nunca para quem está afogado.** Avisar a pessoa
+sobrecarregada de que ela está sobrecarregada é dar a ela mais uma coisa para carregar. E
+**a frase fala de fila e de média, nunca de esforço**: "a fila de Fulano não cabe no tempo
+que tem" é sobre distribuição, "Fulano está devagar" é sobre a pessoa, e é o tipo de frase
+que faz o time desligar o app. Pelo mesmo motivo, **sem pronome**: o nome de quem recebe a
+tarefa não diz o gênero, e errar isso numa frase que a casa inteira lê é um jeito bobo de
+ofender.
+
+**A varredura roda para todas as empresas, mesmo fora do horário de leitura delas.** Ela
+não chama modelo nenhum, é consulta de banco, e perder o dia de uma empresa porque o
+horário de leitura não bateu seria perder justamente o aviso que existe para chegar antes.
+
 O sino mostra tudo, porque quem está no app já escolheu olhar. Fora do app sai
 só o que a pessoa ligou, respeitando "só urgente" e o não perturbe, e quem
 entrega é `/api/avisar`, a única parte do sistema que usa a chave de serviço.

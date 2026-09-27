@@ -39,6 +39,9 @@ export const ROTULO: Record<TipoAviso, string> = {
   nota: 'Nota',
   feedback: 'Feedback',
   mensagem: 'Conversa',
+  parada: 'Parada',
+  carga: 'Distribuição',
+  rotina: 'Rotina',
 }
 
 /** Para onde o aviso leva quando alguém clica nele. */
