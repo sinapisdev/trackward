@@ -1851,7 +1851,10 @@ create or replace function public.decidir_etapa(
   p_nota     text default '',
   p_reabrir  uuid[] default '{}',
   p_periodo  text default null,
-  p_prazo    date default null
+  p_prazo    date default null,
+  -- Ver a seção 35. Nasce aqui para o arquivo poder ser lido duas vezes sem
+  -- criar duas versões da mesma função, que deixariam a chamada ambígua.
+  p_como     uuid default null
 )
 returns text language plpgsql security definer set search_path = public as $$
 declare
@@ -2088,7 +2091,7 @@ end $$;
  * Recusar derruba os pedidos que nasceram deste, porque eles foram calculados
  * supondo que este andaria. Deixá-los de pé seria propor data que não fecha.
  */
-create or replace function public.decidir_prazo(p_pedido uuid, p_aceita boolean)
+create or replace function public.decidir_prazo(p_pedido uuid, p_aceita boolean, p_como uuid default null)
 returns text language plpgsql security definer set search_path = public as $$
 declare
   uid uuid := meu_perfil();
@@ -3848,7 +3851,10 @@ create or replace function public.decidir_etapa(
   p_nota     text default '',
   p_reabrir  uuid[] default '{}',
   p_periodo  text default null,
-  p_prazo    date default null
+  p_prazo    date default null,
+  -- Ver a seção 35: em nome de quem, quando não há sessão. Nasce aqui para o
+  -- arquivo poder ser lido duas vezes sem criar duas versões da mesma função.
+  p_como     uuid default null
 ) returns text language plpgsql security definer set search_path = public as $$
 declare
   f      fluxos%rowtype;
@@ -5193,4 +5199,243 @@ begin
     raise exception 'O teste acabou. Dá para ler e terminar o que já começou; para criar coisa nova, contrate um plano.';
   end if;
   return new;
+end $$;
+
+-- --------------------------------------------------------------------------
+-- 35. O servidor age em nome de alguém, e só quando não há ninguém logado
+--
+--     Aprovar um checkpoint pelo WhatsApp esbarra num detalhe: `decidir_etapa`
+--     e `decidir_prazo` perguntam `meu_perfil()`, e do WhatsApp não existe
+--     sessão. A saída fácil seria duplicar as duas com um parâmetro de perfil,
+--     e é a errada: duas cópias da regra mais importante do app divergem em
+--     três meses, e a que estiver errada é sempre a que ninguém está lendo.
+--
+--     Em vez disso, as MESMAS funções aceitam `p_como`, e ele **só vale quando
+--     `auth.uid()` é nulo**. Quem está logado não age em nome de outra pessoa
+--     passando um id: o parâmetro é ignorado. O servidor, que não tem sessão,
+--     age, e é ele quem confere de quem é o telefone antes de chamar.
+--
+--     Telefone não é senha: quem chega por ali só decide o que já era dele.
+--     Todas as regras de quem aprova o quê continuam de pé, só que perguntadas
+--     pelo perfil que está agindo em vez de pela sessão, que ali não existe.
+--
+--     O corpo das duas funções é o mesmo de antes, copiado sem uma linha de
+--     diferença: o que mudou é de onde sai a identidade. Reescrever o corpo à
+--     mão aqui teria perdido coisa que ninguém ia notar, como a queda em
+--     cascata dos pedidos de prazo e a proteção do prazo firme.
+-- --------------------------------------------------------------------------
+
+create or replace function public.quem_age(p_como uuid default null)
+returns uuid language plpgsql stable security definer set search_path = public as $$
+declare v uuid;
+begin
+  -- Com sessão, é sempre quem está logado. `p_como` não abre porta nenhuma.
+  if auth.uid() is not null then
+    v := meu_perfil();
+    if v is null or not exists (select 1 from perfis where id = v and ativo) then
+      raise exception 'Sem acesso.';
+    end if;
+    return v;
+  end if;
+  -- Sem sessão é o servidor. Ele diz em nome de quem, e o perfil tem que existir
+  -- e estar ativo: desligar alguém precisa fechar a porta do WhatsApp também.
+  if p_como is null or not exists (select 1 from perfis where id = p_como and ativo) then
+    raise exception 'Sem acesso.';
+  end if;
+  return p_como;
+end $$;
+
+/** `manda_no_processo`, perguntado por um perfil em vez de pela sessão. */
+create or replace function public.manda_no_processo_como(f uuid, uid uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from fluxos x join perfis p on p.id = uid
+    where x.id = f and x.org_id = p.org_id
+      and (p.papel = 'admin' or x.autor_id = uid or x.dono_id = uid
+           or (p.papel = 'gestor' and exists (
+                 select 1 from perfis d where d.id = x.dono_id and d.gestor_id = uid)))
+  );
+$$;
+
+-- A assinatura muda, então a antiga sai antes: duas versões com parâmetro
+-- opcional deixariam a chamada ambígua e o Postgres recusaria as duas.
+drop function if exists public.decidir_etapa(uuid, text, text, uuid[], text, date);
+
+create or replace function public.decidir_etapa(
+  p_fluxo    uuid,
+  p_tipo     text,
+  p_nota     text default '',
+  p_reabrir  uuid[] default '{}',
+  p_periodo  text default null,
+  p_prazo    date default null,
+  -- Em nome de quem, quando não há sessão. Só vale com `auth.uid()` nulo.
+  p_como     uuid default null
+) returns text language plpgsql security definer set search_path = public as $$
+declare
+  f      fluxos%rowtype;
+  e      etapas%rowtype;
+  uid    uuid := quem_age(p_como);
+  n      int;
+  passo  int;
+  atrasou boolean;
+  pendente text;
+begin
+  select * into f from fluxos where id = p_fluxo;
+  if f.id is null then raise exception 'Projeto não encontrado.'; end if;
+  if f.concluido then raise exception 'Este projeto já está concluído.'; end if;
+  if f.travado_motivo is not null then raise exception 'Este projeto está travado.'; end if;
+
+  select * into e from etapas where fluxo_id = f.id and ordem = f.atual;
+  if e.id is null then raise exception 'Checkpoint não encontrado.'; end if;
+  if e.aprovador_id is not null and e.aprovador_id <> uid and not exists (select 1 from perfis where id = uid and papel = 'admin') then
+    raise exception 'Somente quem aprova este checkpoint pode decidir.';
+  end if;
+
+  if p_tipo not in ('aprovou','ressalva','devolveu') then raise exception 'Decisão desconhecida.'; end if;
+  if p_tipo <> 'aprovou' and btrim(coalesce(p_nota, '')) = '' then
+    raise exception 'Escreva o motivo: quem recebe precisa saber o que fazer.';
+  end if;
+
+  select count(*) into n from etapas where fluxo_id = f.id;
+
+  -- Ressalva no último checkpoint de um objetivo não tem para onde ir: o que
+  -- viria depois não existe, e aceitar aqui é entregar com pendência e sem
+  -- ninguém para cobrá-la. Rotina pode, porque a volta seguinte é o depois.
+  if p_tipo = 'ressalva' and f.atual = n - 1 and f.tipo = 'esteira' then
+    raise exception 'Este é o último checkpoint: ou a track conclui, ou a pendência vira tarefa aqui antes.';
+  end if;
+
+  if p_tipo = 'devolveu' then
+    update itens set feito = false, feito_em = null
+    where etapa_id = e.id and id = any(p_reabrir);
+
+    insert into decisoes (fluxo_id, etapa_id, quem_id, tipo, nota)
+    values (f.id, e.id, uid, 'devolveu', btrim(p_nota));
+
+    insert into atividades (fluxo_id, quem_id, texto)
+    values (f.id, uid, 'devolveu ' || e.nome || ': ' || btrim(p_nota));
+    return 'devolveu';
+  end if;
+
+  -- A dívida do checkpoint anterior vem antes de qualquer coisa, e a mensagem
+  -- diz qual é: "existem itens pendentes" numa lista de doze não aponta nada.
+  select i.texto into pendente from itens i
+  where i.etapa_id = e.id and i.ressalva and not i.feito
+  order by i.ordem limit 1;
+  if pendente is not null then
+    raise exception 'Falta a ressalva do checkpoint anterior: %', pendente;
+  end if;
+
+  if exists (
+    select 1 from itens i
+    where i.etapa_id = e.id and not i.feito and (not i.priv or i.autor_id = uid)
+  ) then raise exception 'Ainda existem itens pendentes neste checkpoint.'; end if;
+
+  insert into decisoes (fluxo_id, etapa_id, quem_id, tipo, nota)
+  values (f.id, e.id, uid, p_tipo, btrim(coalesce(p_nota, '')));
+
+  insert into atividades (fluxo_id, quem_id, texto)
+  values (f.id, uid, case when p_tipo = 'ressalva'
+    then 'aprovou ' || e.nome || ' com ressalva: ' || btrim(p_nota)
+    else 'aprovou a saída de ' || e.nome end);
+
+  -- A ressalva vira tarefa marcada do checkpoint seguinte, e numa rotina que
+  -- está virando, do primeiro da volta que vem.
+  if p_tipo = 'ressalva' then
+    insert into itens (etapa_id, fluxo_id, texto, resp_id, prazo, autor_id, ordem, ressalva)
+    select et.id, f.id, 'Ressalva: ' || btrim(p_nota), f.dono_id, p_prazo, uid,
+           coalesce((select max(i.ordem) + 1 from itens i where i.etapa_id = et.id), 0), true
+    from etapas et
+    where et.fluxo_id = f.id
+      and et.ordem = case when f.atual < n - 1 then f.atual + 1 else 0 end;
+  end if;
+
+  if f.atual < n - 1 then
+    update fluxos set atual = f.atual + 1 where id = f.id;
+    return 'avancou';
+  end if;
+
+  if f.tipo = 'ciclo' then
+    passo := case f.freq when 'semanal' then 7 when 'quinzenal' then 15 else 30 end;
+    select exists (
+      select 1 from etapas et where et.fluxo_id = f.id and et.prazo is not null and et.prazo < current_date
+      union all
+      select 1 from itens it where it.fluxo_id = f.id and it.prazo is not null and it.prazo < current_date
+    ) into atrasou;
+
+    insert into historico (fluxo_id, periodo, situacao)
+    values (f.id, coalesce(f.periodo, ''), case when atrasou then 'late' else 'ok' end);
+
+    delete from historico h
+    where h.fluxo_id = f.id
+      and h.id not in (select id from historico where fluxo_id = f.id order by criado_em desc limit 12);
+
+    update etapas set prazo = prazo + passo where fluxo_id = f.id and prazo is not null;
+    -- A ressalva que acabou de nascer não é "tarefa da volta passada": ela é a
+    -- dívida desta virada, e zerá-la junto com o resto seria pagá-la sozinha.
+    update itens set feito = false, prazo = prazo + passo
+    where fluxo_id = f.id and prazo is not null and not ressalva;
+    update itens set feito = false where fluxo_id = f.id and prazo is null and not ressalva;
+    update fluxos set atual = 0, periodo = coalesce(nullif(btrim(p_periodo), ''), periodo) where id = f.id;
+    return 'volta';
+  end if;
+
+  -- Concluir arquiva: a track sai da lista principal e continua inteira em
+  -- Arquivadas, que é onde ficam os documentos e o histórico dela. Seção 21.
+  update fluxos set concluido = true, desfecho = 'concluido', arquivado_em = now()
+  where id = f.id;
+  return 'concluido';
+end $$;
+
+drop function if exists public.decidir_prazo(uuid, boolean);
+
+create or replace function public.decidir_prazo(
+  p_pedido uuid, p_aceita boolean, p_como uuid default null)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := quem_age(p_como);
+  pd  pedidos_prazo%rowtype;
+begin
+  -- `quem_age` já recusou quem não está ativo.
+
+  select * into pd from pedidos_prazo where id = p_pedido for update;
+  if not found then raise exception 'Pedido não encontrado.'; end if;
+  if pd.estado <> 'aberto' then raise exception 'Este pedido já foi decidido.'; end if;
+  if not manda_no_processo_como(pd.fluxo_id, uid) then
+    raise exception 'Só quem responde por esta esteira decide o prazo dela.';
+  end if;
+  -- Quem pediu pode aceitar quando responde pelas duas esteiras, e isso é de
+  -- propósito: o que o aceite garante não é que outra pessoa olhe, é que alguém
+  -- olhe e diga sim de novo, num ato separado. Sem isso a cascata voltaria a ser
+  -- automática justamente para quem tem mais poder de estragar.
+
+  if p_aceita then
+    update itens set prazo = pd.para where id = pd.item_id and not prazo_firme;
+    update pedidos_prazo set estado = 'aceito', decidido_por = uid, decidido_em = now()
+    where id = pd.id;
+    insert into atividades (fluxo_id, quem_id, texto)
+    select pd.fluxo_id, uid, 'aceitou mover ' || i.texto || ' para ' || to_char(pd.para, 'DD/MM')
+    from itens i where i.id = pd.item_id;
+    return 'aceito';
+  end if;
+
+  update pedidos_prazo set estado = 'recusado', decidido_por = uid, decidido_em = now()
+  where id = pd.id;
+
+  -- Em cadeia: o que nasceu deste pedido não faz mais sentido.
+  with recursive queda as (
+    select id, item_id from pedidos_prazo where origem_id = pd.item_id and estado = 'aberto'
+    union all
+    select p.id, p.item_id from pedidos_prazo p
+    join queda q on p.origem_id = q.item_id
+    where p.estado = 'aberto'
+  )
+  update pedidos_prazo set estado = 'recusado', decidido_por = uid, decidido_em = now(),
+    motivo = motivo || ' (caiu junto: o pedido que veio antes foi recusado)'
+  where id in (select id from queda);
+
+  insert into atividades (fluxo_id, quem_id, texto)
+  select pd.fluxo_id, uid, 'recusou mover ' || i.texto || ': a data fica onde está'
+  from itens i where i.id = pd.item_id;
+  return 'recusado';
 end $$;

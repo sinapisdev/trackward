@@ -212,8 +212,15 @@ export async function POST(req: Request) {
     return twiml('Certo, deixei pra lá.')
   }
 
-  return await responder(sb, eu, p, corpo, sid)
+  return await responder(sb, eu, p, corpo, sid, r.como === 'escolha' ? r.opcao : null)
 }
+
+/** As três saídas de um checkpoint, do jeito que elas aparecem no telefone. */
+const SAIDAS: { chave: string; rotulo: string; tipo: string }[] = [
+  { chave: '1', rotulo: 'Aprovo', tipo: 'aprovou' },
+  { chave: '2', rotulo: 'Aprovo com ressalva', tipo: 'ressalva' },
+  { chave: '3', rotulo: 'Devolvo', tipo: 'devolveu' },
+]
 
 /**
  * O que fazer com a resposta, agora que se sabe a qual pergunta ela é.
@@ -225,8 +232,77 @@ export async function POST(req: Request) {
  */
 async function responder(
   sb: Sb, eu: { id: string; org_id: string; nome: string }, p: Pergunta,
-  corpo: string, _sid: string | null,
+  corpo: string, _sid: string | null, opcao: string | null = null,
 ) {
+  /**
+   * Checkpoint: só por botão, nunca por texto interpretado.
+   *
+   * Esta é a fronteira do bloco B. Concluir a própria tarefa é sobre o seu
+   * trabalho; aprovar um checkpoint libera a track inteira e destrava o
+   * trabalho dos outros. Telefone não é senha, então aqui a pessoa escolhe de
+   * uma lista, e um "pode ir" mal interpretado não aprova nada.
+   */
+  if (p.sobre_tipo === 'etapa' && p.sobre_id) {
+    const escolhido = (p.opcoes || []).find(
+      (o) => (o as { chave: string }).chave === '_tipo',
+    ) as { rotulo: string } | undefined
+
+    // Segunda volta: a decisão já foi escolhida e falta o motivo, que o banco
+    // exige para ressalva e devolução, porque quem recebe precisa saber o quê.
+    if (escolhido) {
+      if (!corpo) return twiml('Preciso do motivo, em uma linha, para poder seguir.')
+      await fechar(sb, p.id)
+      const { error } = await sb.rpc('decidir_etapa', {
+        p_fluxo: p.sobre_id, p_tipo: escolhido.rotulo, p_nota: corpo,
+        p_reabrir: [], p_periodo: null, p_prazo: null, p_como: eu.id,
+      })
+      if (error) return twiml(recado(error.message))
+      return twiml(escolhido.rotulo === 'ressalva'
+        ? 'Aprovado com ressalva. A pendência virou tarefa no próximo checkpoint, e ele não fecha sem ela.'
+        : 'Devolvido. As tarefas marcadas voltaram a ficar em aberto.')
+    }
+
+    const saida = SAIDAS.find((x) => x.chave === opcao)
+    if (!saida) {
+      return twiml(`Para decidir, responda com o número:\n\n${
+        SAIDAS.map((x) => `${x.chave}) ${x.rotulo}`).join('\n')}`)
+    }
+    await fechar(sb, p.id)
+
+    if (saida.tipo === 'aprovou') {
+      const { error } = await sb.rpc('decidir_etapa', {
+        p_fluxo: p.sobre_id, p_tipo: 'aprovou', p_nota: '',
+        p_reabrir: [], p_periodo: null, p_prazo: null, p_como: eu.id,
+      })
+      if (error) return twiml(recado(error.message))
+      return twiml('Aprovado. A track seguiu para o próximo checkpoint.')
+    }
+
+    // Ressalva e devolução precisam de motivo: pergunta antes de fazer.
+    await perguntar(sb, eu.org_id, eu.id, {
+      sobre_tipo: 'etapa', sobre_id: p.sobre_id,
+      texto: saida.tipo === 'ressalva'
+        ? 'Qual é a pendência que fica?' : 'Por que está devolvendo?',
+      opcoes: [{ chave: '_tipo', rotulo: saida.tipo }],
+    })
+    return twiml(saida.tipo === 'ressalva'
+      ? 'Certo. Qual é a pendência que fica? Ela vira tarefa no próximo checkpoint.'
+      : 'Certo. Por que está devolvendo? Quem recebe precisa saber o que fazer.')
+  }
+
+  /** Prazo: também por botão, porque quem espera é outra pessoa. */
+  if (p.sobre_tipo === 'prazo' && p.sobre_id) {
+    if (opcao !== '1' && opcao !== '2') {
+      return twiml('Para decidir, responda com o número:\n\n1) Aceito o prazo novo\n2) Mantenho o que estava')
+    }
+    await fechar(sb, p.id)
+    const { error } = await sb.rpc('decidir_prazo', {
+      p_pedido: p.sobre_id, p_aceita: opcao === '1', p_como: eu.id,
+    })
+    if (error) return twiml(recado(error.message))
+    return twiml(opcao === '1' ? 'Prazo aceito e já movido.' : 'Mantido como estava.')
+  }
+
   await fechar(sb, p.id)
 
   if (p.sobre_tipo === 'item' && p.sobre_id) {
@@ -250,4 +326,18 @@ async function responder(
 
   return twiml('Anotei a sua resposta. Essa parte eu ainda não sei resolver por '
     + 'aqui, mas ela já está registrada.')
+}
+
+/**
+ * A recusa do banco, dita para quem está no telefone.
+ *
+ * As mensagens do schema já foram escritas para gente ler, então a maioria
+ * passa inteira. O que não pode passar é erro de máquina: quem está no
+ * WhatsApp não tem como agir sobre "violates row-level security policy".
+ */
+function recado(msg: string): string {
+  if (/row-level security|permission denied|violates/i.test(msg)) {
+    return 'Isso não está liberado para você. Se achar que deveria, fale com quem administra.'
+  }
+  return msg.length < 200 ? msg : 'Não deu para fazer isso agora.'
 }
