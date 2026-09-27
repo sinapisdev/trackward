@@ -5831,3 +5831,121 @@ begin
   where id = v_id;
   return v_id;
 end $$;
+
+-- --------------------------------------------------------------------------
+-- 40. A pergunta do dia, e o acervo que aprende a forma
+--
+--     Duas tabelas, e a distância entre elas é o ponto.
+--
+--     `perguntas_ritmo` é da empresa: quantas vezes cada molde foi mandado para
+--     cada pessoa, quantas voltaram, e quantas revelaram alguma coisa. É daqui
+--     que sai a poda (três vazias seguidas e a pergunta some daquela pessoa) e
+--     a ordem (a que mais revela vem primeiro). Em um mês o conjunto convergiu
+--     para aquela casa sem ninguém configurar nada.
+--
+--     `acervo_forma` é de todo mundo, e **não tem chave estrangeira para dado
+--     de cliente nenhum**. Nem org_id, nem perfil_id. Só a chave do molde e
+--     três contagens. É o princípio 1.5 virado estrutura: entre clientes sobe
+--     a FORMA (qual pergunta costuma ser respondida, qual costuma revelar),
+--     nunca o conteúdo (nome, texto, valor, conversa, empresa).
+--
+--     Essa separação precisa ser de tabela e de rota, e não de intenção,
+--     porque intenção não sobrevive ao sexto mês: alguém vai querer "só uma
+--     coluninha" com o nome da empresa para depurar, e a partir dali o acervo
+--     deixou de ser anônimo sem ninguém ter decidido isso.
+-- --------------------------------------------------------------------------
+
+create table if not exists public.perguntas_ritmo (
+  org_id    uuid not null references public.organizacoes on delete cascade,
+  perfil_id uuid not null references public.perfis on delete cascade,
+  chave     text not null,
+  mandadas  int not null default 0,
+  respondidas int not null default 0,
+  /** Quantas voltaram sem revelar nada. Três seguidas e ela sai. */
+  vazias_seguidas int not null default 0,
+  /** Quantas viraram alguma coisa: tarefa, nota, dependência. */
+  revelou   int not null default 0,
+  ultima_em timestamptz,
+  primary key (perfil_id, chave)
+);
+
+alter table public.perguntas_ritmo enable row level security;
+
+do $$
+begin
+  execute 'drop trigger if exists ao_inserir_org on public.perguntas_ritmo';
+  execute 'create trigger ao_inserir_org before insert on public.perguntas_ritmo
+             for each row execute function public.carimbar_org()';
+end $$;
+
+-- Cada pessoa vê o próprio ritmo. Quem escreve é o servidor.
+drop policy if exists pr_sel on public.perguntas_ritmo;
+create policy pr_sel on public.perguntas_ritmo for select
+  using (minha(org_id) and perfil_id = meu_perfil());
+
+-- --------------------------------------------------------------------------
+-- O acervo. Repare no que ele NÃO tem: org_id, perfil_id, nenhum texto.
+-- --------------------------------------------------------------------------
+create table if not exists public.acervo_forma (
+  chave     text primary key,
+  mandadas  int not null default 0,
+  respondidas int not null default 0,
+  revelou   int not null default 0,
+  mexido_em timestamptz not null default now()
+);
+
+alter table public.acervo_forma enable row level security;
+
+-- Ninguém lê nem escreve daqui de dentro do app. Quem mexe é o servidor, com a
+-- chave de serviço, e o que ele escreve são três números por molde.
+-- Sem política nenhuma: RLS ligada e sem policy é tabela fechada.
+
+/**
+ * Registra que um molde foi mandado, e leva a forma para o acervo.
+ *
+ * O acervo recebe a mesma contagem sem saber de quem veio: o parâmetro é a
+ * chave do molde, e mais nada. Por isso a subida é segura mesmo que um dia
+ * alguém chame esta função de um lugar errado.
+ */
+create or replace function public.pergunta_mandada(p_perfil uuid, p_chave text)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_org uuid;
+begin
+  select org_id into v_org from perfis where id = p_perfil;
+  if v_org is null then return; end if;
+
+  insert into perguntas_ritmo (org_id, perfil_id, chave, mandadas, ultima_em)
+  values (v_org, p_perfil, p_chave, 1, now())
+  on conflict (perfil_id, chave) do update
+    set mandadas = perguntas_ritmo.mandadas + 1, ultima_em = now();
+
+  insert into acervo_forma (chave, mandadas) values (p_chave, 1)
+  on conflict (chave) do update
+    set mandadas = acervo_forma.mandadas + 1, mexido_em = now();
+end $$;
+
+/**
+ * Registra a resposta, e se ela revelou alguma coisa.
+ *
+ * "Revelou" quer dizer que a resposta virou fato no app: uma tarefa, uma nota,
+ * uma dependência. Resposta que não vira nada conta como vazia, e três vazias
+ * seguidas podam a pergunta daquela pessoa. É assim que o conjunto encolhe
+ * sozinho para o que serve naquela casa.
+ */
+create or replace function public.pergunta_respondida(
+  p_perfil uuid, p_chave text, p_revelou boolean)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update perguntas_ritmo set
+    respondidas = respondidas + 1,
+    revelou = revelou + case when p_revelou then 1 else 0 end,
+    vazias_seguidas = case when p_revelou then 0 else vazias_seguidas + 1 end
+  where perfil_id = p_perfil and chave = p_chave;
+
+  insert into acervo_forma (chave, respondidas, revelou)
+  values (p_chave, 1, case when p_revelou then 1 else 0 end)
+  on conflict (chave) do update set
+    respondidas = acervo_forma.respondidas + 1,
+    revelou = acervo_forma.revelou + case when p_revelou then 1 else 0 end,
+    mexido_em = now();
+end $$;

@@ -635,6 +635,48 @@ conversam". E a janela continua na mão de quem quiser fixar.
 leituras leem a mesma conversa e cobram por isso. E quando há menos picos do que leituras
 contratadas, ele **não inventa horário** para completar a conta.
 
+## O processo descoberto, e a pergunta que o constrói
+
+Empresa sem processo **já tem processo**: ele só não é constante, não é explícito e não tem
+dono. O app não inventa nenhum, ele mostra a grama pisada.
+
+**A descoberta procura forma, não sequência** (`lib/descobrir.ts`). Procurar a mesma
+sequência repetida não funciona em empresa desorganizada, que é justamente quem mais
+precisa: lá a ordem muda toda vez, alguém pula etapa, alguém faz duas de uma vez, e a
+resposta é sempre "não achei nada". O que sobrevive ao caos são invariantes: o mesmo
+gatilho, o mesmo desfecho, o mesmo **conjunto** de eventos no meio mesmo fora de ordem, e
+as mesmas áreas. Os três critérios juntos, porque só o miolo agruparia "aprovar orçamento"
+com "aprovar férias".
+
+**Ela não sabe o que é "financeiro", e não vai saber.** Classificar setor exigiria uma
+lista do que é processo financeiro ou jurídico; ela estaria errada para metade das
+empresas, e a primeira construtora com um jeito próprio cairia na gaveta errada. O setor
+entra pela **área de quem fez** (a view `eventos`, seção 38), e o nome sai das palavras que
+a própria casa usa. Candidato sem área de maioria fica **sem área**, de propósito: processo
+que atravessa setor não pertence a um, e são esses que mostram onde trava entre áreas.
+
+**Nada vira processo sozinho.** O que sai é candidato, com o estado à vista, e o que foi
+**recusado nunca volta a ser proposto**: insistir no que a pessoa já disse que não é o jeito
+mais rápido de ela parar de ler o que o app diz.
+
+**A pergunta do dia constrói sem pedir para a empresa se explicar** (`lib/perguntas.ts`).
+Nunca "como é o seu processo de compras?", que ninguém sabe responder e que faz a pessoa
+descrever o processo que gostaria de ter. Sempre sobre a **borda**, com resposta de dez
+segundos que é um evento: "o relatório do contador chegou?". Cem eventos desenham o
+processo sem ninguém descrever nada.
+
+Três regras que impedem isso de virar chatice: **a pergunta é ganha** (existe porque revela
+algo que o app não infere sozinho), **se poda** (três vazias seguidas e ela sai daquela
+pessoa) e **diminui** (três por dia na primeira semana, uma da quarta em diante). A semanal
+tem prioridade no dia dela, senão perde a vaga para as diárias e nunca acontece.
+
+**O acervo entre clientes é de forma, e a fronteira é estrutura.** `acervo_forma` (seção 40)
+não tem `org_id`, não tem `perfil_id` e **não tem chave estrangeira nenhuma**, e a
+conferência do `atualizar.sql` verifica isso. Sobe qual pergunta costuma ser respondida e
+qual costuma revelar; nunca nome, texto, valor ou conversa. Intenção não sobrevive ao sexto
+mês: alguém vai querer "só uma coluninha" com o nome da empresa para depurar, e a partir
+dali o acervo deixou de ser anônimo sem ninguém ter decidido isso.
+
 ## A linguagem do chat
 
 O chat é onde o trabalho nasce, então ele precisa ser onde o trabalho **é
