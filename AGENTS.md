@@ -670,6 +670,24 @@ algo que o app não infere sozinho), **se poda** (três vazias seguidas e ela sa
 pessoa) e **diminui** (três por dia na primeira semana, uma da quarta em diante). A semanal
 tem prioridade no dia dela, senão perde a vaga para as diárias e nunca acontece.
 
+**A pergunta carrega o número e preenche o buraco que o número não responde**
+(`lib/propor.ts`). A descoberta mostra O QUÊ: em 4 das 11 vezes ninguém conferiu o estoque.
+Ela não sabe o porquê nem o que deve valer daqui para frente, e essas duas coisas não se
+inferem de dado nenhum, porque são decisão. Então a pergunta vira: *"das 11 vezes, em 4
+ninguém fez isso, e nessas 4 levou 13 dias contra 6 das outras. Devia ser obrigatório?"*.
+Sim ou não, cinco segundos, e a resposta muda o desenho.
+
+Ordenadas pelo que mais muda o processo, e **manda-se uma por vez**: cinco juntas viram
+formulário, e formulário é abandonado. Quem aprova vem antes de tudo quando houve vez sem
+ninguém aprovar, porque aí não é variação, é buraco. E o passo que **custou tempo** vale
+mais que o que só variou: afirmar diferença que é ruído uma única vez derruba a
+credibilidade de tudo que o app disser depois.
+
+**O primeiro processo entregue tem três coisas e no máximo um checkpoint**
+(`PRIMEIRO_MAXIMO`). Não é preguiça: quem nunca teve processo recebe um de doze etapas,
+acha bonito e abandona em duas semanas, porque as etapas viram burocracia que ninguém
+pediu e o processo inteiro é descartado junto. Cada etapa a mais entra depois, com motivo.
+
 **O acervo entre clientes é de forma, e a fronteira é estrutura.** `acervo_forma` (seção 40)
 não tem `org_id`, não tem `perfil_id` e **não tem chave estrangeira nenhuma**, e a
 conferência do `atualizar.sql` verifica isso. Sobe qual pergunta costuma ser respondida e
