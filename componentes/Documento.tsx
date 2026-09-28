@@ -106,7 +106,13 @@ export function Documento({ nota, ir, acoes }: {
       {editando ? (
         <textarea
           ref={area}
-          className="inp doc-campo"
+          /* Sem `inp`: aquela classe existe para um campo PARECER campo, com
+             borda, fundo e recuo, e a folha desfaz os três na linha seguinte.
+             Pior que redundante, ela vencia: `textarea.inp` tem especificidade
+             maior que `.doc-campo` e o mínimo de 70px dela derrubava o de 240,
+             então a folha colapsava em duas linhas assim que alguém clicava
+             para escrever. */
+          className="doc-campo"
           value={texto}
           aria-label="Texto da nota"
           onChange={(e) => { setTexto(e.target.value); setCursor(e.target.selectionStart) }}

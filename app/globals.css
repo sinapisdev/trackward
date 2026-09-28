@@ -2471,9 +2471,6 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
   height:calc(100dvh - var(--alt-topo-real,93px) - 96px);min-height:420px}
 /* os 96px são o recuo de cima e de baixo mais o rodapé da marca, que no
    computador fica embaixo de tudo e é fácil esquecer que ocupa altura */
-/* Quem rola é cada coluna, então o recuo do conteúdo sobraria embaixo e faria a
-   página inteira rolar atrás da tela que já cabe. Mesma regra da conversa. */
-@media (min-width:901px){ .conteudo:has(>.nt-tela){padding-block:14px} }
 .nt-lado{display:flex;flex-direction:column;gap:10px;min-height:0;
   padding-right:20px;border-right:1px solid var(--line)}
 .nt-busca{display:flex;align-items:center;gap:8px;padding:0 10px;flex:none;
@@ -2552,12 +2549,29 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
 
 @media (max-width:900px){
   /* No telefone é uma coluna, e a nota aberta toma a tela: a lista e a folha
-     lado a lado em 390px não são duas colunas, são duas metades inúteis. */
+     lado a lado em 390px não são duas colunas, são duas metades inúteis.
+
+     **A altura continua sendo a da janela**, e isto foi um defeito por meses:
+     com `height:auto` a coluna crescia com o conteúdo, o `flex:1` da folha
+     deixava de ter o que preencher, e uma nota nova nascia com duas linhas de
+     espaço para escrever e os botões colados embaixo. A folha é a mesma nos
+     dois tamanhos, e no estreito ela também tem que ocupar o que sobra da
+     tela. Aqui desconta a barra de abas, que no computador não existe. */
   .nt-tela{grid-template-columns:1fr;height:auto;min-height:0}
   .nt-lado{padding-right:0;border-right:0}
   .nt-lista{max-height:none;overflow:visible}
-  .nt-aberta{overflow:visible;padding-right:0}
+  /* A folha continua ocupando a tela, mesmo empilhada embaixo da lista.
+     Sem isto ela encolhe até o conteúdo, e uma nota nova nasce com duas linhas
+     de espaço para escrever e os botões colados embaixo: `flex:1` só preenche
+     quem tem altura para preencher. A lista fica em cima e a página rola até
+     aqui, que é o desenho de uma coluna só. */
+  .nt-aberta{overflow:visible;padding-right:0;
+    min-height:calc(100dvh - var(--alt-topo-real,93px) - var(--alt-abas-real,56px) - 24px)}
 }
+
+/* Quem rola é cada coluna, então o recuo do conteúdo sobraria embaixo e faria a
+   página inteira rolar atrás da tela que já cabe. Mesma regra da conversa. */
+@media (min-width:901px){ .conteudo:has(>.nt-tela){padding-block:14px} }
 
 /* A marca da lista pessoal na coluna de Tracks: mesma silhueta das outras, com
    o ícone de uma pessoa em vez do círculo de status. */
@@ -4062,8 +4076,13 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 
 .doc{margin-top:10px;display:flex;flex-direction:column;min-height:0;flex:1}
 /* sem moldura: o campo é a folha, e moldura em volta de folha vira formulário */
+/* `font:inherit` não é detalhe: textarea sem família herda o monoespaçado do
+   navegador, e a folha passa a parecer terminal. Vinha de brinde com a classe
+   de campo, que a folha deixou de vestir porque o mínimo de 70px dela ganhava
+   por especificidade e derrubava a altura da folha inteira. */
 .doc-campo{flex:1;width:100%;border:0;background:none;padding:0;border-radius:0;
-  min-height:240px;resize:none;line-height:1.6;font-size:var(--fs-body);color:var(--tx)}
+  min-height:240px;resize:none;font:inherit;line-height:1.6;
+  font-size:var(--fs-body);color:var(--tx)}
 .doc-campo:focus{outline:none;box-shadow:none;border:0}
 .doc-lido{flex:1;min-height:240px}
 
@@ -4137,8 +4156,13 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 
 @media (max-width:840px){
   /* a folha ocupa o que sobra da tela, do jeito que um bloco de notas ocupa */
-  .fwd-cel-notas .dp-dentro{min-height:calc(100dvh - var(--alt-topo-real,93px)
-    - var(--alt-abas-real,56px) - 120px)}
+  /* A folha preenche o rolo, e não um número.
+     Era `min-height` com um 120 cravado, e o 120 só fechava a conta num
+     telefone alto: numa janela baixa sobravam duzentos pixels embaixo dos
+     botões e a folha ficava com duas linhas de espaço para escrever. `100%`
+     resolve contra o rolo, que já tem altura de verdade (`.fwd-cel` desconta
+     as barras medidas), então vale em qualquer tamanho de tela. */
+  .fwd-cel-notas .dp-dentro{min-height:100%}
   .doc-campo,.doc-lido{min-height:200px}
   .nt-det-menu{width:min(280px,calc(100vw - 32px))}
 }

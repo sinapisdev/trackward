@@ -1245,6 +1245,18 @@ mesma coisa. Duas regras seguram isso:
 - **A folha não tem moldura e a tela cabe na janela.** Quem rola é cada coluna, não a
   página: com a página rolando, o campo de escrever descia junto e perguntar numa nota de
   meia página exigia rolar até o fim.
+- **`flex:1` só preenche quem tem altura para preencher**, e isso custou meses. No estreito
+  a coluna era `height:auto`, então ela crescia com o conteúdo e a folha não tinha o que
+  ocupar: uma nota nova nascia com duas linhas de espaço para escrever e os dois botões
+  colados embaixo, com metade da tela vazia por baixo deles. A altura vem das barras
+  medidas, e no Caderno o rolo é preenchido com `min-height:100%` em vez de um número
+  cravado, que só fechava a conta num telefone alto.
+- **A folha não veste a classe de campo.** `.inp` existe para um campo parecer campo, com
+  borda, fundo e recuo, e a folha desfaz os três na linha seguinte. Pior que redundante,
+  ela vencia: `textarea.inp` tem especificidade maior que `.doc-campo`, e o mínimo de 70px
+  dela derrubava o de 240 no instante em que alguém clicava para escrever. Ao tirá-la,
+  devolver `font:inherit`: textarea sem família herda o monoespaçado do navegador, e a
+  folha passa a parecer terminal.
 
 No celular, a linha de cima da nota carrega **voltar, o seletor Conversa | Notas e
 Detalhes**, os três juntos. Eram duas linhas, e a de cima só levava o seletor. Quem passa
