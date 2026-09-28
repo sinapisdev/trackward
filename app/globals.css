@@ -3711,7 +3711,16 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 
 /* as duas faces da coluna do meio: onde se fala com gente, e onde se pensa */
 .fwd-face{grid-column:1/-1;margin-bottom:18px;width:fit-content}
-.forward-conversa>.dp{grid-column:1/-1;min-width:0}
+.forward-conversa>.dp{grid-column:1/-1;min-width:0;min-height:0}
+/* O caderno estica na coluna do meio.
+   A coluna é grade com `align-content:start`, e por isso a linha do caderno
+   ficava do tamanho do que tinha dentro: numa nota nova a folha parava na
+   metade da coluna e o resto ficava vazio, com os botões colados logo abaixo
+   do texto. Em modo caderno o `.dp` é o único filho da coluna (o seletor vai
+   para dentro dele, e a coluninha de canais só existe em modo conversa), então
+   deixar a linha esticar não desalinha nada. */
+.forward-conversa:has(>.dp){align-content:stretch}
+.forward-conversa>.dp.dp-dentro{height:100%}
 
 .dp-dentro .ct-topo{gap:6px}
 .dp-dentro .dp-tit{flex:1;min-width:0}

@@ -1251,6 +1251,12 @@ mesma coisa. Duas regras seguram isso:
   colados embaixo, com metade da tela vazia por baixo deles. A altura vem das barras
   medidas, e no Caderno o rolo é preenchido com `min-height:100%` em vez de um número
   cravado, que só fechava a conta num telefone alto.
+- **A coluna do meio do Forward é grade com `align-content:start`**, então a linha do
+  caderno fica do tamanho do conteúdo, e a folha parava na metade da coluna com o resto
+  vazio. Em modo caderno o `.dp` é o único filho daquela coluna (o seletor vai para dentro
+  dele, e a coluninha de canais só existe em modo conversa), então a linha pode esticar
+  sem desalinhar nada. É o caso que mais aparece no espaço pessoal, onde a coluna do meio
+  só tem o caderno.
 - **A folha não veste a classe de campo.** `.inp` existe para um campo parecer campo, com
   borda, fundo e recuo, e a folha desfaz os três na linha seguinte. Pior que redundante,
   ela vencia: `textarea.inp` tem especificidade maior que `.doc-campo`, e o mínimo de 70px
