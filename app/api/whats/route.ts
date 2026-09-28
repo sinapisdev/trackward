@@ -856,6 +856,25 @@ export async function POST(req: Request) {
       autorizado = !!esperado && k === esperado
     }
     if (!autorizado) return NextResponse.json({ erro: 'Não autorizado.' }, { status: 401 })
+    /**
+     * O recibo de ENTREGA merece silêncio, e o de FALHA não.
+     *
+     * Mensagem que a Meta aceitou (200, com id) e não entregou some sem deixar
+     * rastro nenhum: do lado de cá parece que foi, e do lado de lá não chegou.
+     * A única notícia disso é este recibo, e jogá-lo fora era ficar cego para
+     * o modo de falha mais comum do WhatsApp.
+     */
+    const st = (corpo as { entry?: { changes?: { value?: {
+      statuses?: { status?: string; recipient_id?: string
+        errors?: { code?: number; title?: string; error_data?: { details?: string } }[] }[] } }[] }[] })
+      ?.entry?.[0]?.changes?.[0]?.value?.statuses
+    for (const x of st || []) {
+      if (x.status !== 'failed') continue
+      const e = x.errors?.[0]
+      console.error('whats: não entregou para', x.recipient_id,
+        '| código', e?.code, '|', e?.title, '|', e?.error_data?.details)
+    }
+
     c = daMeta(corpo)
     // Recibo de entrega ou de leitura: a Meta manda no mesmo endereço, e o
     // silêncio aqui é a resposta certa.
