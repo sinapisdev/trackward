@@ -38,3 +38,15 @@ export const explicaTipo = (t: Tipo) =>
 
 export const AVULSA = 'Avulsa'
 export const EXPLICA_AVULSA = 'Sem objetivo e sem rotina. Só você vê.'
+
+/**
+ * O nome da track onde a tarefa avulsa mora.
+ *
+ * Mora aqui, e não no `Dados.tsx`, porque deixou de ser assunto só da tela: o
+ * servidor precisa achar (ou abrir) essa mesma lista quando a tarefa chega pelo
+ * WhatsApp. Duas constantes com o mesmo papel viram duas listas pessoais no dia
+ * em que alguém trocar uma delas, e a pessoa perde metade das tarefas de vista.
+ *
+ * Quem usa nunca lê esta palavra: na tela a tarefa avulsa se chama "Avulsa".
+ */
+export const NOME_DA_LISTA = 'Minha lista'

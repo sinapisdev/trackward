@@ -4,6 +4,10 @@ import { clienteDeServico } from '@/lib/supabase/servico'
 import { decifrar } from '@/lib/cifra'
 import { casar, comoLista, soConfirma, type Pergunta } from '@/lib/casar'
 import { novoId } from '@/lib/id'
+import { ajuda, comandar, oQueFoiFeito, type Intencao } from '@/lib/comandar'
+import { esqueletoEmBranco } from '@/lib/modelos'
+import { NOME_DA_LISTA } from '@/lib/rotulos'
+import { hojeIso } from '@/lib/datas'
 
 /**
  * A porta de entrada do WhatsApp.
@@ -149,6 +153,23 @@ export async function POST(req: Request) {
   const eu = euData as { id: string; org_id: string; nome: string } | null
   if (!eu) return twiml('')
 
+  /**
+   * Comando vem antes de tudo.
+   *
+   * Uma linha que começa por barra é ORDEM, e ordem não é resposta: quem
+   * escreveu `/tarefa ...` não está respondendo à pergunta de ontem, está
+   * mandando fazer. Deixar isso passar por `casar` primeiro faria o comando
+   * virar resposta de outra coisa, que é o pior erro possível aqui.
+   *
+   * E não pede confirmação, pela mesma razão que no chat: quem escreveu a ordem
+   * foi a pessoa, e pedir que ela confirme o que acabou de digitar é desconfiar
+   * dela. Ver "A linguagem do chat".
+   */
+  if (corpo.startsWith('/')) {
+    const resposta = await executarComando(sb, eu, corpo)
+    if (resposta) return resposta
+  }
+
   const { data: abertasData } = await sb.rpc('perguntas_de', { p_perfil: eu.id })
   const abertas = (abertasData || []) as Pergunta[]
 
@@ -213,6 +234,37 @@ export async function POST(req: Request) {
       { chave: string; rotulo: string; alvo?: string } | undefined
     await fechar(sb, p.id)
 
+    /**
+     * A track escolhida para a tarefa que ficou pendente.
+     *
+     * Vem antes do desempate porque as duas usam `alvo` e apontam para coisas
+     * diferentes: lá é o id de outra PERGUNTA, aqui é o id de uma TRACK. Quem
+     * separa é a entrada `_tarefa`, que só existe nesta.
+     */
+    const pendente = (p.opcoes || []).find((o) => o.chave === '_tarefa') as
+      { rotulo: string; alvo?: string; quando?: string | null } | undefined
+    if (pendente) {
+      if (!op?.alvo) return twiml('Não achei essa opção. Pode mandar o número da lista?')
+      const { data: fl } = await sb.from('fluxos').select('id,nome,atual')
+        .eq('id', op.alvo).maybeSingle()
+      const track = fl as { id: string; nome: string; atual: number } | null
+      if (!track) return twiml('Essa track não está mais aberta por aqui.')
+      const { data: et } = await sb.from('etapas').select('id')
+        .eq('fluxo_id', track.id).eq('ordem', track.atual).maybeSingle()
+      const etapa = (et as { id: string } | null)?.id
+      if (!etapa) return twiml('Essa track está sem checkpoint aberto.')
+      const erro = await porItem(sb, eu, {
+        etapa, fluxo: track.id, texto: pendente.rotulo,
+        resp: pendente.alvo || eu.id, prazo: pendente.quando || null,
+      })
+      if (erro) return twiml(erro)
+      return twiml(oQueFoiFeito(
+        { tipo: 'tarefa', texto: pendente.rotulo, resp: pendente.alvo || eu.id,
+          prazo: pendente.quando || null, fluxo: track.id },
+        track.nome,
+      ))
+    }
+
     // A lista de desempate: volta a perguntar, agora sobre a escolhida.
     if (op?.alvo) {
       const alvo = abertas.find((x) => x.id === op.alvo)
@@ -228,8 +280,16 @@ export async function POST(req: Request) {
       return twiml('Guardei como nota.')
     }
     if (r.opcao === '2') {
-      return twiml('Ainda não sei criar tarefa por aqui, mas guardei a ideia. '
-        + 'Isso entra no próximo pedaço.')
+      // Era um beco: a pessoa escolhia "virar tarefa" e o app respondia que não
+      // sabia. A tarefa nasce avulsa, que é o que ela é: não pertence a track
+      // nenhuma, e por isso é privada de quem criou.
+      const lista = await minhaListaDe(sb, eu)
+      if (!lista) return twiml('Não deu para abrir a sua lista. Tente de novo em um minuto.')
+      const erro = await porItem(sb, eu, {
+        etapa: lista, fluxo: lista.fluxo, texto: p.texto, resp: eu.id, prazo: null,
+      })
+      if (erro) return twiml(erro)
+      return twiml(oQueFoiFeito({ tipo: 'avulsa', texto: p.texto, prazo: null }))
     }
     return twiml('Certo, deixei pra lá.')
   }
@@ -417,5 +477,191 @@ function recado(msg: string): string {
   if (/row-level security|permission denied|violates/i.test(msg)) {
     return 'Isso não está liberado para você. Se achar que deveria, fale com quem administra.'
   }
+  /**
+   * Fala de máquina não vai para o telefone.
+   *
+   * As mensagens do schema são escritas em português para gente ler, e o que
+   * vem do PostgREST e do Postgres vem em inglês e fala de função, coluna e
+   * cache. Esta peneira apareceu num teste: uma função que faltava no banco
+   * chegou ao telefone como "Could not find the function public.salvar_fluxo
+   * in the schema cache", que é indepurável para quem está do outro lado e não
+   * diz nada que a pessoa possa resolver.
+   */
+  if (/could not find|schema cache|does not exist|invalid input|unexpected|null value/i.test(msg)) {
+    return 'Não deu para fazer isso agora. Se continuar, me avise pelo app.'
+  }
   return msg.length < 200 ? msg : 'Não deu para fazer isso agora.'
+}
+
+/**
+ * A linguagem de barra, pelo telefone.
+ *
+ * Quem decide o que o comando quer dizer é `lib/comandar.ts`, e é o mesmo
+ * arquivo que o app vai passar a usar: as regras (tarefa de outra pessoa
+ * precisa de track, compromisso precisa de dia, o @ sai do texto) não podem
+ * existir em duas cópias, porque no mês seguinte seriam duas linguagens.
+ *
+ * Aqui mora só a escrita, porque ela é diferente dos dois lados: no navegador
+ * é o cliente da pessoa, aqui é a chave de serviço sem sessão nenhuma. É por
+ * isso que tudo que passa pelo banco vai dizendo em nome de quem age.
+ */
+async function executarComando(
+  sb: Sb, eu: { id: string; org_id: string; nome: string }, corpo: string,
+): Promise<Response | null> {
+  // As pessoas da casa, e as tracks onde dá para pôr tarefa. `gente_daqui` é a
+  // lista certa: `perfis` devolve, de propósito, os perfis da pessoa em todos
+  // os espaços, e delegar para o perfil errado cria tarefa que ninguém enxerga.
+  const [{ data: gente }, { data: tracks }] = await Promise.all([
+    sb.rpc('gente_daqui'),
+    sb.from('fluxos').select('id,nome,atual,concluido,desfecho')
+      .eq('org_id', eu.org_id).is('desfecho', null).eq('concluido', false)
+      .order('criado_em', { ascending: false }),
+  ])
+
+  const abertas = ((tracks || []) as { id: string; nome: string; atual: number }[])
+    .filter((f) => f.nome !== NOME_DA_LISTA)
+
+  const i = comandar(corpo, {
+    eu: { id: eu.id, nome: eu.nome },
+    pessoas: (gente || []) as { id: string; nome: string; ativo?: boolean }[],
+    tracks: abertas.map((f) => ({ id: f.id, nome: f.nome })),
+    hoje: hojeIso(),
+  })
+  // Não é comando nenhum: segue o caminho normal da mensagem.
+  if (!i) return null
+
+  if (i.tipo === 'ajuda') return twiml(ajuda())
+  if (i.tipo === 'recusa') return twiml(i.motivo)
+
+  if (i.tipo === 'onde-vive') {
+    /**
+     * Falta a decisão que o app não pode tomar.
+     *
+     * No chat isto abre o formulário já preenchido. Aqui não há formulário, e
+     * recusar mandando começar de novo seria pior, então vira pergunta com
+     * lista. O que está pendente viaja dentro das opções, na entrada `_tarefa`,
+     * do mesmo jeito que a decisão de checkpoint já faz com `_tipo`.
+     */
+    const opcoes = [
+      { chave: '_tarefa', rotulo: i.texto, alvo: i.resp, quando: i.prazo },
+      ...i.tracks.map((t, k) => ({ chave: String(k + 1), rotulo: t.nome, alvo: t.id })),
+    ]
+    await perguntar(sb, eu.org_id, eu.id, {
+      sobre_tipo: 'triagem', texto: i.texto, opcoes,
+    })
+    return twiml(`Tarefa para ${i.respNome}. Em qual track ela vive?\n\n${
+      i.tracks.map((t, k) => `${k + 1}) ${t.nome}`).join('\n')}`)
+  }
+
+  if (i.tipo === 'avulsa') {
+    const etapa = await minhaListaDe(sb, eu)
+    if (!etapa) return twiml('Não deu para abrir a sua lista. Tente de novo em um minuto.')
+    const erro = await porItem(sb, eu, { etapa, fluxo: etapa.fluxo, texto: i.texto, resp: eu.id, prazo: i.prazo })
+    return twiml(erro || oQueFoiFeito(i))
+  }
+
+  if (i.tipo === 'tarefa') {
+    const alvo = abertas.find((f) => f.id === i.fluxo)
+    if (!alvo) return twiml('Essa track não está mais aberta por aqui.')
+    const { data } = await sb.from('etapas').select('id')
+      .eq('fluxo_id', alvo.id).eq('ordem', alvo.atual).maybeSingle()
+    const etapa = (data as { id: string } | null)?.id
+    if (!etapa) return twiml('Essa track está sem checkpoint aberto.')
+    const erro = await porItem(sb, eu, { etapa, fluxo: alvo.id, texto: i.texto, resp: i.resp, prazo: i.prazo })
+    return twiml(erro || oQueFoiFeito(i, alvo.nome))
+  }
+
+  if (i.tipo === 'track') {
+    const { error } = await sb.rpc('salvar_fluxo', {
+      p_fluxo: {
+        id: null, tipo: i.track, nome: i.nome, area_id: null, empresa_id: null,
+        dono_id: i.dono, visib: 'equipe', pessoas: [],
+        freq: i.track === 'ciclo' ? 'mensal' : null, periodo: null,
+      },
+      // Nasce com o mesmo esqueleto de três checkpoints do formulário: track
+      // sem checkpoint nenhum não é track, e obrigar a desenhar a trilha antes
+      // de ela existir é o que empurra a criação para fora da conversa.
+      p_etapas: esqueletoEmBranco(i.track, i.track === 'ciclo' ? 'mensal' : null, i.dono),
+      p_como: eu.id,
+    })
+    if (error) return twiml(recado(error.message))
+    return twiml(oQueFoiFeito(i))
+  }
+
+  if (i.tipo === 'nota') {
+    const { error } = await sb.from('notas').insert({
+      id: novoId(), org_id: eu.org_id, dono_id: eu.id,
+      titulo: i.texto.split('\n')[0].slice(0, 80), texto: i.texto,
+    })
+    if (error) return twiml(recado(error.message))
+    return twiml(oQueFoiFeito(i))
+  }
+
+  if (i.tipo === 'compromisso') {
+    const id = novoId()
+    const { error } = await sb.from('compromissos').insert({
+      id, org_id: eu.org_id, dono_id: eu.id, titulo: i.titulo,
+      quando: i.quando, inicio: i.hora, fim: null,
+      local: '', nota: '', bloqueia: true, visivel: true,
+    })
+    if (error) return twiml(recado(error.message))
+    if (i.convidados.length) {
+      await sb.from('convidados').insert(
+        i.convidados.map((q) => ({ compromisso_id: id, perfil_id: q, org_id: eu.org_id })),
+      )
+    }
+    return twiml(oQueFoiFeito(i))
+  }
+
+  return null
+}
+
+/**
+ * O checkpoint da lista pessoal, abrindo a lista se ela ainda não existir.
+ *
+ * A lista é uma track privada com um checkpoint só, e é ali que a tarefa avulsa
+ * mora. Ela pode não existir: quem nunca criou uma avulsa não tem lista, e a
+ * primeira pelo WhatsApp seria justamente a que não teria onde nascer.
+ */
+async function minhaListaDe(
+  sb: Sb, eu: { id: string; org_id: string },
+): Promise<{ id: string; fluxo: string } | null> {
+  const { data: achado } = await sb.from('fluxos').select('id')
+    .eq('org_id', eu.org_id).eq('dono_id', eu.id).eq('nome', NOME_DA_LISTA)
+    .limit(1).maybeSingle()
+  let fluxo = (achado as { id: string } | null)?.id
+
+  if (!fluxo) {
+    const { data, error } = await sb.rpc('salvar_fluxo', {
+      p_fluxo: {
+        id: null, nome: NOME_DA_LISTA, tipo: 'esteira', area_id: null,
+        empresa_id: null, dono_id: eu.id, visib: 'so_eu', pessoas: [],
+        freq: null, periodo: null,
+      },
+      p_etapas: [{ id: null, nome: 'A fazer', criterio: '', aprovador_id: null, prazo: '' }],
+      p_como: eu.id,
+    })
+    if (error || !data) return null
+    fluxo = data as string
+  }
+
+  const { data: et } = await sb.from('etapas').select('id')
+    .eq('fluxo_id', fluxo).order('ordem').limit(1).maybeSingle()
+  const etapa = (et as { id: string } | null)?.id
+  return etapa ? { id: etapa, fluxo } : null
+}
+
+/** Põe a tarefa no checkpoint. Devolve a queixa, ou vazio quando deu certo. */
+async function porItem(
+  sb: Sb, eu: { id: string; org_id: string },
+  p: { etapa: { id: string } | string; fluxo: string; texto: string; resp: string; prazo: string | null },
+): Promise<string> {
+  const { error } = await sb.from('itens').insert({
+    id: novoId(),
+    etapa_id: typeof p.etapa === 'string' ? p.etapa : p.etapa.id,
+    fluxo_id: p.fluxo, org_id: eu.org_id,
+    texto: p.texto, descricao: '', resp_id: p.resp, prazo: p.prazo || null,
+    priv: false, prazo_firme: false, autor_id: eu.id, ordem: Date.now() % 100000,
+  })
+  return error ? recado(error.message) : ''
 }

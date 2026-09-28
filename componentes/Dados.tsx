@@ -34,6 +34,7 @@ import type { ContextoConversa, Fala } from '@/lib/conversa'
 import type { Alvo } from '@/lib/tipos'
 import { iso } from '@/lib/datas'
 import { itensVisiveis, podeMexerNoPrazo, veFluxo } from '@/lib/acesso'
+import { NOME_DA_LISTA } from '@/lib/rotulos'
 
 /**
  * A faixa que aparece no rodapé por três segundos.
@@ -393,7 +394,6 @@ const CHAVE_EMPRESA = 'track.empresa'
  * coluna nova em fluxos só para marcar "esta é a lista de alguém". Uma coluna a
  * mais para guardar o que o nome já diz é peso que não se paga.
  */
-const NOME_DA_LISTA = 'Minha lista'
 
 export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNode }) {
   const sb = supabase()

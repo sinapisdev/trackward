@@ -759,11 +759,43 @@ e quem for procurar por aquela track depois não a acha. Nota com track não lev
 junto, porque quem agrupa o caderno prefere a área, e a nota apareceria sob a frente
 inteira em vez da track.
 
+**A linguagem atravessa para o WhatsApp**, e lá também acontece na hora, sem modelo e
+sem custo de mensagem: quem escreveu abriu a janela de 24 horas, e a resposta cabe nela.
+Comando é conferido ANTES de casar com pergunta em aberto, porque ordem não é resposta:
+quem digita `/tarefa ...` não está respondendo à pergunta de ontem.
+
+**O que o comando QUER dizer mora em `lib/comandar.ts`, e ele não executa nada.** Recebe a
+linha e os fatos do mundo, devolve a intenção (criar avulsa, criar na track, perguntar
+onde ela vive) ou a recusa com o motivo. Quem escreve no banco é quem chamou, porque a
+escrita é diferente dos dois lados: no navegador é o cliente da pessoa, no servidor é a
+chave de serviço sem sessão. Sendo puro, ele é testável sem servidor, sem navegador e sem
+banco. `Dados.executarComando` ainda tem as regras dele em casa, e a direção é adotar este
+arquivo: o que não pode existir em duas cópias são as REGRAS, não a escrita.
+
+**Abrir track pelo telefone precisa de `p_como`** (seção 43): `salvar_fluxo` barrava com
+`ativo()`, que pergunta pela sessão, e quem chama do WhatsApp é o servidor, que não tem
+nenhuma. Mesma parede que `decidir_etapa` atravessou na seção 35, mesma saída. Ao dar
+`p_como` a uma função, o parâmetro entra em TODAS as definições dela no arquivo e a
+assinatura antiga sai, senão a chamada do app fica ambígua e o Postgres responde "não é
+única", que não diz o que fazer.
+
+**Fala de máquina não vai para o telefone.** `recado()` peneira: as mensagens do schema
+são português escrito para gente ler, e o que vem do PostgREST vem em inglês falando de
+função, coluna e cache. Um teste pegou "Could not find the function public.salvar_fluxo
+in the schema cache" chegando ao WhatsApp de alguém.
+
 **Quando falta uma decisão que o app não pode tomar, o comando vira o formulário
 já preenchido.** Tarefa para outra pessoa fora de uma track é o caso: avulsa é
 privada de quem criou, então dar uma a outro seria cobrança que o cobrado não
 enxerga. O formulário abre com texto, dono e prazo prontos, faltando só onde ela
 vive. Recusar e mandar começar de novo seria pior.
+
+**O prazo é lido do fim da frase para o começo.** "Ligar **para** o cartório **até**
+sexta" tem dois marcadores, e o primeiro não é o prazo. Lendo da esquerda, o resto ("o
+cartório até sexta") não é data, a leitura falha, e a regra de baixo tira só o "sexta",
+deixando a tarefa chamada "Ligar para o cartório até". É o tipo de sobra que ninguém
+repara ao escrever e todo mundo repara na lista depois, e valeu no app inteiro até
+28/09/2026.
 
 A gramática mora em `lib/comandos.ts`, as datas em `lib/quando.ts`, o menu em
 `componentes/Comandos.tsx` e a execução em `executarComando`, dentro de `Dados`.

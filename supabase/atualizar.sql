@@ -43,11 +43,18 @@
 --                                 um administrador de outra empresa mexia num
 --                                 candidato que ele não pode nem listar.
 --
---  último                        Seção 42: a descoberta de processos passa a
+--  penúltimo                     Seção 42: a descoberta de processos passa a
 --                                 marcar o dia em que rodou. O relógio virou de
 --                                 hora em hora, e sem isto ela varreria 180 dias
 --                                 de eventos 24 vezes por dia, por empresa, para
 --                                 responder a mesma coisa.
+--
+--  último                        Seção 43: abrir track em nome de alguém.
+--                                 `salvar_fluxo` barrava com `ativo()`, que
+--                                 pergunta pela sessão, e quem chama do
+--                                 WhatsApp é o servidor, que não tem nenhuma.
+--                                 A assinatura de dois argumentos SAI, senão a
+--                                 chamada do app fica ambígua.
 --
 -- COMO USAR: SQL Editor do Supabase, New query, colar tudo, Run.
 -- ==========================================================================
@@ -2194,10 +2201,11 @@ returns boolean language sql stable security definer set search_path = public as
      or exists (select 1 from itens where fluxo_id = f and feito);
 $$;
 
-create or replace function public.salvar_fluxo(p_fluxo jsonb, p_etapas jsonb)
+create or replace function public.salvar_fluxo(
+  p_fluxo jsonb, p_etapas jsonb, p_como uuid default null)
 returns uuid language plpgsql security definer set search_path = public as $$
 declare
-  uid   uuid := meu_perfil();
+  uid   uuid := quem_age(p_como);
   v_id  uuid := nullif(p_fluxo->>'id', '')::uuid;
   e     jsonb;
   k     int := 0;
@@ -2207,7 +2215,9 @@ declare
   antigo  uuid;
   novo    text;
 begin
-  if not ativo() then raise exception 'Sem acesso.'; end if;
+  -- Sem `ativo()`: quem confere é `quem_age()`, que já levanta 'Sem acesso.'
+  -- e sabe responder pelos dois casos. `ativo()` pergunta pela SESSÃO, que é
+  -- exatamente o que não existe quando quem chama é o servidor.
   if jsonb_array_length(p_etapas) < 1 then raise exception 'O fluxo precisa de pelo menos um checkpoint.'; end if;
 
   if v_id is null then
@@ -3404,6 +3414,30 @@ $$;
 revoke all on function public.descobriu(uuid) from public, anon, authenticated;
 grant execute on function public.descobriu(uuid) to service_role;
 
+-- --------------------------------------------------------------------------
+-- 43. Abrir track em nome de alguém, para o WhatsApp poder criar trabalho
+--
+--     `salvar_fluxo` abria com `meu_perfil()` e barrava com `ativo()`, e os
+--     dois perguntam pela SESSÃO. Quem chama do WhatsApp é o servidor, que não
+--     tem sessão nenhuma: a função respondia 'Sem acesso.' e a tarefa avulsa
+--     mandada pelo telefone não tinha onde nascer, porque a lista pessoal é uma
+--     track e criar track passava por aqui.
+--
+--     É a mesma parede que `decidir_etapa` atravessou na seção 35, e a saída é
+--     a mesma: `quem_age(p_como)`. Com sessão, `p_como` não abre porta nenhuma;
+--     sem sessão, o servidor diz em nome de quem, e o perfil precisa existir e
+--     estar ativo, porque desligar alguém tem que fechar a porta do WhatsApp
+--     junto.
+--
+--     **A assinatura de dois argumentos tem que morrer.** Deixando as duas, a
+--     chamada do app com dois argumentos fica ambígua e o Postgres responde
+--     "não é única", que não diz o que fazer. Foi exatamente assim que
+--     `decidir_etapa` parou, e o conserto de lá foi acrescentar o parâmetro a
+--     TODAS as definições do arquivo, não só à última. Aqui são duas.
+-- --------------------------------------------------------------------------
+
+drop function if exists public.salvar_fluxo(jsonb, jsonb);
+
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
     as "carimbo de organizacao (36)",
@@ -3557,4 +3591,13 @@ select
   (select not has_function_privilege('authenticated', 'public.falta_descobrir()', 'execute')
       and not has_function_privilege('anon', 'public.falta_descobrir()', 'execute')
       and has_function_privilege('service_role', 'public.falta_descobrir()', 'execute'))
-    as "so o servidor pergunta a fila (true)";
+    as "so o servidor pergunta a fila (true)",
+  -- Uma assinatura só. Duas fariam a chamada de dois argumentos do app virar
+  -- "não é única", que é como decidir_etapa parou em uso.
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'salvar_fluxo')
+    as "uma assinatura de salvar_fluxo (1)",
+  (select prosrc like '%quem_age(p_como)%' from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'salvar_fluxo')
+    as "o servidor abre track em nome de alguem (true)";

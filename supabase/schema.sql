@@ -1609,17 +1609,20 @@ create trigger ao_registrar_atividade
 --    já existiam (preservando os itens) e remove os que saíram do editor.
 -- --------------------------------------------------------------------------
 
-create or replace function public.salvar_fluxo(p_fluxo jsonb, p_etapas jsonb)
+create or replace function public.salvar_fluxo(
+  p_fluxo jsonb, p_etapas jsonb, p_como uuid default null)
 returns uuid language plpgsql security definer set search_path = public as $$
 declare
-  uid   uuid := meu_perfil();
+  uid   uuid := quem_age(p_como);
   v_id  uuid := nullif(p_fluxo->>'id', '')::uuid;
   e     jsonb;
   k     int := 0;
   eid   uuid;
   ids   uuid[] := '{}';
 begin
-  if not ativo() then raise exception 'Sem acesso.'; end if;
+  -- Sem `ativo()`: quem confere é `quem_age()`, que já levanta 'Sem acesso.'
+  -- e sabe responder pelos dois casos. `ativo()` pergunta pela SESSÃO, que é
+  -- exatamente o que não existe quando quem chama é o servidor.
   if jsonb_array_length(p_etapas) < 1 then raise exception 'O fluxo precisa de pelo menos um checkpoint.'; end if;
 
   if v_id is null then
@@ -4933,10 +4936,11 @@ returns boolean language sql stable security definer set search_path = public as
      or exists (select 1 from itens where fluxo_id = f and feito);
 $$;
 
-create or replace function public.salvar_fluxo(p_fluxo jsonb, p_etapas jsonb)
+create or replace function public.salvar_fluxo(
+  p_fluxo jsonb, p_etapas jsonb, p_como uuid default null)
 returns uuid language plpgsql security definer set search_path = public as $$
 declare
-  uid   uuid := meu_perfil();
+  uid   uuid := quem_age(p_como);
   v_id  uuid := nullif(p_fluxo->>'id', '')::uuid;
   e     jsonb;
   k     int := 0;
@@ -4946,7 +4950,9 @@ declare
   antigo  uuid;
   novo    text;
 begin
-  if not ativo() then raise exception 'Sem acesso.'; end if;
+  -- Sem `ativo()`: quem confere é `quem_age()`, que já levanta 'Sem acesso.'
+  -- e sabe responder pelos dois casos. `ativo()` pergunta pela SESSÃO, que é
+  -- exatamente o que não existe quando quem chama é o servidor.
   if jsonb_array_length(p_etapas) < 1 then raise exception 'O fluxo precisa de pelo menos um checkpoint.'; end if;
 
   if v_id is null then
@@ -6133,3 +6139,27 @@ $$;
 
 revoke all on function public.descobriu(uuid) from public, anon, authenticated;
 grant execute on function public.descobriu(uuid) to service_role;
+
+-- --------------------------------------------------------------------------
+-- 43. Abrir track em nome de alguém, para o WhatsApp poder criar trabalho
+--
+--     `salvar_fluxo` abria com `meu_perfil()` e barrava com `ativo()`, e os
+--     dois perguntam pela SESSÃO. Quem chama do WhatsApp é o servidor, que não
+--     tem sessão nenhuma: a função respondia 'Sem acesso.' e a tarefa avulsa
+--     mandada pelo telefone não tinha onde nascer, porque a lista pessoal é uma
+--     track e criar track passava por aqui.
+--
+--     É a mesma parede que `decidir_etapa` atravessou na seção 35, e a saída é
+--     a mesma: `quem_age(p_como)`. Com sessão, `p_como` não abre porta nenhuma;
+--     sem sessão, o servidor diz em nome de quem, e o perfil precisa existir e
+--     estar ativo, porque desligar alguém tem que fechar a porta do WhatsApp
+--     junto.
+--
+--     **A assinatura de dois argumentos tem que morrer.** Deixando as duas, a
+--     chamada do app com dois argumentos fica ambígua e o Postgres responde
+--     "não é única", que não diz o que fazer. Foi exatamente assim que
+--     `decidir_etapa` parou, e o conserto de lá foi acrescentar o parâmetro a
+--     TODAS as definições do arquivo, não só à última. Aqui são duas.
+-- --------------------------------------------------------------------------
+
+drop function if exists public.salvar_fluxo(jsonb, jsonb);

@@ -105,11 +105,27 @@ export function horaEh(texto: string): string | null {
  * prazo nenhum, porque "para" apareceria como marcador.
  */
 export function separaQuando(texto: string, hoje = hojeIso()): { texto: string; quando: string | null } {
-  const marcadores = /\s+(ate|até|pra|para|no dia|dia)\s+([^,;]+)$/i
-  const m = marcadores.exec(texto)
-  if (m) {
-    const q = quandoEh(m[2], hoje)
-    if (q) return { texto: texto.slice(0, m.index).trim(), quando: q }
+  /**
+   * Os marcadores são procurados DA DIREITA PARA A ESQUERDA, e não é detalhe.
+   *
+   * "Ligar para o cartório até sexta" tem dois: o "para" do meio da frase e o
+   * "até" do prazo. Pegando o primeiro, o resto vira "o cartório até sexta",
+   * que não é data nenhuma, a leitura falha, e a sobra cai na regra de baixo,
+   * que tira só o "sexta" e deixa a tarefa chamada "Ligar para o cartório até".
+   *
+   * O prazo mora no fim da frase, então o marcador certo é sempre o último que
+   * der data. É o tipo de sobra que ninguém repara ao escrever e todo mundo
+   * repara na lista depois.
+   */
+  const marcadores = /\s+(?:ate|até|pra|para|no dia|dia)\s+/gi
+  const achados = [...texto.matchAll(marcadores)]
+  for (let i = achados.length - 1; i >= 0; i--) {
+    const a = achados[i]
+    const em = a.index ?? 0
+    const resto = texto.slice(em + a[0].length)
+    if (/[,;]/.test(resto)) continue
+    const q = quandoEh(resto, hoje)
+    if (q) return { texto: texto.slice(0, em).trim(), quando: q }
   }
   // Sem marcador, aceita só a palavra solta no fim: "Conferir o extrato amanhã".
   // O "de" entra no recorte para "Reunião de terça" virar "Reunião", e não
