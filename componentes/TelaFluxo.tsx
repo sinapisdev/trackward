@@ -31,12 +31,13 @@ import { mandaNoProcesso, podeConcluir, podeMexerNoItem } from '@/lib/acesso'
 export function TelaFluxo({ id }: { id: string }) {
   const { eu, perfis, fluxos, carregando, areaDe, perfilDe, nomeDe, totalItens,
     alternarItem, excluirItem, destravar, decisoesDe, pode, reabrirFluxo,
-    feedbacksDe } = useDados()
+    feedbacksDe, ciclosDe } = useDados()
   const { abrir } = useModais()
   const router = useRouter()
   const [sel, setSel] = useState<number | null>(null)
   const [decidindo, setDecidindo] = useState(false)
   const [aba, setAba] = useState<'trilha' | 'conversa' | 'atividade'>('trilha')
+  const arquivos = ciclosDe(id)
   // Antes de qualquer saída antecipada: gancho dentro de ramo condicional muda
   // a ordem entre uma pintura e outra, e o React derruba a tela inteira.
   const celular = useCelular()
@@ -451,14 +452,25 @@ export function TelaFluxo({ id }: { id: string }) {
                   <div className="rail-sep" />
                   <h2 className="track-rot">Voltas anteriores</h2>
                   <div className="tb">
-                    {[...f.voltas].reverse().map((v) => (
-                      <div className="volta" key={v.id}>
-                        <span>{v.periodo}</span>
-                        <span className={`track-st ${v.situacao}`}>
-                          <IconeStatus st={v.situacao} p={1} />{LBL[v.situacao]}
-                        </span>
-                      </div>
-                    ))}
+                    {[...f.voltas].reverse().map((v) => {
+                      // A volta com arquivo abre; a de antes do arquivo existir
+                      // continua sendo só o rótulo, e não finge ter conteúdo.
+                      const arq = arquivos.find((c) => c.periodo === v.periodo)
+                      const dentro = (
+                        <>
+                          <span>{v.periodo}</span>
+                          <span className={`track-st ${v.situacao}`}>
+                            <IconeStatus st={v.situacao} p={1} />{LBL[v.situacao]}
+                          </span>
+                        </>
+                      )
+                      return arq ? (
+                        <button type="button" className="volta tem" key={v.id}
+                          onClick={() => abrir({ tipo: 'ciclo', ciclo: arq, track: f.nome })}>
+                          {dentro}<Ic.chev />
+                        </button>
+                      ) : <div className="volta" key={v.id}>{dentro}</div>
+                    })}
                   </div>
                 </>
               )}

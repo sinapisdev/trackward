@@ -1373,7 +1373,44 @@ O rascunho é sempre **três checkpoints com uma tarefa em cada**
 checkpoint que a pessoa confirmou porque "nas 4 vezes em que faltou levou o
 dobro" entra por cima dele, que é exatamente o caso previsto.
 
+## A volta da rotina vira arquivo, em vez de sumir
+
+As tarefas de uma rotina são as mesmas todo período: a virada desmarca `feito`, empurra os
+prazos e segue. O que sobrava de julho era uma linha em `historico` dizendo 'ok' ou
+'late', podada nas doze últimas, e que **nenhuma tela mostrava**. Quem perguntasse "cadê o
+fechamento de julho?" não tinha resposta, porque as tarefas de julho SÃO as de agosto,
+zeradas.
+
+Agora toda volta deixa um `ciclos` (seção 45), e a linha da volta, na coluna da track,
+deixa de ser rótulo e vira porta.
+
+- **O conteúdo é congelado, não apontado.** Guardar o id das tarefas não serviria: elas
+  continuam vivas e mudam no período seguinte, então o "arquivo de julho" mostraria o
+  estado de agosto. A fotografia em jsonb é a única forma honesta. Por isso o nome de quem
+  fez vai junto do id: o id some quando a pessoa sai, e o arquivo de dois anos atrás
+  precisa continuar dizendo quem fez.
+- **Os anexos MUDAM de dono.** O documento pendurado na tarefa de julho ficaria pendurado
+  na de agosto, porque é a mesma linha: em um ano seriam doze faturas na mesma tarefa, e
+  nenhuma achável pelo mês. Eles vão para o ciclo fechado, e o seguinte nasce limpo, que é
+  o ponto. Documento que vale todo mês (um modelo, uma instrução) não é anexo de tarefa: é
+  nota, e nota não é tocada aqui. `anexos` passa a ter três donos possíveis e continua
+  sendo de UM só (`num_nonnulls(item_id, nota_id, ciclo_id) = 1`).
+- **Quem escreve é um gatilho em `historico`**, e não o `decidir_etapa`. Dois motivos:
+  aquela inserção acontece no instante exato (depois de a situação ser decidida, antes de
+  as tarefas serem zeradas), e `decidir_etapa` tem TRÊS definições no arquivo, então mexer
+  no corpo dela é mexer em três lugares e esquecer um.
+- **`now()` é o horário da TRANSAÇÃO**, então a decisão que fechou julho e o fechamento
+  que ela gerou têm o mesmo instante. A janela das decisões de cada volta é `>`, e não
+  `>=`: com `>=`, o arquivo de cada mês carregaria a decisão do anterior.
+- **Só leitura, e o rodapé tem um botão só.** Reescrever o passado é o oposto do que este
+  arquivo existe para fazer, então não há o que cancelar, e o lima também não é daqui:
+  fechar o passado não faz trabalho nenhum andar.
+- **Volta anterior ao arquivo existir continua sendo só o rótulo**, e não vira porta. Ela
+  não tem conteúdo, e fingir que tem é pior do que dizer que não tem.
+
 ## Modo demonstração
+
+
 
 Sem `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` no `.env.local`, o app
 roda inteiro no navegador (`lib/local/`), com a empresa de exemplo de `lib/local/semente.ts`.

@@ -4548,3 +4548,39 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
    mudança que não veio. */
 .dsc-nota{display:flex;gap:9px;margin:11px 0 0;font-size:11.5px;color:var(--tx-3);line-height:1.5}
 .dsc-nota svg{width:13px;height:13px;flex:none;margin-top:2px}
+
+/* ==========================================================================
+   O arquivo de uma volta encerrada (`MCiclo`, em `componentes/Modais.tsx`)
+
+   A linha da volta, na coluna da track, deixa de ser rótulo e vira porta: a
+   que tem arquivo ganha a seta e o toque. A que é anterior ao arquivo existir
+   continua parada, e isso é deliberado, para ela não prometer conteúdo que
+   não tem.
+   ========================================================================== */
+.volta.tem{width:100%;border:0;background:none;padding:inherit;cursor:pointer;
+  text-align:left;transition:var(--t)}
+.volta.tem:hover{background:var(--brilho)}
+.volta.tem>svg{width:13px;height:13px;color:var(--tx-3);transform:rotate(-90deg);flex:none}
+
+.dlg.dlg-lg{max-width:620px}
+.cic{max-height:min(66vh,560px);overflow:auto}
+.cic>section>i{display:block;font-style:normal;
+  font:var(--fw-semibold) var(--fs-kicker)/1.2 var(--sans);letter-spacing:var(--ls-kicker);
+  text-transform:uppercase;color:var(--tx-3);margin-bottom:9px}
+.cic ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+
+.cic-t li{display:flex;gap:10px;align-items:flex-start}
+/* O visto da tarefa feita é neutro, e não lima: o acento marca a ação que faz
+   o trabalho andar, e aqui não há ação nenhuma, é passado. */
+.cic-t li svg{width:13px;height:13px;flex:none;margin-top:3px;color:var(--tx-3);opacity:.35}
+.cic-t li.ok svg{opacity:1}
+.cic-t b{display:block;font:var(--fw-medium) var(--fs-meta)/1.35 var(--sans);color:var(--tx)}
+.cic-t li:not(.ok) b{color:var(--tx-2)}
+.cic-t em,.cic-d em{display:block;font-style:normal;font-size:11.5px;color:var(--tx-3);margin-top:2px}
+
+.cic-d li{padding:10px 12px;border-radius:var(--r);background:var(--brilho)}
+.cic-d b{font:var(--fw-medium) var(--fs-meta)/1.3 var(--sans);color:var(--tx)}
+.cic-d li>span{display:block;margin-top:6px;font-size:var(--fs-meta);color:var(--tx-2);line-height:1.45}
+
+.cic-a{flex-direction:row;flex-wrap:wrap}
+.cic-a li{min-width:0}

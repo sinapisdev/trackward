@@ -9,8 +9,7 @@ import { esqueletoEmBranco, proxPeriodo } from '@/lib/modelos'
 import type { RascunhoEtapa } from '@/lib/modelos'
 import { etapaAtual } from '@/lib/regras'
 import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Feedback, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta, Anexo, Decisao, TipoDecisao, NaCascata, PedidoPrazo, Agente, Conector, Nota,
-  Aviso, AvisoContato, PushAssinatura,
-  } from '@/lib/tipos'
+  Aviso, AvisoContato, PushAssinatura, Ciclo } from '@/lib/tipos'
 import { chama } from '@/lib/mencao'
 import { MODO_LOCAL } from '@/lib/modo'
 import { nomeLimpo, preparar, LIMITE, tamanhoLegivel } from '@/lib/anexos'
@@ -151,6 +150,8 @@ type Contexto = {
   /** Os anexos de uma tarefa, que são a prova de que ela saiu. */
   /** Os anexos de uma tarefa ou de uma nota, pelo id de uma das duas. */
   anexosDe: (id: string) => Anexo[]
+  /** As voltas encerradas de uma rotina, da mais recente para a mais antiga. */
+  ciclosDe: (fluxoId: string) => Ciclo[]
   anexar: (dono: Item | Nota, arquivos: FileList | File[]) => Promise<void>
   removerAnexo: (a: Anexo) => Promise<void>
   /** URL temporária para abrir o arquivo. Vale poucos minutos, de propósito. */
@@ -409,6 +410,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [agenda, setAgenda] = useState<Compromisso[]>([])
   const [minhaAgendaExterna, setMinhaExterna] = useState<AgendaExterna | null>(null)
   const [processos, setProcessos] = useState<Processo[]>([])
+  const [ciclos, setCiclos] = useState<Ciclo[]>([])
   const [convites, setConvites] = useState<Convite[]>([])
   const [anexos, setAnexos] = useState<Anexo[]>([])
   const [decisoes, setDecisoes] = useState<Decisao[]>([])
@@ -459,13 +461,14 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   /** Recolhe tudo que a pessoa pode ver e monta a árvore de fluxos. */
   const carregar = useCallback(async () => {
-    const [p, s, f, e, i, h, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns, ags, cnc, nts, notaPes, fbk, avs, ctt, psh] = await Promise.all([
+    const [p, s, f, e, i, h, cic, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns, ags, cnc, nts, notaPes, fbk, avs, ctt, psh] = await Promise.all([
       sb.from('perfis').select('*').order('nome'),
       sb.from('areas').select('*').order('ordem'),
       sb.from('fluxos').select('*').order('criado_em'),
       sb.from('etapas').select('*').order('ordem'),
       sb.from('itens').select('*').order('ordem').order('criado_em'),
       sb.from('historico').select('*').order('criado_em'),
+      sb.from('ciclos').select('*').order('fechou_em', { ascending: false }),
       sb.from('atividades').select('*').order('criado_em', { ascending: false }),
       sb.from('empresas').select('*').order('ordem'),
       sb.from('organizacoes').select('*'),
@@ -548,6 +551,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       if (lista) lista.push(v)
       else voltas.set(v.fluxo_id, [v])
     }
+    setCiclos((cic.data || []) as Ciclo[])
     const logs = new Map<string, Atividade[]>()
     for (const l of (a.data || []) as Atividade[]) {
       const lista = logs.get(l.fluxo_id)
@@ -1015,7 +1019,10 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const porDono = useMemo(() => {
     const m = new Map<string, Anexo[]>()
     for (const a of anexos) {
-      const chave = a.item_id || a.nota_id
+      // O ciclo encerrado é o terceiro dono possível. Entra no mesmo mapa
+      // porque quem pergunta "os anexos disto" não quer saber de qual dos três
+      // tipos "isto" é.
+      const chave = a.item_id || a.nota_id || a.ciclo_id
       if (!chave) continue
       const lista = m.get(chave)
       if (lista) lista.push(a)
@@ -1025,6 +1032,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   }, [anexos])
 
   const anexosDe = useCallback((id: string) => porDono.get(id) || [], [porDono])
+
+  const ciclosDe = useCallback(
+    (fluxoId: string) => ciclos.filter((c) => c.fluxo_id === fluxoId), [ciclos])
 
   const anexar: Contexto['anexar'] = useCallback(async (dono, arquivos) => {
     // Tarefa tem etapa; nota não. É o que distingue as duas sem precisar de um
@@ -2964,7 +2974,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     salvarProcesso, excluirProcesso, duplicarProcesso, criarDoProcesso,
     criarConvite, excluirConvite,
     canais, mensagens, sugestoes, mensagensDe, sugestoesDe, naoLidas, meChamaram,
-    anexosDe, anexar, removerAnexo, abrirAnexo, decisoesDe, decidir,
+    anexosDe, ciclosDe, anexar, removerAnexo, abrirAnexo, decisoesDe, decidir,
     desfazerSugestao, palpites, distribuirTarefa, cargas, cargaDe,
     memoria, esquecer, consumo, agentes, salvarAgente, excluirAgente,
     conectores, salvarConector, guardarChave, excluirConector, testarConector,

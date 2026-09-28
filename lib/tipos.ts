@@ -272,7 +272,7 @@ export type Etapa = {
  */
 export type Anexo = {
   id: string
-  /** De quem ele é. Uma das duas, nunca as duas. */
+  /** De quem ele é. Uma das TRÊS, nunca duas. */
   item_id: string | null
   fluxo_id: string | null
   nome: string
@@ -283,6 +283,13 @@ export type Anexo = {
   autor_id: string | null
   criado_em: string
   nota_id: string | null
+  /**
+   * O ciclo encerrado a que ele pertence.
+   *
+   * O documento pendurado na tarefa de julho iria junto para agosto, porque é a
+   * mesma linha: a virada o move para cá, e a volta seguinte nasce limpa.
+   */
+  ciclo_id: string | null
 }
 
 /** Uma tarefa que a cascata quer mover, e o que aconteceria com ela. */
@@ -424,6 +431,42 @@ export type Volta = {
   periodo: string
   situacao: 'ok' | 'late'
   criado_em: string
+}
+
+/**
+ * Uma volta encerrada de uma rotina, com o que aconteceu dentro.
+ *
+ * As tarefas de uma rotina são as mesmas todo período, e a virada só as
+ * desmarca: sem isto, "o fechamento de julho" e "o de agosto" são a mesma linha
+ * zerada. Por isso o conteúdo é uma fotografia, e não um apontamento. Ver a
+ * seção 45 do schema.
+ */
+export type Ciclo = {
+  id: string
+  fluxo_id: string
+  periodo: string
+  situacao: 'ok' | 'late'
+  tarefas: {
+    texto: string
+    quem: string | null
+    quem_id: string | null
+    etapa: string | null
+    prazo: string | null
+    feito: boolean
+    feito_em: string | null
+    ressalva: boolean
+  }[]
+  decisoes: {
+    tipo: string
+    nota: string | null
+    quem: string | null
+    quem_id: string | null
+    etapa: string | null
+    quando: string
+  }[]
+  comecou_em: string | null
+  fechou_em: string
+  fechou_id: string | null
 }
 
 export type Atividade = {

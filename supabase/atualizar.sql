@@ -56,12 +56,20 @@
 --                                 A assinatura de dois argumentos SAI, senão a
 --                                 chamada do app fica ambígua.
 --
---  último                        Seção 44: o carimbo da organização quando não
+--  penúltimo                     Seção 44: o carimbo da organização quando não
 --                                 há sessão. Sem ele, tudo que o servidor grava
 --                                 em nome de alguém (WhatsApp, pulso) nasce com
 --                                 `org_id` vazio, e linha sem organização é
 --                                 invisível para todo mundo, inclusive para quem
 --                                 a criou. Vale desde a seção 35, não só daqui.
+--
+--  último                        Seção 45: a volta da rotina vira arquivo. Hoje
+--                                 a virada apaga o mês: as tarefas são as
+--                                 mesmas, só desmarcadas, e o que sobra de
+--                                 julho é uma linha dizendo 'ok'. Passa a
+--                                 deixar um `ciclos` com o que aconteceu, e os
+--                                 documentos vão junto, para a volta seguinte
+--                                 nascer limpa.
 --
 -- COMO USAR: SQL Editor do Supabase, New query, colar tudo, Run.
 -- ==========================================================================
@@ -3531,9 +3539,174 @@ begin
   return new;
 end $$;
 
+-- --------------------------------------------------------------------------
+-- 45. A volta da rotina vira arquivo, em vez de sumir
+--
+--     Hoje a virada **apaga o mês**. As tarefas de uma rotina são as mesmas
+--     todo período: a virada desmarca `feito`, empurra os prazos e segue. O que
+--     sobra de julho é uma linha em `historico` dizendo 'ok' ou 'late', e ela é
+--     podada nas doze últimas. Quem perguntar "cadê o fechamento de julho?" não
+--     tem resposta: as tarefas de julho SÃO as de agosto, zeradas.
+--
+--     Então a volta passa a deixar um `ciclos`: uma linha por período
+--     encerrado, com o que aconteceu dentro.
+--
+--     **O conteúdo é congelado, e não apontado.** Guardar o id das tarefas não
+--     serviria de nada: elas continuam vivas e mudam no período seguinte, então
+--     o "arquivo de julho" mostraria o estado de agosto. A fotografia em jsonb
+--     é a única forma honesta de dizer o que aconteceu naquele mês.
+--
+--     **E os anexos MUDAM de dono.** O documento pendurado na tarefa de julho
+--     ficaria pendurado na de agosto, porque é a mesma linha: em um ano seriam
+--     doze faturas na mesma tarefa, e nenhuma delas achável pelo mês. Eles vão
+--     para o ciclo fechado, e o seguinte nasce limpo, que é o ponto. Documento
+--     que vale todo mês (um modelo, uma instrução) não é anexo de tarefa: é
+--     nota, e nota não é tocada aqui.
+--
+--     **Quem escreve isto é um gatilho em `historico`**, e não o
+--     `decidir_etapa`. Dois motivos: aquela inserção acontece no instante exato
+--     (depois de a situação ser decidida, antes de as tarefas serem zeradas), e
+--     `decidir_etapa` tem TRÊS definições no arquivo, então mexer no corpo dela
+--     é mexer em três lugares e esquecer um.
+-- --------------------------------------------------------------------------
+
+create table if not exists public.ciclos (
+  id         uuid primary key default gen_random_uuid(),
+  org_id     uuid not null references public.organizacoes on delete cascade,
+  fluxo_id   uuid not null references public.fluxos on delete cascade,
+  /** O rótulo da volta, como a rotina o escreve: "2026-07", "julho/26". */
+  periodo    text not null,
+  situacao   text not null check (situacao in ('ok','late')),
+  /** A fotografia das tarefas daquele período. Ver o comentário acima. */
+  tarefas    jsonb not null default '[]'::jsonb,
+  /** As decisões tomadas dentro dele: quem aprovou o quê, e com que ressalva. */
+  decisoes   jsonb not null default '[]'::jsonb,
+  comecou_em timestamptz,
+  fechou_em  timestamptz not null default now(),
+  fechou_id  uuid references public.perfis on delete set null,
+  criado_em  timestamptz not null default now()
+);
+
+-- Uma volta por período. Rodar a virada duas vezes não cria dois arquivos.
+create unique index if not exists ciclos_uk on public.ciclos (fluxo_id, periodo);
+create index if not exists ciclos_idx on public.ciclos (fluxo_id, fechou_em desc);
+
+alter table public.ciclos enable row level security;
+
+do $$
+begin
+  execute 'drop trigger if exists ao_inserir_org on public.ciclos';
+  execute 'create trigger ao_inserir_org before insert on public.ciclos
+             for each row execute function public.carimbar_org()';
+end $$;
+
+-- Quem enxerga a track enxerga o arquivo dela. Ninguém escreve à mão: o
+-- arquivo é escrito pela virada, e reescrevê-lo seria reescrever o passado.
+drop policy if exists cic_sel on public.ciclos;
+create policy cic_sel on public.ciclos for select
+  using (minha(org_id) and ativo() and ve_fluxo(fluxo_id));
+
+-- --------------------------------------------------------------------------
+-- O anexo ganha um terceiro dono possível
+-- --------------------------------------------------------------------------
+
+alter table public.anexos add column if not exists ciclo_id uuid
+  references public.ciclos on delete cascade;
+
+do $$
+begin
+  if exists (select 1 from pg_constraint where conname = 'anexos_de_uma_coisa') then
+    alter table public.anexos drop constraint anexos_de_uma_coisa;
+  end if;
+  alter table public.anexos add constraint anexos_de_uma_coisa
+    check (num_nonnulls(item_id, nota_id, ciclo_id) = 1);
+end $$;
+
+create index if not exists anexos_ciclo_idx on public.anexos (ciclo_id) where ciclo_id is not null;
+
+drop policy if exists anx_sel on public.anexos;
+create policy anx_sel on public.anexos for select using (
+  minha(org_id) and ativo() and (
+    (item_id is not null and ve_item(item_id))
+    or (nota_id is not null and ve_nota(nota_id))
+    or (ciclo_id is not null and exists (
+      select 1 from ciclos c where c.id = ciclo_id and ve_fluxo(c.fluxo_id)))
+  ));
+
+-- Pendurar direto num ciclo não existe: o anexo chega lá pela virada, e mais
+-- nada. A política de insert continua falando só de tarefa e de nota.
+drop policy if exists anx_ins on public.anexos;
+create policy anx_ins on public.anexos for insert with check (
+  minha(org_id) and ativo() and autor_id = meu_perfil() and (
+    (item_id is not null and ve_item(item_id))
+    or (nota_id is not null and minha_nota(nota_id))
+  ));
+
+-- --------------------------------------------------------------------------
+-- A virada, arquivando
+-- --------------------------------------------------------------------------
+
+create or replace function public.arquivar_ciclo()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_org   uuid;
+  v_id    uuid;
+  v_desde timestamptz;
+  v_quem  uuid := coalesce(meu_perfil(), perfil_de_quem_age());
+begin
+  select org_id into v_org from fluxos where id = new.fluxo_id;
+  if v_org is null then return new; end if;
+
+  -- Desde quando é esta volta: o fim da anterior, ou o nascimento da track.
+  select coalesce(max(c.fechou_em), (select f.criado_em from fluxos f where f.id = new.fluxo_id))
+    into v_desde from ciclos c where c.fluxo_id = new.fluxo_id;
+
+  insert into ciclos (org_id, fluxo_id, periodo, situacao, comecou_em, fechou_id,
+                      tarefas, decisoes)
+  values (
+    v_org, new.fluxo_id, new.periodo, new.situacao, v_desde, v_quem,
+    -- O nome de quem fez vai junto do id: o id some quando a pessoa sai, e o
+    -- arquivo de dois anos atrás precisa continuar dizendo quem fez.
+    coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'texto', i.texto, 'prazo', i.prazo, 'feito', i.feito, 'feito_em', i.feito_em,
+        'ressalva', i.ressalva, 'quem_id', i.resp_id,
+        'quem', (select p.nome from perfis p where p.id = i.resp_id),
+        'etapa', (select e.nome from etapas e where e.id = i.etapa_id))
+        order by i.ordem, i.criado_em)
+      from itens i where i.fluxo_id = new.fluxo_id), '[]'::jsonb),
+    coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'tipo', d.tipo, 'nota', d.nota, 'quando', d.criado_em, 'quem_id', d.quem_id,
+        'quem', (select p.nome from perfis p where p.id = d.quem_id),
+        'etapa', (select e.nome from etapas e where e.id = d.etapa_id))
+        order by d.criado_em)
+      from decisoes d
+      -- Maior, e não maior ou igual: `now()` é o horário da TRANSAÇÃO, então a
+      -- decisão que causou a virada e o fechamento que ela gerou têm o mesmo
+      -- instante. Com `>=`, a decisão que fechou julho apareceria também em
+      -- agosto, e o arquivo de cada mês carregaria a decisão do anterior.
+      where d.fluxo_id = new.fluxo_id and d.criado_em > v_desde), '[]'::jsonb))
+  on conflict (fluxo_id, periodo) do nothing
+  returning id into v_id;
+
+  -- Já havia arquivo daquele período: nada a mover, e nada a reescrever.
+  if v_id is null then return new; end if;
+
+  -- Os documentos vão junto, e a tarefa fica limpa para a volta seguinte.
+  update anexos set ciclo_id = v_id, item_id = null, fluxo_id = null
+  where item_id in (select id from itens where fluxo_id = new.fluxo_id);
+
+  return new;
+end $$;
+
+drop trigger if exists ao_virar_ciclo on public.historico;
+create trigger ao_virar_ciclo after insert on public.historico
+  for each row execute function public.arquivar_ciclo();
+
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
-    as "carimbo de organizacao (36)",
+    as "carimbo de organizacao (37)",
   (select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid
     where t.tgname = 'ao_assinar' and c.relname in ('itens','canais','notas'))
     as "carimbo de autor (3)",
@@ -3705,4 +3878,13 @@ select
     where n.nspname = 'public' and p.proname = 'quem_age')
     as "quem age diz de quem e a casa (true)",
   (select count(*) from fluxos where org_id is null)
-    as "tracks orfas, tem que ser (0)";
+    as "tracks orfas, tem que ser (0)",
+  (select count(*) from information_schema.tables
+    where table_schema = 'public' and table_name = 'ciclos')
+    as "o arquivo da volta (1)",
+  (select count(*) from pg_trigger where tgname = 'ao_virar_ciclo')
+    as "a virada arquiva (1)",
+  -- O anexo passa a ter três donos possíveis, e continua sendo de UM só.
+  (select pg_get_constraintdef(oid) like '%num_nonnulls%' from pg_constraint
+    where conname = 'anexos_de_uma_coisa')
+    as "o anexo tem tres donos possiveis (true)";

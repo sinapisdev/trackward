@@ -17,6 +17,7 @@ import { esqueletoEmBranco, periodoAtual, type RascunhoEtapa } from '@/lib/model
 import { MOLDES, servico } from '@/lib/conectores'
 import type {
   Agente, Area, Canal, Compromisso, Empresa, Etapa, Fluxo, Freq, Item, Tipo, TipoCanal, Visibilidade,
+  Ciclo,
 } from '@/lib/tipos'
 
 const CORES = ['#8A8A8A', '#B0B0B0', '#C9884A', '#6F6F6F', '#A0704A', '#9A9A9A', '#7A6A5E', '#B5A08C']
@@ -41,6 +42,8 @@ export type Pedido =
       /** Um exemplo escolhido na tela, para o formulário nascer preenchido. */
       inicial?: { nome: string; reconhecer: string }
     }
+  /** O arquivo de uma volta encerrada, só leitura. */
+  | { tipo: 'ciclo'; ciclo: Ciclo; track: string }
   | { tipo: 'espaco'; pessoal?: boolean }
   /**
    * A confirmação de tudo que não se desfaz.
@@ -115,6 +118,7 @@ export function Modais({ children }: { children: ReactNode }) {
           {pedido.tipo === 'canal' && <MCanal canal={pedido.canal} fechar={fechar} />}
           {pedido.tipo === 'agente' && <MAgente pedido={pedido} fechar={fechar} />}
           {pedido.tipo === 'espaco' && <MEspaco pessoal={pedido.pessoal} fechar={fechar} />}
+          {pedido.tipo === 'ciclo' && <MCiclo pedido={pedido} fechar={fechar} />}
           {pedido.tipo === 'excluir' && <MExcluir pedido={pedido} fechar={fechar} />}
         </div>
       )}
@@ -2003,4 +2007,106 @@ function MExcluir({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'excluir
         acao={() => { void pedido.acao(); fechar() }} />
     </div>
   )
+}
+
+/**
+ * O arquivo de uma volta encerrada.
+ *
+ * Só leitura, e por uma razão que não é preguiça: reescrever o passado é o
+ * oposto do que este arquivo existe para fazer. O que ele mostra é uma
+ * fotografia tirada na virada (seção 45 do schema), e não as tarefas de hoje:
+ * as de uma rotina são as mesmas todo mês, e apontar para elas mostraria o
+ * estado de agora com o nome de julho.
+ */
+function MCiclo({ pedido, fechar }: {
+  pedido: Extract<Pedido, { tipo: 'ciclo' }>; fechar: () => void
+}) {
+  const { ciclo: c, track } = pedido
+  const { anexosDe, abrirAnexo, nomeDe } = useDados()
+  const docs = anexosDe(c.id)
+  const feitas = c.tarefas.filter((t) => t.feito).length
+
+  return (
+    <div className="dlg dlg-lg" role="dialog" aria-modal="true" aria-labelledby="mc">
+      <div className="dlg-h">
+        <h3 id="mc">{track} · {c.periodo}</h3>
+        <p>
+          {feitas} de {c.tarefas.length} tarefas concluídas
+          {c.fechou_id ? `, fechada por ${nomeDe(c.fechou_id)}` : ''}
+          {' '}em {curta(c.fechou_em.slice(0, 10))}.
+        </p>
+      </div>
+
+      <div className="dlg-b cic">
+        <section>
+          <i>O que estava na volta</i>
+          <ul className="cic-t">
+            {c.tarefas.map((t, k) => (
+              <li key={k} className={t.feito ? 'ok' : ''}>
+                <Ic.check n={12} />
+                <span>
+                  <b>{t.texto}</b>
+                  <em>
+                    {t.etapa ? `${t.etapa} · ` : ''}
+                    {t.quem || 'sem responsável'}
+                    {t.feito_em ? ` · feita em ${curta(t.feito_em.slice(0, 10))}` : ''}
+                    {!t.feito && t.prazo ? ` · vencia em ${curta(t.prazo)}` : ''}
+                    {t.ressalva ? ' · ressalva' : ''}
+                  </em>
+                </span>
+              </li>
+            ))}
+            {!c.tarefas.length && <li className="cic-nada">Nenhuma tarefa nesta volta.</li>}
+          </ul>
+        </section>
+
+        {!!c.decisoes.length && (
+          <section>
+            <i>O que foi decidido</i>
+            <ul className="cic-d">
+              {c.decisoes.map((d, k) => (
+                <li key={k}>
+                  <b>{ROTULO_DECISAO[d.tipo] || d.tipo}</b>
+                  <em>
+                    {d.etapa ? `${d.etapa} · ` : ''}{d.quem || 'alguém'}
+                    {' · '}{curta(d.quando.slice(0, 10))}
+                  </em>
+                  {d.nota ? <span>{d.nota}</span> : null}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {!!docs.length && (
+          <section>
+            <i>Os documentos desta volta</i>
+            <ul className="cic-a">
+              {docs.map((a) => (
+                <li key={a.id}>
+                  <button type="button" className="btn ghost sm" onClick={() => void abrirAnexo(a)}>
+                    <Ic.clipe />{a.nome}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+
+      {/* Um botão só, e neutro. O rodapé de sempre traz "Cancelar" mais a ação,
+          e aqui os dois diriam a mesma coisa: não há o que cancelar num arquivo
+          que só se lê. O lima também não é daqui, porque ele marca a ação que
+          faz o trabalho andar, e fechar o passado não faz nada andar. */}
+      <div className="dlg-f">
+        <button type="button" className="btn" onClick={fechar}>Fechar</button>
+      </div>
+    </div>
+  )
+}
+
+const ROTULO_DECISAO: Record<string, string> = {
+  aprovou: 'Aprovado',
+  ressalva: 'Aprovado com ressalva',
+  devolveu: 'Devolvido',
 }

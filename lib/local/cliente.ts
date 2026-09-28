@@ -20,7 +20,7 @@ const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], flu
   convites: [],
   canais: [], canal_membros: [], mensagens: [], sugestoes: [], nota_pessoas: [], feedbacks: [],
   compromissos: [], convidados: [], agendas_externas: [], ocupacao_externa: [],
-  historico: [], atividades: [],
+  historico: [], atividades: [], ciclos: [],
   anexos: [], decisoes: [], pedidos_prazo: [], memoria: [], consumo: [], agentes: [], conectores: [], notas: [],
   avisos: [], avisos_contato: [], push_assinaturas: [], perguntas_abertas: [] }
 
@@ -801,6 +801,49 @@ function decidirEtapa(
       id: uid('h'), fluxo_id: f.id, periodo: f.periodo || '',
       situacao: atrasou ? 'late' : 'ok', criado_em: agora(),
     })
+
+    /**
+     * O arquivo da volta, espelhando a seção 45 do schema.
+     *
+     * As tarefas de uma rotina são as mesmas todo período, e logo abaixo elas
+     * são desmarcadas: sem a fotografia, o que aconteceu em julho deixa de
+     * existir no instante em que agosto começa. O conteúdo é congelado, e não
+     * apontado, pelo mesmo motivo.
+     */
+    const desde = (b.ciclos || [])
+      .filter((c) => c.fluxo_id === f.id)
+      .map((c) => String(c.fechou_em))
+      .sort().pop() || String(f.criado_em || '')
+    const nomeDe = (id: unknown) =>
+      (b.perfis.find((p) => p.id === id)?.nome as string) || null
+    const ciclo = {
+      id: uid('cic'), org_id: f.org_id, fluxo_id: f.id,
+      periodo: f.periodo || '', situacao: atrasou ? 'late' : 'ok',
+      tarefas: doFluxo.map((i) => ({
+        texto: i.texto, prazo: i.prazo ?? null, feito: !!i.feito,
+        feito_em: i.feito_em ?? null, ressalva: !!i.ressalva,
+        quem_id: i.resp_id ?? null, quem: nomeDe(i.resp_id),
+        etapa: (etapas.find((e) => e.id === i.etapa_id)?.nome as string) || null,
+      })),
+      decisoes: b.decisoes
+        .filter((d) => d.fluxo_id === f.id && String(d.criado_em) > desde)
+        .map((d) => ({
+          tipo: d.tipo, nota: d.nota ?? null, quando: d.criado_em,
+          quem_id: d.quem_id ?? null, quem: nomeDe(d.quem_id),
+          etapa: (etapas.find((e) => e.id === d.etapa_id)?.nome as string) || null,
+        })),
+      comecou_em: desde || null, fechou_em: agora(), fechou_id: euLocal(),
+      criado_em: agora(),
+    }
+    b.ciclos = [...(b.ciclos || []), ciclo]
+    // Os documentos vão junto, e a tarefa fica limpa para a volta seguinte.
+    for (const a of b.anexos) {
+      if (doFluxo.some((i) => i.id === a.item_id)) {
+        a.ciclo_id = ciclo.id
+        a.item_id = null
+        a.fluxo_id = null
+      }
+    }
     const voltas = b.historico.filter((h) => h.fluxo_id === f.id)
     if (voltas.length > 12) {
       const manter = new Set(voltas.slice(-12).map((h) => h.id))
