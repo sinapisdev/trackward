@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { useDados } from './Dados'
 import { useModais } from './Modais'
 import { Carregando } from './Shell'
+import { Descobertos } from './Descobertos'
 import { Ic } from './Icones'
 import { rotuloTipo } from '@/lib/rotulos'
 import type { Processo } from '@/lib/tipos'
@@ -60,6 +61,11 @@ export function TelaProcessos() {
           </div>
         )}
       </div>
+
+      {/* Antes dos filtros, de propósito: o processo que a casa já tem vale mais
+          que a lista do que ela desenhou, e quem abre esta tela pela primeira
+          vez não tem lista nenhuma para filtrar. */}
+      <Descobertos />
 
       {!areas.length && (
         <div className="alert" style={{ marginBottom: 20 }}>

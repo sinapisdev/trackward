@@ -865,6 +865,65 @@ function reabrirFluxoLocal(fluxoId: string) {
 const aprovarEtapa = (fluxoId: string, periodo: string | null) =>
   decidirEtapa(fluxoId, 'aprovou', '', [], periodo, null)
 
+/**
+ * A descoberta e o processo: as três decisões da seção 41 do schema.
+ *
+ * O modo demonstração não descobre nada, porque não há pulso rodando aqui, e
+ * `processos_descobertos` fica vazia. Elas existem espelhadas de qualquer jeito
+ * porque a regra é a regra: o dia em que a semente trouxer um candidato, ou em
+ * que alguém mexer na conferência, é aqui que se compara. Espelho que só existe
+ * quando dá jeito não é espelho, é sorte.
+ */
+function quemMandaAqui(): boolean {
+  const b = ler()
+  const eu = b.perfis.find((p) => p.id === euLocal())
+  return !!eu && (eu.papel === 'admin' || eu.papel === 'gestor')
+}
+
+function responderDescoberta(id: string, chave: string, escolha: string) {
+  const b = ler()
+  const d = (b.processos_descobertos || []).find((x) => x.id === id)
+  if (!d) throw new Error('Candidato não encontrado.')
+  if (!quemMandaAqui()) throw new Error('Desenhar processo é decisão de quem responde pela operação.')
+  if (d.estado === 'recusado' || d.estado === 'aceito') return
+  d.respostas = { ...(d.respostas as Record<string, string> || {}), [chave]: escolha }
+  d.estado = 'proposto'
+  d.mexido_em = agora()
+  gravar()
+}
+
+function recusarDescoberta(id: string) {
+  const b = ler()
+  const d = (b.processos_descobertos || []).find((x) => x.id === id)
+  if (!d) throw new Error('Candidato não encontrado.')
+  if (!quemMandaAqui()) throw new Error('Desenhar processo é decisão de quem responde pela operação.')
+  if (d.estado === 'aceito') return
+  d.estado = 'recusado'
+  d.mexido_em = agora()
+  gravar()
+}
+
+function adotarDescoberta(id: string, desenho: Linha): string {
+  const b = ler()
+  const d = (b.processos_descobertos || []).find((x) => x.id === id)
+  if (!d) throw new Error('Candidato não encontrado.')
+  if (!quemMandaAqui()) throw new Error('Desenhar processo é decisão de quem responde pela operação.')
+  // Dois toques no botão não criam dois processos.
+  if (d.estado === 'aceito' && d.virou_id) return d.virou_id as string
+  const proc = salvarProcesso(
+    {
+      nome: desenho.nome, tipo: desenho.tipo, descricao: desenho.descricao || '',
+      area_id: desenho.area_id || d.area_id || null,
+    },
+    (desenho.etapas as Linha[]) || [],
+  )
+  const dep = ler()
+  const alvo = (dep.processos_descobertos || []).find((x) => x.id === id)
+  if (alvo) { alvo.estado = 'aceito'; alvo.virou_id = proc; alvo.mexido_em = agora() }
+  gravar()
+  return proc
+}
+
 /** Grava o processo inteiro, casando pelo id o que já existia. */
 function salvarProcesso(pProc: Linha, pEtapas: Linha[]): string {
   const b = ler()
@@ -1322,6 +1381,17 @@ function montarCliente() {
       try {
         if (nome === 'salvar_fluxo') {
           return { data: salvarFluxo(args.p_fluxo as Linha, args.p_etapas as Linha[]), error: null }
+        }
+        if (nome === 'responder_descoberta') {
+          responderDescoberta(args.p_id as string, args.p_chave as string, args.p_escolha as string)
+          return { data: null, error: null }
+        }
+        if (nome === 'recusar_descoberta') {
+          recusarDescoberta(args.p_id as string)
+          return { data: null, error: null }
+        }
+        if (nome === 'adotar_descoberta') {
+          return { data: adotarDescoberta(args.p_id as string, args.p_desenho as Linha), error: null }
         }
         if (nome === 'salvar_processo') {
           return {

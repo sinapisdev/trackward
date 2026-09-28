@@ -1,10 +1,10 @@
-import type { Candidato, Execucao } from './descobrir'
+import { rotuloDoPasso, type Candidato, type Execucao } from './descobrir'
 
 /**
  * Da grama pisada para o processo desenhado: as perguntas que fecham a conta.
  *
  * A descoberta mostra **o quê**: das 11 vezes, em 4 ninguém conferiu o estoque.
- * Ela não sabe **por quê**, nem **o que deve valer daqui para frente** — e essas
+ * Ela não sabe **por quê**, nem **o que deve valer daqui para frente**, e essas
  * duas coisas ninguém infere de dado nenhum, porque elas são decisão.
  *
  * Então a pergunta carrega o número e preenche o buraco que o número não
@@ -76,6 +76,16 @@ export type PerguntaDoProcesso = {
   muda: MudaOQue
   /** Sobre qual passo, quando for o caso. */
   alvo?: string
+  /**
+   * O que está por trás de cada opção, na mesma ordem delas.
+   *
+   * A opção continua sendo um número porque é assim que ela cabe numa mensagem
+   * de WhatsApp, e o número sozinho não diz a quem se refere. Sem esta lista,
+   * quem aplica a resposta tinha que refazer a ordenação que montou as opções, e
+   * duas ordenações que precisam concordar é uma que vai discordar: a resposta
+   * "1" apontaria para outra pessoa.
+   */
+  ids?: string[]
   /** O quanto responder isto melhora o desenho. Ordena a fila. */
   peso: number
 }
@@ -143,6 +153,13 @@ const SIM_NAO = [
 export function perguntasDoProcesso(
   c: Candidato,
   quemAprovou: { execucao: string; quem: string | null; nome: string }[] = [],
+  /**
+   * Espaço de uma pessoa só. Muda as palavras, não a conta: "em 4 ninguém fez"
+   * é a frase certa numa empresa e é esquisita num app de uma pessoa, onde
+   * ninguém é você. Quem some por inteiro ali (o aprovador) já é filtrado por
+   * `recursos()`, na tela, que é onde a regra do espaço mora.
+   */
+  sozinho = false,
 ): { afirma: Afirmacao[]; pergunta: PerguntaDoProcesso[] } {
   const saida: PerguntaDoProcesso[] = []
   const afirma: Afirmacao[] = []
@@ -167,7 +184,8 @@ export function perguntasDoProcesso(
     }
     if (n < c.vezes * 0.3) continue
     const custo = custoDeFaltar(c.execucoes, passo)
-    const numero = `Das ${c.vezes} vezes, em ${c.vezes - n} ninguém fez "${rotuloDoPasso(passo)}".`
+    const quem = sozinho ? 'você não fez' : 'ninguém fez'
+    const numero = `Das ${c.vezes} vezes, em ${c.vezes - n} ${quem} "${rotuloDoPasso(passo)}".`
     const doeu = custo.piorou
       ? ` Nessas ${custo.quantasSem}, levou ${custo.sem} dias contra ${custo.com} das outras.`
       : ''
@@ -183,14 +201,21 @@ export function perguntasDoProcesso(
   }
 
   // 2. QUEM APROVA. Processo sem dono é o que a empresa já tinha antes do app.
+  //
+  //    Quando NINGUÉM decidiu nenhuma das vezes, não há pergunta: ela sairia
+  //    com a lista vazia ("aprovado por , e 11 sem ninguém") e, pior, sem
+  //    opção nenhuma para responder, o que no WhatsApp é uma mensagem que pede
+  //    um número que não existe. Um processo que nunca teve quem aprovasse não
+  //    é um buraco a preencher no rascunho: é a passagem ficar de quem abrir a
+  //    track, que é o que o desenho já faz sozinho.
   if (quemAprovou.length >= 3) {
-    const porPessoa = new Map<string, { nome: string; n: number }>()
+    const porPessoa = new Map<string, { id: string; nome: string; n: number }>()
     let ninguem = 0
     for (const d of quemAprovou) {
       if (!d.quem) { ninguem++; continue }
       const atual = porPessoa.get(d.quem)
       if (atual) atual.n++
-      else porPessoa.set(d.quem, { nome: d.nome, n: 1 })
+      else porPessoa.set(d.quem, { id: d.quem, nome: d.nome, n: 1 })
     }
     const lista = [...porPessoa.values()].sort((a, b) => b.n - a.n)
     const dono = lista[0]
@@ -203,7 +228,7 @@ export function perguntasDoProcesso(
         mudar: 'Se for outra pessoa, me diga quem.',
         muda: 'define-aprovador',
       })
-    } else if (lista.length > 1 || ninguem > 0) {
+    } else if (lista.length && (lista.length > 1 || ninguem > 0)) {
       const trecho = lista.map((p) => `${p.nome} ${p.n}`).join(', ')
         + (ninguem ? `, e ${ninguem} sem ninguém` : '')
       saida.push({
@@ -213,6 +238,7 @@ export function perguntasDoProcesso(
           ...lista.slice(0, 3).map((p, i) => ({ chave: String(i + 1), rotulo: p.nome })),
           { chave: '9', rotulo: 'Qualquer um da área' },
         ],
+        ids: lista.slice(0, 3).map((p) => p.id),
         muda: 'define-aprovador',
         // Sobe quando houve vez sem ninguém: aí não é variação, é buraco.
         peso: ninguem > 0 ? 95 : 70,
@@ -281,7 +307,21 @@ export type Desenho = {
   nome: string
   tipo: 'esteira' | 'ciclo'
   /** As portas, em ordem. Cada uma com no máximo uma tarefa no começo. */
-  checkpoints: { nome: string; tarefa: string | null }[]
+  checkpoints: {
+    nome: string
+    tarefa: string | null
+    /** Prazo em dias contados do início, como `processo_etapas.dias` guarda. */
+    dias: number
+    /**
+     * A área que responde pela passagem, nunca a pessoa.
+     *
+     * A pergunta é sobre gente ("quem aprovou 6 das 11 vezes"), porque é assim
+     * que a casa pensa, e o processo guarda a área daquela pessoa, porque é
+     * assim que ele serve à obra seguinte, com outro time. Quem faz a ponte é
+     * quem chama, que conhece os perfis.
+     */
+    area: string | null
+  }[]
 }
 
 /**
@@ -292,39 +332,14 @@ export type Desenho = {
  * **termina** (o desfecho). Começo, meio e fim é o menor processo que ainda é
  * um processo.
  */
-/**
- * O nome do evento em português de gente.
- *
- * Os tipos da view `eventos` são de máquina: "tarefa:feita", "decisao:aprovou".
- * Pôr isso como nome de checkpoint entrega um processo que parece log de
- * sistema, e a empresa lê aquilo e conclui, com razão, que não foi feito para
- * ela. O nome definitivo é de quem usa; este é o que se apresenta enquanto
- * ninguém rebatizou.
- */
-export function rotuloDoPasso(tipo: string): string {
-  const fixos: Record<string, string> = {
-    atividade: 'Começo',
-    concluido: 'Entrega',
-    cancelado: 'Encerramento',
-    aberto: 'Em andamento',
-    'tarefa:nasceu': 'Preparação',
-    'tarefa:feita': 'Execução',
-    anexo: 'Documentação',
-    'prazo:pedido': 'Replanejamento',
-    'decisao:aprovou': 'Aprovação',
-    'decisao:ressalva': 'Aprovação com ressalva',
-    'decisao:devolveu': 'Devolução',
-  }
-  if (fixos[tipo]) return fixos[tipo]
-  // O que não está na lista vira o que estiver depois dos dois pontos, com a
-  // primeira letra maiúscula: "conferir:estoque" fica "Estoque".
-  const parte = tipo.includes(':') ? tipo.split(':')[1] : tipo
-  return parte.charAt(0).toUpperCase() + parte.slice(1).replace(/[-_]/g, ' ')
-}
-
 export function primeiroDesenho(c: Candidato): Desenho {
   const meio = c.passos.slice(0, PRIMEIRO_MAXIMO.checkpoints - 2)
   const nomes = [c.gatilho, ...meio, c.desfecho].slice(0, PRIMEIRO_MAXIMO.checkpoints)
+  // O prazo total é o que a casa já leva, e ele se reparte pelas portas em
+  // partes iguais. Chute nenhum: quando não há duração observada, fica zero, e
+  // zero na tela é "sem prazo", que é honesto. Prazo inventado é pior que
+  // nenhum, porque a primeira track nasce atrasada e ninguém sabe por quê.
+  const total = mediana(c.duracoes)
 
   return {
     nome: c.nome || 'Processo sem nome',
@@ -336,6 +351,192 @@ export function primeiroDesenho(c: Candidato): Desenho {
       // aconteceu quando a track nasce, e a última é a conferência final.
       tarefa: i > 0 && i < nomes.length - 1
         ? (c.passos[i - 1] ? rotuloDoPasso(c.passos[i - 1]) : null) : null,
+      dias: total ? Math.round((total * (i + 1)) / nomes.length) : 0,
+      // Área nenhuma sai da descoberta: ela sai da resposta sobre quem aprova,
+      // e enquanto não houver resposta a passagem é de quem for abrir a track.
+      area: null,
     })),
   }
+}
+
+/**
+ * A pergunta identificada dentro daquele candidato.
+ *
+ * São DUAS chaves, e a diferença importa. Esta carrega o alvo
+ * (`passo-as-vezes:conferir:estoque`) e serve para guardar a resposta: sem o
+ * alvo, responder sobre um passo apagaria a resposta sobre o outro. A do molde
+ * (`p.chave`, sem alvo) é a que sobe para o acervo entre clientes, porque é ela
+ * que generaliza: "a pergunta sobre passo que às vezes acontece costuma ser
+ * respondida" é forma, e "conferir estoque" é da casa.
+ */
+/**
+ * Reexportado porque o nome do passo é parte da conversa, e quem monta a
+ * conversa importa deste arquivo. A definição mora em `descobrir.ts`, que é
+ * quem conhece os tipos de evento.
+ */
+export { rotuloDoPasso }
+
+export const idDaPergunta = (p: PerguntaDoProcesso) =>
+  p.alvo ? `${p.chave}:${p.alvo}` : p.chave
+
+/**
+ * A linha guardada volta a ser candidato.
+ *
+ * O banco guarda o achado; a conversa é recalculada aqui, toda vez, a partir
+ * dele. Guardar as perguntas prontas seria mais rápido e ficaria velho: no dia
+ * em que a regra de perguntar mudar, os candidatos antigos continuariam
+ * perguntando do jeito antigo, e ninguém iria olhar.
+ *
+ * `passos` de cada execução pode faltar nas linhas gravadas antes desta versão.
+ * Nesse caso o miolo por execução fica vazio, as perguntas de passo não saem, e
+ * o candidato ainda serve: na varredura seguinte ele volta completo.
+ */
+export function candidatoDe(d: {
+  nome_sugerido: string; gatilho: string; desfecho: string; passos: string[]
+  areas: string[]; vezes: number; confianca: number; duracoes: number[]
+  cadencia: Candidato['cadencia']
+  execucoes: { id: string | null; nome: string; dias: number; passos?: string[]; quem?: string | null }[]
+}): Candidato {
+  return {
+    execucoes: d.execucoes.map((e) => ({
+      fluxo_id: e.id || '',
+      nome: e.nome,
+      gatilho: d.gatilho,
+      desfecho: d.desfecho,
+      passos: new Set(e.passos || []),
+      areas: new Set<string>(),
+      inicio: '',
+      fim: '',
+      duracao: e.dias,
+    })),
+    gatilho: d.gatilho,
+    desfecho: d.desfecho,
+    passos: d.passos,
+    areas: d.areas,
+    vezes: d.vezes,
+    confianca: d.confianca,
+    cadencia: d.cadencia,
+    duracoes: d.duracoes,
+    nome: d.nome_sugerido,
+  }
+}
+
+/** Quem decidiu cada execução, no formato que `perguntasDoProcesso` pede. */
+export function quemAprovouDe(
+  execucoes: { id: string | null; quem?: string | null }[],
+  nomeDe: (perfil: string) => string,
+): { execucao: string; quem: string | null; nome: string }[] {
+  return execucoes.map((e) => ({
+    execucao: e.id || '',
+    quem: e.quem || null,
+    nome: e.quem ? nomeDe(e.quem) : '',
+  }))
+}
+
+/**
+ * O que as respostas mudam no rascunho.
+ *
+ * As respostas entram aqui e não no desenho original de propósito: o desenho
+ * original é o que o app propôs sozinho, e dá para mostrar os dois lado a lado
+ * quando alguém perguntar "por que mudou". Misturar os dois faria a proposta do
+ * app ficar indistinguível do que a pessoa pediu.
+ *
+ * **O passo confirmado pode passar de três checkpoints**, e isso não fere o
+ * limite: o limite é sobre o que o app propõe sem ninguém pedir. Checkpoint que
+ * a pessoa confirmou porque "das 11 vezes, nas 4 em que faltou levou o dobro"
+ * é exatamente o caso que o comentário de `PRIMEIRO_MAXIMO` prevê.
+ */
+export function comAsRespostas(
+  base: Desenho,
+  perguntas: PerguntaDoProcesso[],
+  respostas: Record<string, string>,
+  areaDeQuem: (perfil: string) => string | null,
+): Desenho {
+  const cps = base.checkpoints.map((c) => ({ ...c }))
+
+  for (const p of perguntas) {
+    const r = respostas[idDaPergunta(p)]
+    if (!r) continue
+
+    if (p.muda === 'vira-checkpoint' && r === '1' && p.alvo) {
+      const nome = rotuloDoPasso(p.alvo)
+      if (!cps.some((c) => c.nome === nome)) {
+        // Entra antes da última porta: o que precisa ser conferido é conferido
+        // antes de entregar, nunca depois.
+        const antes = Math.max(1, cps.length - 1)
+        const dias = Math.round(((cps[antes - 1]?.dias || 0) + (cps[antes]?.dias || 0)) / 2)
+        cps.splice(antes, 0, { nome, tarefa: nome, dias, area: null })
+      }
+    }
+
+    if (p.muda === 'passo-obrigatorio' && r === '1' && p.alvo) {
+      const texto = rotuloDoPasso(p.alvo)
+      // Vira tarefa na primeira porta do meio que ainda não tem uma. Sem vaga,
+      // ela entra na última do meio: tarefa confirmada não pode simplesmente
+      // não aparecer, ou a resposta não mudou nada e a pessoa percebe.
+      const meio = cps.slice(1, -1)
+      const vaga = meio.find((c) => !c.tarefa) || meio[meio.length - 1]
+      if (vaga && vaga.tarefa !== texto) vaga.tarefa = vaga.tarefa ? vaga.tarefa : texto
+    }
+
+    if (p.muda === 'define-aprovador') {
+      // '9' é "qualquer um da área", que é justamente não fixar ninguém.
+      if (r !== '9') {
+        const perfil = p.ids?.[Number(r) - 1]
+        const area = perfil ? areaDeQuem(perfil) : null
+        // A passagem em jogo é a última: é ela que fecha o trabalho, e é dela
+        // que a casa estava falando quando aprovou 6 das 11 vezes.
+        if (area && cps.length) cps[cps.length - 1].area = area
+      }
+    }
+  }
+
+  return { ...base, checkpoints: cps }
+}
+
+/**
+ * As etapas no formato que `salvar_processo` espera.
+ *
+ * Existe para que a tela não monte esse jsonb na mão: o dia em que
+ * `processo_etapas` ganhar uma coluna, o lugar de mexer é um.
+ */
+export function paraSalvar(d: Desenho, area: string | null) {
+  return {
+    processo: { nome: d.nome, tipo: d.tipo, area_id: area || '', descricao: '' },
+    etapas: d.checkpoints.map((c) => ({
+      nome: c.nome,
+      criterio: '',
+      aprovador_area_id: c.area || '',
+      dias: c.dias,
+      itens: c.tarefa ? [{ texto: c.tarefa, area_id: c.area || '', dias: c.dias }] : [],
+    })),
+  }
+}
+
+/**
+ * A resposta que não caberia no processo, e por que.
+ *
+ * "Quem devia responder por esta passagem?" é uma pergunta sobre gente, porque é
+ * assim que a casa pensa. O processo guarda ÁREA, porque é assim que ele serve à
+ * obra seguinte com outro time. Quando a pessoa escolhida não está em área
+ * nenhuma, as duas coisas não se encontram, e o rascunho não muda.
+ *
+ * Isto devolve quem ficou de fora, para a tela poder dizer. Engolir em silêncio
+ * é o pior dos caminhos: a pessoa responde, olha o rascunho, não vê diferença
+ * nenhuma, e conclui, com razão, que responder ali não serve para nada.
+ */
+export function respostaSemLugar(
+  perguntas: PerguntaDoProcesso[],
+  respostas: Record<string, string>,
+  areaDeQuem: (perfil: string) => string | null,
+): string[] {
+  const fora: string[] = []
+  for (const p of perguntas) {
+    if (p.muda !== 'define-aprovador') continue
+    const r = respostas[idDaPergunta(p)]
+    if (!r || r === '9') continue
+    const perfil = p.ids?.[Number(r) - 1]
+    if (perfil && !areaDeQuem(perfil)) fora.push(perfil)
+  }
+  return fora
 }

@@ -2508,7 +2508,7 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
    cai numa linha só dele e empurra o título para baixo. */
 .nt-item b svg{display:inline-block;width:11px;height:11px;color:var(--ac-tinta);
   vertical-align:-1px;margin-right:5px}
-.nt-item span{grid-column:1;grid-row:2;min-width:0;font-size:var(--fs-sm);color:var(--tx-3);
+.nt-item span{grid-column:1;grid-row:2;min-width:0;font-size:var(--fs-meta);color:var(--tx-3);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nt-item i{grid-column:2;grid-row:1;justify-self:end;font-size:var(--fs-micro);
   color:var(--tx-3);font-style:normal;white-space:nowrap}
@@ -2518,7 +2518,7 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
   width:20px;height:20px;border-radius:var(--r-pill);color:var(--ac-tinta);
   background:color-mix(in srgb,var(--ac) 14%,transparent)}
 .nt-comp-mk svg{width:11px;height:11px}
-.nt-nada,.nt-solta{font-size:var(--fs-sm);color:var(--tx-3);padding:8px 12px}
+.nt-nada,.nt-solta{font-size:var(--fs-meta);color:var(--tx-3);padding:8px 12px}
 .nt-solta{flex:none}
 
 /* A folha não tem moldura: o texto ocupa o espaço, sem borda e sem fundo.
@@ -2528,7 +2528,7 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
 .nt-aberta>.doc{flex:1;min-height:0}
 .nt-a-h{display:flex;align-items:center;gap:10px;flex:none}
 .nt-a-h h2{flex:1;font:var(--fw-semibold) var(--fs-h3)/var(--lh-h3) var(--sans)}
-.nt-quando{font-size:var(--fs-sm);color:var(--tx-3);flex:1;margin:0}
+.nt-quando{font-size:var(--fs-meta);color:var(--tx-3);flex:1;margin:0}
 
 /* A ligação dentro do texto. Cheia quando a nota existe, tracejada quando ela
    ainda não existe: o tracejado é convite, não erro. */
@@ -2542,7 +2542,7 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
 .nt-rot{font:var(--fw-semibold) var(--fs-kicker)/1.2 var(--sans);
   letter-spacing:var(--ls-kicker);text-transform:uppercase;color:var(--tx-3)}
 .nt-fichas{display:flex;flex-wrap:wrap;gap:7px}
-.nt-ficha{font-size:var(--fs-sm);padding:5px 11px;border:1px solid var(--line-2);
+.nt-ficha{font-size:var(--fs-meta);padding:5px 11px;border:1px solid var(--line-2);
   border-radius:var(--r-pill);background:none;color:var(--tx-2);
   display:inline-flex;align-items:center;gap:5px;transition:var(--t)}
 .nt-ficha:hover{border-color:var(--line-3);color:var(--tx)}
@@ -4077,7 +4077,7 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 .doc-lido.so-leitura{cursor:default}
 .doc-emprestada{display:flex;align-items:flex-start;gap:8px;margin:10px 0 0;
   padding:9px 11px;border-radius:var(--r-sm);background:var(--brilho);
-  color:var(--tx-3);font-size:var(--fs-sm)}
+  color:var(--tx-3);font-size:var(--fs-meta)}
 .doc-emprestada>svg{flex:none;margin-top:1px}
 
 /* Compartilhar uma nota. Lista simples de gente, porque a pergunta é só "quem",
@@ -4094,7 +4094,7 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 .tf.rsv{background:color-mix(in srgb,var(--warn) 7%,transparent);
   border-radius:var(--r-sm);margin-inline:-8px;padding-inline:8px}
 .tf-rsv{display:flex;align-items:center;gap:6px;color:var(--warn);
-  font-size:var(--fs-sm);margin-top:3px}
+  font-size:var(--fs-meta);margin-top:3px}
 .tf-rsv>svg{width:12px;height:12px;flex:none}
 
 /* Como a track terminou, na linha dela dentro do arquivo. Neutro de propósito:
@@ -4110,7 +4110,7 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 .arq-motivo:hover{background:var(--alto);border-color:var(--line-3)}
 .arq-motivo.on{border-color:var(--ac-tinta);background:var(--ac-luz)}
 .arq-motivo b{font:var(--fw-medium) var(--fs-ui)/1.3 var(--sans);color:var(--tx)}
-.arq-motivo small{font-size:var(--fs-sm);color:var(--tx-3)}
+.arq-motivo small{font-size:var(--fs-meta);color:var(--tx-3)}
 
 /* o menu de detalhes da nota */
 .nt-det{position:relative}
@@ -4176,7 +4176,7 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
      grandes no meio da folha, que é pior: eles são o rodapé da nota, não o
      assunto dela. Empilhados e pequenos, saem da frente do texto. */
   .doc-acoes{flex-direction:column;align-items:flex-start;gap:6px;padding-bottom:10px}
-  .doc-acoes>.btn{width:auto;padding:7px 13px;font-size:var(--fs-sm)}
+  .doc-acoes>.btn{width:auto;padding:7px 13px;font-size:var(--fs-meta)}
   .doc-acoes .hint{display:none}
   .so-computador{display:none!important}
 }
@@ -4333,7 +4333,7 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 .fb-notas small{font-size:var(--fs-micro);color:var(--tx-3);text-align:center}
 
 .fb-campo{display:grid;gap:7px}
-.fb-campo span{font-size:var(--fs-sm);color:var(--tx-2)}
+.fb-campo span{font-size:var(--fs-meta);color:var(--tx-2)}
 .fb-campo textarea{width:100%;padding:12px 14px;border-radius:var(--r);
   border:1px solid var(--line-2);background:var(--brilho);color:var(--tx);
   font:var(--fs-ui)/1.6 var(--sans);resize:vertical}
@@ -4344,8 +4344,8 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
   color:var(--ac-tx);font:var(--fw-semibold) var(--fs-ui)/1 var(--sans);transition:var(--t)}
 .fb-enviar:hover{background:var(--ac-2)}
 .fb-enviar:disabled{opacity:.45}
-.fb-erro{color:var(--late);font-size:var(--fs-sm);margin:0}
-.fb-pe{color:var(--tx-3);font-size:var(--fs-sm);margin:0}
+.fb-erro{color:var(--late);font-size:var(--fs-meta);margin:0}
+.fb-pe{color:var(--tx-3);font-size:var(--fs-meta);margin:0}
 
 @media (max-width:840px){
   .fb{padding:28px 16px 48px;gap:16px}
@@ -4360,10 +4360,10 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 .track-fb-n{flex:none;font:var(--fw-semibold) var(--fs-ui)/1 var(--sans);
   color:var(--tx-2);padding:6px 9px;border-radius:var(--r-pill);background:var(--alto)}
 .track-fb-l b{display:block;font-size:var(--fs-ui);font-weight:var(--fw-medium)}
-.track-fb-l small{display:block;color:var(--tx-3);font-size:var(--fs-sm);margin-top:3px}
+.track-fb-l small{display:block;color:var(--tx-3);font-size:var(--fs-meta);margin-top:3px}
 .fb-l{display:flex;align-items:center;justify-content:space-between;gap:10px;
   padding:7px 0;font-size:var(--fs-ui);border-bottom:1px solid var(--line)}
-.fb-l b{color:var(--tx-3);font-weight:var(--fw-medium);font-size:var(--fs-sm)}
+.fb-l b{color:var(--tx-3);font-weight:var(--fw-medium);font-size:var(--fs-meta)}
 
 /* ------------------------------------------------------------------ tutorial
 
@@ -4401,7 +4401,7 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 .tut-pontos i.on{background:var(--ac-tinta);width:14px}
 .tut-acoes{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:4px}
 .tut-nav{display:flex;align-items:center;gap:8px}
-.tut-pular{background:none;border:0;padding:6px 0;font-size:var(--fs-sm);color:var(--tx-3)}
+.tut-pular{background:none;border:0;padding:6px 0;font-size:var(--fs-meta);color:var(--tx-3)}
 .tut-pular:hover{color:var(--tx-2)}
 
 /* No celular o cartão para embaixo, sempre: calculado ao lado do alvo ele
@@ -4423,7 +4423,7 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
    resto do app, e é exatamente isto. Vermelho é para o que já venceu e cobra
    alguém, e o teste acabando não cobra ninguém. */
 .pl-faixa{display:flex;align-items:center;gap:10px;padding:9px 20px;
-  font-size:var(--fs-sm);color:var(--tx-2);
+  font-size:var(--fs-meta);color:var(--tx-2);
   background:color-mix(in srgb,var(--warn) 14%,transparent);
   border-bottom:1px solid color-mix(in srgb,var(--warn) 30%,transparent)}
 .pl-faixa svg{flex:none;color:var(--warn)}
@@ -4437,7 +4437,7 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 .pl-linhas b{font:var(--fw-semibold) var(--fs-h4)/1.2 var(--sans);color:var(--tx)}
 .pl-linhas small{font-size:var(--fs-meta);color:var(--tx-3);line-height:1.35}
 
-.eq-assentos{margin:0 0 14px;font-size:var(--fs-sm);color:var(--tx-3)}
+.eq-assentos{margin:0 0 14px;font-size:var(--fs-meta);color:var(--tx-3)}
 .eq-assentos.cheio{color:var(--tx-2)}
 .eq-assentos b{color:var(--tx)}
 
@@ -4445,7 +4445,7 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
    O botão fica colado na trilha, e não no cabeçalho: ele age sobre ela. */
 .trk-montar{display:inline-flex;align-items:center;gap:7px;margin-top:10px;
   padding:6px 12px;border-radius:var(--r-pill);border:1px solid var(--line-2);
-  background:var(--brilho);font-size:var(--fs-sm);color:var(--tx-2);transition:var(--t)}
+  background:var(--brilho);font-size:var(--fs-meta);color:var(--tx-2);transition:var(--t)}
 .trk-montar:hover{border-color:var(--line-3);color:var(--tx)}
 .trk-montar svg{width:13px;height:13px}
 
@@ -4464,3 +4464,87 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
    texto por cima de campo e não cabia; o porquê já está dito uma vez no alto. */
 .cpr.cpr-fixo{background:var(--brilho);box-shadow:inset 2px 0 0 var(--line-3)}
 .cpr.cpr-fixo .tools{opacity:.35}
+
+/* ==========================================================================
+   O processo descoberto (`componentes/Descobertos.tsx`)
+
+   A banda que abre a tela de Processos quando o pulso reconheceu um caminho que
+   a casa já repete. Ela é uma CONVERSA, não um card de KPI: número, o que foi
+   montado, uma pergunta, o rascunho. Por isso o desenho é de folha lida de cima
+   para baixo, sem coluna, sem faixa colorida e sem bloco grande de número.
+
+   O acento aparece uma vez, no botão de criar: é ele que faz o trabalho andar.
+   A marca de cada frase da inconstância e o visto das afirmações são neutros
+   de propósito; dois limas na mesma tela é defeito.
+   ========================================================================== */
+.dsc{margin-bottom:22px;display:flex;flex-direction:column;gap:12px}
+.dsc-cab h2{display:flex;align-items:center;gap:8px;margin:0;
+  font:var(--fw-semibold) var(--fs-h3)/1.25 var(--sans);color:var(--tx)}
+.dsc-cab h2 svg{width:15px;height:15px;color:var(--ac-tinta)}
+.dsc-cab p{margin:5px 0 0;font-size:var(--fs-meta);color:var(--tx-3);line-height:1.5}
+
+.dsc-c{padding:16px 17px;border-radius:var(--r-lg);background:var(--panel);
+  box-shadow:0 0 0 1px var(--line)}
+.dsc-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.dsc-nm{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;min-width:0}
+.dsc-nm b{font:var(--fw-medium) var(--fs-h3)/1.25 var(--sans);color:var(--tx)}
+.dsc-p{font-size:11px;font-weight:600;padding:3px 9px;border-radius:var(--r-pill);
+  background:var(--brilho);color:var(--tx-3);white-space:nowrap}
+.dsc-vz{font-size:var(--fs-meta);color:var(--tx-3);white-space:nowrap}
+.dsc-vz b{color:var(--tx-2);font-weight:600}
+
+/* O mapa da inconstância, que numa empresa sem processo vale mais que o
+   processo. São frases e não números soltos: "levou 6, 6, 7 e 13 dias" é uma
+   coisa que o dono lê e reage; um desvio padrão de 3,4 não é. */
+.dsc-map{list-style:none;margin:13px 0 0;padding:0;display:flex;flex-direction:column;gap:7px}
+.dsc-map li{display:flex;gap:9px;font-size:var(--fs-meta);color:var(--tx-2);line-height:1.5}
+.dsc-map li svg{width:13px;height:13px;flex:none;margin-top:3px;color:var(--tx-3)}
+
+.dsc-af{margin-top:15px}
+.dsc-af i,.dsc-des i{display:block;font-style:normal;
+  font:var(--fw-semibold) var(--fs-kicker)/1.2 var(--sans);letter-spacing:var(--ls-kicker);
+  text-transform:uppercase;color:var(--tx-3)}
+.dsc-af ul{list-style:none;margin:9px 0 0;padding:0;display:flex;flex-direction:column;gap:7px}
+.dsc-af li{display:flex;gap:9px;font-size:var(--fs-meta);color:var(--tx-2);line-height:1.5}
+.dsc-af li svg{width:12px;height:12px;flex:none;margin-top:4px;color:var(--tx-3)}
+/* A porta de saída da afirmação. Apagada, e presente: afirmação sem como
+   desfazer é imposição, e imposição num rascunho faz recusar o rascunho todo. */
+.dsc-af em{font-style:normal;color:var(--tx-3)}
+
+/* A pergunta. Uma, e ela é o único bloco com fundo próprio: é o que separa "o
+   que eu já sei" de "o que eu preciso que você me diga". */
+.dsc-q{margin-top:15px;padding:13px 14px;border-radius:var(--r);
+  background:var(--brilho);box-shadow:inset 0 0 0 1px var(--line)}
+.dsc-q p{margin:0;font:var(--fw-medium) var(--fs-ui)/1.45 var(--sans);color:var(--tx)}
+.dsc-op{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}
+.dsc-resta{display:block;margin-top:9px;font-size:11.5px;color:var(--tx-3)}
+.dsc-pronto{display:flex;align-items:center;gap:9px;font-size:var(--fs-meta);color:var(--tx-3)}
+.dsc-pronto svg{width:13px;height:13px;flex:none;color:var(--tx-3)}
+
+/* O rascunho, visível antes de aceitar. Três portas numeradas: o número é a
+   ordem, e a ordem é o que faz aquilo ser um processo e não uma lista. */
+.dsc-des{margin-top:15px}
+.dsc-des ol{list-style:none;margin:9px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.dsc-des li{display:flex;align-items:center;gap:10px}
+.dsc-n{display:grid;place-items:center;width:21px;height:21px;flex:none;border-radius:7px;
+  background:var(--sunken);box-shadow:inset 0 0 0 1px var(--line-2);
+  font-size:11px;font-weight:600;color:var(--tx-3)}
+.dsc-cp{min-width:0}
+.dsc-cp b{display:block;font:var(--fw-medium) var(--fs-meta)/1.3 var(--sans);color:var(--tx)}
+.dsc-cp em{display:block;font-style:normal;font-size:11.5px;color:var(--tx-3);margin-top:2px}
+
+.dsc-f{display:flex;justify-content:flex-end;gap:8px;margin-top:17px}
+
+@media (max-width:640px){
+  .dsc-h{flex-direction:column;gap:6px}
+  /* Lado a lado eles cabiam apertados, com o texto no limite de quebrar e o
+     polegar tendo que mirar. */
+  .dsc-f{flex-direction:column-reverse}
+  .dsc-f .btn{width:100%}
+}
+
+/* A ressalva de uma resposta que não cabe no processo (pessoa sem área). Fica
+   dentro do rascunho, embaixo das portas, porque é ali que a pessoa procurou a
+   mudança que não veio. */
+.dsc-nota{display:flex;gap:9px;margin:11px 0 0;font-size:11.5px;color:var(--tx-3);line-height:1.5}
+.dsc-nota svg{width:13px;height:13px;flex:none;margin-top:2px}

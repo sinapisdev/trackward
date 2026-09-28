@@ -1241,6 +1241,59 @@ O anel do corrente **enche conforme o checklist anda**, e isso o design system n
 checkpoint. Ao trocar a trilha por outra coisa, não perder isso, nem o ponto de quem já
 voltou atrás, nem a bandeira de chegada que distingue projeto de rotina.
 
+## O processo que a casa já tem sem saber
+
+O pulso olha seis meses de eventos e reconhece um caminho que se repete
+(`lib/descobrir.ts`, seção 39 do schema). O que sai dali **não é processo, é
+candidato**, e a conversa que o transforma em processo mora em
+`componentes/Descobertos.tsx`, numa banda no alto de `/processos`. Ela vem antes
+dos filtros de propósito: quem abre aquela tela pela primeira vez não tem lista
+nenhuma para filtrar.
+
+**A ordem do cartão é o argumento**, e não arrumação de layout:
+
+1. **o que já aconteceu, com o número**: 11 vezes, 6 dias, 4 sem conferir
+2. **o que eu já montei**, afirmado, cada linha com como desfazer
+3. **uma pergunta**, a que mais muda o desenho
+4. **o rascunho**, visível antes de aceitar
+
+Começar pelo rascunho é pedir opinião sobre um desenho sem dizer de onde ele
+saiu, e a resposta honesta a isso é "não sei". O número primeiro é o que faz a
+pessoa reconhecer a casa dela.
+
+- **Uma pergunta por vez, e a resposta grava na hora** (`responder_descoberta`).
+  Cinco juntas viram formulário. Gravar na hora é o que deixa responder uma hoje
+  e a seguinte na semana que vem sem recomeçar.
+- **Maioria o app resolve sozinho e afirma**; empate e buraco viram pergunta. A
+  afirmação sempre carrega a porta de saída ("Se preferir outro, é só me dizer"):
+  afirmação sem como desfazer é imposição, e imposição num rascunho faz recusar o
+  rascunho inteiro.
+- **Pergunta sem opção não existe.** Quando ninguém aprovou nenhuma das vezes,
+  não há o que oferecer, e a pergunta some: no WhatsApp ela seria uma mensagem
+  pedindo um número que não está lá.
+- **Resposta que não muda nada tem que ser explicada.** A pergunta é sobre gente
+  ("quem devia responder por esta passagem?") e o processo guarda **área**, que é
+  o que o faz servir à obra seguinte com outro time. Escolhida uma pessoa sem
+  área, o rascunho não muda, e a tela diz por quê (`respostaSemLugar`). Engolir
+  isso ensina que responder ali não serve para nada.
+- **Recusar guarda a recusa**, não apaga a linha: é ela que impede o pulso de
+  propor a mesma coisa toda semana. Nada do que foi observado se perde.
+- **O lima não é daqui.** Em `/processos` o acento já é do "Usar processo", que é
+  o que faz uma track nascer. Adotar uma descoberta é criar um processo, e criar
+  processo ali já é botão neutro.
+- **As três decisões são do banco** (seção 41), e a conferência é
+  `manda_no_processo_de(org)`, não `eh_admin()`: aquelas funções são
+  `security definer`, e lá dentro RLS não filtra a linha, então um administrador
+  de outra empresa passava e mexia em candidato alheio.
+- No espaço pessoal some a pergunta de quem aprova (`pode.aprovacao`), e as
+  palavras mudam: "em 4 ninguém fez" vira "em 4 você não fez", porque ali ninguém
+  é você.
+
+O rascunho é sempre **três checkpoints com uma tarefa em cada**
+(`PRIMEIRO_MAXIMO`). O limite é sobre o que o app propõe sem ninguém pedir:
+checkpoint que a pessoa confirmou porque "nas 4 vezes em que faltou levou o
+dobro" entra por cima dele, que é exatamente o caso previsto.
+
 ## Modo demonstração
 
 Sem `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` no `.env.local`, o app

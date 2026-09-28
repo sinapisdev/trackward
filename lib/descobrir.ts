@@ -187,6 +187,36 @@ export function nomeComum(nomes: string[]): string {
   return boas.join(' ')
 }
 
+/**
+ * O nome do evento em português de gente.
+ *
+ * Os tipos da view `eventos` são de máquina: "tarefa:feita", "decisao:aprovou".
+ * Pôr isso como nome de checkpoint entrega um processo que parece log de
+ * sistema, e a empresa lê aquilo e conclui, com razão, que não foi feito para
+ * ela. O nome definitivo é de quem usa; este é o que se apresenta enquanto
+ * ninguém rebatizou.
+ */
+export function rotuloDoPasso(tipo: string): string {
+  const fixos: Record<string, string> = {
+    atividade: 'Começo',
+    concluido: 'Entrega',
+    cancelado: 'Encerramento',
+    aberto: 'Em andamento',
+    'tarefa:nasceu': 'Preparação',
+    'tarefa:feita': 'Execução',
+    anexo: 'Documentação',
+    'prazo:pedido': 'Replanejamento',
+    'decisao:aprovou': 'Aprovação',
+    'decisao:ressalva': 'Aprovação com ressalva',
+    'decisao:devolveu': 'Devolução',
+  }
+  if (fixos[tipo]) return fixos[tipo]
+  // O que não está na lista vira o que estiver depois dos dois pontos, com a
+  // primeira letra maiúscula: "conferir:estoque" fica "Estoque".
+  const parte = tipo.includes(':') ? tipo.split(':')[1] : tipo
+  return parte.charAt(0).toUpperCase() + parte.slice(1).replace(/[-_]/g, ' ')
+}
+
 /** Quantas vezes é preciso ver antes de chamar de processo. */
 const MINIMO = 3
 
@@ -243,15 +273,29 @@ export function descobrir(execucoes: Execucao[]): Candidato[] {
  * Frases, e não números soltos: "entre o pedido e a entrega passaram 6, 9, 22 e
  * 31 dias" é uma coisa que o dono lê e reage. Um desvio padrão de 11,4 não é.
  */
-export function inconstancia(c: Candidato): string[] {
-  const fora: string[] = []
+export type Frase = {
+  texto: string
+  /**
+   * Sobre qual passo ela fala, quando fala de um.
+   *
+   * Existe para que a tela não mostre o mapa e a pergunta dizendo a mesma coisa
+   * uma embaixo da outra: quando o passo virou pergunta, a frase sai, porque a
+   * pergunta é sempre a melhor das duas (ela carrega o que faltar custou).
+   */
+  alvo?: string
+}
+
+export function inconstancia(c: Candidato): Frase[] {
+  const fora: Frase[] = []
 
   if (c.duracoes.length >= 3) {
     const min = c.duracoes[0]
     const max = c.duracoes[c.duracoes.length - 1]
     if (max >= min * 3 && max - min >= 5) {
-      fora.push(`Do começo ao fim passaram ${c.duracoes.join(', ')} dias. `
-        + 'A mesma coisa levou tempos muito diferentes.')
+      fora.push({
+        texto: `Do começo ao fim passaram ${c.duracoes.join(', ')} dias. `
+          + 'A mesma coisa levou tempos muito diferentes.',
+      })
     }
   }
 
@@ -261,14 +305,19 @@ export function inconstancia(c: Candidato): string[] {
   for (const e of c.execucoes) for (const p of e.passos) conta.set(p, (conta.get(p) || 0) + 1)
   for (const [passo, n] of conta) {
     if (n < c.vezes && n >= c.vezes * 0.4) {
-      fora.push(`"${passo}" aconteceu em ${n} das ${c.vezes} vezes. `
-        + 'Nas outras, não. Devia ser sempre?')
+      fora.push({
+        texto: `"${rotuloDoPasso(passo)}" aconteceu em ${n} das ${c.vezes} vezes. `
+          + 'Nas outras, não. Devia ser sempre?',
+        alvo: passo,
+      })
     }
   }
 
   if (c.confianca < 0.6 && c.vezes >= 3) {
-    fora.push(`As ${c.vezes} vezes seguiram caminhos bem diferentes entre si. `
-      + 'Talvez sejam duas coisas parecidas, e não uma só.')
+    fora.push({
+      texto: `As ${c.vezes} vezes seguiram caminhos bem diferentes entre si. `
+        + 'Talvez sejam duas coisas parecidas, e não uma só.',
+    })
   }
 
   return fora

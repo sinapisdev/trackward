@@ -46,6 +46,21 @@ import type { Agente, Canal, Fluxo, Mensagem } from '@/lib/tipos'
  * O resultado NÃO vira processo: vira candidato, com o estado à vista, para
  * alguém aceitar ou recusar. A IA observa, conclui, propõe e pergunta.
  */
+/**
+ * Quem decidiu aquela execução, quando alguém decidiu.
+ *
+ * A ÚLTIMA decisão, não a primeira: numa track que foi devolvida e depois
+ * aprovada, quem responde pela passagem é quem aprovou no fim. Nulo quando
+ * ninguém decidiu, e o nulo é o dado mais valioso da pergunta: é ele que
+ * transforma "variou" em "teve vez que ninguém conferiu".
+ */
+function quemDecidiu(eventos: Evento[], fluxo: string): string | null {
+  const decisoes = eventos
+    .filter((e) => e.fluxo_id === fluxo && e.tipo.startsWith('decisao:') && e.quem_id)
+    .sort((a, b) => a.quando.localeCompare(b.quando))
+  return decisoes.length ? decisoes[decisoes.length - 1].quem_id : null
+}
+
 async function descobrirProcessos(
   sb: NonNullable<ReturnType<typeof clienteDeServico>>, org: string, agora: Date,
 ): Promise<number> {
@@ -79,7 +94,14 @@ async function descobrirProcessos(
     const { error } = await sb.rpc('guardar_descoberta', {
       p_org: org, p_chave: chave, p_nome: c.nome, p_gatilho: c.gatilho,
       p_desfecho: c.desfecho, p_passos: c.passos, p_areas: c.areas,
-      p_execucoes: c.execucoes.map((e) => ({ id: e.fluxo_id, nome: e.nome, dias: e.duracao })),
+      // Vai junto o que a CONVERSA vai precisar: os passos de cada execução (é
+      // deles que sai "em 4 das 11 ninguém conferiu") e quem decidiu cada uma.
+      // Sem isso a tela teria que reler seis meses de eventos para montar a
+      // primeira pergunta, e o candidato só existe para virar conversa.
+      p_execucoes: c.execucoes.map((e) => ({
+        id: e.fluxo_id, nome: e.nome, dias: e.duracao,
+        passos: [...e.passos], quem: quemDecidiu(eventos, e.fluxo_id),
+      })),
       p_vezes: c.vezes, p_confianca: c.confianca, p_cadencia: c.cadencia,
       p_duracoes: c.duracoes, p_inconstancia: inconstancia(c), p_area: area,
     })

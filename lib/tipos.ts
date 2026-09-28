@@ -706,3 +706,38 @@ export type Feedback = {
   texto: string | null
   criado_em: string
 }
+
+/**
+ * O processo que a casa já tem sem saber, do jeito que a seção 39 o guarda.
+ *
+ * Ele não é processo: é candidato, com o estado à vista. `execucoes` carrega os
+ * passos de cada vez que aquilo aconteceu, porque é deles que sai a pergunta
+ * ("das 11 vezes, em 4 ninguém conferiu"), e `respostas` guarda o que já foi
+ * respondido, para que uma pergunta por dia não obrigue a começar de novo
+ * amanhã. Ver `lib/descobrir.ts` e `lib/propor.ts`.
+ */
+export type ProcessoDescoberto = {
+  id: string
+  area_id: string | null
+  nome_sugerido: string
+  gatilho: string
+  desfecho: string
+  passos: string[]
+  areas: string[]
+  execucoes: { id: string | null; nome: string; dias: number; passos?: string[]; quem?: string | null }[]
+  vezes: number
+  confianca: number
+  cadencia: 'rotina' | 'sazonal' | 'pontual'
+  duracoes: number[]
+  /**
+   * As frases do mapa da inconstância. Linha gravada antes de as frases
+   * ganharem alvo guarda texto solto, então as duas formas são aceitas: a
+   * varredura seguinte reescreve a linha inteira e a antiga some sozinha.
+   */
+  inconstancia: (string | { texto: string; alvo?: string })[]
+  estado: 'observando' | 'pronto' | 'proposto' | 'aceito' | 'recusado'
+  virou_id: string | null
+  respostas: Record<string, string>
+  criado_em: string
+  mexido_em: string
+}

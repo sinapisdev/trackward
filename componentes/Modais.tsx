@@ -42,7 +42,15 @@ export type Pedido =
       inicial?: { nome: string; reconhecer: string }
     }
   | { tipo: 'espaco'; pessoal?: boolean }
-  | { tipo: 'excluir'; titulo: string; texto: string; acao: () => void | Promise<void> }
+  /**
+   * A confirmação de tudo que não se desfaz.
+   *
+   * `rotulo` existe porque nem toda confirmação é uma exclusão: recusar um
+   * processo descoberto não apaga linha nenhuma, ele guarda a recusa, e um botão
+   * escrito "Excluir" ali faria a pessoa achar que perdeu o que foi observado.
+   */
+  | { tipo: 'excluir'; titulo: string; texto: string; rotulo?: string
+      acao: () => void | Promise<void> }
 
 const Ctx = createContext<{ abrir: (p: Pedido) => void; fechar: () => void } | null>(null)
 
@@ -1991,7 +1999,8 @@ function MExcluir({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'excluir
         <h3 id="me">{pedido.titulo}</h3>
         <p>{pedido.texto}</p>
       </div>
-      <Rodape fechar={fechar} rotulo="Excluir" perigo acao={() => { void pedido.acao(); fechar() }} />
+      <Rodape fechar={fechar} rotulo={pedido.rotulo || 'Excluir'} perigo
+        acao={() => { void pedido.acao(); fechar() }} />
     </div>
   )
 }
