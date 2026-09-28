@@ -6414,3 +6414,90 @@ end $$;
 drop trigger if exists ao_virar_ciclo on public.historico;
 create trigger ao_virar_ciclo after insert on public.historico
   for each row execute function public.arquivar_ciclo();
+
+-- --------------------------------------------------------------------------
+-- 46. Por onde o WhatsApp da empresa fala
+--
+--     Eram só duas formas de falar para fora, e as duas passavam pela Twilio.
+--     Agora a Cloud API da própria Meta é a outra, e a diferença não é de
+--     preço apenas: na Meta o remetente de TESTE é de graça e manda para cinco
+--     telefones, o que permite provar o app falando primeiro sem contratar
+--     nada. Sem isso, metade do que já está construído (a pergunta do dia, o
+--     lembrete, o pedido de aprovação) não sai do lugar.
+--
+--     As três colunas que já existiam servem às duas, com outro sentido:
+--
+--       `whats_conector`  o endereço e a credencial. Na Twilio é o token da
+--                         conta; na Meta é o token permanente do usuário de
+--                         sistema, sempre como Bearer.
+--       `whats_sid`       na Twilio, o SID da conta. Na Meta, o id do número
+--                         (`phone_number_id`), que é o que vai na URL.
+--       `whats_de`        o número que aparece para quem recebe, nas duas.
+--
+--     Reaproveitar em vez de criar seis colunas novas é o que mantém uma
+--     empresa com uma configuração só, e a tela de conectores sem um segundo
+--     formulário quase igual ao primeiro.
+-- --------------------------------------------------------------------------
+
+alter table public.organizacoes add column if not exists whats_via text not null default 'twilio';
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'org_whats_via') then
+    alter table public.organizacoes add constraint org_whats_via
+      check (whats_via in ('twilio', 'meta'));
+  end if;
+end $$;
+
+-- --------------------------------------------------------------------------
+-- 47. O nono dígito, que o WhatsApp come
+--
+--     O WhatsApp identifica quem escreve por `wa_id`, e para número brasileiro
+--     antigo ele costuma vir SEM o nono dígito: quem cadastrou +55 42 99978-3288
+--     aparece como 554299783288. A conferência era de dígito por dígito, então
+--     o app não reconhecia a própria pessoa e respondia "este número não está
+--     ligado ao seu", que é a frase mais desanimadora possível para quem acabou
+--     de configurar tudo certo.
+--
+--     Não dá para consertar do lado de fora, porque quem manda o número é o
+--     WhatsApp, e ele manda dos dois jeitos dependendo de quando a linha foi
+--     registrada. Então a comparação passa a aceitar as duas formas, e só para
+--     celular brasileiro: `55` + dois dígitos de área + oito ou nove do número.
+--     Fora disso nada muda, para não casar números de outros países por engano.
+-- --------------------------------------------------------------------------
+
+/**
+ * As formas em que aquele telefone pode chegar. Sempre só dígitos.
+ *
+ * Uma para número que já não é brasileiro ou não é celular, duas quando o nono
+ * dígito está em jogo.
+ */
+create or replace function public.formas_do_fone(p_fone text)
+returns text[] language plpgsql immutable set search_path = public as $$
+declare d text; area text; resto text;
+begin
+  d := regexp_replace(coalesce(p_fone, ''), '[^0-9]', '', 'g');
+  if d = '' then return array[]::text[]; end if;
+  if left(d, 2) <> '55' then return array[d]; end if;
+
+  area := substr(d, 3, 2);
+  resto := substr(d, 5);
+  -- Com nove dígitos e começando por 9, a outra forma é sem ele.
+  if length(resto) = 9 and left(resto, 1) = '9' then
+    return array[d, '55' || area || substr(resto, 2)];
+  end if;
+  -- Com oito, a outra forma é com o nove na frente.
+  if length(resto) = 8 then
+    return array[d, '55' || area || '9' || resto];
+  end if;
+  return array[d];
+end $$;
+
+create or replace function public.perfil_do_telefone(p_fone text)
+returns uuid language sql stable security definer set search_path = public as $$
+  select c.perfil_id from avisos_contato c
+  join perfis p on p.id = c.perfil_id and p.ativo
+  where regexp_replace(c.telefone, '[^0-9]', '', 'g') = any (formas_do_fone(p_fone))
+    and regexp_replace(coalesce(p_fone, ''), '[^0-9]', '', 'g') <> ''
+  limit 1;
+$$;

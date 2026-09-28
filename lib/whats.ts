@@ -45,9 +45,9 @@ export async function mandarWhats(
   if (!org_id || !para || !texto) return null
 
   const { data: o } = await sb.from('organizacoes')
-    .select('whats_conector,whats_sid,whats_de').eq('id', org_id).single()
+    .select('whats_conector,whats_sid,whats_de,whats_via').eq('id', org_id).single()
   const org = o as { whats_conector: string | null; whats_sid: string | null
-    whats_de: string | null } | null
+    whats_de: string | null; whats_via: string | null } | null
   if (!org?.whats_conector || !org.whats_sid || !org.whats_de) return null
 
   const { data } = await sb.from('conectores')
@@ -58,6 +58,41 @@ export async function mandarWhats(
 
   const chave = decifrar(c.segredo_cifrado)
   if (!chave) return null
+
+  const base = c.base_url.replace(/\/+$/, '')
+
+  /**
+   * A Meta fala JSON e a Twilio fala formulário, e a diferença acaba aqui.
+   *
+   * Na Meta o número de destino vai SEM o mais e sem o prefixo `whatsapp:`,
+   * que é o tipo de detalhe que custa uma tarde: com o mais ela aceita a
+   * chamada, devolve 200, e a mensagem não chega a ninguém.
+   */
+  if ((org.whats_via || 'twilio') === 'meta') {
+    try {
+      const r = await fetch(`${base}/${encodeURIComponent(org.whats_sid)}/messages`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${chave}`,
+          'user-agent': 'TrackWard/1.0',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: para.replace(/[^0-9]/g, ''),
+          type: 'text',
+          text: { preview_url: false, body: texto },
+        }),
+        signal: AbortSignal.timeout(15_000),
+      })
+      if (!r.ok) return null
+      const j = await r.json().catch(() => null) as { messages?: { id?: string }[] } | null
+      return j?.messages?.[0]?.id || 'enviada'
+    } catch {
+      return null
+    }
+  }
 
   const corpo = new URLSearchParams({
     To: `whatsapp:${para}`,
@@ -74,7 +109,7 @@ export async function mandarWhats(
 
   try {
     const r = await fetch(
-      `${c.base_url.replace(/\/+$/, '')}/Accounts/${encodeURIComponent(org.whats_sid)}/Messages.json`,
+      `${base}/Accounts/${encodeURIComponent(org.whats_sid)}/Messages.json`,
       { method: 'POST', headers: cabecalhos, body: corpo, signal: AbortSignal.timeout(15_000) },
     )
     if (!r.ok) return null

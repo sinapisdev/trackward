@@ -600,6 +600,34 @@ quando uma única lista aceita aquela chave.
 **A pergunta vence em dois dias.** Um "pronto" de duas noites depois quase certamente
 responde a outra coisa: a pessoa esqueceu, e o app não pode fingir que ela lembra.
 
+**São duas vias, e a diferença morre na porta.** `organizacoes.whats_via` diz se a empresa
+fala pela Twilio ou pela Cloud API da própria Meta (seção 46). As três colunas que já
+existiam servem às duas com outro sentido: o conector guarda endereço e credencial, e
+`whats_sid` é o SID da conta na Twilio e o `phone_number_id` na Meta. Quem trata a
+mensagem não sabe de qual veio, porque a pessoa do outro lado também não sabe.
+
+O que muda de verdade são três coisas, e todas ficam em `/api/whats`:
+
+- **A Meta verifica o endereço por GET** antes de mandar qualquer coisa, devolvendo o
+  `hub.challenge` em texto puro. Sem isso o webhook nunca é ativado, e o erro que ela
+  mostra é só "não foi possível validar a URL".
+- **A assinatura é HMAC-SHA256 do corpo CRU** (`x-hub-signature-256`), e do cru mesmo: um
+  espaço a mais na reserialização muda o resumo e a conferência passa a falhar sempre.
+- **A resposta não volta na mesma requisição.** Na Twilio ela vai em XML no corpo; na Meta
+  o webhook devolve 200 e a resposta é uma chamada nova. Por isso o que decide o que dizer
+  devolve TEXTO (`Recado`), e quem entrega escolhe a forma. Foi o que permitiu as duas
+  vias sem duplicar as 51 saídas daquele arquivo.
+
+**A Meta manda recibo de entrega no mesmo endereço**, sem `messages` dentro. Silêncio é a
+resposta certa ali: responder a recibo é conversar sozinho.
+
+**O nono dígito.** O WhatsApp entrega número brasileiro antigo SEM ele: quem cadastrou
++55 42 99978-3288 chega como 554299783288. A conferência era dígito por dígito, então o app
+não reconhecia a própria pessoa e respondia "este número não está ligado ao seu", que é a
+frase mais desanimadora possível para quem acabou de configurar tudo certo. `formas_do_fone`
+(seção 47) aceita as duas formas, e só para celular brasileiro: fora disso casaria número
+de outro país por engano.
+
 **Telefone não é senha.** `perfil_do_telefone()` só diz de quem é o número. O que muda o
 trabalho de outra pessoa (aprovar checkpoint, prorrogar prazo, aceitar cascata) pede botão
 explícito, nunca texto livre interpretado. E número desconhecido recebe resposta educada e
