@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import webpush from 'web-push'
 import { clienteDeServico } from '@/lib/supabase/servico'
+import { mandarWhats as whatsDaEmpresa } from '@/lib/whats'
 import { decifrar } from '@/lib/cifra'
 import { comoTexto, destino, podeSair, telefoneLimpo } from '@/lib/avisos'
 import type { Aviso, AvisoContato } from '@/lib/tipos'
@@ -294,56 +295,17 @@ function comoPergunta(a: Aviso): {
 }
 
 /**
- * Manda pelo WhatsApp da empresa, pela Twilio.
+ * Manda pelo WhatsApp da empresa.
  *
- * Não passa pela rota `/api/conector` de propósito: aquela rota manda JSON, e a
- * Twilio só aceita formulário. Fosse por lá, toda mensagem voltaria com erro 400
- * e ninguém entenderia por quê.
+ * O envio em si mora em `lib/whats.ts` desde que o pulso também passou a ter o
+ * que dizer sozinho. Aqui fica só a ponte: o aviso sabe de quem é, e o envio
+ * precisa saber de qual empresa.
  */
 async function mandarWhats(
   sb: NonNullable<ReturnType<typeof clienteDeServico>>,
   aviso: Aviso, para: string, texto: string,
 ): Promise<string | null> {
-  const { data: org } = await sb.from('organizacoes')
-    .select('whats_conector,whats_sid,whats_de')
-    .eq('id', (await sb.from('perfis').select('org_id').eq('id', aviso.perfil_id).single()).data?.org_id || '')
-    .single()
-
-  if (!org?.whats_conector || !org.whats_sid || !org.whats_de) return null
-
-  const { data } = await sb.from('conectores')
-    .select('base_url,auth_tipo,auth_nome,segredo_cifrado,ativo')
-    .eq('id', org.whats_conector).single()
-  const c = data as Conector | null
-  if (!c || !c.ativo) return null
-
-  const chave = decifrar(c.segredo_cifrado)
-  if (!chave) return null
-
-  const corpo = new URLSearchParams({
-    To: `whatsapp:${para}`,
-    From: org.whats_de.startsWith('whatsapp:') ? org.whats_de : `whatsapp:${org.whats_de}`,
-    Body: texto,
-  })
-
-  const cabecalhos: Record<string, string> = {
-    'content-type': 'application/x-www-form-urlencoded',
-    'user-agent': 'TrackWard/1.0 (avisos)',
-  }
-  if (c.auth_tipo === 'bearer') cabecalhos.authorization = `Bearer ${chave}`
-  else cabecalhos[c.auth_nome || 'authorization'] = chave
-
-  try {
-    const r = await fetch(
-      `${c.base_url.replace(/\/+$/, '')}/Accounts/${encodeURIComponent(org.whats_sid)}/Messages.json`,
-      { method: 'POST', headers: cabecalhos, body: corpo, signal: AbortSignal.timeout(15_000) },
-    )
-    if (!r.ok) return null
-    // O sid da mensagem é o que deixa a resposta dela ser casada sem
-    // interpretar nada: a Twilio devolve o id da citada em quem responde.
-    const j = await r.json().catch(() => null) as { sid?: string } | null
-    return j?.sid || 'enviada'
-  } catch {
-    return null
-  }
+  const { data } = await sb.from('perfis').select('org_id').eq('id', aviso.perfil_id).single()
+  const org = (data as { org_id: string } | null)?.org_id
+  return org ? whatsDaEmpresa(sb, org, para, texto) : null
 }

@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server'
 import { clienteDeServico } from '@/lib/supabase/servico'
 import { MODELO, porModelo, semModelo, type Medida } from '@/lib/leitura'
 import { podar, type Contexto, type Proposta } from '@/lib/leitor'
-import { devePulsar, type Agenda } from '@/lib/pulso'
-import { horariosDoRitmo } from '@/lib/ritmo'
+import { devePulsar, type Agenda, noFuso } from '@/lib/pulso'
+import { horariosDoRitmo, horaDeResponder } from '@/lib/ritmo'
 import { descobrir, execucoesDe, inconstancia, type Evento } from '@/lib/descobrir'
+import { perguntasDeHoje, type Historico, type Papel } from '@/lib/perguntas'
+import { mandarWhats } from '@/lib/whats'
 import { custoMicro } from '@/lib/precos'
 import { escutaAqui, oQueFaz, porPalavras } from '@/lib/agentes'
 import { jaFoiRecusada, paraOModelo, quemCostuma, termosDaConversa, ultimoAprendizado } from '@/lib/memoria'
@@ -268,6 +270,19 @@ export async function POST(req: Request) {
     await sb.rpc('descobriu', { p_org: o.id })
   }
 
+  /**
+   * A pergunta do dia sai para TODAS as empresas, e não só para as da vez.
+   *
+   * Ela não chama modelo nenhum e não tem nada a ver com o horário de leitura:
+   * a leitura é sobre quando a casa conversa, e a pergunta é sobre quando cada
+   * pessoa responde. Amarrar uma à outra faria quem tem leitura só de tarde
+   * nunca ser perguntado de manhã.
+   */
+  let perguntadas = 0
+  for (const o of (orgs || []) as Org[]) {
+    perguntadas += await perguntarODia(sb, o, agora)
+  }
+
   const naVez = ((orgs || []) as Org[])
     .filter((o) => devePulsar(o, agora, ritmo.get(o.id) || []).bate)
   const relatorio: { org: string; canais: number; propostas: number; motor: string }[] = []
@@ -288,7 +303,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     quando: agora.toISOString(), perseguiu: perseguiu ?? 0,
-    descobertos, organizacoes: relatorio,
+    descobertos, perguntadas, organizacoes: relatorio,
   })
 }
 
@@ -570,4 +585,101 @@ async function conversaRecente(sb: Servico, orgId: string, desde: string): Promi
     .gte('criado_em', desde)
     .order('criado_em')
   return (data || []) as unknown as Linha[]
+}
+
+/**
+ * A pergunta do dia.
+ *
+ * O motor mora em `lib/perguntas.ts` desde o bloco G e nunca chegou a ninguém:
+ * ele sabia escolher a pergunta e não tinha por onde sair. Aqui ela sai, pelo
+ * WhatsApp, e a resposta volta pela mesma porta de tudo (`perguntas_abertas`,
+ * casada em `lib/casar.ts`).
+ *
+ * Quatro cuidados, e nenhum é detalhe:
+ *
+ * **Uma por vez, por pessoa, por batida.** `perguntasDeHoje` devolve até três
+ * na primeira semana, e mandar as três juntas é uma rajada. Como o relógio bate
+ * de hora em hora e o próprio motor recusa repetir o mesmo molde no mesmo dia,
+ * mandar a primeira de cada vez espalha as três pelo dia sozinho.
+ *
+ * **Não pergunta com pergunta em aberto.** Perguntar de novo antes de a
+ * anterior ser respondida é cobrar, e cobrança some rápido da atenção de quem
+ * recebe.
+ *
+ * **Na hora em que aquela pessoa responde.** `horaDeResponder` sai das
+ * respostas dela mesma; sem amostra suficiente devolve nulo, e aí vale a janela
+ * da empresa. Perguntar às 8h para quem só olha depois do almoço é o jeito mais
+ * rápido de a resposta morrer.
+ *
+ * **Só para quem ligou o WhatsApp.** O telefone é dela, e o app não descobre o
+ * número sozinho.
+ */
+async function perguntarODia(
+  sb: NonNullable<ReturnType<typeof clienteDeServico>>, org: Org, agora: Date,
+): Promise<number> {
+  const { data: gente } = await sb.from('perfis')
+    .select('id,nome,papel,criado_em').eq('org_id', org.id).eq('ativo', true)
+  const pessoas = (gente || []) as
+    { id: string; nome: string; papel: Papel; criado_em: string }[]
+  if (!pessoas.length) return 0
+
+  const { data: contatos } = await sb.from('avisos_contato')
+    .select('perfil_id,telefone,whats').eq('org_id', org.id).eq('whats', true)
+  const fone = new Map(((contatos || []) as { perfil_id: string; telefone: string }[])
+    .filter((c) => !!c.telefone).map((c) => [c.perfil_id, c.telefone]))
+  if (!fone.size) return 0
+
+  const { data: hist } = await sb.from('perguntas_ritmo')
+    .select('chave,perfil_id,mandadas,respondidas,vazias_seguidas,revelou,ultima_em')
+    .eq('org_id', org.id)
+  const historico = (hist || []) as Historico[]
+
+  const { de, ate } = faixa(org.leitura_janela)
+  const hoje = noFuso(agora, org.fuso)
+  if (hoje.minutos < de || hoje.minutos > ate) return 0
+
+  let mandadas = 0
+  for (const p of pessoas) {
+    const para = fone.get(p.id)
+    if (!para) continue
+
+    // Uma pergunta esperando resposta é uma pergunta demais.
+    const { data: emAberto } = await sb.from('perguntas_abertas')
+      .select('id').eq('perfil_id', p.id).eq('sobre_tipo', 'diagnostico')
+      .is('respondido_em', null).gt('expirou_em', agora.toISOString()).limit(1)
+    if ((emAberto || []).length) continue
+
+    // A hora dela, quando já dá para saber qual é.
+    const { data: respondidas } = await sb.from('perguntas_abertas')
+      .select('respondido_em').eq('perfil_id', p.id)
+      .not('respondido_em', 'is', null).limit(200)
+    const quando = ((respondidas || []) as { respondido_em: string }[])
+      .map((x) => x.respondido_em)
+    const hora = horaDeResponder(quando, org.fuso)
+    // Com hora aprendida, só na hora dela (com meia hora de folga para o
+    // relógio de hora em hora não perder a janela). Sem, vale a da empresa.
+    if (hora !== null && Math.abs(hoje.minutos - hora) > 60) continue
+
+    const dias = Math.max(0,
+      Math.floor((agora.getTime() - Date.parse(p.criado_em)) / 86400000))
+    const escolhidas = perguntasDeHoje(
+      { id: p.id, nome: p.nome, papel: p.papel }, historico, dias, agora)
+    if (!escolhidas.length) continue
+
+    const esta = escolhidas[0]
+    const sid = await mandarWhats(sb, org.id, para, esta.texto)
+    if (!sid) continue
+
+    await sb.from('perguntas_abertas').insert({
+      id: novoId(), org_id: org.id, perfil_id: p.id,
+      sobre_tipo: 'diagnostico', sobre_id: null,
+      texto: esta.texto, msg_externa_id: sid === 'enviada' ? null : sid,
+      // A chave do molde viaja nas opções, e não no texto: é ela que o acervo
+      // aprende, e ela precisa sobreviver à resposta para a conta fechar.
+      opcoes: [{ chave: '_molde', rotulo: esta.molde.chave }],
+    })
+    await sb.rpc('pergunta_mandada', { p_perfil: p.id, p_chave: esta.molde.chave })
+    mandadas++
+  }
+  return mandadas
 }

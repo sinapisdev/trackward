@@ -674,6 +674,26 @@ descrever o processo que gostaria de ter. Sempre sobre a **borda**, com resposta
 segundos que é um evento: "o relatório do contador chegou?". Cem eventos desenham o
 processo sem ninguém descrever nada.
 
+**Ela sai pelo pulso, e volta pela mesma porta de tudo.** O motor escolhe, o pulso manda
+pelo WhatsApp (`perguntarODia`, em `/api/pulso`) e a resposta casa em `lib/casar.ts` como
+qualquer outra. Quatro cuidados, e nenhum é detalhe: **uma por vez por pessoa por batida**
+(o motor devolve até três na primeira semana, e mandar as três juntas é uma rajada; como o
+relógio bate de hora em hora e ele recusa repetir o mesmo molde no mesmo dia, mandar a
+primeira de cada vez espalha as três pelo dia sozinho); **não pergunta com pergunta em
+aberto**, porque perguntar de novo antes da anterior é cobrar; **na hora em que aquela
+pessoa responde** (`horaDeResponder`, e sem amostra vale a janela da empresa); e **só para
+quem ligou o WhatsApp**, porque o telefone é dela.
+
+**A pergunta que não saiu não conta.** Falhando o envio, nada é gravado: `pergunta_mandada`
+só roda depois do sid voltar. Contar uma pergunta que ninguém recebeu estragaria a taxa
+que decide quais perguntas são podadas.
+
+**"Revelou" não é "respondeu".** Um "não" fecha e conta como VAZIA, e três vazias seguidas
+podam aquela pergunta daquela pessoa para sempre. Qualquer outra coisa vira a triagem de
+sempre, e só conta como revelou quando virar nota ou tarefa de verdade: resposta que não
+vira nada no app não descobriu nada, e contá-la mantém viva uma pergunta que não serve. A
+chave do molde viaja nas opções (`_molde`) porque precisa sobreviver a esse pulo a mais.
+
 Três regras que impedem isso de virar chatice: **a pergunta é ganha** (existe porque revela
 algo que o app não infere sozinho), **se poda** (três vazias seguidas e ela sai daquela
 pessoa) e **diminui** (três por dia na primeira semana, uma da quarta em diante). A semanal

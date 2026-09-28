@@ -97,6 +97,16 @@ async function perguntar(sb: Sb, org: string, perfil: string, p: {
 const fechar = (sb: Sb, id: string) =>
   sb.from('perguntas_abertas').update({ respondido_em: new Date().toISOString() }).eq('id', id)
 
+/**
+ * A frase diz que não?
+ *
+ * "não", "nada", "nenhum", "tudo certo". Curta de propósito: a pergunta do dia
+ * é de dez segundos, e quem não tem o que contar responde em uma palavra.
+ * Qualquer coisa maior que isso é conteúdo, e conteúdo vai para a triagem.
+ */
+const disseQueNao = (t: string) =>
+  /^\s*(n[ãa]o|nada|nenhum[ao]?|nop|negativo|tudo\s+certo|sem\s+novidade)[\s.!]*$/i.test(t)
+
 /** A frase diz que sim? "pronto", "feito", "já fiz". */
 const disseQueSim = (t: string) =>
   soConfirma(t) && !/\b(n[ãa]o|ainda|nem|negativo)\b/i.test(t)
@@ -272,11 +282,23 @@ export async function POST(req: Request) {
       return twiml('Aquela pergunta já não está mais em aberto. Pode mandar de novo?')
     }
 
+    // Veio de uma pergunta do dia: o que ela virou decide se aquela pergunta
+    // continua sendo feita àquela pessoa.
+    const molde = (p.opcoes || []).find((o) => o.chave === '_molde') as
+      { rotulo: string } | undefined
+    const contar = async (revelou: boolean) => {
+      if (molde) {
+        await sb.rpc('pergunta_respondida',
+          { p_perfil: eu.id, p_chave: molde.rotulo, p_revelou: revelou })
+      }
+    }
+
     if (r.opcao === '1') {
       await sb.from('notas').insert({
         id: novoId(), org_id: eu.org_id, dono_id: eu.id,
         titulo: p.texto.split('\n')[0].slice(0, 80), texto: p.texto,
       })
+      await contar(true)
       return twiml('Guardei como nota.')
     }
     if (r.opcao === '2') {
@@ -289,8 +311,10 @@ export async function POST(req: Request) {
         etapa: lista, fluxo: lista.fluxo, texto: p.texto, resp: eu.id, prazo: null,
       })
       if (erro) return twiml(erro)
+      await contar(true)
       return twiml(oQueFoiFeito({ tipo: 'avulsa', texto: p.texto, prazo: null }))
     }
+    await contar(false)
     return twiml('Certo, deixei pra lá.')
   }
 
@@ -439,6 +463,50 @@ async function responder(
     })
     if (error) return twiml(recado(error.message))
     return twiml(opcao === '1' ? 'Prazo aceito e já movido.' : 'Mantido como estava.')
+  }
+
+  /**
+   * A resposta à pergunta do dia.
+   *
+   * Ela é sobre a BORDA, nunca sobre o conteúdo: "entrou algum trabalho novo
+   * hoje?" tem resposta de dez segundos, e a resposta é um evento. Duas saídas,
+   * e as duas contam para a poda:
+   *
+   *   "não" fecha e conta como VAZIA. Três vazias seguidas e aquela pergunta
+   *   sai daquela pessoa para sempre, que é como o conjunto encolhe sozinho
+   *   para o que serve naquela casa.
+   *
+   *   Qualquer outra coisa vira a triagem de sempre, e só conta como REVELOU
+   *   quando virar nota ou tarefa de verdade. "Revelou" não é "respondeu": uma
+   *   resposta que não vira nada no app não descobriu nada, e contá-la mantém
+   *   viva uma pergunta que não serve.
+   */
+  if (p.sobre_tipo === 'diagnostico') {
+    const molde = (p.opcoes || []).find((o) => o.chave === '_molde') as
+      { rotulo: string } | undefined
+    await fechar(sb, p.id)
+
+    if (!corpo || disseQueNao(corpo)) {
+      if (molde) {
+        await sb.rpc('pergunta_respondida',
+          { p_perfil: eu.id, p_chave: molde.rotulo, p_revelou: false })
+      }
+      return twiml('Combinado. Obrigado por responder.')
+    }
+
+    await perguntar(sb, eu.org_id, eu.id, {
+      sobre_tipo: 'triagem', texto: corpo.slice(0, 200),
+      opcoes: [
+        // O molde viaja junto: é ele que a poda e o acervo contam, e ele
+        // precisa sobreviver a mais um pulo para a conta fechar.
+        ...(molde ? [{ chave: '_molde', rotulo: molde.rotulo }] : []),
+        { chave: '1', rotulo: 'Guardar como nota' },
+        { chave: '2', rotulo: 'Virar tarefa minha' },
+        { chave: '3', rotulo: 'Deixa pra lá' },
+      ],
+    })
+    return twiml('Anotei. O que faço com isso?\n\n1) Guardar como nota\n'
+      + '2) Virar tarefa minha\n3) Deixa pra lá')
   }
 
   await fechar(sb, p.id)
