@@ -770,6 +770,45 @@ qual costuma revelar; nunca nome, texto, valor ou conversa. Intenção não sobr
 mês: alguém vai querer "só uma coluninha" com o nome da empresa para depurar, e a partir
 dali o acervo deixou de ser anônimo sem ninguém ter decidido isso.
 
+## O raio-X: o que o processo cobra e não entrega
+
+A descoberta mostra o processo que a casa já tem sem saber. O raio-X
+(`lib/raiox.ts`, seção 48) olha o que ela já desenhou e diz **onde dói, em dias**.
+
+- **O custo é em DIAS, nunca em porcentagem.** "Foram 21 dias esperando esta aprovação no
+  trimestre" é frase que o dono resolve; "34% de retrabalho" não diz de quanto, sobre o
+  quê, nem o que fazer. Achado sem custo em dias não sai de lá.
+- **Três por vez.** Relatório com quinze problemas é ignorado inteiro, e o décimo quinto
+  nunca foi lido por ninguém.
+- **Um achado por checkpoint, o mais caro.** O mesmo lugar dispara três regras de uma vez
+  (é carimbo, é espera e é gargalo) e ocuparia as três vagas dizendo a mesma coisa de três
+  jeitos. Quem lê precisa de três lugares, não de três frases. O desempate é a tabela
+  `PESO`, e não a ordem em que as regras foram escritas: ganha o `carimbo`, porque tirar o
+  checkpoint resolve a espera junto, e acelerar a decisão de uma conferência que não
+  confere nada é acelerar o que nem devia existir.
+- **Nada sai com menos de quatro passagens.** É a regra 1.6, e aqui ela separa ajudar de
+  inventar: dizer "este checkpoint nunca reprova" depois de duas passagens é afirmar sobre
+  o acaso, e a primeira vez que o app fizer isso a pessoa para de acreditar no resto.
+- **O gargalo só existe com mais de um checkpoint na track.** Com um só, ele come 100% do
+  tempo por definição, e o achado seria "a única etapa desta track é a que demora", que não
+  diz nada e ainda é o mais caro, então roubaria a vaga dos achados de verdade.
+- **Não ranqueia gente**, e nenhum achado tem campo de pessoa. Não é delicadeza: relatório
+  que aponta gente muda o que as pessoas registram, e aí o dado apodrece na origem. Quando
+  o gargalo é alguém com checkpoints demais, o achado é sobre a DISTRIBUIÇÃO.
+- **Chega pelo aviso, e não por painel.** Painel é onde o problema espera alguém ir olhar,
+  e ninguém vai. E não é urgente: 21 dias por trimestre não mudam se forem lidos hoje à
+  noite, e tocar o celular por isso gasta a credibilidade dos avisos que são urgentes.
+- **Não existe botão que conserte sozinho.** O achado fala de um checkpoint que se repete
+  em muitas tracks, e tirá-lo de todas é decisão de quem responde pelo processo. O que há é
+  o diagnóstico, a frase do que fazer, e as duas saídas: resolvi, ou deixa pra lá. O que
+  foi respondido não volta no mês seguinte.
+- **Mensal, e não de hora em hora.** Os sinais são sobre o que se repete, e repetição não
+  muda entre as 10h e as 11h. Mesmo cuidado da seção 42.
+
+O cálculo mora em TypeScript, com testes, e o banco só entrega o material
+(`passagens_do_raiox`, `empurroes_do_raiox`). A regra do que é carimbo e do que é gargalo
+vai mudar, e mudar regra dentro de função de banco é mudar sem rede.
+
 ## A linguagem do chat
 
 O chat é onde o trabalho nasce, então ele precisa ser onde o trabalho **é

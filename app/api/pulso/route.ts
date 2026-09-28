@@ -6,6 +6,7 @@ import { devePulsar, type Agenda, noFuso } from '@/lib/pulso'
 import { horariosDoRitmo, horaDeResponder } from '@/lib/ritmo'
 import { descobrir, execucoesDe, inconstancia, type Evento } from '@/lib/descobrir'
 import { perguntasDeHoje, type Historico, type Papel } from '@/lib/perguntas'
+import { raioX, type Empurrao, type Passagem } from '@/lib/raiox'
 import { mandarWhats } from '@/lib/whats'
 import { custoMicro } from '@/lib/precos'
 import { escutaAqui, oQueFaz, porPalavras } from '@/lib/agentes'
@@ -163,6 +164,8 @@ type Org = Agenda & {
   nome: string
   ia_ativa: boolean
   ia_modo: string
+  /** Quando o raio-X daquela casa rodou pela última vez. Ver a seção 48. */
+  raiox_em: string | null
 }
 
 type Linha = Record<string, unknown>
@@ -210,7 +213,7 @@ export async function POST(req: Request) {
   const agora = new Date()
   const { data: orgs } = await sb
     .from('organizacoes')
-    .select('id,nome,ia_ativa,ia_modo,leitura_por_dia,leitura_janela,fuso,pulso_em')
+    .select('id,nome,ia_ativa,ia_modo,leitura_por_dia,leitura_janela,fuso,pulso_em,raiox_em')
     .eq('ia_ativa', true)
     .gt('leitura_por_dia', 0)
 
@@ -283,6 +286,21 @@ export async function POST(req: Request) {
     perguntadas += await perguntarODia(sb, o, agora)
   }
 
+  /**
+   * O raio-X, para quem não foi varrido neste mês.
+   *
+   * Vinte e oito dias, e não "todo dia 1": com o dia fixo, a empresa que
+   * contratou no dia 2 espera um mês inteiro pelo primeiro, e todas as
+   * varreduras do mundo caem na mesma hora.
+   */
+  let radiografadas = 0
+  for (const o of (orgs || []) as Org[]) {
+    const ultimo = o.raiox_em ? Date.parse(o.raiox_em) : 0
+    if (agora.getTime() - ultimo < 28 * 86400000) continue
+    radiografadas += await raioXDaCasa(sb, o, agora)
+    await sb.from('organizacoes').update({ raiox_em: agora.toISOString() }).eq('id', o.id)
+  }
+
   const naVez = ((orgs || []) as Org[])
     .filter((o) => devePulsar(o, agora, ritmo.get(o.id) || []).bate)
   const relatorio: { org: string; canais: number; propostas: number; motor: string }[] = []
@@ -303,7 +321,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     quando: agora.toISOString(), perseguiu: perseguiu ?? 0,
-    descobertos, perguntadas, organizacoes: relatorio,
+    descobertos, perguntadas, radiografadas, organizacoes: relatorio,
   })
 }
 
@@ -682,4 +700,41 @@ async function perguntarODia(
     mandadas++
   }
   return mandadas
+}
+
+/**
+ * O raio-X, uma vez por mês por empresa.
+ *
+ * Mensal, e não de hora em hora: os sinais são sobre o que se REPETE, e
+ * repetição não muda entre as 10h e as 11h. Rodar toda hora seria varrer seis
+ * meses de decisões 24 vezes por dia para chegar no mesmo número, que é o erro
+ * que a seção 42 já consertou na descoberta.
+ *
+ * Ele guarda o que achou e avisa quem manda no processo. Três achados, e o
+ * corte é do `raioX`, não daqui: relatório com quinze problemas é ignorado
+ * inteiro, e o décimo quinto nunca foi lido por ninguém.
+ */
+async function raioXDaCasa(
+  sb: NonNullable<ReturnType<typeof clienteDeServico>>, org: Org, agora: Date,
+): Promise<number> {
+  const desde = new Date(agora.getTime() - 180 * 86400000).toISOString()
+  const [{ data: ps }, { data: es }] = await Promise.all([
+    sb.rpc('passagens_do_raiox', { p_org: org.id, p_desde: desde }),
+    sb.rpc('empurroes_do_raiox', { p_org: org.id, p_desde: desde }),
+  ])
+
+  const achados = raioX((ps || []) as Passagem[], (es || []) as Empurrao[])
+  let avisados = 0
+  for (const a of achados) {
+    const { data: id } = await sb.rpc('guardar_achado', {
+      p_org: org.id, p_chave: a.chave, p_alvo: a.alvo, p_dias: a.dias,
+      p_amostra: a.amostra, p_texto: a.texto, p_conserto: a.conserto,
+    })
+    if (!id) continue
+    // O aviso tem a chave do achado, e não a data: o mesmo problema não avisa
+    // de novo todo mês. Volta a avisar quando for outro de verdade.
+    const { data: n } = await sb.rpc('avisar_do_raiox', { p_achado: id })
+    avisados += (n as number) || 0
+  }
+  return achados.length
 }

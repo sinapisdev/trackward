@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useDados } from '@/componentes/Dados'
+import { RaioX } from '@/componentes/RaioX'
 import { Carregando } from '@/componentes/Shell'
 import { Ic } from '@/componentes/Icones'
 import { CADENCIAS, PUBLICOS, comoTexto, montar, type Cadencia, type Publico } from '@/lib/relatorio'
@@ -198,6 +199,11 @@ export function TelaRelatorios() {
             ))}
           </div>
         </Secao>
+
+        {/* O raio-X vem antes das contas do período: ele é o único bloco desta
+            tela que pede uma ação, e o resto é leitura. Embaixo de tudo, a
+            pessoa lê os números, fecha a tela satisfeita e nunca chega nele. */}
+        <RaioX />
 
         {/* O fim das tracks, que é a conta que só existe porque nada é apagado:
             quem cancela escolhe o motivo de uma lista, e lista vira número. Com

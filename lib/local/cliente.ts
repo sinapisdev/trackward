@@ -20,7 +20,7 @@ const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], flu
   convites: [],
   canais: [], canal_membros: [], mensagens: [], sugestoes: [], nota_pessoas: [], feedbacks: [],
   compromissos: [], convidados: [], agendas_externas: [], ocupacao_externa: [],
-  historico: [], atividades: [], ciclos: [],
+  historico: [], atividades: [], ciclos: [], raiox_achados: [],
   anexos: [], decisoes: [], pedidos_prazo: [], memoria: [], consumo: [], agentes: [], conectores: [], notas: [],
   avisos: [], avisos_contato: [], push_assinaturas: [], perguntas_abertas: [] }
 
@@ -923,6 +923,24 @@ function quemMandaAqui(): boolean {
   return !!eu && (eu.papel === 'admin' || eu.papel === 'gestor')
 }
 
+/**
+ * O raio-X respondido, espelhando a seção 48.
+ *
+ * Aqui não há pulso para achar nada, então o modo demonstração só sabe
+ * responder ao que foi plantado. Isso basta para a tela: o que ela faz é
+ * receber o achado e registrar a decisão de quem manda no processo.
+ */
+function responderAchado(id: string, estado: string) {
+  if (!['visto', 'resolvido', 'ignorado'].includes(estado)) throw new Error('Estado inválido.')
+  const b = ler()
+  const a = (b.raiox_achados || []).find((x) => x.id === id)
+  if (!a) throw new Error('Achado não encontrado.')
+  if (!quemMandaAqui()) throw new Error('O raio-X é de quem responde pela operação.')
+  a.estado = estado
+  a.mexido_em = agora()
+  gravar()
+}
+
 function responderDescoberta(id: string, chave: string, escolha: string) {
   const b = ler()
   const d = (b.processos_descobertos || []).find((x) => x.id === id)
@@ -1424,6 +1442,10 @@ function montarCliente() {
       try {
         if (nome === 'salvar_fluxo') {
           return { data: salvarFluxo(args.p_fluxo as Linha, args.p_etapas as Linha[]), error: null }
+        }
+        if (nome === 'responder_achado') {
+          responderAchado(args.p_id as string, args.p_estado as string)
+          return { data: null, error: null }
         }
         if (nome === 'responder_descoberta') {
           responderDescoberta(args.p_id as string, args.p_chave as string, args.p_escolha as string)

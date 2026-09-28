@@ -6501,3 +6501,215 @@ returns uuid language sql stable security definer set search_path = public as $$
     and regexp_replace(coalesce(p_fone, ''), '[^0-9]', '', 'g') <> ''
   limit 1;
 $$;
+
+-- --------------------------------------------------------------------------
+-- 48. O raio-X: o que o processo cobra e não entrega
+--
+--     A descoberta (seção 39) mostra o processo que a casa já tem. Este mostra
+--     onde o processo que ela já desenhou está doendo, e em DIAS: "foram 21
+--     dias esperando esta aprovação" é uma frase que o dono resolve, e "34% de
+--     retrabalho" não é.
+--
+--     Duas funções entregam o que `lib/raiox.ts` precisa, e elas existem no
+--     banco porque montar isso no cliente exigiria trazer decisões, etapas e
+--     tarefas de seis meses para o navegador. O cálculo fica em TypeScript, com
+--     testes, e não em SQL: a regra do que é carimbo e do que é gargalo muda, e
+--     mudar regra em função de banco é mudar sem rede.
+--
+--     `raiox_achados` guarda o que foi encontrado, com o estado à vista, pelo
+--     mesmo motivo de `processos_descobertos`: o achado vira uma mensagem com
+--     link, e o link precisa abrir alguma coisa. E o que foi resolvido ou
+--     ignorado não volta no mês seguinte, porque repetir o que a pessoa já
+--     respondeu é o jeito mais rápido de ela parar de ler.
+-- --------------------------------------------------------------------------
+
+/**
+ * Cada passagem por um checkpoint: quando começou, quando ficou pronta, quando
+ * foi decidida e como.
+ *
+ * `comecou_em` é a decisão anterior daquela track, ou o nascimento dela. É
+ * isso que separa o tempo DESTE checkpoint do tempo da track inteira.
+ */
+create or replace function public.passagens_do_raiox(p_org uuid, p_desde timestamptz)
+returns table (
+  etapa text, fluxo_id uuid,
+  comecou_em timestamptz, pronto_em timestamptz, decidido_em timestamptz, tipo text
+) language sql security definer set search_path = public as $$
+  select
+    e.nome,
+    d.fluxo_id,
+    coalesce(
+      (select max(d2.criado_em) from decisoes d2
+        where d2.fluxo_id = d.fluxo_id and d2.criado_em < d.criado_em),
+      (select f.criado_em from fluxos f where f.id = d.fluxo_id)),
+    (select max(i.feito_em) from itens i where i.etapa_id = d.etapa_id and i.feito),
+    d.criado_em,
+    d.tipo
+  from decisoes d
+  join etapas e on e.id = d.etapa_id
+  where d.org_id = p_org and d.criado_em >= p_desde
+  order by d.criado_em
+$$;
+
+revoke all on function public.passagens_do_raiox(uuid, timestamptz) from public, anon, authenticated;
+grant execute on function public.passagens_do_raiox(uuid, timestamptz) to service_role;
+
+/** Os prazos que foram empurrados e aceitos, pelo checkpoint em que moram. */
+create or replace function public.empurroes_do_raiox(p_org uuid, p_desde timestamptz)
+returns table (etapa text, dias int, quando timestamptz)
+language sql security definer set search_path = public as $$
+  select e.nome, greatest(0, (pp.para - coalesce(pp.de, pp.para)))::int, pp.decidido_em
+  from pedidos_prazo pp
+  join itens i on i.id = pp.item_id
+  join etapas e on e.id = i.etapa_id
+  where pp.org_id = p_org and pp.estado = 'aceito'
+    and pp.decidido_em is not null and pp.decidido_em >= p_desde
+    and pp.para > coalesce(pp.de, pp.para)
+$$;
+
+revoke all on function public.empurroes_do_raiox(uuid, timestamptz) from public, anon, authenticated;
+grant execute on function public.empurroes_do_raiox(uuid, timestamptz) to service_role;
+
+/**
+ * Quando o raio-X daquela empresa rodou pela última vez.
+ *
+ * Ele é mensal, e não de hora em hora: os sinais são sobre o que se repete, e
+ * repetição não muda entre as 10h e as 11h. Rodar toda hora seria varrer seis
+ * meses de decisões 24 vezes por dia para chegar no mesmo número, que é o
+ * mesmo erro que a seção 42 consertou na descoberta.
+ */
+alter table public.organizacoes add column if not exists raiox_em timestamptz;
+
+create table if not exists public.raiox_achados (
+  id        uuid primary key default gen_random_uuid(),
+  org_id    uuid not null references public.organizacoes on delete cascade,
+  chave     text not null,
+  /** O checkpoint de que ele fala, pelo nome: ele se repete em muitas tracks. */
+  alvo      text not null,
+  dias      numeric not null default 0,
+  amostra   int not null default 0,
+  texto     text not null,
+  conserto  text not null default '',
+  estado    text not null default 'novo'
+            check (estado in ('novo','visto','resolvido','ignorado')),
+  criado_em timestamptz not null default now(),
+  mexido_em timestamptz not null default now()
+);
+
+-- Um achado por chave e por alvo. Rodar de novo ATUALIZA o número em vez de
+-- empilhar o mesmo problema doze vezes.
+create unique index if not exists raiox_uk on public.raiox_achados (org_id, chave, alvo);
+create index if not exists raiox_idx on public.raiox_achados (org_id, dias desc);
+
+alter table public.raiox_achados enable row level security;
+
+do $$
+begin
+  execute 'drop trigger if exists ao_inserir_org on public.raiox_achados';
+  execute 'create trigger ao_inserir_org before insert on public.raiox_achados
+             for each row execute function public.carimbar_org()';
+end $$;
+
+-- Quem manda no processo vê o raio-X dele. Não é para a casa inteira: o achado
+-- fala do que está custando dias, e isso é conversa de quem pode mudar.
+drop policy if exists rx_sel on public.raiox_achados;
+create policy rx_sel on public.raiox_achados for select
+  using (minha(org_id) and ativo()
+    and exists (select 1 from perfis p where p.id = meu_perfil()
+                  and p.papel in ('admin','gestor')));
+
+-- Sem insert nem update por gente: quem escreve é o pulso, e quem responde
+-- passa pela função abaixo.
+
+/**
+ * Guarda ou atualiza um achado.
+ *
+ * O que já foi resolvido ou ignorado fica como está, e só o número é
+ * atualizado: insistir no que a pessoa já respondeu é o mesmo erro de propor
+ * duas vezes o processo que ela recusou.
+ */
+create or replace function public.guardar_achado(
+  p_org uuid, p_chave text, p_alvo text, p_dias numeric, p_amostra int,
+  p_texto text, p_conserto text
+) returns uuid language plpgsql security definer set search_path = public as $$
+declare v_id uuid; v_estado text;
+begin
+  select id, estado into v_id, v_estado from raiox_achados
+  where org_id = p_org and chave = p_chave and alvo = p_alvo;
+
+  if v_id is null then
+    insert into raiox_achados (org_id, chave, alvo, dias, amostra, texto, conserto)
+    values (p_org, p_chave, p_alvo, p_dias, p_amostra, p_texto, p_conserto)
+    returning id into v_id;
+    return v_id;
+  end if;
+
+  update raiox_achados set
+    dias = p_dias, amostra = p_amostra, texto = p_texto, conserto = p_conserto,
+    estado = case when v_estado in ('resolvido','ignorado') then v_estado else 'novo' end,
+    mexido_em = now()
+  where id = v_id;
+  return v_id;
+end $$;
+
+/** "Resolvi" ou "deixa pra lá", ditos por quem manda no processo. */
+create or replace function public.responder_achado(p_id uuid, p_estado text)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_org uuid;
+begin
+  if p_estado not in ('visto','resolvido','ignorado') then
+    raise exception 'Estado inválido.';
+  end if;
+  select org_id into v_org from raiox_achados where id = p_id;
+  if v_org is null then raise exception 'Achado não encontrado.'; end if;
+  if not manda_no_processo_de(v_org) then
+    raise exception 'O raio-X é de quem responde pela operação.';
+  end if;
+  update raiox_achados set estado = p_estado, mexido_em = now() where id = p_id;
+end $$;
+
+-- --------------------------------------------------------------------------
+-- O achado chega pelo aviso, e não por painel
+--
+--     Painel é o lugar onde o problema espera alguém ir olhar, e ninguém vai.
+--     O raio-X chega junto do resto, na caixa que a pessoa já abre, com o custo
+--     em dias na primeira linha e um link que abre direto no conserto.
+--
+--     Não é urgente, e isso é escolha: urgente é o que já venceu, o que trava
+--     outra pessoa e o que só aquela pessoa destrava. Um checkpoint que custa
+--     21 dias por trimestre não muda nada se for lido hoje à noite em vez de
+--     agora, e tocar o celular de alguém por isso gasta a credibilidade que os
+--     avisos de verdade vão precisar.
+-- --------------------------------------------------------------------------
+
+do $$
+begin
+  alter table public.avisos drop constraint if exists avisos_tipo_check;
+  alter table public.avisos add constraint avisos_tipo_check check (tipo in (
+    'tarefa','aprovacao','prazo','travou','destravou','citacao','pedido_prazo',
+    'nota','feedback','mensagem','parada','carga','rotina','raiox'));
+end $$;
+
+/**
+ * Avisa quem manda no processo sobre um achado.
+ *
+ * A chave carrega o id do achado, e não a data: o mesmo achado não deve avisar
+ * de novo todo mês. Ele volta a avisar quando for de fato outro (outro
+ * checkpoint, outro sinal), porque aí é um id novo.
+ */
+create or replace function public.avisar_do_raiox(p_achado uuid)
+returns int language plpgsql security definer set search_path = public as $$
+declare a raiox_achados%rowtype; p record; n int := 0;
+begin
+  select * into a from raiox_achados where id = p_achado;
+  if a.id is null then return 0; end if;
+
+  for p in select id from perfis
+           where org_id = a.org_id and ativo and papel in ('admin','gestor') loop
+    if avisar(p.id, 'raiox', 'O processo está custando dias', a.texto,
+              'raiox:' || a.id::text, false) then
+      n := n + 1;
+    end if;
+  end loop;
+  return n;
+end $$;
