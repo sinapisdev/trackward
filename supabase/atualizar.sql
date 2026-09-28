@@ -1,5 +1,5 @@
 -- ==========================================================================
--- TrackWard, atualização de 23/09/2026
+-- TrackWard, atualização de 27/09/2026
 --
 -- Recorte do `schema.sql` com o que mudou, para você não colar 3200 linhas.
 -- Pode rodar quantas vezes quiser: nada aqui apaga dado nenhum.
@@ -28,6 +28,20 @@
 --                                 própria. O canal de despejo que existia vira
 --                                 nota, uma por coisa jogada lá dentro, e o
 --                                 tipo `pessoal` de canal deixa de existir.
+--
+--  ...                           Seções 20 a 40, acrescentadas ao longo do
+--                                 caminho: espaço pessoal, planos, trilha,
+--                                 pergunta aberta, ritmo, varredura do dia,
+--                                 eventos, processo descoberto, acervo.
+--
+--  último                        Seção 41: as três decisões sobre o processo
+--                                 descoberto (responder, recusar, adotar), e a
+--                                 política larga de update que sai junto. A
+--                                 conferência delas carrega a organização do
+--                                 candidato, porque são `security definer` e
+--                                 lá dentro a RLS não filtra a linha: sem isso
+--                                 um administrador de outra empresa mexia num
+--                                 candidato que ele não pode nem listar.
 --
 -- COMO USAR: SQL Editor do Supabase, New query, colar tudo, Run.
 -- ==========================================================================
@@ -3025,11 +3039,14 @@ drop policy if exists pd_sel on public.processos_descobertos;
 create policy pd_sel on public.processos_descobertos for select
   using (minha(org_id) and ativo());
 
+-- A política larga de update existiu por um dia e sai aqui: com ela, qualquer
+-- pessoa da casa marcava um candidato como aceito sem passar pela conferência
+-- de quem manda no processo.
 drop policy if exists pd_upd on public.processos_descobertos;
-create policy pd_upd on public.processos_descobertos for update
-  using (minha(org_id) and ativo()) with check (minha(org_id) and ativo());
 
--- Sem política de insert: quem descobre é o servidor, no pulso.
+-- Sem política de insert nem de update, de propósito: quem descobre é o
+-- servidor, no pulso, e quem responde, adota ou recusa passa pelas funções da
+-- seção 41.
 
 /**
  * Guarda ou atualiza um candidato.
@@ -3198,6 +3215,143 @@ end $$;
 -- 36, 3, 3, 3, true, 1, 2, 1, 2, 0, true, 3, true, 4, true, true, 1, true, 1,
 -- 1, true, 3, 1, 1, 4, true, 1, 2, true, 2, 2, 1, 1, 1, 2 e true.
 -- ==========================================================================
+-- --------------------------------------------------------------------------
+-- 41. Da descoberta ao processo, e quem dá a última palavra
+--
+--     A seção 39 guarda o que foi observado. Esta é a porta por onde aquilo
+--     vira processo de verdade, e ela existe separada por dois motivos.
+--
+--     O primeiro é que **a resposta precisa sobreviver ao refresh**. A conversa
+--     com o candidato é uma pergunta por vez, e uma pergunta por vez só é
+--     tolerável se responder cedo não obriga a começar de novo amanhã. Por isso
+--     a resposta é gravada na hora, em `respostas`, e não acumulada na tela.
+--
+--     O segundo é que **a mesma porta serve à tela e ao WhatsApp**. A pessoa
+--     responde "2" no telefone e responde clicando no app, e nos dois casos é
+--     esta função que grava. Duas portas viravam duas gramáticas no mês
+--     seguinte, e aí a resposta dada no telefone não apareceria no app.
+--
+--     Adotar é o único lugar onde uma descoberta vira linha em `processos`, e
+--     ele passa por `salvar_processo`, que já sabe recusar quem não responde
+--     pela operação. Não repetir a conferência aqui: duas cópias da mesma regra
+--     discordam no dia em que uma delas muda.
+-- --------------------------------------------------------------------------
+
+/**
+ * Quem pode desenhar processo NAQUELA casa.
+ *
+ * `eh_admin()` responde pela organização de quem chama, e essas três funções
+ * são `security definer`, onde RLS não filtra a linha: um administrador da
+ * empresa A passava na conferência e mexia no candidato da empresa B, que ele
+ * não pode nem listar. A pergunta certa carrega a organização do candidato.
+ */
+create or replace function public.manda_no_processo_de(p_org uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from perfis p
+    where p.id = meu_perfil() and p.org_id = p_org and p.ativo
+      and p.papel in ('admin', 'gestor'))
+$$;
+
+do $$
+begin
+  if not exists (select 1 from information_schema.columns
+                 where table_schema = 'public' and table_name = 'processos_descobertos'
+                   and column_name = 'respostas') then
+    alter table public.processos_descobertos add column respostas jsonb not null default '{}'::jsonb;
+  end if;
+end $$;
+
+/**
+ * Grava a resposta de uma pergunta do candidato.
+ *
+ * A chave é a da pergunta (`passo-as-vezes:tarefa:feita`, `quem-aprova`), e o
+ * valor é a escolha. Responder move o estado para `proposto`: dali em diante o
+ * candidato não é mais só observação, alguém já sentou com ele.
+ *
+ * Candidato recusado não aceita resposta. Se alguém responde pelo telefone uma
+ * pergunta de dois dias atrás, e no meio disso o candidato foi recusado no app,
+ * a recusa vale: ela é a decisão mais recente de gente.
+ */
+create or replace function public.responder_descoberta(
+  p_id uuid, p_chave text, p_escolha text
+) returns void language plpgsql security definer set search_path = public as $$
+declare v_org uuid; v_estado text;
+begin
+  select org_id, estado into v_org, v_estado from processos_descobertos where id = p_id;
+  if v_org is null then raise exception 'Candidato não encontrado.'; end if;
+  if not manda_no_processo_de(v_org) then
+    raise exception 'Desenhar processo é decisão de quem responde pela operação.';
+  end if;
+  if v_estado in ('recusado', 'aceito') then return; end if;
+
+  update processos_descobertos set
+    respostas = respostas || jsonb_build_object(p_chave, p_escolha),
+    estado = 'proposto',
+    mexido_em = now()
+  where id = p_id;
+end $$;
+
+/**
+ * "Isto não é um processo."
+ *
+ * O candidato fica, e é o registro da recusa que impede o pulso de propor a
+ * mesma coisa na semana seguinte. Apagar a linha seria oferecer de novo, e
+ * oferecer de novo o que já foi recusado é o jeito mais rápido de a pessoa
+ * parar de ler o que o app diz.
+ */
+create or replace function public.recusar_descoberta(p_id uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_org uuid;
+begin
+  select org_id into v_org from processos_descobertos where id = p_id;
+  if v_org is null then raise exception 'Candidato não encontrado.'; end if;
+  if not manda_no_processo_de(v_org) then
+    raise exception 'Desenhar processo é decisão de quem responde pela operação.';
+  end if;
+  update processos_descobertos
+    set estado = 'recusado', mexido_em = now()
+    where id = p_id and estado <> 'aceito';
+end $$;
+
+/**
+ * Adota: o candidato vira processo.
+ *
+ * `p_desenho` é o rascunho como ele está na tela, já com o que as respostas
+ * mudaram. **O banco não remonta o desenho**, e isso é deliberado: remontar
+ * aqui seria uma segunda implementação de `primeiroDesenho`, e no dia em que as
+ * duas discordassem a pessoa veria uma coisa na tela e outra no processo salvo.
+ *
+ * Adotar duas vezes devolve o processo que já nasceu, em vez de criar um
+ * segundo: o botão pode ser tocado duas vezes num telefone lento.
+ */
+create or replace function public.adotar_descoberta(p_id uuid, p_desenho jsonb)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare v_org uuid; v_estado text; v_virou uuid; v_proc uuid; v_area uuid;
+begin
+  select org_id, estado, virou_id, area_id
+    into v_org, v_estado, v_virou, v_area
+    from processos_descobertos where id = p_id;
+  if v_org is null then raise exception 'Candidato não encontrado.'; end if;
+  if not manda_no_processo_de(v_org) then
+    raise exception 'Desenhar processo é decisão de quem responde pela operação.';
+  end if;
+  if v_estado = 'aceito' and v_virou is not null then return v_virou; end if;
+
+  v_proc := salvar_processo(
+    jsonb_build_object(
+      'nome', p_desenho->>'nome',
+      'tipo', p_desenho->>'tipo',
+      'area_id', coalesce(nullif(p_desenho->>'area_id', ''), v_area::text),
+      'descricao', coalesce(p_desenho->>'descricao', '')),
+    coalesce(p_desenho->'etapas', '[]'::jsonb));
+
+  update processos_descobertos
+    set estado = 'aceito', virou_id = v_proc, mexido_em = now()
+    where id = p_id;
+  return v_proc;
+end $$;
+
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
     as "carimbo de organizacao (36)",
@@ -3322,4 +3476,23 @@ select
   (select count(*) = 0 from information_schema.table_constraints
     where table_schema = 'public' and table_name = 'acervo_forma'
       and constraint_type = 'FOREIGN KEY')
-    as "o acervo nao aponta para cliente (true)";
+    as "o acervo nao aponta para cliente (true)",
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname in ('responder_descoberta','recusar_descoberta','adotar_descoberta',
+                        'manda_no_processo_de'))
+    as "as decisoes sobre a descoberta (4)",
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'processos_descobertos'
+      and column_name = 'respostas')
+    as "a resposta que sobrevive ao refresh (1)",
+  -- A conferência dessas três funções tem que carregar a organização do
+  -- candidato: elas são security definer, e lá dentro RLS não filtra a linha.
+  (select count(*) = 0 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname in ('responder_descoberta','recusar_descoberta','adotar_descoberta')
+      and p.prosrc not like '%manda_no_processo_de%')
+    as "ninguem mexe em candidato de outra casa (true)",
+  (select count(*) from pg_policies
+    where tablename = 'processos_descobertos')
+    as "so a politica de leitura (1)";
