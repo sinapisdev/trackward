@@ -126,6 +126,17 @@ export const MOLDES: Molde[] = [
     corpo: '{"properties":{"hs_task_subject":"{{agente}}","hs_task_body":"{{situacao}}","hs_task_status":"NOT_STARTED"}}',
   },
   {
+    id: 'meta-whats', nome: 'WhatsApp (Meta)',
+    serve: 'mandar mensagem de WhatsApp pela Cloud API, sem intermediária',
+    base_url: 'https://graph.facebook.com/v25.0', auth_tipo: 'bearer', auth_nome: '',
+    onde: 'developers.facebook.com, seu app, WhatsApp, Configuração da API. '
+      + 'O token de lá vale 24 horas; o permanente sai de um usuário de sistema, '
+      + 'em Configurações do negócio',
+    caminho: 'SEU_PHONE_NUMBER_ID/messages', metodo: 'POST', teste: 'SEU_PHONE_NUMBER_ID',
+    corpo: '{"messaging_product":"whatsapp","to":"5511999999999","type":"text",'
+      + '"text":{"body":"{{agente}}: {{situacao}}"}}',
+  },
+  {
     id: 'twilio', nome: 'Twilio', serve: 'mandar SMS ou mensagem de WhatsApp',
     base_url: 'https://api.twilio.com/2010-04-01', auth_tipo: 'header', auth_nome: 'authorization',
     onde: 'console.twilio.com. Aqui vai Basic com a conta e o token juntos, o console mostra como',
