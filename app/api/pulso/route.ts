@@ -247,10 +247,25 @@ export async function POST(req: Request) {
    */
   const { data: perseguiu } = await sb.rpc('varrer_o_dia')
 
-  // A descoberta de processos, uma vez por dia por empresa. Ver lib/descobrir.
+  /**
+   * A descoberta de processos, uma vez por dia por empresa.
+   *
+   * Quem garante o "uma vez por dia" é o banco (seção 42), e não este laço.
+   * Enquanto o relógio batia uma vez por dia, a frase era verdade de graça;
+   * com ele de hora em hora, sem a trava isto viraria 24 varreduras de 180
+   * dias de eventos por empresa, por dia, para responder a mesma coisa. E a
+   * empresa mais cara de varrer é justamente a que não acha nada, porque ela
+   * percorre tudo até o fim. Ver `lib/descobrir.ts`.
+   */
+  const { data: pendentes } = await sb.rpc('falta_descobrir')
+  const aVarrer = new Set(((pendentes || []) as { id: string }[]).map((x) => x.id))
   let descobertos = 0
   for (const o of (orgs || []) as Org[]) {
+    if (!aVarrer.has(o.id)) continue
     descobertos += await descobrirProcessos(sb, o.id, agora)
+    // A marca sobe mesmo sem ter achado nada: ela diz que a varredura
+    // aconteceu, não que ela produziu resultado.
+    await sb.rpc('descobriu', { p_org: o.id })
   }
 
   const naVez = ((orgs || []) as Org[])

@@ -34,7 +34,7 @@
 --                                 pergunta aberta, ritmo, varredura do dia,
 --                                 eventos, processo descoberto, acervo.
 --
---  último                        Seção 41: as três decisões sobre o processo
+--  penúltimo                     Seção 41: as três decisões sobre o processo
 --                                 descoberto (responder, recusar, adotar), e a
 --                                 política larga de update que sai junto. A
 --                                 conferência delas carrega a organização do
@@ -42,6 +42,12 @@
 --                                 lá dentro a RLS não filtra a linha: sem isso
 --                                 um administrador de outra empresa mexia num
 --                                 candidato que ele não pode nem listar.
+--
+--  último                        Seção 42: a descoberta de processos passa a
+--                                 marcar o dia em que rodou. O relógio virou de
+--                                 hora em hora, e sem isto ela varreria 180 dias
+--                                 de eventos 24 vezes por dia, por empresa, para
+--                                 responder a mesma coisa.
 --
 -- COMO USAR: SQL Editor do Supabase, New query, colar tudo, Run.
 -- ==========================================================================
@@ -3352,6 +3358,52 @@ begin
   return v_proc;
 end $$;
 
+-- --------------------------------------------------------------------------
+-- 42. A descoberta é uma vez por dia, e agora precisa ser dita
+--
+--     Enquanto o relógio batia uma vez por dia, "uma vez por dia por empresa"
+--     era verdade sem ninguém garantir: o laço rodava a cada chamada, e havia
+--     uma chamada. Com o relógio de hora em hora isso vira 24 varreduras de
+--     180 dias de eventos por empresa, por dia, para responder a mesma coisa.
+--
+--     A marca vai na organização, e não em `processos_descobertos`, porque a
+--     empresa que não tem candidato nenhum não escreve linha nenhuma lá: seria
+--     justamente a que varreria de novo toda hora, e ela é a mais cara, porque
+--     é a que percorre tudo sem achar.
+--
+--     O dia é o de UTC, e não o do fuso da empresa. Isto é faxina, não é a
+--     leitura: perder aritmética de fuso para decidir quando limpar a casa é
+--     pagar caro por um detalhe que ninguém vê.
+-- --------------------------------------------------------------------------
+
+alter table public.organizacoes add column if not exists descoberta_em timestamptz;
+
+/**
+ * Quais empresas ainda não foram varridas hoje.
+ *
+ * Só o servidor chama, com a chave de serviço, pelo mesmo motivo de
+ * `pulso_pode`: quem pergunta não tem sessão. Devolve id e nada mais, porque
+ * quem chama já tem a lista de organizações e só precisa saber quais pular.
+ */
+create or replace function public.falta_descobrir()
+returns table (id uuid) language sql security definer set search_path = public as $$
+  select o.id from organizacoes o
+  where o.descoberta_em is null
+     or o.descoberta_em < date_trunc('day', now() at time zone 'utc')
+$$;
+
+revoke all on function public.falta_descobrir() from public, anon, authenticated;
+grant execute on function public.falta_descobrir() to service_role;
+
+/** Marca que a varredura daquela empresa aconteceu hoje. */
+create or replace function public.descobriu(p_org uuid)
+returns void language sql security definer set search_path = public as $$
+  update organizacoes set descoberta_em = now() where id = p_org
+$$;
+
+revoke all on function public.descobriu(uuid) from public, anon, authenticated;
+grant execute on function public.descobriu(uuid) to service_role;
+
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
     as "carimbo de organizacao (36)",
@@ -3495,4 +3547,14 @@ select
     as "ninguem mexe em candidato de outra casa (true)",
   (select count(*) from pg_policies
     where tablename = 'processos_descobertos')
-    as "so a politica de leitura (1)";
+    as "so a politica de leitura (1)",
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'organizacoes'
+      and column_name = 'descoberta_em')
+    as "a varredura marca o dia (1)",
+  -- Quem pergunta pela fila da varredura não tem sessão, então a função aceita
+  -- qualquer empresa: a trava não é um `if` dentro dela, é a permissão.
+  (select not has_function_privilege('authenticated', 'public.falta_descobrir()', 'execute')
+      and not has_function_privilege('anon', 'public.falta_descobrir()', 'execute')
+      and has_function_privilege('service_role', 'public.falta_descobrir()', 'execute'))
+    as "so o servidor pergunta a fila (true)";

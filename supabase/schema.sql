@@ -6087,3 +6087,49 @@ begin
     where id = p_id;
   return v_proc;
 end $$;
+
+-- --------------------------------------------------------------------------
+-- 42. A descoberta é uma vez por dia, e agora precisa ser dita
+--
+--     Enquanto o relógio batia uma vez por dia, "uma vez por dia por empresa"
+--     era verdade sem ninguém garantir: o laço rodava a cada chamada, e havia
+--     uma chamada. Com o relógio de hora em hora isso vira 24 varreduras de
+--     180 dias de eventos por empresa, por dia, para responder a mesma coisa.
+--
+--     A marca vai na organização, e não em `processos_descobertos`, porque a
+--     empresa que não tem candidato nenhum não escreve linha nenhuma lá: seria
+--     justamente a que varreria de novo toda hora, e ela é a mais cara, porque
+--     é a que percorre tudo sem achar.
+--
+--     O dia é o de UTC, e não o do fuso da empresa. Isto é faxina, não é a
+--     leitura: perder aritmética de fuso para decidir quando limpar a casa é
+--     pagar caro por um detalhe que ninguém vê.
+-- --------------------------------------------------------------------------
+
+alter table public.organizacoes add column if not exists descoberta_em timestamptz;
+
+/**
+ * Quais empresas ainda não foram varridas hoje.
+ *
+ * Só o servidor chama, com a chave de serviço, pelo mesmo motivo de
+ * `pulso_pode`: quem pergunta não tem sessão. Devolve id e nada mais, porque
+ * quem chama já tem a lista de organizações e só precisa saber quais pular.
+ */
+create or replace function public.falta_descobrir()
+returns table (id uuid) language sql security definer set search_path = public as $$
+  select o.id from organizacoes o
+  where o.descoberta_em is null
+     or o.descoberta_em < date_trunc('day', now() at time zone 'utc')
+$$;
+
+revoke all on function public.falta_descobrir() from public, anon, authenticated;
+grant execute on function public.falta_descobrir() to service_role;
+
+/** Marca que a varredura daquela empresa aconteceu hoje. */
+create or replace function public.descobriu(p_org uuid)
+returns void language sql security definer set search_path = public as $$
+  update organizacoes set descoberta_em = now() where id = p_org
+$$;
+
+revoke all on function public.descobriu(uuid) from public, anon, authenticated;
+grant execute on function public.descobriu(uuid) to service_role;
