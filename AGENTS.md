@@ -922,6 +922,24 @@ Quatro regras, e nenhuma delas é detalhe de implementação.
   atenção dela e a credibilidade do app; se tudo é urgente, nada é, e a primeira
   coisa que a pessoa faz é desligar tudo.
 
+**Quem bate no relógio é o GitHub, e não a hospedagem.** O plano Hobby da Vercel aceita
+um disparo por dia por rota, e uma vez por dia às 19h20 de Brasília é depois do fim da
+janela de leitura de quem lê até as 19h: aquelas contas nunca seriam lidas. O relógio de
+verdade é `.github/workflows/relogio.yml`, de hora em hora, e os crons do `vercel.json`
+ficam como segundo relógio. Chamar de mais não faz mal por desenho: o pulso recusa se já
+leu naquele horário hoje, e o aviso marca `entregue_em` antes de mandar.
+
+**Nada naquele arquivo imprime corpo de resposta**, e isso não é economia de log: o
+repositório é público, log de Action em repositório público é público, e a resposta do
+pulso traz o NOME de cada empresa lida. Só o código HTTP sai de lá.
+
+**Trabalho de faxina no pulso precisa dizer que já rodou hoje.** Enquanto o relógio batia
+uma vez por dia, "uma vez por dia por empresa" era verdade de graça; de hora em hora, a
+descoberta de processos passaria a varrer 180 dias de eventos 24 vezes. Quem garante é o
+banco (`falta_descobrir`, `descobriu`, seção 42), e a marca fica na organização, não em
+`processos_descobertos`: a empresa sem candidato nenhum não escreve linha lá, e é
+justamente ela a mais cara de varrer, porque percorre tudo sem achar.
+
 **O relógio chama por GET, e não passa pela porta da frente.** Duas coisas que só
 aparecem em produção e não falham, apenas nunca acontecem: o cron da Vercel usa GET (as
 rotas aceitam os dois métodos) e manda o segredo em `CRON_SECRET`, porque ele não deixa

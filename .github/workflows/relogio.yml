@@ -1,0 +1,89 @@
+# O relógio do TrackWard.
+#
+# Metade do app age sozinha (a leitura no pulso, a varredura do dia, a
+# descoberta de processos, o aviso que sai do app), e nada disso acontece sem
+# alguém chamar. O plano Hobby da Vercel só aceita UM disparo por dia por rota,
+# e uma vez por dia às 19h20 de Brasília é tarde demais: para os espaços com
+# janela de leitura até as 19h, é depois do fim dela, e aquelas contas nunca
+# seriam lidas.
+#
+# Aqui o relógio é de hora em hora, que é o que o produto sempre supôs.
+#
+# Chamar de mais não faz mal, e isso é por desenho, não por sorte:
+#   - o pulso confere se já leu naquele horário hoje (`devePulsar`), e recusa
+#   - o aviso marca `entregue_em` antes de mandar, e só pega o que ainda não saiu
+#
+# Os crons do `vercel.json` continuam de pé de propósito. São dois relógios para
+# a mesma coisa, e é barato: quem já viu o relógio parar em silêncio por quatro
+# dias não deixa um só.
+#
+# CUIDADO, e é por isto que nada aqui imprime corpo de resposta: este repositório
+# é PÚBLICO, e log de Action em repositório público é público. A resposta do
+# pulso traz o NOME de cada empresa lida. Só o código HTTP sai daqui.
+#
+# O GitHub desliga agendamento em repositório sem push por 60 dias. Se um dia o
+# relógio parar sozinho, é a primeira coisa a conferir.
+
+name: relogio
+
+on:
+  schedule:
+    # De hora em hora, em UTC. Brasília é UTC-3, então isto cobre a janela
+    # inteira de leitura de qualquer fuso, e o próprio pulso descarta o que
+    # estiver fora da janela da empresa.
+    - cron: '0 * * * *'
+    # O aviso sai uma vez por dia, às 11:00 UTC (08:00 de Brasília), que é o
+    # mesmo horário que o `vercel.json` pede.
+    - cron: '0 11 * * *'
+  # Para bater na mão sem esperar a hora virar.
+  workflow_dispatch:
+
+concurrency:
+  # Duas rodadas ao mesmo tempo leriam a mesma conversa duas vezes.
+  group: relogio
+  cancel-in-progress: false
+
+jobs:
+  pulso:
+    name: a leitura que roda sozinha
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: chamar /api/pulso
+        env:
+          SEGREDO: ${{ secrets.TRACK_AVISOS_SEGREDO }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SEGREDO:-}" ]; then
+            echo "Falta o segredo TRACK_AVISOS_SEGREDO nos secrets do repositório."
+            echo "Sem ele a rota responde 401 e o relógio bate numa porta fechada."
+            exit 1
+          fi
+          codigo=$(curl -sS -X POST https://trackward.app/api/pulso \
+            -H "authorization: Bearer $SEGREDO" \
+            -o /dev/null -w '%{http_code}' --max-time 300)
+          echo "o pulso respondeu $codigo"
+          test "$codigo" = "200"
+
+  avisar:
+    name: o aviso que sai do app
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Só na rodada das 11:00 UTC. O `if` olha o cron que disparou, porque os
+    # dois agendamentos acima chamam este mesmo arquivo.
+    if: github.event.schedule == '0 11 * * *' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: chamar /api/avisar
+        env:
+          SEGREDO: ${{ secrets.TRACK_AVISOS_SEGREDO }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SEGREDO:-}" ]; then
+            echo "Falta o segredo TRACK_AVISOS_SEGREDO nos secrets do repositório."
+            exit 1
+          fi
+          codigo=$(curl -sS -X POST https://trackward.app/api/avisar \
+            -H "authorization: Bearer $SEGREDO" \
+            -o /dev/null -w '%{http_code}' --max-time 300)
+          echo "o aviso respondeu $codigo"
+          test "$codigo" = "200"
