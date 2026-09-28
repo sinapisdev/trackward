@@ -6163,3 +6163,89 @@ grant execute on function public.descobriu(uuid) to service_role;
 -- --------------------------------------------------------------------------
 
 drop function if exists public.salvar_fluxo(jsonb, jsonb);
+
+-- --------------------------------------------------------------------------
+-- 44. O carimbo da organização quando não há sessão
+--
+--     `carimbar_org()` pergunta `minha_org()`, que responde pela SESSÃO. Quando
+--     quem escreve é o servidor agindo em nome de alguém (o WhatsApp, o pulso),
+--     não há sessão nenhuma: a função volta nula, o carimbo fica de fora, e a
+--     linha nasce com `org_id` vazio. Como toda política pergunta
+--     `minha(org_id)`, essa linha existe e **ninguém a enxerga**, nem quem a
+--     criou. Não dá erro, não aparece na tela, e só se descobre procurando.
+--
+--     Foi encontrado testando a linguagem de barra pelo WhatsApp: o objetivo
+--     criado pelo telefone nascia invisível, e a lista pessoal era recriada a
+--     cada tarefa, porque a busca por ela filtra pela organização e nunca
+--     achava a anterior. E já valia antes daqui: `decidir_etapa` e
+--     `decidir_prazo` recebem `p_como` desde a seção 35, e as decisões, os
+--     itens e o histórico que elas gravam sairiam do mesmo jeito.
+--
+--     O conserto **não é acrescentar `org_id` a trinta inserts** espalhados por
+--     seis funções: seria esquecer um, e a sétima função nasceria esquecendo
+--     todos. A pergunta certa é a do carimbo, e ele só precisa saber de quem é
+--     a casa quando não há sessão. Então `quem_age()`, que é o único lugar onde
+--     o servidor diz em nome de quem está agindo, guarda isso na transação, e o
+--     carimbo passa a ter onde olhar.
+--
+--     `set_config(..., true)` é local à transação: acaba quando ela acaba, e
+--     não atravessa para a requisição seguinte.
+-- --------------------------------------------------------------------------
+
+create or replace function public.quem_age(p_como uuid default null)
+returns uuid language plpgsql volatile security definer set search_path = public as $$
+declare v uuid; v_org uuid;
+begin
+  -- Com sessão, é sempre quem está logado. `p_como` não abre porta nenhuma.
+  if auth.uid() is not null then
+    v := meu_perfil();
+    if v is null or not exists (select 1 from perfis where id = v and ativo) then
+      raise exception 'Sem acesso.';
+    end if;
+    return v;
+  end if;
+  -- Sem sessão é o servidor. Ele diz em nome de quem, e o perfil tem que existir
+  -- e estar ativo: desligar alguém precisa fechar a porta do WhatsApp também.
+  if p_como is null then raise exception 'Sem acesso.'; end if;
+  select org_id into v_org from perfis where id = p_como and ativo;
+  if v_org is null then raise exception 'Sem acesso.'; end if;
+  -- De quem é a casa, para o carimbo achar. Sem isto a linha nasce sem
+  -- organização e some da vista de todo mundo, inclusive de quem a criou.
+  perform set_config('trackward.org', v_org::text, true);
+  perform set_config('trackward.perfil', p_como::text, true);
+  return p_como;
+end $$;
+
+/** A organização de quem está agindo, quando não é uma sessão. */
+create or replace function public.org_de_quem_age()
+returns uuid language sql stable set search_path = public as $$
+  select nullif(current_setting('trackward.org', true), '')::uuid
+$$;
+
+/** O perfil de quem está agindo, quando não é uma sessão. */
+create or replace function public.perfil_de_quem_age()
+returns uuid language sql stable set search_path = public as $$
+  select nullif(current_setting('trackward.perfil', true), '')::uuid
+$$;
+
+create or replace function public.carimbar_org()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  new.org_id := coalesce(minha_org(), org_de_quem_age(), new.org_id);
+  return new;
+end $$;
+
+-- A assinatura segue a mesma regra: com sessão manda quem está logado, sem
+-- sessão manda quem o servidor disse que está agindo, e o que o cliente enviou
+-- só vale quando não há nem um nem outro.
+create or replace function public.carimbar_autor()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_eu uuid := coalesce(meu_perfil(), perfil_de_quem_age());
+begin
+  if v_eu is null then return new; end if;
+  if tg_table_name = 'itens'  then new.autor_id   := v_eu; end if;
+  if tg_table_name = 'canais' then new.criado_por := v_eu; end if;
+  if tg_table_name = 'notas'  then new.dono_id    := v_eu; end if;
+  new.org_id := coalesce(new.org_id, minha_org(), org_de_quem_age());
+  return new;
+end $$;

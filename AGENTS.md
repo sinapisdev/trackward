@@ -436,6 +436,15 @@ a recusar qualquer criação lá com "new row violates row-level security policy
 a mensagem fala da política, não do carimbo que falta. Foi assim que criar tarefa
 e criar canal pararam, e foi difícil de achar exatamente por isso.
 
+**E ele pergunta pela SESSÃO, que é o que não existe quando quem grava é o servidor.**
+`minha_org()` volta nula no WhatsApp e no pulso, e aí a linha nasce com `org_id` vazio.
+Como toda política pergunta `minha(org_id)`, essa linha existe e **ninguém a enxerga, nem
+quem a criou**: não dá erro, não aparece na tela, e só se acha procurando. Quem conserta é
+`quem_age()` (seção 44), que guarda na transação de quem é a casa, e o carimbo passa a ter
+onde olhar. Vale para tudo que o servidor grava em nome de alguém, hoje e amanhã: o
+conserto NÃO é acrescentar `org_id` a trinta inserts espalhados por seis funções, porque
+seria esquecer um, e a sétima função nasceria esquecendo todos.
+
 O laço que cria esses gatilhos tem `continue when to_regclass(...) is null`. Não é
 zelo exagerado: sem ele, uma tabela que ainda não existe no meio da lista derruba
 o bloco inteiro, e todas as tabelas depois dela ficam sem carimbo. Ao acrescentar
