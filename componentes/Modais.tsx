@@ -284,9 +284,21 @@ function MArquivar({ fluxo, fechar }: { fluxo: Fluxo; fechar: () => void }) {
 function MFeedback({ fluxo, fechar }: { fluxo: Fluxo; fechar: () => void }) {
   const { pedirFeedback, feedbacksDe, toast } = useDados()
   const [para, setPara] = useState('')
-  const [link, setLink] = useState('')
   const [indo, setIndo] = useState(false)
   const jaTem = feedbacksDe(fluxo.id)
+
+  /**
+   * O link que o desfecho já preparou.
+   *
+   * Desde a seção 50, arquivar uma track cria o pedido e avisa quem fechou. Se
+   * a tela ignorasse isso e gerasse outro, existiriam dois links vivos para a
+   * mesma coisa: o cliente recebe um, responde nele, e quem pediu fica olhando
+   * o outro para sempre.
+   */
+  const pronto = jaTem.find((x) => !x.respondido_em && new Date(x.vence_em).getTime() > Date.now())
+  const [link, setLink] = useState(
+    pronto ? `${typeof location === 'undefined' ? '' : location.origin}/feedback/${pronto.token}` : '',
+  )
 
   const abrir = async () => {
     if (indo) return
@@ -306,8 +318,11 @@ function MFeedback({ fluxo, fechar }: { fluxo: Fluxo; fechar: () => void }) {
       <div className="dlg-h">
         <h3 id="fb-t">Pedir feedback de {fluxo.nome}</h3>
         <p>
-          Gera um link para quem recebeu o trabalho responder sem ter conta aqui. Ele vale
-          por 60 dias e aceita uma resposta.
+          {pronto
+            ? 'O link já está pronto desde que esta track foi arquivada. Copie e mande por '
+              + 'onde você já fala com quem recebeu.'
+            : 'Gera um link para quem recebeu o trabalho responder sem ter conta aqui. Ele vale '
+              + 'por 60 dias e aceita uma resposta.'}
         </p>
       </div>
       <div className="dlg-b">

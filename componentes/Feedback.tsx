@@ -20,6 +20,7 @@ type Estado = {
   para: string
   vencido: boolean
   respondido: boolean
+  motivo: string
 }
 
 const CARINHAS = [
@@ -107,10 +108,17 @@ export function Resposta({ token }: { token: string }) {
   return (
     <div className="fb">
       <div className="fb-marca"><Ic.logo /><b>TrackWard</b></div>
-      <h1>Como foi {estado.track}?</h1>
+      {/* A pergunta muda com o motivo: quem viu o trabalho ser cancelado não
+          quer ler "como foi?", e responderia nada. Ver a seção 50. */}
+      <h1>
+        {estado.motivo === 'cancelado'
+          ? `O que faltou em ${estado.track}?`
+          : `Como foi ${estado.track}?`}
+      </h1>
       <p className="fb-lede">
         {estado.pediu ? `${estado.pediu} pediu` : 'Pediram'} sua opinião sobre este
-        trabalho. Leva meio minuto, e é anônimo para todo mundo menos para quem pediu.
+        trabalho{estado.motivo === 'cancelado' ? ', que não seguiu adiante' : ''}. Leva meio
+        minuto, e é anônimo para todo mundo menos para quem pediu.
       </p>
 
       <div className="fb-notas" role="group" aria-label="Sua nota">
@@ -147,6 +155,7 @@ export function Resposta({ token }: { token: string }) {
 type LinhaLocal = {
   id: string; token: string; fluxo_id: string; pediu_id: string | null
   para: string; vence_em: string; respondido_em: string | null
+  motivo?: string | null
 }
 
 async function localLer(token: string): Promise<Estado | null> {
@@ -162,6 +171,7 @@ async function localLer(token: string): Promise<Estado | null> {
     track: track?.nome || 'um trabalho',
     pediu: quem?.nome || '',
     para: f.para || '',
+    motivo: (f.motivo as string) || 'concluido',
     vencido: new Date(f.vence_em).getTime() < Date.now(),
     respondido: !!f.respondido_em,
   }

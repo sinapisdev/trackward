@@ -1238,6 +1238,26 @@ saber. Então o feedback sai por um **link**, e o link é a credencial.
 manda nada: mandar exigiria o e-mail do cliente guardado em algum lugar, e o cliente nunca
 combinou isso com ninguém.
 
+**Mas o link fica pronto sozinho** (seção 50). Pedir exigia lembrar de pedir justo no dia
+em que a obra acabou e todo mundo já está na próxima, e por isso quase nunca acontecia. O
+desfecho passa a criar o pedido e a avisar quem fechou; **mandar continua sendo gesto de
+gente**, e a distinção é a regra inteira: o app prepara, e quem conhece o cliente escolhe o
+canal e a hora. Arquivar de novo não cria um segundo link vivo, porque dois links para a
+mesma coisa é o cliente responder num e quem pediu olhar o outro para sempre.
+
+**O aviso não carrega o token.** A caixa é de uma pessoa só, mas credencial em texto de
+aviso é credencial em mais um lugar. O aviso leva à track, e lá o link está a um toque.
+
+**A pergunta muda com o motivo.** Para quem recebeu uma obra entregue, "como foi?" faz
+sentido; para quem viu o trabalho ser cancelado, a mesma frase é deselegante e não colhe
+nada, e vira "o que faltou?".
+
+**A resposta vira EVENTO** (`feedback:<nota>` na view `eventos`), e é assim que ela chega à
+descoberta e ao raio-X sem ninguém ligar um fio novo. `quem_id` fica nulo de propósito:
+quem respondeu não tem conta no app e não é perfil nenhum. No raio-X ela é o achado de
+maior peso, porque todos os outros falam de VELOCIDADE e este fala de QUALIDADE, que não se
+conserta apertando prazo.
+
 Três cuidados, nenhum opcional (seção 24 do schema e `/api/feedback`):
 
 1. O token é sorteado com 32 bytes. Ele é a única coisa entre um estranho e a resposta.

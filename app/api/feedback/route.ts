@@ -37,6 +37,8 @@ type Linha = {
   respondido_em: string | null
   fluxos: { nome: string } | null
   perfis: { nome: string } | null
+  /** 'concluido' ou 'cancelado'. Nulo nos pedidos anteriores à seção 50. */
+  motivo: string | null
 }
 
 /** O que dá para dizer a quem só tem o link. */
@@ -47,6 +49,14 @@ function comoMostrar(f: Linha) {
     para: f.para || '',
     vencido: new Date(f.vence_em).getTime() < Date.now(),
     respondido: !!f.respondido_em,
+    /**
+     * Por que o trabalho terminou.
+     *
+     * Muda a pergunta, e não é detalhe de texto: para quem recebeu uma obra
+     * entregue, "como foi?" faz sentido; para quem viu o trabalho ser
+     * cancelado, a mesma frase é deselegante e não colhe nada.
+     */
+    motivo: (f.motivo as string) || 'concluido',
   }
 }
 
@@ -56,7 +66,7 @@ async function achar(token: string) {
   if (!sb) return null
   const { data } = await sb
     .from('feedbacks')
-    .select('id,fluxo_id,para,vence_em,respondido_em,fluxos(nome),perfis:pediu_id(nome)')
+    .select('id,fluxo_id,para,vence_em,respondido_em,fluxos(nome),perfis:pediu_id(nome),motivo')
     .eq('token', token)
     .maybeSingle()
   return (data as unknown as Linha) || null

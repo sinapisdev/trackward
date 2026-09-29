@@ -6,7 +6,7 @@ import { devePulsar, type Agenda, noFuso } from '@/lib/pulso'
 import { horariosDoRitmo, horaDeResponder } from '@/lib/ritmo'
 import { descobrir, execucoesDe, inconstancia, type Evento } from '@/lib/descobrir'
 import { perguntasDeHoje, type Historico, type Papel } from '@/lib/perguntas'
-import { raioX, type Empurrao, type Passagem } from '@/lib/raiox'
+import { raioX, type Empurrao, type Entrega, type Passagem } from '@/lib/raiox'
 import { mandarWhats } from '@/lib/whats'
 import { custoMicro } from '@/lib/precos'
 import { escutaAqui, oQueFaz, porPalavras } from '@/lib/agentes'
@@ -718,12 +718,14 @@ async function raioXDaCasa(
   sb: NonNullable<ReturnType<typeof clienteDeServico>>, org: Org, agora: Date,
 ): Promise<number> {
   const desde = new Date(agora.getTime() - 180 * 86400000).toISOString()
-  const [{ data: ps }, { data: es }] = await Promise.all([
+  const [{ data: ps }, { data: es }, { data: en }] = await Promise.all([
     sb.rpc('passagens_do_raiox', { p_org: org.id, p_desde: desde }),
     sb.rpc('empurroes_do_raiox', { p_org: org.id, p_desde: desde }),
+    sb.rpc('entregas_do_raiox', { p_org: org.id, p_desde: desde }),
   ])
 
-  const achados = raioX((ps || []) as Passagem[], (es || []) as Empurrao[])
+  const achados = raioX(
+    (ps || []) as Passagem[], (es || []) as Empurrao[], (en || []) as Entrega[])
   let avisados = 0
   for (const a of achados) {
     const { data: id } = await sb.rpc('guardar_achado', {

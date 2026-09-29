@@ -6857,3 +6857,156 @@ $$;
 
 revoke all on function public.esperas_da_caixa(uuid) from public, anon, authenticated;
 grant execute on function public.esperas_da_caixa(uuid) to service_role;
+
+-- --------------------------------------------------------------------------
+-- 50. A porta do cliente externo se abre sozinha, e continua sendo você quem passa
+--
+--     O feedback existe desde a seção 24 e quase nunca é pedido, porque pedir
+--     exige lembrar de pedir justo no dia em que a obra acabou e todo mundo já
+--     está na próxima. O que faltava não era a peça, era o empurrão.
+--
+--     Então o DESFECHO passa a preparar o pedido: nasce o link, e quem fechou a
+--     track recebe um aviso dizendo que ele está pronto. **Mandar continua
+--     sendo gesto de gente**, e isso não é timidez: mandar exigiria o e-mail do
+--     cliente guardado em algum lugar, e o cliente nunca combinou isso com
+--     ninguém. O app prepara; quem conhece o cliente escolhe o canal e a hora.
+--
+--     A pergunta muda com o motivo. Para quem recebeu uma obra entregue, "como
+--     foi?" faz sentido; para quem viu o trabalho ser cancelado, a mesma frase
+--     é deselegante e não colhe nada. Por isso o `motivo` fica guardado.
+--
+--     E a resposta vira EVENTO, entrando na view `eventos` junto do resto: é
+--     assim que ela chega à descoberta e ao raio-X sem ninguém ligar um fio
+--     novo. Nota baixa é sinal de qualidade, e qualidade não se conserta com
+--     prazo: são coisas diferentes, e quem lê o raio-X precisa saber qual é.
+-- --------------------------------------------------------------------------
+
+alter table public.feedbacks add column if not exists motivo text;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'feedbacks_motivo') then
+    alter table public.feedbacks add constraint feedbacks_motivo
+      check (motivo is null or motivo in ('concluido','cancelado'));
+  end if;
+end $$;
+
+/**
+ * Ao arquivar, prepara o pedido e avisa quem fechou.
+ *
+ * Não cria um segundo quando já existe um em aberto: a track pode ser reaberta
+ * e arquivada de novo, e dois links vivos para a mesma coisa é o cliente
+ * recebendo duas vezes e respondendo em um deles.
+ */
+create or replace function public.pedir_feedback_no_fim()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_id uuid; v_quem uuid;
+begin
+  if new.desfecho is null or new.desfecho is not distinct from old.desfecho then
+    return new;
+  end if;
+
+  if exists (select 1 from feedbacks f
+             where f.fluxo_id = new.id and f.respondido_em is null and f.vence_em > now()) then
+    return new;
+  end if;
+
+  v_quem := coalesce(meu_perfil(), perfil_de_quem_age(), new.dono_id);
+
+  insert into feedbacks (fluxo_id, token, pediu_id, para, motivo)
+  values (new.id, encode(gen_random_bytes(32), 'base64'), v_quem, '', new.desfecho)
+  returning id into v_id;
+
+  -- O aviso leva à track, e não carrega o token: a caixa é de uma pessoa só,
+  -- mas credencial em texto de aviso é credencial em mais um lugar. Na track o
+  -- link está pronto, a um toque de copiar.
+  perform avisar(v_quem, 'feedback',
+    case when new.desfecho = 'concluido'
+      then 'Pronto para pedir a opinião de quem recebeu'
+      else 'Vale perguntar por que não seguiu' end,
+    new.nome, 'fimfb:' || v_id::text, false, new.id);
+
+  return new;
+end $$;
+
+drop trigger if exists ao_arquivar_pede_feedback on public.fluxos;
+create trigger ao_arquivar_pede_feedback after update on public.fluxos
+  for each row execute function public.pedir_feedback_no_fim();
+
+-- --------------------------------------------------------------------------
+-- A resposta do cliente vira evento
+-- --------------------------------------------------------------------------
+
+create or replace view public.eventos as
+  select a.org_id, a.criado_em as quando, 'atividade'::text as tipo,
+         a.texto as detalhe, a.fluxo_id, a.quem_id,
+         coalesce((select p.area_id from perfis p where p.id = a.quem_id),
+                  (select f.area_id from fluxos f where f.id = a.fluxo_id)) as area_id
+  from atividades a
+  union all
+  select d.org_id, d.criado_em, 'decisao:' || d.tipo,
+         d.nota, d.fluxo_id, d.quem_id,
+         coalesce((select p.area_id from perfis p where p.id = d.quem_id),
+                  (select f.area_id from fluxos f where f.id = d.fluxo_id))
+  from decisoes d
+  union all
+  select i.org_id, i.criado_em, 'tarefa:nasceu', i.texto, i.fluxo_id, i.autor_id,
+         coalesce((select p.area_id from perfis p where p.id = i.autor_id),
+                  (select f.area_id from fluxos f where f.id = i.fluxo_id))
+  from itens i
+  union all
+  select i.org_id, i.feito_em, 'tarefa:feita', i.texto, i.fluxo_id, i.resp_id,
+         coalesce((select p.area_id from perfis p where p.id = i.resp_id),
+                  (select f.area_id from fluxos f where f.id = i.fluxo_id))
+  from itens i where i.feito and i.feito_em is not null
+  union all
+  select pp.org_id, pp.criado_em, 'prazo:pedido', pp.motivo, pp.fluxo_id, pp.pedido_por,
+         (select p.area_id from perfis p where p.id = pp.pedido_por)
+  from pedidos_prazo pp
+  union all
+  select pp.org_id, pp.decidido_em, 'prazo:' || pp.estado, pp.motivo, pp.fluxo_id, pp.decidido_por,
+         (select p.area_id from perfis p where p.id = pp.decidido_por)
+  from pedidos_prazo pp where pp.decidido_em is not null
+  union all
+  select an.org_id, an.criado_em, 'anexo', an.nome, an.fluxo_id, an.autor_id,
+         (select p.area_id from perfis p where p.id = an.autor_id)
+  from anexos an where an.fluxo_id is not null
+  union all
+  select s.org_id, s.decidido_em, 'proposta:' || s.tipo, s.texto,
+         nullif(s.dados->>'fluxo_id','')::uuid, s.decidido_por,
+         (select p.area_id from perfis p where p.id = s.decidido_por)
+  from sugestoes s where s.estado = 'aceita' and s.decidido_em is not null
+  union all
+  /**
+   * A opinião de quem recebeu o trabalho.
+   *
+   * O tipo carrega a nota (`feedback:5`), porque o que diferencia uma entrega
+   * elogiada de uma reclamada é o número, e a descoberta agrupa por TIPO. Sem
+   * ele, as duas seriam o mesmo evento e a diferença sumiria.
+   *
+   * `quem_id` fica nulo de propósito: quem respondeu não tem conta no app e não
+   * é perfil nenhum. A área vem da track, que é o único endereço que existe.
+   */
+  select f.org_id, f.respondido_em, 'feedback:' || coalesce(f.nota::text, 'sem nota'),
+         f.texto, f.fluxo_id, null::uuid,
+         (select x.area_id from fluxos x where x.id = f.fluxo_id)
+  from feedbacks f where f.respondido_em is not null;
+
+/**
+ * O que foi entregue e o que o cliente achou.
+ *
+ * Só o que teve resposta: a entrega sem opinião não diz nada sobre qualidade, e
+ * contá-la como boa seria inventar o silêncio a favor da casa.
+ */
+create or replace function public.entregas_do_raiox(p_org uuid, p_desde timestamptz)
+returns table (fluxo_id uuid, nome text, nota int, dias numeric)
+language sql security definer set search_path = public as $$
+  select f.id, f.nome, fb.nota,
+         greatest(0, extract(epoch from (coalesce(f.arquivado_em, now()) - f.criado_em)) / 86400)::numeric
+  from feedbacks fb
+  join fluxos f on f.id = fb.fluxo_id
+  where fb.org_id = p_org and fb.respondido_em is not null and fb.respondido_em >= p_desde
+$$;
+
+revoke all on function public.entregas_do_raiox(uuid, timestamptz) from public, anon, authenticated;
+grant execute on function public.entregas_do_raiox(uuid, timestamptz) to service_role;

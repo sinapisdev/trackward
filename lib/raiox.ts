@@ -57,9 +57,20 @@ export type Empurrao = {
   quando: string
 }
 
+/** Uma entrega que chegou ao cliente, e o que ele achou dela. */
+export type Entrega = {
+  fluxo_id: string
+  nome: string
+  /** 1 a 5. Nulo quando ninguém respondeu. */
+  nota: number | null
+  /** Quantos dias a track inteira levou. */
+  dias: number
+}
+
 export type Achado = {
   /** O que sobe para o acervo entre clientes. Não carrega nada da empresa. */
   chave: 'carimbo' | 'devolve-sempre' | 'espera-nao-trabalho' | 'gargalo' | 'prazo-irreal'
+    | 'entrega-ruim'
   /** O checkpoint de que ele fala. */
   alvo: string
   /** O custo, em dias. É por ele que os achados são ordenados. */
@@ -95,6 +106,7 @@ const MINIMO = 4
  * alguém mover um bloco de lugar.
  */
 const PESO: Record<Achado['chave'], number> = {
+  'entrega-ruim': 6,
   carimbo: 5,
   'devolve-sempre': 4,
   'prazo-irreal': 3,
@@ -142,7 +154,7 @@ function porEtapa(ps: Passagem[]): Map<string, Passagem[]> {
  * economia.
  */
 export function raioX(
-  passagens: Passagem[], empurroes: Empurrao[] = [], quantos = 3,
+  passagens: Passagem[], empurroes: Empurrao[] = [], entregas: Entrega[] = [], quantos = 3,
 ): Achado[] {
   const achados: Achado[] = []
   const grupos = porEtapa(passagens)
@@ -258,6 +270,30 @@ export function raioX(
       texto: `O prazo de "${etapa}" foi empurrado ${es.length} vezes, somando `
         + `${emDias(soma)}. O número nunca foi realista.`,
       conserto: `Mudar o prazo para ${Math.round(mediana(es.map((x) => x.dias)))} dias a mais`,
+    })
+  }
+
+  /**
+   * 6. O QUE CHEGOU RUIM NO CLIENTE.
+   *
+   * É o único sinal que não vem de dentro: quem responde é quem recebeu o
+   * trabalho, pelo link, sem conta no app. E é o mais importante, porque todos
+   * os outros falam de VELOCIDADE e este fala de QUALIDADE, que não se conserta
+   * apertando prazo. Por isso ele tem o maior peso no desempate.
+   *
+   * O custo em dias é o tempo gasto nas entregas que decepcionaram. Não é
+   * retórica: é exatamente o trabalho que foi feito e não serviu.
+   */
+  const ruins = entregas.filter((e) => e.nota !== null && e.nota <= 2)
+  const respondidas = entregas.filter((e) => e.nota !== null)
+  if (ruins.length >= MINIMO) {
+    const custo = ruins.reduce((a, b) => a + b.dias, 0)
+    achados.push({
+      chave: 'entrega-ruim', alvo: 'entrega', dias: arredonda(custo), amostra: respondidas.length,
+      texto: `${ruins.length} de ${respondidas.length} entregas voltaram com nota baixa de quem `
+        + `recebeu, e elas somaram ${emDias(custo)} de trabalho. Isto é qualidade, e `
+        + 'qualidade não se conserta apertando prazo.',
+      conserto: 'Ler o que eles escreveram antes de mexer no processo',
     })
   }
 
