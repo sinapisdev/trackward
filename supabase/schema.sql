@@ -2886,7 +2886,20 @@ create index if not exists push_perfil_idx on public.push_assinaturas (perfil_id
 
 -- A versão antiga devolvia void. Trocar o retorno exige derrubar antes, porque
 -- `create or replace` não muda assinatura.
+/**
+ * As DUAS assinaturas saem antes de a primeira nascer.
+ *
+ * A seção 27 dá a `avisar` um argumento a mais, e a versão de lá sobrevive à
+ * passada anterior. Numa segunda passada, entre este ponto e aquele existiam as
+ * duas ao mesmo tempo, e qualquer gatilho que chamasse `avisar` no meio do
+ * caminho recebia "a função avisar não é única" e derrubava o arquivo inteiro.
+ *
+ * Isso só aparecia em banco COM dados, que é só a produção: num banco vazio o
+ * `update` da seção 21 não casa linha nenhuma, e comando que não toca linha não
+ * dispara gatilho de linha. Um erro que o ensaio não via de propósito nenhum.
+ */
 drop function if exists public.avisar(uuid, text, text, text, text, boolean, uuid, uuid, uuid, uuid);
+drop function if exists public.avisar(uuid, text, text, text, text, boolean, uuid, uuid, uuid, uuid, uuid);
 
 create or replace function public.avisar(
   p_perfil uuid, p_tipo text, p_titulo text, p_corpo text, p_chave text,
@@ -7010,3 +7023,139 @@ $$;
 
 revoke all on function public.entregas_do_raiox(uuid, timestamptz) from public, anon, authenticated;
 grant execute on function public.entregas_do_raiox(uuid, timestamptz) to service_role;
+
+-- ==========================================================================
+-- 51. Quem vê o quê, perguntado por PERFIL em vez de pela sessão
+--
+--     `ve_fluxo` pergunta por `meu_perfil()`, que sai da sessão. O WhatsApp e o
+--     pulso escrevem com a chave de serviço, que não tem sessão nenhuma E que
+--     passa por cima de RLS: a rota lia `fluxos` direto e recebia TODAS as
+--     tracks da organização, inclusive as `so_eu` de outra pessoa e as
+--     `escolhidas` de quem não convidou ninguém.
+--
+--     Isso não é hipótese. A lista que o telefone oferece ("em qual track esta
+--     tarefa vive?") era montada dessa consulta, então o nome de uma track
+--     privada aparecia numerado para quem mandasse uma mensagem, e bastava
+--     responder o número para pôr trabalho dentro dela. O AGENTS diz que
+--     privacidade é do banco e não da tela; aqui a tela nem chegava a ter a
+--     chance, porque o banco tinha entregado a linha.
+--
+--     O conserto NÃO é uma segunda cópia de `ve_fluxo` com outro nome. Duas
+--     cópias da regra de visibilidade é a pior coisa que este arquivo poderia
+--     ganhar: no dia em que uma mudar e a outra não, o app passa a mostrar pela
+--     tela o que esconde pelo telefone, ou o contrário, e ninguém percebe. A
+--     regra passa a morar UMA vez, no `_como`, e a versão da sessão vira um
+--     invólucro que responde `meu_perfil()`. É o mesmo caminho de `p_como` na
+--     seção 43 e de `quem_age` na 44.
+--
+--     As funções com `uid` ficam fechadas ao `service_role`. Elas respondem
+--     "o que FULANO enxerga", e uma pessoa logada podendo perguntar isso com o
+--     id de outra é a mesma porta dos fundos por outro nome.
+-- ==========================================================================
+
+/** A hierarquia abaixo de um perfil qualquer. O corpo do antigo `meu_alcance`. */
+create or replace function public.alcance_de(uid uuid)
+returns setof uuid language sql stable security definer set search_path = public as $$
+  with recursive abaixo as (
+    select id, org_id from perfis where id = uid
+    union
+    select p.id, p.org_id from perfis p join abaixo a on p.gestor_id = a.id
+    where p.org_id = a.org_id
+  )
+  select id from abaixo;
+$$;
+
+create or replace function public.meu_alcance()
+returns setof uuid language sql stable security definer set search_path = public as $$
+  select * from alcance_de(meu_perfil());
+$$;
+
+/** Admin, perguntado por perfil. */
+create or replace function public.eh_admin_de(uid uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from perfis where id = uid and ativo and papel = 'admin');
+$$;
+
+/** A mesma organização, perguntada por perfil. */
+create or replace function public.minha_de(p_org uuid, uid uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from perfis p where p.id = uid and p.ativo and p.org_id = p_org);
+$$;
+
+create or replace function public.ve_area_de_como(p_fluxo uuid, uid uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from perfis p join fluxos f on f.id = p_fluxo
+    where p.id = uid and p.ve_area and p.area_id is not null and f.area_id = p.area_id
+  );
+$$;
+
+/**
+ * A regra inteira de quem enxerga uma track. Corpo único.
+ *
+ * É o texto do antigo `ve_fluxo`, com `uid` no lugar de `meu_perfil()` e
+ * `minha_de(org, uid)` no lugar de `minha(org)`. Nada mais mudou, de propósito:
+ * qualquer diferença aqui seria uma regra nova entrando de carona num conserto.
+ */
+create or replace function public.ve_fluxo_como(f uuid, uid uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select
+    -- antes de qualquer regra de visibilidade, a esteira precisa ser da mesma
+    -- organização. Esta linha é a parede entre empresas clientes.
+    exists (select 1 from fluxos x where x.id = f and minha_de(x.org_id, uid))
+    and (
+    -- só eu: ninguém além de quem criou
+    exists (select 1 from fluxos x where x.id = f and x.visib = 'so_eu' and x.autor_id = uid)
+    -- pessoas escolhidas: quem foi convidado entra, o resto depende de participar
+    or exists (
+      select 1 from fluxos x join fluxo_pessoas fp on fp.fluxo_id = x.id
+      where x.id = f and x.visib = 'escolhidas' and fp.perfil_id in (select alcance_de(uid))
+    )
+    or (
+      exists (select 1 from fluxos x where x.id = f and x.visib <> 'so_eu')
+      and (
+        (eh_admin_de(uid) and exists (select 1 from fluxos x where x.id = f and x.visib = 'equipe'))
+        or (ve_area_de_como(f, uid) and exists (select 1 from fluxos x where x.id = f and x.visib = 'equipe'))
+        or exists (select 1 from fluxos x where x.id = f and x.dono_id in (select alcance_de(uid)))
+        or exists (select 1 from etapas e where e.fluxo_id = f and e.aprovador_id in (select alcance_de(uid)))
+        or exists (select 1 from itens i where i.fluxo_id = f and i.resp_id in (select alcance_de(uid)))
+        or exists (
+          select 1 from dependencias d
+          join itens trava on trava.id = d.depende_de and trava.fluxo_id = f
+          join itens meu on meu.id = d.item_id
+          where meu.resp_id in (select alcance_de(uid))
+        )
+      )
+    ));
+$$;
+
+create or replace function public.ve_fluxo(f uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select ve_fluxo_como(f, meu_perfil());
+$$;
+
+/**
+ * As tracks abertas que aquela pessoa pode ver, para o servidor oferecer.
+ *
+ * Devolve o que a pessoa enxergaria se estivesse com o app aberto, nem uma
+ * linha a mais. É esta função, e não a consulta direta a `fluxos`, que o
+ * WhatsApp usa para montar a lista de "onde isso vive".
+ */
+create or replace function public.tracks_de(p_como uuid)
+returns table (id uuid, nome text, atual int)
+language sql stable security definer set search_path = public as $$
+  select f.id, f.nome, f.atual
+  from fluxos f
+  join perfis p on p.id = p_como and p.ativo and p.org_id = f.org_id
+  where f.desfecho is null and not f.concluido and ve_fluxo_como(f.id, p_como)
+  order by f.criado_em desc;
+$$;
+
+revoke all on function public.alcance_de(uuid)            from public, anon, authenticated;
+revoke all on function public.eh_admin_de(uuid)           from public, anon, authenticated;
+revoke all on function public.minha_de(uuid, uuid)        from public, anon, authenticated;
+revoke all on function public.ve_area_de_como(uuid, uuid) from public, anon, authenticated;
+revoke all on function public.ve_fluxo_como(uuid, uuid)   from public, anon, authenticated;
+revoke all on function public.tracks_de(uuid)             from public, anon, authenticated;
+grant execute on function public.ve_fluxo_como(uuid, uuid) to service_role;
+grant execute on function public.tracks_de(uuid) to service_role;

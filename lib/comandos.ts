@@ -14,7 +14,10 @@ import { separaQuando, horaEh, quandoEh } from './quando'
  *
  *   @pessoa     quem. Universal, e já funciona no app: mexer nisso quebraria a
  *               menção, que é a convenção mais firme que existe em chat.
- *   #canal      onde. Já é como o app escreve o nome de um canal.
+ *   #track      onde. Já é como o app escreve o nome de um canal, e a track tem
+ *               o canal dela: endereçar uma é endereçar a outra. No app o
+ *               endereço vem de onde se escreve; no WhatsApp não existe "onde",
+ *               e sem este sinal tudo que chega pelo telefone cai no privado.
  *   [[nota]]    liga uma nota na outra. Já é como o caderno costura o acervo.
  *   /comando    o que fazer. É o único sinal livre, e é o que Slack, Discord,
  *               Notion e Linear usam para a mesma coisa.
@@ -39,7 +42,11 @@ export const COMANDOS: Comando[] = [
   {
     nome: 'tarefa', chave: 'tarefa',
     resumo: 'Cria uma tarefa, com dono e prazo se você disser',
-    exemplo: '/tarefa Conferir o contrato @Ana até sexta',
+    // O exemplo carrega os três sinais de propósito. Linguagem de comando não
+    // morre de sintaxe difícil, morre de ninguém descobrir que ela existe, e o
+    // `#` é o mais fácil de nunca ser descoberto: `@` e prazo a pessoa tenta
+    // sozinha, "em qual track isto vive" não ocorre a ninguém.
+    exemplo: '/tarefa Conferir o contrato @Ana #Reforma até sexta',
     outros: ['task', 't'],
   },
   {
@@ -96,12 +103,35 @@ export function comandoSendoEscrito(entrada: string): string | null {
   return m ? m[1] : null
 }
 
+/**
+ * Tira o `#` do texto e devolve o endereço.
+ *
+ * Mora fora do `lerComando` porque o endereço não é privilégio de comando: no
+ * WhatsApp a frase chega sem barra nenhuma ("preciso de cimento #Reforma") e
+ * precisa ser endereçada do mesmo jeito. Duas cópias desta expressão seriam
+ * duas gramáticas no mês seguinte.
+ *
+ * O `#` sai do texto pelo mesmo motivo que o `@` sai: senão a tarefa nasceria
+ * chamada "Comprar cimento #Reforma", com o endereço dentro do próprio título.
+ * Uma palavra só, casada por começo em `ondeEh`, como o `@` já faz com o
+ * primeiro nome: ninguém digita "Reforma da sede" inteiro no telefone.
+ */
+export function separaOnde(entrada: string): { texto: string; onde: string | null } {
+  const m = /#([\p{L}\p{N}][\p{L}\p{N}'-]*)/u.exec(entrada)
+  if (!m) return { texto: entrada, onde: null }
+  const texto = (entrada.slice(0, m.index) + entrada.slice(m.index + m[0].length))
+    .replace(/\s{2,}/g, ' ').trim()
+  return { texto, onde: m[1] }
+}
+
 export type Lido = {
   comando: Comando
   /** O que sobrou depois de tirar quem e quando. */
   texto: string
   /** O nome da pessoa citada com @, como escrito. */
   quem: string | null
+  /** O nome da track citada com #, como escrito. Onde a coisa vive. */
+  onde: string | null
   /** AAAA-MM-DD. */
   quando: string | null
   /** HH:MM, só na agenda. */
@@ -121,6 +151,7 @@ export function lerComando(entrada: string, hoje?: string): Lido | null {
 
   let resto = (m[2] || '').trim()
   let quem: string | null = null
+  let onde: string | null = null
   let hora: string | null = null
 
   // Quem: o @ sai do texto, senão a tarefa nasceria chamada "Conferir o
@@ -130,6 +161,10 @@ export function lerComando(entrada: string, hoje?: string): Lido | null {
     quem = arroba[1]
     resto = (resto.slice(0, arroba.index) + resto.slice(arroba.index + arroba[0].length)).replace(/\s{2,}/g, ' ').trim()
   }
+
+  const semOnde = separaOnde(resto)
+  onde = semOnde.onde
+  resto = semOnde.texto
 
   // Hora: só faz sentido em compromisso, e sai antes da data para "terça às
   // 15h" não tentar virar data duas vezes.
@@ -143,7 +178,7 @@ export function lerComando(entrada: string, hoje?: string): Lido | null {
   }
 
   const { texto, quando } = separaQuando(resto, hoje)
-  return { comando, texto, quem, quando, hora }
+  return { comando, texto, quem, onde, quando, hora }
 }
 
 /** A pessoa que o @ nomeia, pelo primeiro nome ou pelo nome inteiro. */
@@ -157,6 +192,30 @@ export function quemEh<T extends { id: string; nome: string; ativo?: boolean }>(
     || vivos.find((p) => limpo(p.nome.split(' ')[0]) === t)
     || vivos.find((p) => limpo(p.nome).startsWith(t))
     || null
+}
+
+/**
+ * As tracks que o `#` nomeia. Devolve TODAS as candidatas, de propósito.
+ *
+ * O `quemEh` pode escolher a primeira que casa porque errar a pessoa aparece
+ * na hora: a tarefa nasce com o nome errado em cima e alguém reclama. Errar a
+ * track não aparece nunca. A tarefa vai para a obra errada, fica visível para
+ * a equipe errada, conta para o checkpoint errado, e quem mandou lê "pronto" e
+ * segue a vida. É o erro que o AGENTS chama de pior possível, e por isso
+ * `#Reforma` com duas Reformas abertas não escolhe: devolve as duas, e quem
+ * chamou pergunta.
+ *
+ * Nome exato ganha de começo-de-nome, senão abrir "Reforma" ao lado de
+ * "Reforma da sede" tornaria a primeira ineramável.
+ */
+export function ondeEh<T extends { id: string; nome: string }>(
+  citado: string | null, tracks: T[],
+): T[] {
+  if (!citado) return []
+  const t = limpo(citado)
+  const exatas = tracks.filter((f) => limpo(f.nome) === t)
+  if (exatas.length) return exatas
+  return tracks.filter((f) => limpo(f.nome).startsWith(t))
 }
 
 /** Reaproveitado pela ajuda e pelos testes. */

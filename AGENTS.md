@@ -450,6 +450,57 @@ zelo exagerado: sem ele, uma tabela que ainda não existe no meio da lista derru
 o bloco inteiro, e todas as tabelas depois dela ficam sem carimbo. Ao acrescentar
 tabela nova àquela lista, manter o `continue`.
 
+## A chave de serviço passa por cima de RLS, e por isso a pergunta muda
+
+`ve_fluxo` pergunta por `meu_perfil()`, que sai da sessão. O WhatsApp e o pulso escrevem
+com a chave de serviço, que **não tem sessão e ignora política**: ler `fluxos` direto ali
+devolve TODAS as tracks da organização, inclusive a `so_eu` de outra pessoa e a
+`escolhidas` de quem não convidou ninguém.
+
+Isso não era hipótese. A lista que o telefone oferece ("em qual track isto vive?") saía
+dessa consulta, então o nome de uma track privada aparecia numerado para quem mandasse uma
+mensagem, e bastava responder o número para pôr trabalho lá dentro. O furo estava no
+`/tarefa @Ana` desde que ele existe, e a triagem de texto solto o herdou inteiro.
+
+**O conserto não é uma segunda cópia de `ve_fluxo` com outro nome.** Duas cópias da regra de
+visibilidade é a pior coisa que o schema poderia ganhar: no dia em que uma mudar e a outra
+não, o app mostra pela tela o que esconde pelo telefone, e ninguém percebe. A regra mora uma
+vez, em `ve_fluxo_como(f, uid)` (seção 51), e `ve_fluxo(f)` virou o invólucro que responde
+`meu_perfil()`. Mesmo caminho de `p_como` na seção 43 e de `quem_age` na 44. A conferência
+do `atualizar.sql` verifica que o invólucro continua sendo invólucro.
+
+**As funções com `uid` são do `service_role` e de mais ninguém.** Elas respondem "o que
+FULANO enxerga", e uma pessoa logada podendo perguntar isso com o id de outra é a porta dos
+fundos das regras de visibilidade com outro nome.
+
+**E a conferência se repete na hora de escrever.** A lista já sai filtrada, mas uma pergunta
+feita antes do conserto fica guardada em `perguntas_abertas` com a lista velha dentro, e
+continua respondível por dois dias. `naTrack` é o único lugar que escreve numa track pelo
+telefone, e ele pergunta de novo antes de escrever.
+
+**Quem vê a lista é quem já participa**, e é assim que tem que ser: colaborador enxerga o
+que é dele. Estar em `fluxo_pessoas` só vale em `escolhidas`; numa track `equipe`, quem
+entra é admin, quem tem a área, o dono, o aprovador, o responsável por alguma tarefa e
+quem está travado por ela. Ou seja, o pedreiro só pode endereçar a obra depois que a
+empresa o pôs nela, e essa é a personalização que o produto promete, não uma falta.
+
+## Um `update` no meio do arquivo dispara gatilho, e gatilho escolhe função
+
+`avisar` nasce com dez argumentos na seção 14 e ganha o décimo primeiro na 27. Numa segunda
+passada do `schema.sql` as duas assinaturas existiam ao mesmo tempo entre uma seção e a
+outra, e o `update public.fluxos set desfecho` da seção 21 dispara gatilho que chama
+`avisar`: o Postgres respondia "a função avisar não é única" e derrubava o arquivo inteiro
+no meio.
+
+**Só aparecia em banco COM dados, que é só a produção.** No ensaio, aquele `update` não casa
+linha nenhuma, e comando que não toca linha não dispara gatilho de linha. Um erro que o
+ensaio não via de propósito nenhum, e que esperava a primeira produção com uma track
+concluída sem desfecho.
+
+As duas assinaturas saem antes de a primeira nascer, e a conferência do `atualizar.sql`
+conta quantas existem no fim. Ao dar argumento novo a uma função que gatilho chama, derrubar
+as duas formas antes de recriar.
+
 ## Notas: uma nota é um assunto, e tem alguém do outro lado
 
 O caderno **não é um canal**, e já foi. O nome ("Meu despejo") e o lugar (a lista
@@ -627,6 +678,38 @@ não reconhecia a própria pessoa e respondia "este número não está ligado ao
 frase mais desanimadora possível para quem acabou de configurar tudo certo. `formas_do_fone`
 (seção 47) aceita as duas formas, e só para celular brasileiro: fora disso casaria número
 de outro país por engano.
+
+**A triagem pergunta ONDE VIVE, e perguntava o que é.** Ela oferecia "guardar como nota,
+virar tarefa minha, deixa pra lá", e repare no rótulo do meio: tarefa **minha**. Não havia
+caminho nenhum para a equipe, então todo texto solto que entrava pelo telefone caía no
+privado por construção. O "preciso de cimento" do pedreiro virava lembrete que só ele veria,
+e o comprador nunca ficava sabendo. O AGENTS já dizia qual é a única escolha que muda tudo
+numa tarefa, e a triagem perguntava a outra.
+
+Agora as tracks abertas são as primeiras opções da lista, e as três fixas vêm depois. A
+ordem é o argumento: a resposta que faz o app valer alguma coisa é uma track, porque é lá
+que a equipe enxerga e que a tarefa conta para o checkpoint. Com o privado em primeiro, a
+opção fácil era também a que não chega a ninguém.
+
+**O que a resposta significa viaja na opção (`faz`), nunca no número.** Com as tracks na
+frente, "2" é a segunda obra para quem tem duas e é o caderno para quem não tem nenhuma.
+Lendo o número, o app guardaria no caderno o que a pessoa mandou para a obra, sem dizer
+nada. Quem tinha `alvo` e nenhum `faz` continua sendo a lista de desempate, que aponta para
+outra PERGUNTA e não para uma track, e as perguntas que já estavam em aberto quando isto
+mudou continuam valendo pelo número antigo.
+
+**E o app não escolhe a track mais provável, nunca.** O dono da empresa está em todas, então
+"a última que ele usou" acerta quase nunca, e pôr trabalho na obra errada é o erro que não
+aparece. Endereço escrito resolve na hora; sem endereço, pergunta. O que não pergunta é a
+barra: comando é ordem, e `/tarefa Ligar para o banco` continua nascendo avulsa sem
+interrogatório, porque pedir confirmação do que a pessoa acabou de digitar é desconfiar
+dela. Texto solto é o contrário, ninguém combinou nada com a máquina, e lá a pergunta é
+obrigatória.
+
+**Quem executa é quem mandou, até alguém mover.** O app não sabe quem compra o cimento, e
+chutar seria inventar dono para o trabalho de outra pessoa. O que faz a coisa andar não é o
+responsável, é o endereço: a tarefa numa track aparece para a equipe dela, e qualquer um de
+lá pode assumir.
 
 **Telefone não é senha.** `perfil_do_telefone()` só diz de quem é o número. O que muda o
 trabalho de outra pessoa (aprovar checkpoint, prorrogar prazo, aceitar cascata) pede botão
@@ -834,6 +917,27 @@ começo; `#canal` é como o app escreve canal; `[[nota]]` é como o caderno cost
 o acervo. Sobrou a barra, que é o que Slack, Discord, Notion e Linear usam para
 a mesma coisa. Por isso `/objetivo` e não `@objetivo`: dois significados para o
 mesmo sinal é o jeito mais rápido de a pessoa parar de confiar nos dois.
+
+**O `#` é o endereço, e ele existe porque no telefone não há "onde".** No app o
+comando herda o lugar de onde foi escrito, e isso basta: `/tarefa` no canal da Reforma
+nasce na Reforma. No WhatsApp não existe canal aberto, e sem um sinal de endereço TUDO que
+entrava pelo telefone caía no privado, inclusive o trabalho que a equipe inteira precisava
+ver. Um app de equipe em que nada do que chega é visto pela equipe é um bloco de notas
+caro, e era isso que o WhatsApp estava sendo.
+
+`#Reforma` casa por começo de nome, como o `@` já casa com o primeiro nome: ninguém digita
+"Reforma da sede" inteiro no telefone. **Mas ele não escolhe quando fica em dúvida.**
+`ondeEh` devolve TODAS as candidatas, e com duas Reformas abertas o app volta a perguntar.
+O `quemEh` pode escolher a primeira porque errar a pessoa aparece na hora, com o nome
+errado em cima da tarefa; errar a track não aparece nunca: ela vai para a obra errada, fica
+visível para a equipe errada, conta para o checkpoint errado, e quem mandou lê "pronto" e
+segue a vida.
+
+O `#` vale nos dois lados, e no app ele **ganha** do canal onde foi escrito. Ele já saía do
+título por `separaOnde`, então ignorá-lo faria a tarefa nascer com o nome certo no lugar
+errado, calada. E ele entrou no exemplo do catálogo (`/tarefa Conferir o contrato @Ana
+#Reforma até sexta`) porque é o sinal mais fácil de nunca ser descoberto: `@` e prazo a
+pessoa tenta sozinha, "em qual track isto vive" não ocorre a ninguém.
 
 **Barra só no começo da linha.** No meio dela é endereço de internet e é data:
 `10/03` abrindo menu seria o app atrapalhando quem está escrevendo.

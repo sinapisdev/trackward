@@ -28,7 +28,7 @@ import {
   type Aprendizado, type Lembranca,
 } from '@/lib/memoria'
 import type { Contexto as ContextoLeitura, Proposta } from '@/lib/leitor'
-import { lerComando, quemEh } from '@/lib/comandos'
+import { lerComando, ondeEh, quemEh } from '@/lib/comandos'
 import type { ContextoConversa, Fala } from '@/lib/conversa'
 import type { Alvo } from '@/lib/tipos'
 import { iso } from '@/lib/datas'
@@ -2688,10 +2688,38 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       return { tipo: 'erro', motivo: `Não achei ninguém chamado ${lido.quem} por aqui.` }
     }
 
+    /**
+     * O endereço escrito, que ganha do endereço de onde se está escrevendo.
+     *
+     * Aqui o `#` é menos necessário que no WhatsApp, porque escrever dentro do
+     * canal de uma track já endereça. Mas ele precisa FUNCIONAR, e não só sair
+     * do título: `lerComando` tira o `#` do texto, então ignorá-lo faria a
+     * tarefa nascer com o nome certo no lugar errado, sem ninguém ver. É o pior
+     * jeito de errar, e foi para evitá-lo que `ondeEh` devolve as candidatas em
+     * vez de escolher.
+     *
+     * Aqui a ambiguidade vira frase, e não lista numerada: no app existe tela
+     * para arrumar, e a lista é a saída do telefone, onde não existe.
+     */
+    const abertasAqui = todosFluxos.filter((f) => !arquivada(f))
+    const enderecadas = ondeEh(lido.onde, abertasAqui)
+    if (lido.onde && !enderecadas.length) {
+      return { tipo: 'erro', motivo: `Não achei track chamada "${lido.onde}" por aqui.` }
+    }
+    if (enderecadas.length > 1) {
+      return {
+        tipo: 'erro',
+        motivo: `Tem mais de uma track começando por "${lido.onde}": `
+          + `${enderecadas.map((f) => f.nome).join(', ')}. Escreva o nome inteiro.`,
+      }
+    }
+    const enderecada = enderecadas[0] ?? null
+
     // ------------------------------------------------------------- tarefa
     if (lido.comando.nome === 'tarefa') {
       const canal = onde.canalId ? canais.find((c) => c.id === onde.canalId) : null
-      const daTrack = canal?.fluxo_id ? todosFluxos.find((f) => f.id === canal.fluxo_id) : null
+      const doCanal = canal?.fluxo_id ? todosFluxos.find((f) => f.id === canal.fluxo_id) : null
+      const daTrack = enderecada ?? doCanal ?? null
       const etapa = daTrack ? etapaAtual(daTrack) : null
 
       // No canal de uma track, a tarefa nasce nela: é o endereço óbvio, e é o
@@ -2756,7 +2784,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       // aquela track depois não a encontra. Vale para o canal de uma track e
       // para a nota em que se está escrevendo.
       const canal = onde.canalId ? canais.find((c) => c.id === onde.canalId) : null
-      const daTrack = canal?.fluxo_id ? todosFluxos.find((f) => f.id === canal.fluxo_id) : null
+      const doCanal = canal?.fluxo_id ? todosFluxos.find((f) => f.id === canal.fluxo_id) : null
+      const daTrack = enderecada ?? doCanal ?? null
       const daNota = onde.notaId ? todasNotas.find((x) => x.id === onde.notaId) : null
       const fluxoId = daTrack?.id ?? daNota?.fluxo_id ?? null
       // Track e área não vão juntas: quem agrupa o caderno prefere a área, e a

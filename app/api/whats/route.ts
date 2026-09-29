@@ -5,7 +5,9 @@ import { decifrar } from '@/lib/cifra'
 import { casar, comoLista, soConfirma, type Pergunta } from '@/lib/casar'
 import { novoId } from '@/lib/id'
 import { mandarWhats } from '@/lib/whats'
-import { ajuda, comandar, oQueFoiFeito, type Intencao } from '@/lib/comandar'
+import { ajuda, comandar, montarTriagem, oQueFoiFeito,
+  type Intencao, type Opcao } from '@/lib/comandar'
+import { ondeEh, separaOnde } from '@/lib/comandos'
 import { esqueletoEmBranco } from '@/lib/modelos'
 import { NOME_DA_LISTA } from '@/lib/rotulos'
 import { hojeIso } from '@/lib/datas'
@@ -230,28 +232,29 @@ async function atender(
   }
 
   if (r.como === 'nada') {
-    // Nada em aberto: o que chegou é coisa solta, e o app pergunta antes de
-    // arquivar em vez de adivinhar. Ver B5 do plano.
+    // Nada em aberto: o que chegou é coisa solta, e o app pergunta onde ela
+    // vive em vez de adivinhar. Ver B5 do plano.
     if (!corpo) return diga('')
-    await perguntar(sb, eu.org_id, eu.id, {
-      sobre_tipo: 'triagem', texto: corpo.slice(0, 200),
-      opcoes: [
-        { chave: '1', rotulo: 'Guardar como nota' },
-        { chave: '2', rotulo: 'Virar tarefa minha' },
-        { chave: '3', rotulo: 'Deixa pra lá' },
-      ],
-    })
-    return diga('Anotei. O que faço com isso?\n\n1) Guardar como nota\n'
-      + '2) Virar tarefa minha\n3) Deixa pra lá')
+    return await triar(sb, eu, corpo)
   }
 
   const p = r.pergunta
 
   // --- a escolha de uma lista -------------------------------------------
   if (r.como === 'escolha' && p.sobre_tipo === 'triagem') {
-    const op = (p.opcoes || []).find((o) => o.chave === r.opcao) as
-      { chave: string; rotulo: string; alvo?: string } | undefined
+    const op = (p.opcoes || []).find((o) => o.chave === r.opcao) as Opcao | undefined
     await fechar(sb, p.id)
+
+    // Veio de uma pergunta do dia: o que ela virou decide se aquela pergunta
+    // continua sendo feita àquela pessoa.
+    const molde = (p.opcoes || []).find((o) => o.chave === '_molde') as
+      { rotulo: string } | undefined
+    const contar = async (revelou: boolean) => {
+      if (molde) {
+        await sb.rpc('pergunta_respondida',
+          { p_perfil: eu.id, p_chave: molde.rotulo, p_revelou: revelou })
+      }
+    }
 
     /**
      * A track escolhida para a tarefa que ficou pendente.
@@ -268,49 +271,49 @@ async function atender(
         .eq('id', op.alvo).maybeSingle()
       const track = fl as { id: string; nome: string; atual: number } | null
       if (!track) return diga('Essa track não está mais aberta por aqui.')
-      const { data: et } = await sb.from('etapas').select('id')
-        .eq('fluxo_id', track.id).eq('ordem', track.atual).maybeSingle()
-      const etapa = (et as { id: string } | null)?.id
-      if (!etapa) return diga('Essa track está sem checkpoint aberto.')
-      const erro = await porItem(sb, eu, {
-        etapa, fluxo: track.id, texto: pendente.rotulo,
+      return await naTrack(sb, eu, track, {
+        texto: pendente.rotulo,
         resp: pendente.alvo || eu.id, prazo: pendente.quando || null,
       })
-      if (erro) return diga(erro)
-      return diga(oQueFoiFeito(
-        { tipo: 'tarefa', texto: pendente.rotulo, resp: pendente.alvo || eu.id,
-          prazo: pendente.quando || null, fluxo: track.id },
-        track.nome,
-      ))
+    }
+
+    /**
+     * O que a escolha quer dizer viaja na opção, não no número.
+     *
+     * Com as tracks na frente da lista, "2" é a segunda obra para quem tem duas
+     * e é o caderno para quem não tem nenhuma. Ler o número seria guardar no
+     * caderno o que a pessoa mandou para a obra, calada.
+     *
+     * Vem antes do desempate porque as duas usam `alvo` apontando para coisas
+     * diferentes: lá é o id de outra PERGUNTA, aqui é o id de uma TRACK.
+     */
+    if (op?.faz === 'track' && op.alvo) {
+      const { data: fl } = await sb.from('fluxos').select('id,nome,atual')
+        .eq('id', op.alvo).maybeSingle()
+      const track = fl as { id: string; nome: string; atual: number } | null
+      if (!track) return diga('Essa track não está mais aberta por aqui.')
+      await contar(true)
+      return await naTrack(sb, eu, track, { texto: p.texto, resp: eu.id, prazo: null })
     }
 
     // A lista de desempate: volta a perguntar, agora sobre a escolhida.
-    if (op?.alvo) {
+    if (op?.alvo && !op.faz) {
       const alvo = abertas.find((x) => x.id === op.alvo)
       if (alvo) return await responder(sb, eu, alvo, 'sim', sid)
       return diga('Aquela pergunta já não está mais em aberto. Pode mandar de novo?')
     }
 
-    // Veio de uma pergunta do dia: o que ela virou decide se aquela pergunta
-    // continua sendo feita àquela pessoa.
-    const molde = (p.opcoes || []).find((o) => o.chave === '_molde') as
-      { rotulo: string } | undefined
-    const contar = async (revelou: boolean) => {
-      if (molde) {
-        await sb.rpc('pergunta_respondida',
-          { p_perfil: eu.id, p_chave: molde.rotulo, p_revelou: revelou })
-      }
-    }
-
-    if (r.opcao === '1') {
+    // O `r.opcao` continua valendo para as perguntas que já estavam em aberto
+    // quando isto mudou: elas não têm `faz`, e ali 1 era nota e 2 era tarefa.
+    if (op?.faz === 'nota' || (!op?.faz && r.opcao === '1')) {
       await sb.from('notas').insert({
         id: novoId(), org_id: eu.org_id, dono_id: eu.id,
         titulo: p.texto.split('\n')[0].slice(0, 80), texto: p.texto,
       })
       await contar(true)
-      return diga('Guardei como nota.')
+      return diga('Guardei no seu caderno.')
     }
-    if (r.opcao === '2') {
+    if (op?.faz === 'minha' || (!op?.faz && r.opcao === '2')) {
       // Era um beco: a pessoa escolhia "virar tarefa" e o app respondia que não
       // sabia. A tarefa nasce avulsa, que é o que ela é: não pertence a track
       // nenhuma, e por isso é privada de quem criou.
@@ -503,19 +506,16 @@ async function responder(
       return diga('Combinado. Obrigado por responder.')
     }
 
+    // O molde viaja junto: é ele que a poda e o acervo contam, e ele precisa
+    // sobreviver a mais um pulo para a conta fechar.
+    const { opcoes, lista } = montarTriagem(
+      await tracksAbertas(sb, eu),
+      molde ? [{ chave: '_molde', rotulo: molde.rotulo }] : [],
+    )
     await perguntar(sb, eu.org_id, eu.id, {
-      sobre_tipo: 'triagem', texto: corpo.slice(0, 200),
-      opcoes: [
-        // O molde viaja junto: é ele que a poda e o acervo contam, e ele
-        // precisa sobreviver a mais um pulo para a conta fechar.
-        ...(molde ? [{ chave: '_molde', rotulo: molde.rotulo }] : []),
-        { chave: '1', rotulo: 'Guardar como nota' },
-        { chave: '2', rotulo: 'Virar tarefa minha' },
-        { chave: '3', rotulo: 'Deixa pra lá' },
-      ],
+      sobre_tipo: 'triagem', texto: corpo.slice(0, 200), opcoes,
     })
-    return diga('Anotei. O que faço com isso?\n\n1) Guardar como nota\n'
-      + '2) Virar tarefa minha\n3) Deixa pra lá')
+    return diga(`Anotei. Onde isso vive?\n\n${lista}`)
   }
 
   await fechar(sb, p.id)
@@ -585,18 +585,13 @@ function recado(msg: string): string {
 async function executarComando(
   sb: Sb, eu: { id: string; org_id: string; nome: string }, corpo: string,
 ): Promise<Recado | null> {
-  // As pessoas da casa, e as tracks onde dá para pôr tarefa. `gente_daqui` é a
-  // lista certa: `perfis` devolve, de propósito, os perfis da pessoa em todos
-  // os espaços, e delegar para o perfil errado cria tarefa que ninguém enxerga.
-  const [{ data: gente }, { data: tracks }] = await Promise.all([
+  // `gente_daqui` é a lista certa: `perfis` devolve, de propósito, os perfis da
+  // pessoa em todos os espaços, e delegar para o perfil errado cria tarefa que
+  // ninguém enxerga.
+  const [{ data: gente }, abertas] = await Promise.all([
     sb.rpc('gente_daqui'),
-    sb.from('fluxos').select('id,nome,atual,concluido,desfecho')
-      .eq('org_id', eu.org_id).is('desfecho', null).eq('concluido', false)
-      .order('criado_em', { ascending: false }),
+    tracksAbertas(sb, eu),
   ])
-
-  const abertas = ((tracks || []) as { id: string; nome: string; atual: number }[])
-    .filter((f) => f.nome !== NOME_DA_LISTA)
 
   const i = comandar(corpo, {
     eu: { id: eu.id, nome: eu.nome },
@@ -640,12 +635,7 @@ async function executarComando(
   if (i.tipo === 'tarefa') {
     const alvo = abertas.find((f) => f.id === i.fluxo)
     if (!alvo) return diga('Essa track não está mais aberta por aqui.')
-    const { data } = await sb.from('etapas').select('id')
-      .eq('fluxo_id', alvo.id).eq('ordem', alvo.atual).maybeSingle()
-    const etapa = (data as { id: string } | null)?.id
-    if (!etapa) return diga('Essa track está sem checkpoint aberto.')
-    const erro = await porItem(sb, eu, { etapa, fluxo: alvo.id, texto: i.texto, resp: i.resp, prazo: i.prazo })
-    return diga(erro || oQueFoiFeito(i, alvo.nome))
+    return await naTrack(sb, eu, alvo, { texto: i.texto, resp: i.resp, prazo: i.prazo })
   }
 
   if (i.tipo === 'track') {
@@ -667,7 +657,7 @@ async function executarComando(
 
   if (i.tipo === 'nota') {
     const { error } = await sb.from('notas').insert({
-      id: novoId(), org_id: eu.org_id, dono_id: eu.id,
+      id: novoId(), org_id: eu.org_id, dono_id: eu.id, fluxo_id: i.fluxo,
       titulo: i.texto.split('\n')[0].slice(0, 80), texto: i.texto,
     })
     if (error) return diga(recado(error.message))
@@ -726,6 +716,113 @@ async function minhaListaDe(
     .eq('fluxo_id', fluxo).order('ordem').limit(1).maybeSingle()
   const etapa = (et as { id: string } | null)?.id
   return etapa ? { id: etapa, fluxo } : null
+}
+
+/**
+ * As tracks abertas que ESTA pessoa pode ver.
+ *
+ * Aqui não dá para ler `fluxos` direto, e a diferença não é de estilo. Esta
+ * rota usa a chave de serviço, que passa por cima de RLS: a consulta direta
+ * devolvia todas as tracks da organização, inclusive a `so_eu` de outra pessoa
+ * e a `escolhidas` de quem não convidou ninguém. Como é desta lista que sai a
+ * pergunta "em qual track isto vive?", o nome de uma track privada aparecia
+ * numerado para quem mandasse uma mensagem, e bastava responder o número para
+ * pôr trabalho lá dentro.
+ *
+ * `tracks_de` (seção 51) responde pelo perfil em vez de pela sessão, com a
+ * mesma regra que a tela usa, porque é literalmente o mesmo corpo.
+ *
+ * A lista pessoal sai daqui: ela é a track privada onde a avulsa mora, e
+ * oferecê-la como destino seria oferecer "privada" duas vezes na mesma lista.
+ */
+async function tracksAbertas(
+  sb: Sb, eu: { id: string },
+): Promise<{ id: string; nome: string; atual: number }[]> {
+  const { data } = await sb.rpc('tracks_de', { p_como: eu.id })
+  return ((data || []) as { id: string; nome: string; atual: number }[])
+    .filter((f) => f.nome !== NOME_DA_LISTA)
+}
+
+/**
+ * O texto solto que chegou, e onde ele vai morar.
+ *
+ * Esta é a porta por onde o trabalho de quem não abre o app entra. Ela errava
+ * de um jeito só, e errava sempre: perguntava O QUE É ("nota, tarefa, deixa
+ * pra lá") e nunca perguntava ONDE VIVE, que o AGENTS chama de a única escolha
+ * que muda tudo. Sem essa pergunta não havia caminho nenhum para a equipe, e o
+ * "preciso de cimento" do pedreiro virava lembrete privado que só ele veria.
+ *
+ * Endereço escrito resolve na hora; sem endereço, pergunta. Nunca escolhe a
+ * track mais provável: o dono da empresa está em todas, e pôr trabalho na obra
+ * errada não aparece nunca, porque quem mandou lê "pronto" e segue a vida.
+ */
+async function triar(
+  sb: Sb, eu: { id: string; org_id: string }, corpo: string,
+): Promise<Recado> {
+  const { texto, onde } = separaOnde(corpo)
+  const abertas = await tracksAbertas(sb, eu)
+  const achadas = ondeEh(onde, abertas)
+
+  if (onde && !achadas.length) {
+    return diga(`Não achei track chamada "${onde}" por aqui. `
+      + 'Manda de novo sem o # que eu pergunto onde é.')
+  }
+  /**
+   * Quem executa é quem mandou, até alguém mover.
+   *
+   * O app não sabe quem compra o cimento, e chutar seria inventar dono para o
+   * trabalho de outra pessoa. Mandar é o registro honesto: "eu disse, então é
+   * meu até alguém pegar". O que faz a coisa andar não é o responsável e sim o
+   * ENDEREÇO, porque a tarefa numa track aparece para a equipe dela e qualquer
+   * um de lá pode assumir. Antes disto, o mesmo "preciso de cimento" nascia
+   * privado e não aparecia para ninguém.
+   */
+  if (achadas.length === 1) {
+    return await naTrack(sb, eu, achadas[0], { texto, resp: eu.id, prazo: null })
+  }
+
+  // Sem endereço, ou com um `#` que casou com duas: pergunta, e quando o `#`
+  // casou com duas, pergunta só entre elas.
+  const { opcoes, lista } = montarTriagem(achadas.length ? achadas : abertas)
+  await perguntar(sb, eu.org_id, eu.id, {
+    sobre_tipo: 'triagem', texto: texto.slice(0, 200), opcoes,
+  })
+  return diga(`Anotei. Onde isso vive?\n\n${lista}`)
+}
+
+/**
+ * Põe a tarefa no checkpoint corrente de uma track, e conta o que fez.
+ *
+ * Este bloco estava escrito três vezes no arquivo, e as três precisavam saber
+ * que o checkpoint corrente é o de `ordem = fluxos.atual`. Regra repetida é
+ * regra que diverge: basta alguém consertar uma das cópias.
+ */
+async function naTrack(
+  sb: Sb, eu: { id: string; org_id: string },
+  track: { id: string; nome: string; atual: number },
+  p: { texto: string; resp: string; prazo: string | null },
+): Promise<Recado> {
+  /**
+   * A conferência de novo, no único lugar que escreve numa track.
+   *
+   * A lista já sai filtrada, mas uma pergunta feita ANTES deste conserto está
+   * guardada em `perguntas_abertas` com a lista antiga dentro, e ela continua
+   * respondível por dois dias. Sem isto, o furo sobreviveria ao conserto pelo
+   * tempo exato de alguém responder um número que já estava no telefone.
+   */
+  const { data: pode } = await sb.rpc('ve_fluxo_como', { f: track.id, uid: eu.id })
+  if (!pode) return diga('Essa track não está mais aberta por aqui.')
+
+  const { data } = await sb.from('etapas').select('id')
+    .eq('fluxo_id', track.id).eq('ordem', track.atual).maybeSingle()
+  const etapa = (data as { id: string } | null)?.id
+  if (!etapa) return diga('Essa track está sem checkpoint aberto.')
+  const erro = await porItem(sb, eu, { etapa, fluxo: track.id, ...p })
+  if (erro) return diga(erro)
+  return diga(oQueFoiFeito(
+    { tipo: 'tarefa', texto: p.texto, resp: p.resp, prazo: p.prazo, fluxo: track.id },
+    track.nome,
+  ))
 }
 
 /** Põe a tarefa no checkpoint. Devolve a queixa, ou vazio quando deu certo. */
