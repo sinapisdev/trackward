@@ -1493,7 +1493,59 @@ deixa de ser rótulo e vira porta.
 - **Volta anterior ao arquivo existir continua sendo só o rótulo**, e não vira porta. Ela
   não tem conteúdo, e fingir que tem é pior do que dizer que não tem.
 
+## A caixa de e-mail é a segunda entrada, e ela é lida pelo ENVELOPE
+
+O plano previa um endereço para onde encaminhar. A forma melhor é a contrária, porque
+ninguém encaminha: a pessoa conecta a caixa dela (seção 49) e o app repara no que já
+acontece ali. O encaminhamento continua fazendo sentido para arquivar algo de propósito, e
+vira a exceção, não a regra.
+
+**O app não lê o corpo de e-mail nenhum**, e isso é estrutura e não promessa: o leitor pede
+ao servidor só o envelope (remetente, destinatário, assunto, data, nome dos anexos), que é
+um pedido diferente de pedir a mensagem, e o corpo não chega a passar pela rede. Dois
+motivos, e cada um decide sozinho:
+
+- **Não precisa.** O app já sabe o que está esperando. Para saber que o relatório chegou,
+  basta reparar que saiu um e-mail daquela pessoa, com anexo, cujo assunto casa.
+- **Custaria caro nos dois sentidos.** Cem mensagens por pessoa por dia, vinte pessoas, dá
+  sessenta mil por mês: lê-las com modelo é da ordem de mil dólares mensais por empresa. E
+  caixa de trabalho tem demissão, salário, atestado e advogado, que voltariam pela porta do
+  motivo, porque a proposta aparece com o trecho que a originou.
+
+**A caixa de SAÍDA é a metade que ninguém usa.** "Terminei e mandei" não precisa virar um
+clique: está nos enviados. É o mesmo princípio do WhatsApp, ler o trabalho onde ele
+acontece, aplicado ao lugar onde metade do trabalho de escritório acontece.
+
+**Concluir sozinho só com a prova da própria pessoa.** Quando o envelope saiu da caixa de
+quem responde pela tarefa, marcar como feita é registrar o que ela fez, não decidir por
+ela. Em todo o resto é proposta. É o que concilia o "aparece entregue sem ninguém tocar em
+nada" do plano com a regra de que a IA não decide.
+
+**O mesmo e-mail dos dois lados conta uma vez.** Com a equipe inteira conectada, a mensagem
+aparece na saída de quem mandou e na entrada de quem recebeu; quem dedupa é o `Message-ID`,
+e a saída vence, porque ela prova quem mandou.
+
+**`envelopes_vistos` não guarda conteúdo**, nem assunto nem remetente: ela responde uma
+pergunta só, "isto eu já olhei?". Guardar mais seria guardar o rastro de com quem a pessoa
+fala, e a conferência do `atualizar.sql` verifica as colunas.
+
+**A caixa é da pessoa, e nem o administrador enxerga**, como a nota e a agenda externa. O
+que a casa vê é o resultado, que é a tarefa concluída.
+
+## Testar RLS exige trocar de papel
+
+O psql do ensaio conecta como `postgres`, que é DONO das tabelas, e **dono ignora
+política**. Todo teste de "fulano não enxerga" passava por não estar testando nada: o
+`select` devolvia a linha e o teste dava verde por outro motivo.
+
+Antes de afirmar que uma política protege alguma coisa, `set role authenticated` e conferir
+de novo. E **não conceder `execute on all functions` ao papel depois de rodar o schema**:
+ele faz `revoke` nas funções que devolvem credencial, e um grant depois desfaz a trava em
+silêncio.
+
 ## Modo demonstração
+
+
 
 
 

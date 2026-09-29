@@ -6713,3 +6713,147 @@ begin
   end loop;
   return n;
 end $$;
+
+-- --------------------------------------------------------------------------
+-- 49. A caixa de e-mail conectada, lida pelo envelope
+--
+--     A segunda entrada do trabalho. O plano previa um endereço para onde
+--     encaminhar; a forma melhor é a contrária, porque ninguém encaminha: a
+--     pessoa conecta a caixa dela e o app repara no que já acontece ali.
+--
+--     **O app não lê o corpo de e-mail nenhum**, e isso é estrutura, não
+--     promessa: o leitor pede ao servidor só o envelope (remetente,
+--     destinatário, assunto, data, nome dos anexos), que é um pedido diferente
+--     de pedir a mensagem, e o corpo não chega a passar pela rede. Ver
+--     `lib/caixa.ts`, que explica por que não precisa e por que custaria caro
+--     nos dois sentidos.
+--
+--     **A caixa é DA PESSOA**, como a agenda externa, e por isso a tabela é a
+--     mesma forma: uma linha por perfil, política restrita a `auth.uid()`, e
+--     nem o administrador lê. A credencial é uma senha de aplicativo, gerada
+--     por ela no provedor dela, e fica cifrada com a mesma chave dos
+--     conectores.
+--
+--     `desde` existe para a primeira leitura não varrer dez anos de caixa: ela
+--     começa hoje e anda para a frente. Ninguém quer que o app descubra uma
+--     tarefa a partir de um e-mail de 2019.
+-- --------------------------------------------------------------------------
+
+create table if not exists public.caixas (
+  perfil_id  uuid primary key references public.perfis on delete cascade,
+  org_id     uuid not null references public.organizacoes on delete cascade,
+  /** O endereço, que é o que casa com o que a tarefa espera. */
+  email      text not null,
+  servidor   text not null,
+  porta      int not null default 993,
+  usuario    text not null default '',
+  /** A senha de aplicativo, cifrada. Nunca em claro, nunca no cliente. */
+  segredo    text not null,
+  /** As pastas a olhar. Vazio é a entrada e os enviados. */
+  pastas     text[] not null default array['INBOX']::text[],
+  ligada     boolean not null default true,
+  desde      timestamptz not null default now(),
+  lida_em    timestamptz,
+  /** A última queixa do servidor, para a tela saber dizer o que houve. */
+  erro       text,
+  criado_em  timestamptz not null default now()
+);
+
+alter table public.caixas enable row level security;
+
+do $$
+begin
+  execute 'drop trigger if exists ao_inserir_org on public.caixas';
+  execute 'create trigger ao_inserir_org before insert on public.caixas
+             for each row execute function public.carimbar_org()';
+end $$;
+
+/**
+ * A caixa é de quem a conectou, e de mais ninguém.
+ *
+ * Sem exceção para administrador, pelo mesmo motivo da nota e da agenda
+ * externa: aqui dentro tem o endereço de quem essa pessoa fala, e isso não é
+ * assunto da casa. O que a casa vê é o resultado, que é a tarefa concluída.
+ */
+drop policy if exists cx_sel on public.caixas;
+create policy cx_sel on public.caixas for select
+  using (minha(org_id) and ativo()
+    and perfil_id in (select id from perfis where user_id = auth.uid()));
+
+drop policy if exists cx_ins on public.caixas;
+create policy cx_ins on public.caixas for insert
+  with check (minha(org_id) and ativo()
+    and perfil_id in (select id from perfis where user_id = auth.uid()));
+
+drop policy if exists cx_upd on public.caixas;
+create policy cx_upd on public.caixas for update
+  using (minha(org_id) and ativo()
+    and perfil_id in (select id from perfis where user_id = auth.uid()));
+
+drop policy if exists cx_del on public.caixas;
+create policy cx_del on public.caixas for delete
+  using (perfil_id in (select id from perfis where user_id = auth.uid()));
+
+/**
+ * O envelope já visto, para não casar a mesma entrega duas vezes.
+ *
+ * Guarda o `Message-ID` e nada do conteúdo: nem assunto, nem remetente. O que
+ * esta tabela responde é uma pergunta só, "isto eu já olhei?", e responder mais
+ * do que isso seria guardar o rastro de com quem a pessoa fala.
+ */
+create table if not exists public.envelopes_vistos (
+  org_id    uuid not null references public.organizacoes on delete cascade,
+  perfil_id uuid not null references public.perfis on delete cascade,
+  msg_id    text not null,
+  visto_em  timestamptz not null default now(),
+  primary key (perfil_id, msg_id)
+);
+
+alter table public.envelopes_vistos enable row level security;
+-- Sem política nenhuma: só o servidor escreve e lê, com a chave de serviço.
+-- Nem a dona da caixa precisa consultar isto, porque não há o que ver aqui.
+
+do $$
+begin
+  execute 'drop trigger if exists ao_inserir_org on public.envelopes_vistos';
+  execute 'create trigger ao_inserir_org before insert on public.envelopes_vistos
+             for each row execute function public.carimbar_org()';
+end $$;
+
+create index if not exists env_vistos_idx on public.envelopes_vistos (perfil_id, visto_em desc);
+
+/**
+ * As caixas que o pulso precisa ler, com a credencial.
+ *
+ * Só o servidor executa, pelo mesmo motivo de `pulso_pode`: quem pergunta não
+ * tem sessão, e uma função `security definer` que devolve segredo tem que ter a
+ * permissão como trava, não um `if` dentro dela.
+ */
+create or replace function public.caixas_para_ler()
+returns table (
+  perfil_id uuid, org_id uuid, email text, servidor text, porta int,
+  usuario text, segredo text, pastas text[], desde timestamptz, lida_em timestamptz
+) language sql security definer set search_path = public as $$
+  select c.perfil_id, c.org_id, c.email, c.servidor, c.porta,
+         coalesce(nullif(c.usuario, ''), c.email), c.segredo, c.pastas, c.desde, c.lida_em
+  from caixas c
+  join perfis p on p.id = c.perfil_id and p.ativo
+  where c.ligada
+$$;
+
+revoke all on function public.caixas_para_ler() from public, anon, authenticated;
+grant execute on function public.caixas_para_ler() to service_role;
+
+/** O que cada tarefa em aberto está esperando, e de quem. */
+create or replace function public.esperas_da_caixa(p_org uuid)
+returns table (item_id uuid, texto text, quem uuid, email text, prazo date)
+language sql security definer set search_path = public as $$
+  select i.id, i.texto, i.resp_id, c.email, i.prazo
+  from itens i
+  join fluxos f on f.id = i.fluxo_id
+  left join caixas c on c.perfil_id = i.resp_id
+  where i.org_id = p_org and not i.feito and f.desfecho is null and not f.concluido
+$$;
+
+revoke all on function public.esperas_da_caixa(uuid) from public, anon, authenticated;
+grant execute on function public.esperas_da_caixa(uuid) to service_role;
