@@ -56,6 +56,7 @@ export function TelaAjustes() {
         <nav className="aj-indice" aria-label="Seções dos ajustes">
           {admin && <a href="#aj-org">Organização</a>}
           <a href="#aj-ia">Leitura da conversa</a>
+          <a href="#aj-saida">O que sai daqui</a>
           {admin && <a href="#aj-multi">Mais de um negócio</a>}
           <a href="#aj-avisos">Como quero ser avisado</a>
           <a href="#aj-agenda">Minha agenda externa</a>
@@ -173,6 +174,92 @@ export function TelaAjustes() {
         {org.ia_ativa && <Consumo />}
 
         {org.ia_ativa && <Memoria />}
+
+        {/*
+          * A divulgação, escrita para quem USA e não para quem opera.
+          *
+          * Já havia uma frase sobre isto dentro do bloco de leitura, e ela
+          * explicava o mecanismo: "com uma chave da Anthropic configurada, quem
+          * lê é o modelo". Está correta e não serve, porque a pergunta de quem
+          * confia o trabalho da empresa a este app não é como funciona, é O QUE
+          * SAI DAQUI, para onde, e como se desliga. Dizer isso de forma que o
+          * jurídico do cliente leia e entenda vale mais do que qualquer medida
+          * técnica parcial: o que não se conta é o que corrói a confiança
+          * quando alguém descobre sozinho.
+          *
+          * Fica FORA da porta de administrador de propósito. Quem tem a
+          * conversa lida tem direito de saber, e não só quem configura.
+          */}
+        <div className="blk" id="aj-saida">
+          <div className="bh">
+            <h2>O que sai daqui</h2>
+            <span className="c">quem lê a conversa, e o que não é enviado a ninguém</span>
+          </div>
+          <div className="card" style={{ padding: 15 }}>
+            {org.ia_ativa ? (
+              <>
+                {/* Sem chave de modelo no servidor a leitura roda pelas regras
+                    embutidas e não sai nada, e afirmar o contrário seria dizer
+                    que o dado viaja quando ele não viaja. Numa tela de
+                    privacidade, cada frase precisa ser verdade nos dois modos. */}
+                {MODO_LOCAL && (
+                  <p className="hint" style={{ marginBottom: 12 }}>
+                    <strong>Neste modo de demonstração não sai nada</strong>, porque não existe
+                    chave de modelo configurada e a leitura roda pelas regras embutidas. O que
+                    está escrito abaixo passa a valer quando o app estiver ligado ao banco com
+                    uma chave.
+                  </p>
+                )}
+                <p className="hint">
+                  Com a leitura ligada, o TrackWard manda para a <strong>Anthropic</strong>, nos
+                  Estados Unidos, o que ela precisa para entender a conversa: o texto das
+                  mensagens do canal, o nome das pessoas citadas, o nome das tracks e o texto
+                  das tarefas que já existem. É a Anthropic que roda o modelo, e ela é a única
+                  empresa de fora que recebe alguma coisa.
+                </p>
+                <p className="hint" style={{ marginTop: 12 }}>
+                  Pelos termos comerciais dela, <strong>o que entra pela API não é usado para
+                  treinar modelo</strong>. Isso é compromisso de contrato, e não configuração
+                  deste app.
+                </p>
+              </>
+            ) : (
+              <p className="hint">
+                Com a leitura desligada, como está agora, <strong>nada da sua conversa sai
+                daqui</strong>. Nenhuma empresa de fora recebe mensagem, nome, tarefa ou nota.
+                O que organiza o trabalho são as regras de português embutidas no app.
+              </p>
+            )}
+
+            <div className="fld" style={{ marginTop: 15 }}>
+              <span className="lbl">O que nunca sai, com a leitura ligada ou desligada</span>
+              <p className="hint">
+                Corpo de e-mail. A caixa conectada é lida só pelo envelope, quem mandou, para
+                quem, assunto e data, e o texto da mensagem não chega a passar pela rede.
+              </p>
+              <p className="hint" style={{ marginTop: 8 }}>
+                O que você escreve no caderno. A nota é sua e de mais ninguém, nem do
+                administrador, e só vai para a leitura quando você mesmo pede, tocando em
+                Perguntar dentro dela.
+              </p>
+              <p className="hint" style={{ marginTop: 8 }}>
+                Conversa de canal fechado, de conversa direta e de nota não entra na memória
+                da casa, que é o que a empresa inteira pode ler. Senha e credencial de conector
+                ficam cifradas e não saem em pedido nenhum.
+              </p>
+            </div>
+
+            <div className="fld" style={{ marginTop: 15 }}>
+              <span className="lbl">Como desligar</span>
+              <p className="hint">
+                Em <strong>Leitura da conversa</strong>, acima. Desligada, o chat, as tracks, os
+                prazos, os avisos e os relatórios continuam funcionando igual: o que some é o
+                botão que transforma a conversa em tarefa. Nada fica pela metade, e não é
+                preciso pedir a ninguém.
+              </p>
+            </div>
+          </div>
+        </div>
 
         <div className="blk" id="aj-multi">
           <div className="bh">
