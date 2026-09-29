@@ -1101,14 +1101,26 @@ create trigger ao_criar_usuario
 -- é decisão de administrador, e isso é garantido aqui, não na tela.
 create or replace function public.proteger_perfil()
 returns trigger language plpgsql security definer set search_path = public as $$
+declare esquecendo boolean := coalesce(
+  current_setting('trackward.esquecendo', true), '') = old.id::text;
 begin
-  -- A organização e o login de um perfil nunca mudam. Mudar a organização seria
-  -- mover alguém, com tudo que enxerga, para dentro de outra empresa cliente;
-  -- mudar o login seria entregar o perfil para outra pessoa.
+  -- A organização nunca muda: seria mover alguém, com tudo que enxerga, para
+  -- dentro de outra empresa cliente.
   new.org_id := old.org_id;
-  new.user_id := old.user_id;
 
-  if not eh_admin() then
+  /**
+   * O login também nunca muda, com uma exceção: CORTAR.
+   *
+   * Trocar o login por outro seria entregar o perfil para outra pessoa, e isso
+   * continua recusado. Mas `esquecer_pessoa` precisa cortá-lo, e é esse corte
+   * que transforma a linha numa lápide: sem login ninguém entra por ela, e
+   * apagar o usuário no painel do Supabase deixa de arrastar coisa nenhuma.
+   */
+  if not (esquecendo and new.user_id is null) then
+    new.user_id := old.user_id;
+  end if;
+
+  if not eh_admin() and not esquecendo then
     new.ativo := old.ativo;
     new.papel := old.papel;
     new.email := old.email;
@@ -7159,3 +7171,593 @@ revoke all on function public.ve_fluxo_como(uuid, uuid)   from public, anon, aut
 revoke all on function public.tracks_de(uuid)             from public, anon, authenticated;
 grant execute on function public.ve_fluxo_como(uuid, uuid) to service_role;
 grant execute on function public.tracks_de(uuid) to service_role;
+
+-- ==========================================================================
+-- 52. A função definer é uma porta, e porta de servidor não fica destrancada
+--
+--     `security definer` existe para a função enxergar o que quem chamou não
+--     enxerga. É o que quebra a recursão das políticas e o que deixa o servidor
+--     agir sem sessão. O preço é que ela **passa por cima de RLS**, e quando
+--     fica com permissão para `authenticated` ela vira a porta dos fundos da
+--     política que está ao lado dela.
+--
+--     `perguntas_abertas` é o retrato disso. A política da tabela diz
+--     `perfil_id = meu_perfil()`, ou seja, a caixa é de uma pessoa só, como a
+--     de avisos. E `perguntas_de(p_perfil)` devolvia a caixa de QUALQUER perfil
+--     para qualquer pessoa logada, sem conferir nada. Lá dentro vai o texto de
+--     tarefa privada e de mensagem de canal fechado, que é exatamente o que a
+--     política existia para proteger.
+--
+--     `eventos_de(p_org, ...)` era pior em alcance: devolvia a atividade INTEIRA
+--     de uma organização, sem passar por `ve_fluxo` nem por `ve_item`. Um
+--     colaborador comum recebia o histórico de todas as tracks privadas da casa,
+--     e com um id de outra empresa, o dela.
+--
+--     Nenhuma destas é chamada pelo navegador: todas moram em `app/api/*`, que
+--     usa a chave de serviço ou o segredo do relógio. Fechá-las não tira nada de
+--     ninguém.
+--
+--     A regra que fica: **função definer nasce fechada.** Ao escrever uma nova,
+--     `revoke` de `public, anon, authenticated` e `grant` só para quem precisa.
+--     Se o navegador precisa dela, ela não pode aceitar o id de outra pessoa sem
+--     conferir, e a conferência é dentro dela, não na tela.
+-- ==========================================================================
+
+do $$
+declare f record;
+begin
+  -- 1. As de servidor, uma a uma e pelo nome: quem lê dado de alguém ou escreve
+  --    em nome da casa. A lista é curta de propósito, para caber na cabeça.
+  for f in
+    select p.oid::regprocedure as nome
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public'
+       and p.proname in (
+         -- devolvem dado de gente
+         'perguntas_de','eventos_de','perfil_do_telefone','gente_daqui',
+         -- escrevem em nome da casa, sem ninguém pedir
+         'avisar','avisar_do_raiox','gerar_avisos_de_prazo','varrer_o_dia',
+         'guardar_achado','guardar_descoberta',
+         'pergunta_mandada','pergunta_respondida')
+  loop
+    execute format('revoke all on function %s from public, anon, authenticated', f.nome);
+    execute format('grant execute on function %s to service_role', f.nome);
+  end loop;
+
+  -- 2. As de gatilho. Ninguém as chama pela mão, e quem as dispara é o Postgres,
+  --    que não pede permissão a ninguém. Deixá-las abertas é superfície de graça:
+  --    `avisar_de_*` e `carimbar_*` escrevem, e `proteger_*` e `travar_*` são
+  --    justamente as que recusam coisa.
+  for f in
+    select p.oid::regprocedure as nome
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.prorettype = 'trigger'::regtype
+  loop
+    execute format('revoke all on function %s from public, anon, authenticated', f.nome);
+  end loop;
+end $$;
+
+
+-- ==========================================================================
+-- 53. O segredo do conector sai da linha que a empresa inteira lê
+--
+--     A política de `conectores` deixa qualquer pessoa ativa da casa ler o
+--     conector da casa, e está certa: é ela que faz a tela listar o que existe.
+--     Mas RLS trabalha por LINHA, e `select` escolhe COLUNA: nada impedia um
+--     pedido pedindo `segredo_cifrado`, e vinha.
+--
+--     Cifrado, então não é a chave em texto puro. E é exatamente por isso que
+--     ninguém repara: sai uma coluna ilegível, a vida segue, e no dia em que
+--     `TRACK_SEGREDO` vazar por outro caminho, o texto cifrado já estava havia
+--     meses na mão de quem não devia.
+--
+--     Revogar a coluna não resolve: em Postgres, `revoke select (coluna)` não
+--     vale enquanto existir `grant select` da tabela inteira, e a alternativa
+--     seria listar à mão todas as colunas permitidas, o que vira uma lista que
+--     alguém esquece de atualizar e a tela quebra sem motivo aparente.
+--
+--     A saída é a que este schema já usa três vezes, em `avisos_contato`,
+--     `push_assinaturas` e `caixas`: **o segredo mora em tabela própria, com RLS
+--     ligada e política nenhuma**. Sem política, ninguém logado entra, nem o
+--     administrador. Quem lê é o servidor, que é quem decifra.
+-- ==========================================================================
+
+create table if not exists public.conector_segredos (
+  conector_id uuid primary key references public.conectores on delete cascade,
+  org_id      uuid not null references public.organizacoes on delete cascade,
+  segredo_cifrado text not null,
+  mexido_em   timestamptz not null default now()
+);
+
+alter table public.conector_segredos enable row level security;
+-- Nenhuma política, e é a regra inteira. Ver a seção 52.
+
+-- O que já estava guardado muda de casa antes de a coluna sumir.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+     where table_schema = 'public' and table_name = 'conectores'
+       and column_name = 'segredo_cifrado'
+  ) then
+    execute $m$
+      insert into public.conector_segredos (conector_id, org_id, segredo_cifrado)
+      select id, org_id, segredo_cifrado from public.conectores
+       where coalesce(segredo_cifrado, '') <> ''
+      on conflict (conector_id) do nothing
+    $m$;
+    alter table public.conectores drop column segredo_cifrado;
+  end if;
+end $$;
+
+-- ==========================================================================
+-- 54. A agenda estava quebrada, e falhava calada
+--
+--     `compromissos` perguntava por `convidados` para saber se você foi
+--     convidado, e `convidados` perguntava por `compromissos` para saber se
+--     você pode ver aquele compromisso. Escritas como subconsulta normal, as
+--     duas se chamam em círculo e o Postgres devolve **"recursão infinita
+--     detectada na política"**, que é o mesmo erro que `notas` e `nota_pessoas`
+--     já deram, pelo mesmo motivo.
+--
+--     A diferença é que este ninguém viu. Quem lê a agenda é
+--     `sb.from('compromissos').select('*')` no carregamento do `Dados`, e um
+--     erro ali não derruba a tela: a lista chega vazia, e agenda vazia parece
+--     agenda sem compromisso. Ficou assim desde que a tabela de convidados
+--     existe, e só apareceu numa varredura que perguntou a TODAS as tabelas se
+--     elas respondem.
+--
+--     Quem quebra o círculo é `security definer`, que roda fora das políticas,
+--     exatamente como `nota_comigo()` e `minha_nota()` fazem no caderno. O
+--     conteúdo das duas regras não muda em nada: é o mesmo texto, movido para
+--     dentro de uma função. Mudar a regra junto com o conserto seria esconder
+--     uma decisão dentro de um reparo.
+-- ==========================================================================
+
+/** Fui convidado para este compromisso? Responde sem passar pela política. */
+create or replace function public.sou_convidado(p_compromisso uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from convidados cv
+     where cv.compromisso_id = p_compromisso and cv.perfil_id = meu_perfil()
+  );
+$$;
+
+/**
+ * Esta linha de convidado pode aparecer para mim?
+ *
+ * É o `exists` que estava dentro da política, com o `perfil_id` da linha vindo
+ * por parâmetro, porque lá ele era a coluna da própria tabela.
+ */
+create or replace function public.ve_convite(p_compromisso uuid, p_convidado uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from compromissos c
+     where c.id = p_compromisso
+       and (c.visivel or c.dono_id = meu_perfil() or p_convidado = meu_perfil())
+  );
+$$;
+
+/** Sou o dono deste compromisso? Usada onde a política já perguntava isso. */
+create or replace function public.dono_compromisso(p_compromisso uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from compromissos c where c.id = p_compromisso and c.dono_id = meu_perfil()
+  );
+$$;
+
+drop policy if exists comp_sel on public.compromissos;
+create policy comp_sel on public.compromissos for select using (minha(org_id) and (
+  ativo() and (visivel or dono_id = meu_perfil() or sou_convidado(id))
+));
+
+drop policy if exists conv_sel on public.convidados;
+create policy conv_sel on public.convidados for select using (minha(org_id) and (
+  ativo() and ve_convite(compromisso_id, perfil_id)
+));
+
+drop policy if exists conv_ins on public.convidados;
+create policy conv_ins on public.convidados for insert with check (minha(org_id) and (
+  ativo() and dono_compromisso(compromisso_id)
+));
+
+drop policy if exists conv_del on public.convidados;
+create policy conv_del on public.convidados for delete using (minha(org_id) and (
+  ativo() and dono_compromisso(compromisso_id)
+));
+
+-- ==========================================================================
+-- 55. O perfil não se apaga, e esquecer é esvaziar
+--
+--     Vinte e seis colunas apontam para `perfis` e sobrevivem à morte dele
+--     virando nulo: `itens.autor_id`, `itens.resp_id`, `mensagens.autor_id`,
+--     `anexos.autor_id`, `fluxos.dono_id`, `etapas.aprovador_id`,
+--     `decisoes.quem_id`. Se a linha some, o histórico da empresa continua lá e
+--     **ninguém fez nada**: "concluída por ninguém, em 12 de março".
+--
+--     Pior: sete tabelas apontam com CASCATA, e entre elas estão `notas` e
+--     `compromissos`. Apagar um perfil destruía as notas e a agenda daquela
+--     pessoa. E o caminho para isso não era escondido: `perfis.user_id` apontava
+--     para `auth.users` com cascata, então **apagar o login no painel do
+--     Supabase**, que são dois cliques e é a coisa óbvia a fazer quando alguém
+--     pede para sair, levava tudo junto. Um funcionário demitido custava à
+--     empresa as notas dele.
+--
+--     Duas travas, e nenhuma é opcional: o perfil não se apaga, e apagar o login
+--     não arrasta mais o perfil. O que sobra é a lápide: uma linha que já não
+--     pertence a login nenhum, que ninguém usa para entrar, e que existe só para
+--     o histórico continuar dizendo quem fez.
+--
+--     Desligar (`ativo = false`) continua sendo o caminho normal, e resolve o
+--     caso do funcionário que saiu: ele some das menções, dos seletores e dos
+--     canais, e o trabalho dele fica inteiro. `esquecer_pessoa` é para o caso
+--     raro, o da pessoa que EXIGE ser apagada.
+-- ==========================================================================
+
+alter table public.perfis add column if not exists esquecido_em timestamptz;
+
+-- Apagar o login deixa de arrastar o perfil. Sem isto, as duas travas de baixo
+-- não valem nada, porque a cascata entra por fora delas.
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint
+     where conrelid = 'public.perfis'::regclass and conname = 'perfis_user_id_fkey'
+       and confdeltype = 'c'
+  ) then
+    alter table public.perfis alter column user_id drop not null;
+    alter table public.perfis drop constraint perfis_user_id_fkey;
+    alter table public.perfis add constraint perfis_user_id_fkey
+      foreign key (user_id) references auth.users on delete set null;
+  end if;
+end $$;
+
+/**
+ * O perfil não se apaga. Nem pelo painel, nem por engano, nem por script.
+ *
+ * A trava é de banco e não de tela porque quem apaga perfil quase nunca está
+ * na tela: está no painel do Supabase, resolvendo outra coisa.
+ */
+create or replace function public.nao_apaga_perfil()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  /**
+   * Com uma exceção: a empresa INTEIRA indo embora.
+   *
+   * O perfil existe para o histórico da empresa continuar dizendo quem fez. Se
+   * a empresa está sendo apagada, não há histórico para proteger: tudo vai
+   * junto, e é isso que se quer quando um cliente encerra e pede os dados fora.
+   * Sem esta porta, `delete from organizacoes` passava a ser impossível, e a
+   * trava que protege o cliente viraria a que impede atendê-lo.
+   *
+   * O teste é a própria cascata: ao apagar a organização, o Postgres remove a
+   * linha dela ANTES de disparar as cascatas, então aqui ela já não existe.
+   */
+  if old.org_id is null or not exists (select 1 from organizacoes where id = old.org_id) then
+    return old;
+  end if;
+  raise exception 'Perfil não se apaga: ele é o que faz o histórico dizer quem fez. '
+    'Para tirar alguém da equipe, desligue (ativo = false). '
+    'Para atender a um pedido de exclusão, use esquecer_pessoa(id).';
+end $$;
+
+drop trigger if exists ao_apagar_perfil on public.perfis;
+create trigger ao_apagar_perfil before delete on public.perfis
+  for each row execute function public.nao_apaga_perfil();
+
+/**
+ * O pedido de exclusão da própria pessoa, atendido sem destruir a empresa.
+ *
+ * Esvazia o que identifica e corta o laço com o login. O que fez, fica: tarefa,
+ * anexo, mensagem, decisão e aprovação continuam com o vínculo de pé, dizendo
+ * "Pessoa removida" no lugar do nome.
+ *
+ * **A nota que nunca saiu da pessoa vai embora.** Ninguém além dela jamais pôde
+ * ler aquilo, nem o administrador, então mantida ela seria dado pessoal guardado
+ * para sempre sem ninguém poder usar, que é o oposto do que a lei pede. A que
+ * passou por alguém fica, porque ali ela virou registro da casa: ou está em
+ * `nota_pessoas`, ou tem cartão num canal (`mensagens.nota_ref`), e nos dois
+ * casos apagá-la quebraria o que outra pessoa está lendo.
+ *
+ * O telefone, a assinatura de notificação, a url da agenda pessoal e a caixa de
+ * e-mail conectada são apagados de verdade: são dela, não da empresa, e a
+ * credencial da caixa não pode sobreviver a quem a cadastrou.
+ */
+create or replace function public.esquecer_pessoa(p_perfil uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_org uuid;
+begin
+  select org_id into v_org from perfis where id = p_perfil;
+  if v_org is null then raise exception 'Perfil não encontrado.'; end if;
+
+  -- Quem pode: a própria pessoa, ou um administrador ativo da mesma casa. Com a
+  -- chave de serviço não há sessão, e aí quem responde é a operação.
+  if auth.uid() is not null
+     and not exists (select 1 from perfis where id = p_perfil and user_id = auth.uid())
+     and not exists (select 1 from perfis where id = meu_perfil()
+                      and org_id = v_org and ativo and papel = 'admin') then
+    raise exception 'Só a própria pessoa ou um administrador desta empresa.';
+  end if;
+
+  /**
+   * O dono da empresa não se esquece enquanto for o dono.
+   *
+   * `proteger_perfil` recusa desativar quem abriu a conta, e está certo: uma
+   * discussão interna não pode derrubar o dono da própria empresa. Mas isso
+   * significa que esquecer o dono deixaria a casa com um dono chamado "Pessoa
+   * removida", sem login, e sem ninguém que possa transferir nada. Quem pede
+   * para ser esquecido primeiro passa a empresa para alguém.
+   */
+  if exists (select 1 from organizacoes o where o.dono_id = p_perfil) then
+    raise exception 'Esta pessoa é a dona da empresa. Passe a empresa para outro '
+      'administrador antes de esquecê-la, senão a casa fica sem dono.';
+  end if;
+
+  -- O gatilho `proteger_perfil` segura login, e-mail e `ativo` de propósito, e
+  -- não pode deixar de segurar. O esquecimento se anuncia na transação, do mesmo
+  -- jeito que `quem_age` anuncia em nome de quem o servidor age (seção 44), e o
+  -- gatilho abre a porta para ESTE caso e para mais nenhum.
+  perform set_config('trackward.esquecendo', p_perfil::text, true);
+
+  -- O que é dela e de mais ninguém.
+  delete from avisos_contato   where perfil_id = p_perfil;
+  delete from push_assinaturas where perfil_id = p_perfil;
+  delete from agendas_externas where perfil_id = p_perfil;
+  delete from ocupacao_externa where perfil_id = p_perfil;
+  delete from caixas           where perfil_id = p_perfil;
+  delete from sessoes          where perfil_id = p_perfil;
+  delete from perguntas_abertas where perfil_id = p_perfil;
+  delete from avisos            where perfil_id = p_perfil;
+
+  /**
+   * O compromisso que ninguém mais podia ver, pela mesma régua da nota.
+   *
+   * `visivel = false` quer dizer que a casa via só a ocupação, nunca o título
+   * nem o local: o conteúdo era dela. Com convidado é outra coisa, porque
+   * combinaram aquilo juntos e apagar mexeria na agenda de quem ficou.
+   */
+  delete from compromissos c
+   where c.dono_id = p_perfil and not c.visivel
+     and not exists (select 1 from convidados cv where cv.compromisso_id = c.id);
+
+  -- A nota que nunca saiu dela. Os anexos vão junto por cascata.
+  delete from notas n
+   where n.dono_id = p_perfil
+     and not exists (select 1 from nota_pessoas np where np.nota_id = n.id)
+     and not exists (select 1 from mensagens m where m.nota_ref = n.id);
+
+  -- A lápide. `user_id` cortado é o que permite apagar o login depois sem levar
+  -- nada junto, e é o que garante que ninguém entra por este perfil de novo.
+  update perfis set
+    nome = 'Pessoa removida',
+    email = 'removido-' || left(p_perfil::text, 8) || '@removido.invalido',
+    user_id = null,
+    ativo = false,
+    esquecido_em = now()
+   where id = p_perfil;
+end $$;
+
+revoke all on function public.esquecer_pessoa(uuid) from public, anon;
+grant execute on function public.esquecer_pessoa(uuid) to authenticated, service_role;
+
+-- ==========================================================================
+-- 56. O registro de acesso: nenhuma trava impede tudo, e saber importa
+--
+--     Toda camada de defesa é uma aposta contra o que se conhece hoje. O que
+--     muda o jogo depois de um incidente não é mais uma trava, é **conseguir
+--     dizer o que aconteceu**: quem virou administrador, quando alguém passou a
+--     ver uma track que não via, quem trocou uma credencial, quem entrou numa
+--     nota que não era dele. Sem isso, a resposta honesta ao cliente é "não sei",
+--     e é a pior resposta possível.
+--
+--     `atividades` não serve para isto e nem devia: ela é o histórico da track,
+--     é produto, e é **podada nas 40 últimas** de propósito. Registro que se
+--     apaga sozinho não é registro.
+--
+--     **O que entra aqui é estreito**, e a escolha é o desenho inteiro. Não se
+--     registra leitura: a tela lê dezenas de tabelas a cada abertura, e um
+--     registro que cresce com o uso normal vira ruído onde ninguém acha nada, e
+--     custa espaço para sempre. Entra o que **muda quem pode ver o quê** e o que
+--     **toca credencial**, que é a forma de todo incidente: papel, desligamento,
+--     visibilidade de track, entrada em nota, convite, plano, dono da empresa e
+--     segredo de conector ou de caixa.
+--
+--     **E não se apaga.** Registro que o invasor pode limpar é pior do que não
+--     ter, porque dá falsa segurança. Não existe política de update nem de
+--     delete, e um gatilho recusa as duas ainda que alguém crie uma política
+--     depois. Nem o administrador do cliente apaga, e a razão é ele mesmo: parte
+--     do que se registra aqui são ações de administrador.
+-- ==========================================================================
+
+create table if not exists public.auditoria (
+  id         uuid primary key default gen_random_uuid(),
+  org_id     uuid references public.organizacoes on delete cascade,
+  /** Quem agiu. Fica nulo quando foi o servidor sem ninguém por trás (o pulso). */
+  quem_id    uuid references public.perfis on delete set null,
+  /** O nome de quem agiu, COPIADO. O perfil pode ser esquecido depois, e o
+   *  registro precisa continuar dizendo quem foi: é esse o trabalho dele. */
+  quem_nome  text not null default '',
+  acao       text not null,
+  alvo_tipo  text not null default '',
+  alvo_id    uuid,
+  /** O que mudou, em poucos campos. Nunca o conteúdo: nome de track e papel,
+   *  jamais texto de tarefa, de nota ou de mensagem. O registro é sobre acesso,
+   *  e um registro que copia conteúdo vira uma segunda cópia do que ele protege. */
+  detalhe    jsonb not null default '{}'::jsonb,
+  quando     timestamptz not null default now()
+);
+
+create index if not exists auditoria_org_idx  on public.auditoria (org_id, quando desc);
+create index if not exists auditoria_quem_idx on public.auditoria (quem_id, quando desc);
+
+alter table public.auditoria enable row level security;
+
+-- Quem lê é administrador, e só da própria casa. Não existe insert, update nem
+-- delete para gente nenhuma: quem escreve é gatilho, que roda como dono.
+drop policy if exists aud_sel on public.auditoria;
+create policy aud_sel on public.auditoria for select
+  using (minha(org_id) and ativo() and eh_admin());
+
+/** Recusa mexer no passado, mesmo que alguém crie uma política depois. */
+create or replace function public.auditoria_nao_muda()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  -- Mesma porta do perfil: com a empresa inteira indo embora, o registro dela
+  -- vai junto. Guardar o histórico de acesso de um cliente que encerrou e pediu
+  -- os dados fora seria manter exatamente o que ele pediu para tirar.
+  if old.org_id is null or not exists (select 1 from organizacoes where id = old.org_id) then
+    return old;
+  end if;
+  raise exception 'O registro de acesso não se altera nem se apaga. '
+    'É essa a única coisa que o faz valer alguma coisa.';
+end $$;
+
+drop trigger if exists ao_mexer_auditoria on public.auditoria;
+create trigger ao_mexer_auditoria before update or delete on public.auditoria
+  for each row execute function public.auditoria_nao_muda();
+
+/**
+ * Escreve uma linha. Nunca falha o que estava sendo feito.
+ *
+ * Se o registro der erro, a ação que o gerou tem que acontecer assim mesmo: um
+ * app que recusa desligar alguém porque a auditoria engasgou é um app que
+ * ninguém consegue operar num dia ruim. A queixa vai para o log do servidor.
+ */
+create or replace function public.auditar(
+  p_org uuid, p_acao text, p_alvo_tipo text default '',
+  p_alvo_id uuid default null, p_detalhe jsonb default '{}'::jsonb
+) returns void language plpgsql security definer set search_path = public as $$
+declare v_quem uuid; v_nome text;
+begin
+  v_quem := coalesce(meu_perfil(), perfil_de_quem_age());
+  select nome into v_nome from perfis where id = v_quem;
+  insert into auditoria (org_id, quem_id, quem_nome, acao, alvo_tipo, alvo_id, detalhe)
+  values (coalesce(p_org, minha_org(), org_de_quem_age()), v_quem,
+          coalesce(v_nome, 'o servidor'), p_acao, p_alvo_tipo, p_alvo_id, p_detalhe);
+exception when others then
+  raise warning 'auditoria falhou em %: %', p_acao, sqlerrm;
+end $$;
+
+revoke all on function public.auditar(uuid, text, text, uuid, jsonb) from public, anon, authenticated;
+
+/** Papel, desligamento e esquecimento de gente. */
+create or replace function public.auditar_perfil()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.papel is distinct from old.papel then
+    perform auditar(new.org_id, 'papel', 'perfil', new.id,
+      jsonb_build_object('de', old.papel, 'para', new.papel, 'quem', old.nome));
+  end if;
+  if new.ativo is distinct from old.ativo then
+    perform auditar(new.org_id, case when new.ativo then 'religou' else 'desligou' end,
+      'perfil', new.id, jsonb_build_object('quem', old.nome));
+  end if;
+  if new.esquecido_em is distinct from old.esquecido_em and new.esquecido_em is not null then
+    perform auditar(new.org_id, 'esqueceu', 'perfil', new.id,
+      jsonb_build_object('quem', old.nome));
+  end if;
+  return null;
+end $$;
+
+drop trigger if exists ao_auditar_perfil on public.perfis;
+create trigger ao_auditar_perfil after update on public.perfis
+  for each row execute function public.auditar_perfil();
+
+/** Quem passa a ver uma track. */
+create or replace function public.auditar_fluxo()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.visib is distinct from old.visib then
+    perform auditar(new.org_id, 'visibilidade', 'track', new.id,
+      jsonb_build_object('de', old.visib, 'para', new.visib, 'track', new.nome));
+  end if;
+  return null;
+end $$;
+
+drop trigger if exists ao_auditar_fluxo on public.fluxos;
+create trigger ao_auditar_fluxo after update on public.fluxos
+  for each row execute function public.auditar_fluxo();
+
+/**
+ * Quem entrou numa nota que não era dele.
+ *
+ * É a linha mais sensível do app: a nota é do dono e de mais ninguém, nem do
+ * administrador, e quem abre o cartão num canal passa a ler para sempre. O dono
+ * já vê a lista em "Compartilhada com"; aqui fica a data, que a lista não guarda.
+ */
+create or replace function public.auditar_nota_pessoa()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  perform auditar(new.org_id, case when tg_op = 'INSERT' then 'entrou na nota' else 'saiu da nota' end,
+    'nota', coalesce(new.nota_id, old.nota_id),
+    jsonb_build_object('perfil', coalesce(new.perfil_id, old.perfil_id)));
+  return null;
+end $$;
+
+drop trigger if exists ao_auditar_nota_pessoa on public.nota_pessoas;
+create trigger ao_auditar_nota_pessoa after insert or delete on public.nota_pessoas
+  for each row execute function public.auditar_nota_pessoa();
+
+/** Credencial: conector, caixa de e-mail e agenda externa. */
+create or replace function public.auditar_credencial()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_org uuid;
+begin
+  v_org := case tg_table_name
+    when 'conector_segredos' then (select org_id from conectores where id = coalesce(new.conector_id, old.conector_id))
+    else coalesce(new.org_id, old.org_id) end;
+  perform auditar(v_org, lower(tg_op) || ' credencial', tg_table_name,
+    coalesce(new.org_id, old.org_id), '{}'::jsonb);
+  return null;
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['conector_segredos','caixas','agendas_externas'] loop
+    continue when to_regclass('public.' || t) is null;
+    execute format('drop trigger if exists ao_auditar_credencial on public.%I', t);
+    execute format('create trigger ao_auditar_credencial after insert or update or delete '
+      'on public.%I for each row execute function public.auditar_credencial()', t);
+  end loop;
+end $$;
+
+/** Convite: quem chamou quem, e com que papel. */
+create or replace function public.auditar_convite()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_acao text;
+begin
+  -- Sem o `if`, um update qualquer no convite chamaria `auditar` com ação nula,
+  -- que a coluna recusa. `auditar` engole o erro de propósito, então o efeito
+  -- seria um aviso no log a cada gravação e nenhuma linha: barulho que esconde
+  -- o que importa.
+  v_acao := case when tg_op = 'INSERT' then 'convidou'
+                 when new.usado_por is distinct from old.usado_por and new.usado_por is not null
+                   then 'convite aceito' end;
+  if v_acao is null then return null; end if;
+  perform auditar(new.org_id, v_acao, 'convite', new.id, jsonb_build_object('papel', new.papel));
+  return null;
+end $$;
+
+drop trigger if exists ao_auditar_convite on public.convites;
+create trigger ao_auditar_convite after insert or update on public.convites
+  for each row execute function public.auditar_convite();
+
+/** Plano e dono da empresa. */
+create or replace function public.auditar_org()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.plano is distinct from old.plano then
+    perform auditar(new.id, 'plano', 'empresa', new.id,
+      jsonb_build_object('de', old.plano, 'para', new.plano));
+  end if;
+  if new.dono_id is distinct from old.dono_id then
+    perform auditar(new.id, 'dono', 'empresa', new.id,
+      jsonb_build_object('de', old.dono_id, 'para', new.dono_id));
+  end if;
+  return null;
+end $$;
+
+drop trigger if exists ao_auditar_org on public.organizacoes;
+create trigger ao_auditar_org after update on public.organizacoes
+  for each row execute function public.auditar_org();

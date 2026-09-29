@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { clienteServidor } from '@/lib/supabase/servidor'
+import { buscar } from '@/lib/saida'
 
 /**
  * A ponte para o que não é o Track.
@@ -23,24 +24,6 @@ import { clienteServidor } from '@/lib/supabase/servidor'
 
 export const runtime = 'nodejs'
 export const maxDuration = 15
-
-/** Endereços que não fazem sentido e que um app não deve alcançar de dentro. */
-function enderecoAceitavel(url: string): boolean {
-  try {
-    const u = new URL(url)
-    if (u.protocol !== 'https:') return false
-    const host = u.hostname.toLowerCase()
-    // Rede interna: um webhook apontando para dentro do servidor seria um jeito
-    // de usar o app para varrer a máquina de quem o hospeda.
-    if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal')) return false
-    if (/^(127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(host)) return false
-    if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return false
-    if (host === '[::1]' || host === '::1') return false
-    return true
-  } catch {
-    return false
-  }
-}
 
 export async function POST(req: Request) {
   let pedido: { agente_id?: string; contexto?: Record<string, unknown> }
@@ -70,14 +53,15 @@ export async function POST(req: Request) {
   if (!a.ativo || a.faz !== 'webhook') {
     return NextResponse.json({ erro: 'Este agente não chama endereço nenhum.' }, { status: 400 })
   }
-  if (!enderecoAceitavel(a.url)) {
-    return NextResponse.json({
-      erro: 'O endereço do agente precisa ser https e público.',
-    }, { status: 400 })
-  }
 
   try {
-    const r = await fetch(a.url, {
+    /**
+     * `comCredencial` mesmo sem chave: o corpo leva contexto da empresa, e um
+     * desvio para outra máquina entregaria esse contexto a quem escreveu o
+     * desvio. O endereço é de quem montou o agente, mas quem o hospeda muda.
+     */
+    const saida = await buscar(a.url, {
+      comCredencial: true,
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -91,7 +75,8 @@ export async function POST(req: Request) {
       }),
       signal: AbortSignal.timeout(10_000),
     })
-    return NextResponse.json({ ok: r.ok, status: r.status })
+    if (!saida.ok) return NextResponse.json({ ok: false, erro: saida.motivo })
+    return NextResponse.json({ ok: saida.r.ok, status: saida.r.status })
   } catch {
     // Destino fora do ar não pode derrubar o aceite da proposta: o trabalho no
     // Track já aconteceu, e o aviso lá fora é o que falhou.

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import dns from 'node:dns/promises'
+import { buscar } from '@/lib/saida'
 import { blocosOcupados, nomeDoCalendario } from '@/lib/ical'
 
 /**
@@ -22,42 +22,32 @@ function interno(ip: string) {
   return false
 }
 
-async function seguro(bruta: string): Promise<URL | null> {
-  let u: URL
-  try { u = new URL(bruta.trim().replace(/^webcal:/i, 'https:')) } catch { return null }
-  if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
-  if (/^(localhost|.*\.local)$/i.test(u.hostname)) return null
-  try {
-    const enderecos = await dns.lookup(u.hostname, { all: true })
-    if (!enderecos.length || enderecos.some((e) => interno(e.address))) return null
-  } catch { return null }
-  return u
-}
-
 export async function POST(req: NextRequest) {
   const { url, de, ate } = (await req.json().catch(() => ({}))) as
     { url?: string; de?: string; ate?: string }
 
   if (!url) return NextResponse.json({ erro: 'Informe o endereço do calendário.' }, { status: 400 })
 
-  const alvo = await seguro(url)
-  if (!alvo) {
-    return NextResponse.json(
-      { erro: 'Endereço inválido. Cole o link no formato iCal (ics) da sua agenda.' },
-      { status: 400 },
-    )
-  }
 
   const inicioJanela = de ? new Date(de) : new Date(Date.now() - 14 * 864e5)
   const fimJanela = ate ? new Date(ate) : new Date(Date.now() + 120 * 864e5)
 
   let texto: string
   try {
-    const r = await fetch(alvo, {
+    // `soHttps: false` porque calendário publicado em intranet velha existe, e o
+    // que volta daqui são intervalos de tempo, nunca título nem local.
+    const saida = await buscar(url, {
+      soHttps: false,
       headers: { accept: 'text/calendar, text/plain, */*' },
       signal: AbortSignal.timeout(12000),
-      redirect: 'follow',
     })
+    if (!saida.ok) {
+      return NextResponse.json(
+        { erro: 'Endereço inválido. Cole o link no formato iCal (ics) da sua agenda.' },
+        { status: 400 },
+      )
+    }
+    const r = saida.r
     if (!r.ok) {
       return NextResponse.json(
         { erro: `A agenda respondeu ${r.status}. Confira se o link é o secreto no formato iCal.` },

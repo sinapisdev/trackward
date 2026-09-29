@@ -1,4 +1,4 @@
-import { decifrar } from './cifra'
+import { chaveDoConector } from './conector'
 
 /**
  * Mandar mensagem pelo WhatsApp da empresa, pela Twilio.
@@ -20,7 +20,6 @@ type Conector = {
   base_url: string
   auth_tipo: string
   auth_nome: string | null
-  segredo_cifrado: string
   ativo: boolean
 }
 
@@ -51,12 +50,12 @@ export async function mandarWhats(
   if (!org?.whats_conector || !org.whats_sid || !org.whats_de) return null
 
   const { data } = await sb.from('conectores')
-    .select('base_url,auth_tipo,auth_nome,segredo_cifrado,ativo')
+    .select('base_url,auth_tipo,auth_nome,ativo')
     .eq('id', org.whats_conector).single()
   const c = data as Conector | null
   if (!c || !c.ativo) return null
 
-  const chave = decifrar(c.segredo_cifrado)
+  const chave = await chaveDoConector(sb, org.whats_conector)
   if (!chave) return null
 
   const base = c.base_url.replace(/\/+$/, '')

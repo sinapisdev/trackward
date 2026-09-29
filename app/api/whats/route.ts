@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { clienteDeServico } from '@/lib/supabase/servico'
-import { decifrar } from '@/lib/cifra'
+import { chaveDoConector } from '@/lib/conector'
 import { casar, comoLista, soConfirma, type Pergunta } from '@/lib/casar'
 import { novoId } from '@/lib/id'
 import { mandarWhats } from '@/lib/whats'
@@ -100,10 +100,9 @@ async function tokenDaEmpresa(sb: Sb, para: string): Promise<string | null> {
   }) as { whats_conector: string } | undefined
   if (!org) return null
   const { data } = await sb.from('conectores')
-    .select('segredo_cifrado,ativo').eq('id', org.whats_conector).single()
-  const c = data as { segredo_cifrado: string; ativo: boolean } | null
-  if (!c?.ativo) return null
-  return decifrar(c.segredo_cifrado)
+    .select('ativo').eq('id', org.whats_conector).single()
+  if (!(data as { ativo: boolean } | null)?.ativo) return null
+  return (await chaveDoConector(sb, org.whats_conector)) || null
 }
 
 /** Guarda uma pergunta nova, para a próxima resposta ter com o que casar. */
@@ -355,10 +354,9 @@ async function guardarMidia(
   const o = org as { whats_conector: string | null; whats_sid: string | null } | null
   if (!o?.whats_conector || !o.whats_sid) return 0
   const { data: cdata } = await sb.from('conectores')
-    .select('segredo_cifrado,ativo').eq('id', o.whats_conector).single()
-  const c = cdata as { segredo_cifrado: string; ativo: boolean } | null
-  if (!c?.ativo) return 0
-  const chave = decifrar(c.segredo_cifrado)
+    .select('ativo').eq('id', o.whats_conector).single()
+  if (!(cdata as { ativo: boolean } | null)?.ativo) return 0
+  const chave = await chaveDoConector(sb, o.whats_conector)
   if (!chave) return 0
   const basico = 'Basic ' + Buffer.from(`${o.whats_sid}:${chave}`).toString('base64')
 

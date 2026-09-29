@@ -484,6 +484,164 @@ entra é admin, quem tem a área, o dono, o aprovador, o responsável por alguma
 quem está travado por ela. Ou seja, o pedreiro só pode endereçar a obra depois que a
 empresa o pôs nela, e essa é a personalização que o produto promete, não uma falta.
 
+## O registro de acesso: estreito de propósito, e não se apaga
+
+Toda trava é uma aposta contra o que se conhece hoje. O que muda o jogo depois de um
+incidente não é mais uma trava, é **conseguir dizer o que aconteceu**: quem virou
+administrador, quando alguém passou a ver uma track que não via, quem trocou uma credencial,
+quem entrou numa nota que não era dele. Sem isso, a resposta ao cliente é "não sei", e é a
+pior que existe.
+
+`atividades` não serve e nem devia: é o histórico da track, é produto, e é **podada nas 40
+últimas**. Registro que se apaga sozinho não é registro.
+
+**O que entra em `auditoria` (seção 56) é estreito, e a escolha é o desenho.** Leitura não
+entra: a tela lê dezenas de tabelas a cada abertura, e um registro que cresce com o uso
+normal vira ruído onde ninguém acha nada. Entra o que **muda quem pode ver o quê** e o que
+**toca credencial**, que é a forma de todo incidente: papel, desligamento, visibilidade de
+track, entrada em nota, convite, plano e dono da empresa.
+
+**Nada de conteúdo.** Nome de track e papel sim; texto de tarefa, de nota ou de mensagem
+nunca. Registro que copia conteúdo vira uma segunda cópia do que ele existe para proteger.
+
+**O nome de quem agiu é COPIADO para a linha**, e não só o id: o perfil pode ser esquecido
+depois, e o registro precisa continuar dizendo quem foi, que é o trabalho dele.
+
+**E não se apaga.** Não há política de insert, update nem delete para ninguém, e um gatilho
+recusa as duas últimas ainda que alguém crie uma política depois. Nem o administrador do
+cliente, e a razão é ele mesmo: parte do que se registra ali são ações de administrador.
+
+**`auditar` engole o próprio erro de propósito.** Um app que recusa desligar alguém porque a
+auditoria engasgou é um app que ninguém opera num dia ruim. A queixa vai para o log.
+
+**As duas travas abrem para a empresa inteira sair.** O perfil não se apaga e o registro não
+se apaga, mas os dois deixam passar quando a organização já não existe, que é o estado
+durante a cascata de `delete from organizacoes`. Sem essa porta, a trava que protege o
+cliente viraria a que impede encerrar a conta dele e devolver os dados. Isso foi descoberto
+tentando: as duas recusas apareceram uma depois da outra.
+
+## O perfil não se apaga, e esquecer é esvaziar
+
+Vinte e seis colunas apontam para `perfis` e sobrevivem à morte dele virando nulo:
+`itens.autor_id`, `itens.resp_id`, `mensagens.autor_id`, `anexos.autor_id`, `fluxos.dono_id`,
+`etapas.aprovador_id`, `decisoes.quem_id`. Se a linha some, o histórico da empresa continua
+lá e **ninguém fez nada**: "concluída por ninguém, em 12 de março". Sete outras apontam com
+CASCATA, e entre elas estão `notas` e `compromissos`: apagar um perfil destruía as notas e a
+agenda daquela pessoa.
+
+E o caminho não era escondido. `perfis.user_id` apontava para `auth.users` com cascata, então
+**apagar o login no painel do Supabase**, que são dois cliques e é a coisa óbvia a fazer
+quando alguém pede para sair, levava tudo junto. Um funcionário demitido custava à empresa as
+notas dele, em silêncio.
+
+Duas travas (seção 55): o perfil **não se apaga**, e apagar o login **não arrasta** o perfil.
+O que sobra é a lápide: uma linha sem login nenhum, por onde ninguém entra, que existe só para
+o histórico continuar dizendo quem fez.
+
+**Desligar continua sendo o caminho normal** (`ativo = false`, que é o que a tela já faz) e
+resolve o funcionário que saiu: some das menções, dos seletores e dos canais, e o trabalho
+fica inteiro. `esquecer_pessoa` é o caso raro, o de quem EXIGE ser apagada.
+
+**A régua do esquecimento é uma só: o que nunca saiu da pessoa vai embora.** Nota sem
+`nota_pessoas` e sem cartão em canal, compromisso `visivel = false` sem convidado, telefone,
+assinatura de push, url da agenda pessoal e credencial da caixa de e-mail. O que passou por
+alguém fica, porque ali virou registro da casa e apagar quebraria o que outra pessoa lê.
+
+**O dono da empresa não se esquece enquanto for o dono.** `proteger_perfil` recusa desativar
+quem abriu a conta, e com razão; esquecer o dono deixaria a casa com um dono chamado "Pessoa
+removida", sem login e sem ninguém que possa transferir nada. A função recusa e manda passar
+a empresa adiante primeiro.
+
+**E o esquecimento se anuncia na transação** (`trackward.esquecendo`), como `quem_age` faz na
+seção 44, porque `proteger_perfil` segura login, e-mail e `ativo` de propósito e não pode
+deixar de segurar. A exceção é estreita: o login pode ser **cortado**, nunca trocado por outro.
+
+## A parede entre empresas clientes é uma afirmação, e afirmação se testa
+
+O medo certo num app vendido para várias empresas não é o dono ler o que é do cliente: é
+**uma empresa alcançar a outra por dentro do sistema**. Essa parede tem uma peça só, que é
+`minha(org_id)` em toda política, mais `carimbar_org` preenchendo a etiqueta. Uma política
+sem a amarra, numa tabela só, e a parede acabou.
+
+Isso não se confere lendo: **confere-se plantando**. Duas empresas, dado com texto
+reconhecível na segunda, e a primeira tentando alcançá-lo por todo caminho que existe:
+cada uma das 43 tabelas etiquetadas, a busca por texto, e as funções recebendo o id da
+outra empresa na marra. O ensaio está em `zparede` e o resultado precisa ser zero em todas.
+Ao acrescentar tabela com `org_id`, repetir a varredura em vez de conferir a política nova
+no olho.
+
+A varredura tem um efeito de lado que vale mais do que ela: perguntar a TODAS as tabelas se
+elas respondem é o que acha política circular, e foi assim que a agenda apareceu quebrada.
+
+## A agenda estava quebrada havia meses, e ninguém viu
+
+`compromissos` perguntava por `convidados` e `convidados` perguntava por `compromissos`,
+com subconsulta normal nas duas. É o mesmo círculo de `notas` e `nota_pessoas`, e o
+Postgres responde igual: **"recursão infinita detectada na política"**.
+
+A diferença é que este ninguém viu, e o motivo é o desenho do erro. Quem lê a agenda é
+`sb.from('compromissos').select('*')` no carregamento do `Dados`, e um erro ali não derruba
+a tela: a lista chega vazia. **Agenda vazia parece agenda sem compromisso**, e é por isso
+que um defeito total sobreviveu a todas as varreduras de tela: elas olham se a tela pinta,
+e ela pintava.
+
+A lição não é sobre a agenda: **erro de leitura que vira lista vazia é o modo de falha mais
+caro deste app**, porque some. Ao escrever carregamento novo, vale mais um erro barulhento
+do que uma lista vazia bem-comportada. E ao mexer em política que fala de outra tabela,
+perguntar antes se a outra fala desta: se as duas falam, o círculo é certo, e quem o quebra
+é `security definer` (seção 54).
+
+## Função definer nasce fechada
+
+`security definer` existe para a função enxergar o que quem chamou não enxerga: é o que
+quebra a recursão das políticas e o que deixa o servidor agir sem sessão. O preço é que ela
+**passa por cima de RLS**, e com permissão para `authenticated` ela vira a porta dos fundos
+da política que está ao lado dela.
+
+`perguntas_abertas` é o retrato. A política da tabela sempre disse `perfil_id =
+meu_perfil()`, ou seja, a caixa é de uma pessoa só, como a de avisos. E `perguntas_de(p)`
+devolvia a caixa de QUALQUER perfil para qualquer pessoa logada, sem conferir nada: lá
+dentro vai texto de tarefa privada e de mensagem de canal fechado, que é exatamente o que
+a política existia para proteger. `eventos_de(org, ...)` era pior em alcance, devolvendo a
+atividade inteira de uma organização sem passar por `ve_fluxo` nem por `ve_item`.
+
+A regra (seção 52): **`revoke` de `public, anon, authenticated` e `grant` só para quem
+precisa.** Se o navegador precisa da função, ela não pode aceitar o id de outra pessoa sem
+conferir, e a conferência é dentro dela, nunca na tela. Função de gatilho fica fechada
+também: quem a dispara é o Postgres, que não pede permissão, e deixá-la aberta é superfície
+de graça, ainda mais nas `proteger_*` e `travar_*`, que são justamente as que recusam coisa.
+
+**RLS trabalha por linha, e `select` escolhe coluna.** O segredo do conector morava na linha
+que a empresa inteira pode ler, e bastava pedir a coluna. Revogar coluna não resolve: em
+Postgres isso não vale enquanto existir `grant select` da tabela inteira, e a alternativa
+seria listar à mão as colunas permitidas, lista que alguém esquece de atualizar e a tela
+quebra sem motivo aparente. A saída é a que o schema já usava em `avisos_contato`,
+`push_assinaturas` e `caixas`: **tabela própria, RLS ligada, política nenhuma** (seção 53).
+Ao guardar credencial nova, é esse o lugar, e a leitura passa por `chaveDoConector`.
+
+## A saída para a internet é uma porta só, e ela confere cada salto
+
+Três rotas chamam endereço de fora: a agenda externa, o conector e o webhook do agente. As
+três tinham o mesmo buraco escrito de três jeitos: conferir o endereço e chamar `fetch` com
+o `redirect` no padrão, que é **seguir**. A conferência valia para o primeiro salto e para
+mais nenhum, então um endereço público que responde `302` para `169.254.169.254` ou para
+`127.0.0.1` levava o servidor para dentro da rede. No conector é pior, porque ele **devolve
+um pedaço da resposta**: a leitura de dentro voltava pela tela.
+
+E duas delas conferiam só o TEXTO do endereço (`host === 'localhost'`), o que qualquer nome
+que resolva para 10.x atravessa sem esforço.
+
+`lib/saida.ts` é a porta única. `redirect: 'manual'`, e quem decide se vai é `proximoSalto`,
+depois de conferir o destino com a mesma régua do primeiro: protocolo, nome impossível e o
+IP **resolvido**. Desvio que troca de máquina não leva credencial junto, porque o `fetch`
+tira o `authorization` sozinho mas não tira cabeçalho de nome próprio nem o que está na url,
+e são esses dois que a maioria dos serviços usa.
+
+**O que fica de fora, e está escrito para não ser esquecido:** entre a conferência do IP e a
+conexão existe uma fresta em que o DNS pode mudar de resposta (rebinding). Fechá-la exige
+conferir na hora de abrir o socket, não na hora de decidir. O caminho fácil deixou de
+existir; o difícil continua lá.
+
 ## Um `update` no meio do arquivo dispara gatilho, e gatilho escolhe função
 
 `avisar` nasce com dez argumentos na seção 14 e ganha o décimo primeiro na 27. Numa segunda
