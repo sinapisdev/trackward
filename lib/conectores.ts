@@ -132,7 +132,12 @@ export const MOLDES: Molde[] = [
     onde: 'developers.facebook.com, seu app, WhatsApp, Configuração da API. '
       + 'O token de lá vale 24 horas; o permanente sai de um usuário de sistema, '
       + 'em Configurações do negócio',
-    caminho: 'SEU_PHONE_NUMBER_ID/messages', metodo: 'POST', teste: 'SEU_PHONE_NUMBER_ID',
+    // O teste é `me`, e não o número: quem manda a mensagem de verdade é
+    // `lib/whats.ts`, que monta o endereço com o `phone_number_id` guardado na
+    // empresa. Aqui o botão serve para uma pergunta só, "esta chave está viva?",
+    // e com o texto de exemplo no lugar do número ele falhava sempre, mesmo com
+    // a chave certa: a pessoa trocava o token achando que o token era o problema.
+    caminho: 'SEU_PHONE_NUMBER_ID/messages', metodo: 'POST', teste: 'me',
     corpo: '{"messaging_product":"whatsapp","to":"5511999999999","type":"text",'
       + '"text":{"body":"{{agente}}: {{situacao}}"}}',
   },
