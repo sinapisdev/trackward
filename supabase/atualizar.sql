@@ -5111,6 +5111,123 @@ create trigger ao_auditar_org after update on public.organizacoes
   for each row execute function public.auditar_org();
 
 
+-- ==========================================================================
+-- 57. O teto de leitura de IA existia na tela e não existia no banco
+--
+--     `tetoDeLeituras` em `lib/planos.ts` lê `limite_leituras ?? plano.leituras`:
+--     coluna vazia quer dizer "vale o número do plano". O banco perguntava
+--     `o.limite_leituras is null or ...`, ou seja, coluna vazia quer dizer **sem
+--     teto nenhum**. E `comecar_teste` preenche `teste_ate` sem preencher
+--     `limite_leituras`.
+--
+--     Somando as três: **toda empresa que entra em teste nasce sem freio**, com
+--     a tela dela dizendo 200 leituras. Catorze dias de modelo sem limite por
+--     cliente em avaliação, e a conta é de quem hospeda. Hoje não morde ninguém
+--     porque as organizações estão em `interno`, que é sem teto de propósito, e
+--     porque a consulta 2 do `planos.sql` manda mudar plano e limite na mesma
+--     instrução. Ou seja, a trava dependia de alguém lembrar.
+--
+--     O conserto é o banco passar a responder a MESMA pergunta da tela, e não
+--     preencher a coluna: vazio continua querendo dizer "vale o número do
+--     plano", nos dois lados. `interno` continua sem teto, que é a única
+--     ausência proposital.
+--
+--     **Os números vivem em dois arquivos, e não há como não viver.** A tela
+--     precisa deles sem ir ao banco e o gatilho precisa deles sem ir à tela.
+--     Ao mexer num, mexer no outro: `leituras_do_plano` aqui e `PLANOS` em
+--     `lib/planos.ts`. A conferência do `atualizar.sql` imprime os do banco para
+--     poderem ser comparados com os olhos.
+--
+--     E `organizacoes.plano` ganha restrição. Quem liga plano é a operação, na
+--     mão, pelo SQL Editor; um erro de digitação ali gravava um plano que não
+--     existe, e plano que não existe não casa com nenhum `case`, cai no `else`,
+--     e vira sem teto. O erro mais caro possível, escrito por quem estava
+--     justamente tentando cobrar.
+-- ==========================================================================
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'org_plano_check') then
+    -- O que estiver fora da lista vira 'interno' antes da trava, senão uma linha
+    -- velha impede a restrição de nascer e o arquivo inteiro para aqui.
+    update organizacoes set plano = 'interno'
+     where plano is null or plano not in ('teste','reduzido','pessoal','equipe','interno');
+    alter table public.organizacoes add constraint org_plano_check
+      check (plano in ('teste','reduzido','pessoal','equipe','interno'));
+  end if;
+end $$;
+
+/**
+ * Quantas leituras cada plano dá por mês. Espelho de `PLANOS`, em
+ * `lib/planos.ts`. Mexeu num, mexa no outro.
+ *
+ * `interno` devolve nulo de propósito: é a casa e a demonstração, sem teto e
+ * sem prazo. É a única ausência que quer dizer ausência.
+ */
+create or replace function public.leituras_do_plano(p_plano text)
+returns int language sql immutable set search_path = public as $$
+  select case p_plano
+    when 'teste'    then 200
+    when 'reduzido' then 0
+    when 'pessoal'  then 150
+    when 'equipe'   then 120   -- por assento ativo, ver `teto_de_leituras`
+    else null
+  end;
+$$;
+
+/**
+ * O teto desta empresa agora, do jeito que a tela calcula.
+ *
+ * Linha por linha, é `tetoDeLeituras`: a coluna manda sobre o plano, vazio cai
+ * no número do plano, e no Enterprise multiplica pelos assentos ativos, porque
+ * o custo de IA anda com o tamanho da equipe. Nulo quer dizer sem teto, e só
+ * `interno` chega nele.
+ *
+ * `plano_em_vigor` e não `plano`: o teste vence por data comparada na hora, e
+ * quem venceu tem o teto do reduzido, que é zero.
+ */
+create or replace function public.teto_de_leituras(p_org uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select case
+    when base is null then null
+    when vigente = 'equipe' then base * greatest(1, assentos_usados(p_org))
+    else base
+  end
+  from (
+    select plano_em_vigor(p_org) as vigente,
+           coalesce(o.limite_leituras, leituras_do_plano(plano_em_vigor(p_org))) as base
+      from organizacoes o where o.id = p_org
+  ) x;
+$$;
+
+create or replace function public.pode_chamar_modelo()
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((
+    select o.ia_ativa
+       and plano_em_vigor(o.id) <> 'reduzido'
+       and (teto_de_leituras(o.id) is null or leituras_do_mes() < teto_de_leituras(o.id))
+      from organizacoes o where o.id = minha_org()
+  ), false);
+$$;
+
+create or replace function public.pulso_pode(p_org uuid)
+returns table (pode boolean, modelo text)
+language sql stable security definer set search_path = public as $$
+  select
+    coalesce(
+      o.ia_ativa
+      and plano_em_vigor(o.id) <> 'reduzido'
+      and (teto_de_leituras(o.id) is null or leituras_do_mes_de(o.id) < teto_de_leituras(o.id)),
+      false),
+    coalesce(nullif(btrim(o.modelo_ia), ''), '')
+  from organizacoes o
+  where o.id = p_org;
+$$;
+
+revoke all on function public.teto_de_leituras(uuid) from public, anon;
+grant execute on function public.teto_de_leituras(uuid) to authenticated, service_role;
+
+
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
     as "carimbo de organizacao (40)",
@@ -5418,4 +5535,21 @@ select
     where tgname in ('ao_auditar_perfil','ao_auditar_fluxo','ao_auditar_nota_pessoa',
                      'ao_auditar_convite','ao_auditar_org')
       and not tgisinternal)
-    as "os rastros ligados (5)";
+    as "os rastros ligados (5)",
+  -- O teto de IA existia na tela e não no banco: coluna vazia era "sem teto
+  -- nenhum" aqui e "vale o número do plano" lá, e toda empresa em teste nascia
+  -- sem freio. Agora as duas respondem a mesma pergunta.
+  (select teto_de_leituras is not null from (
+     select public.leituras_do_plano('teste') as teto_de_leituras) x)
+    as "o teste passou a ter teto (true)",
+  -- Estes números são espelho de PLANOS, em lib/planos.ts. Confira com os olhos:
+  -- teste 200, reduzido 0, pessoal 150, equipe 120 por assento, interno sem teto.
+  (select public.leituras_do_plano('teste') || '/' || public.leituras_do_plano('reduzido')
+       || '/' || public.leituras_do_plano('pessoal') || '/' || public.leituras_do_plano('equipe')
+       || '/' || coalesce(public.leituras_do_plano('interno')::text, 'sem teto'))
+    as "leituras por plano (200/0/150/120/sem teto)",
+  -- Plano digitado errado no SQL da operação virava plano inexistente, que não
+  -- casa com nenhum `case`, cai no `else` e vira sem teto. O erro mais caro
+  -- possível, escrito por quem estava tentando cobrar.
+  (select count(*) from pg_constraint where conname = 'org_plano_check')
+    as "plano invalido e recusado (1)";

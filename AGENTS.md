@@ -279,6 +279,25 @@ trabalho, e a tela tem a dela em `Modais.abrir`, que é o caminho de quase todo 
 espalhar a checagem pelos vinte botões seria esquecer três, e o esquecido é o que o cliente
 acha.
 
+**O teto existe nos DOIS lados, e vazio quer dizer a mesma coisa nos dois.** Ele existia só
+na tela: `tetoDeLeituras` lê `limite_leituras ?? plano.leituras`, e o banco perguntava
+`limite_leituras is null or ...`, ou seja, coluna vazia era "vale o plano" de um lado e **sem
+teto nenhum** do outro. Com `comecar_teste` preenchendo `teste_ate` e não a coluna, **toda
+empresa em teste nascia sem freio**, com a tela dela dizendo 200. Catorze dias de modelo sem
+limite por cliente em avaliação, e a conta de quem hospeda.
+
+Quem responde agora é `teto_de_leituras(org)` (seção 57), que é `tetoDeLeituras` linha por
+linha: a coluna manda sobre o plano, vazio cai no número do plano, o Enterprise multiplica
+por assento ativo, e só `interno` devolve nulo. **Os números vivem em dois arquivos e não há
+como não viver**, porque a tela precisa deles sem ir ao banco: `leituras_do_plano` aqui,
+`PLANOS` em `lib/planos.ts`, e mexeu num, mexa no outro. A conferência do `atualizar.sql`
+imprime os do banco para serem comparados com os olhos.
+
+**E `organizacoes.plano` ganhou restrição.** Quem liga plano é a operação, na mão, pelo SQL
+Editor, e um erro de digitação gravava um plano inexistente. Plano inexistente não casa com
+nenhum `case`, cai no `else`, e vira sem teto: o erro mais caro possível, escrito por quem
+estava justamente tentando cobrar.
+
 **O teto de leituras é degrau, não porta.** Estourado, a leitura cai nas regras embutidas e
 o app segue inteiro (`pode_chamar_modelo`). É isso que deixa o limite separar planos sem
 quebrar ninguém. No Enterprise ele conta **por assento ativo**, porque o custo de IA anda
