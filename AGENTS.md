@@ -888,6 +888,19 @@ chutar seria inventar dono para o trabalho de outra pessoa. O que faz a coisa an
 responsável, é o endereço: a tarefa numa track aparece para a equipe dela, e qualquer um de
 lá pode assumir.
 
+**E a SAÍDA precisa das mesmas formas que a entrada.** `formas_do_fone` existia só para
+reconhecer quem escreveu. Para mandar, o app usava o número guardado e pronto, então a
+resposta ia para +5542999783288 enquanto o WhatsApp conhece aquela linha como 554299783288.
+A Meta recusa com `131030 Recipient phone number not in allowed list`, e a frase fala do
+DESTINATÁRIO: quem depura vai mexer na lista de permissão da Meta em vez de olhar o número,
+que foi exatamente o que aconteceu. `formasDoFone` em `lib/fone.ts` é o espelho em
+TypeScript, e `mandarWhats` tenta as formas em ordem. Não há como saber de fora qual delas
+aquela linha usa: linha nova tem o nove, linha velha não, e as duas convivem na mesma casa.
+
+**E recusa de envio não pode sumir.** Era `if (!r.ok) return null`: a Meta recusava, o app
+devolvia nada, e do lado de cá parecia que a mensagem tinha ido. Ninguém procura o que não
+deu erro, e foi por isso que a volta do WhatsApp ficou quebrada sem ninguém saber por quê.
+
 **Telefone não é senha.** `perfil_do_telefone()` só diz de quem é o número. O que muda o
 trabalho de outra pessoa (aprovar checkpoint, prorrogar prazo, aceitar cascata) pede botão
 explícito, nunca texto livre interpretado. E número desconhecido recebe resposta educada e

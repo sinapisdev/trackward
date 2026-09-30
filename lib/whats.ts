@@ -1,4 +1,5 @@
 import { chaveDoConector } from './conector'
+import { formasDoFone } from './fone'
 
 /**
  * Mandar mensagem pelo WhatsApp da empresa, pela Twilio.
@@ -68,29 +69,54 @@ export async function mandarWhats(
    * chamada, devolve 200, e a mensagem não chega a ninguém.
    */
   if ((org.whats_via || 'twilio') === 'meta') {
-    try {
-      const r = await fetch(`${base}/${encodeURIComponent(org.whats_sid)}/messages`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${chave}`,
-          'user-agent': 'TrackWard/1.0',
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: para.replace(/[^0-9]/g, ''),
-          type: 'text',
-          text: { preview_url: false, body: texto },
-        }),
-        signal: AbortSignal.timeout(15_000),
-      })
-      if (!r.ok) return null
-      const j = await r.json().catch(() => null) as { messages?: { id?: string }[] } | null
-      return j?.messages?.[0]?.id || 'enviada'
-    } catch {
-      return null
+    /**
+     * Tenta as formas do número, e não só a guardada.
+     *
+     * O app guarda +55 42 99978-3288 e o WhatsApp conhece essa linha como
+     * 554299783288, sem o nono dígito. Mandando para a forma guardada, a Meta
+     * recusa, e a recusa fala do DESTINATÁRIO ("not in allowed list"), então
+     * quem depura vai mexer no cadastro da Meta em vez de olhar o número. Não
+     * há como saber de fora qual forma aquela linha usa: linha nova tem o nove,
+     * linha velha não, e as duas existem na mesma casa.
+     *
+     * Na prática é uma chamada a mais só quando a primeira falha, e nenhuma
+     * quando o número não é brasileiro.
+     */
+    let ultima = ''
+    for (const forma of formasDoFone(para)) {
+      try {
+        const r = await fetch(`${base}/${encodeURIComponent(org.whats_sid)}/messages`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${chave}`,
+            'user-agent': 'TrackWard/1.0',
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: forma,
+            type: 'text',
+            text: { preview_url: false, body: texto },
+          }),
+          signal: AbortSignal.timeout(15_000),
+        })
+        if (r.ok) {
+          const j = await r.json().catch(() => null) as { messages?: { id?: string }[] } | null
+          return j?.messages?.[0]?.id || 'enviada'
+        }
+        // A recusa precisa aparecer em algum lugar. `if (!r.ok) return null`
+        // fazia o envio falhar sem deixar rastro nenhum, e do lado de cá
+        // parecia que tinha ido: é o modo de falha mais caro que existe aqui,
+        // porque ninguém vai procurar o que não deu erro.
+        const e = await r.json().catch(() => null) as { error?: { code?: number; message?: string } } | null
+        ultima = `${e?.error?.code} ${e?.error?.message}`
+        console.error('whats: a Meta recusou para', forma, '|', ultima)
+      } catch (erro) {
+        console.error('whats: não alcancei a Meta para', forma, '|', String(erro))
+      }
     }
+    return null
   }
 
   const corpo = new URLSearchParams({
