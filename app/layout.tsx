@@ -55,6 +55,18 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
+  /**
+   * `cover` é o que faz `env(safe-area-inset-*)` valer alguma coisa.
+   *
+   * O CSS já pedia essas margens em nove lugares, entre eles a barra de abas,
+   * e sem esta linha elas valiam ZERO: o navegador não erra, ele devolve zero
+   * calado. Instalado na tela do iPhone, a barra ficava encostada no fim da
+   * janela e a faixa do aparelho passava por cima dela.
+   *
+   * Em aparelho sem entalhe todas as margens continuam zero, então isto não
+   * muda nada onde não precisava mudar.
+   */
+  viewportFit: 'cover',
   // As mesmas cores de chão de app/globals.css. Desencontrado, a barra do
   // navegador e a tela de abertura ficam de uma cor e o app de outra, e a
   // emenda aparece justamente no telefone, que é onde ela é uma faixa.

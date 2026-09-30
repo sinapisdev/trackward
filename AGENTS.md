@@ -1511,6 +1511,21 @@ mexer no `scrollTop` do próprio container, e só se ele realmente rolar.
 prontas, e boiando sobre a lista ele cobria justamente o que precisava ser feito para
 ligá-lo.
 
+**`env(safe-area-inset-*)` só vale com `viewport-fit:cover`.** O CSS pedia essas margens em
+nove lugares, entre eles a barra de abas, e sem aquela linha no `viewport` elas valiam
+**zero**: o navegador não erra, devolve zero calado. Instalado na tela do iPhone, a barra
+ficava encostada no fim da janela e a faixa do aparelho passava por cima. Ligando `cover`, o
+conteúdo passa a poder ficar embaixo do relógio também, então a barra de cima ganhou o
+`inset-top` junto: ligar um sem o outro conserta um lado e quebra o outro.
+
+**Rota dinâmica sem `loading.tsx` não é pré-carregada.** Todas as rotas de `(app)` são
+dinâmicas, porque o layout lê cookie para saber quem entrou, e não existia fronteira de
+carregamento em lugar nenhum. O efeito é duplo: o `<Link>` prefetch não fazia nada, e o Next
+segurava a tela ANTIGA até a nova ficar pronta, então clicar numa aba parecia não fazer
+nada. Existindo `(app)/loading.tsx`, as duas coisas se resolvem, e ela é genérica de
+propósito: um esqueleto por tela seria uma segunda cópia do layout de cada uma, que
+envelhece sozinha e um dia mostra a forma de uma tela que já mudou.
+
 **A altura das barras é medida, não escrita.** `componentes/Shell.tsx` publica
 `--alt-topo-real` e `--alt-abas-real` de uma medição de verdade, porque no
 celular a barra de cima quebra em duas linhas e a de baixo cresce com a faixa do

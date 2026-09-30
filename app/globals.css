@@ -184,8 +184,14 @@ svg{display:block;flex:none}
 :root{--gutter:clamp(16px,2.4vw,34px)}
 
 /* ------------------------------------------------------------- barra de cima */
+/* Com viewport-fit:cover o conteúdo passa a poder ficar EMBAIXO do relógio e da
+   faixa do aparelho, e não só perto deles. A barra de cima cresce a altura do
+   entalhe e empurra o próprio conteúdo para baixo dele; `--alt-topo-real` é
+   medido em Shell.tsx, então quem calcula altura acompanha sozinho. */
 .tw-topo{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:6px;
-  height:var(--alt-topo);padding-inline:var(--gutter);border-bottom:1px solid var(--line);
+  height:calc(var(--alt-topo) + env(safe-area-inset-top,0px));
+  padding-top:env(safe-area-inset-top,0px);
+  padding-inline:var(--gutter);border-bottom:1px solid var(--line);
   background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px)}
 .tw-marca{display:flex;align-items:center;gap:10px;flex:none;color:var(--tx)}
 .tw-marca b{font-size:17px;font-weight:var(--fw-semibold);letter-spacing:-.02em;line-height:1}
@@ -613,6 +619,14 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns
 .skel{background:linear-gradient(90deg,var(--line) 25%,var(--line-2) 50%,var(--line) 75%);
   background-size:200% 100%;animation:desliza 1.4s ease-in-out infinite;border-radius:6px}
 @keyframes desliza{from{background-position:200% 0}to{background-position:-200% 0}}
+/* A tela de espera entre um clique e a próxima. Ela aparece por pouco tempo, e
+   por isso entra sem animação de entrada: nascer com fade faria o piscar durar
+   mais do que a espera que ela existe para cobrir. */
+.carregando{display:flex;flex-direction:column;gap:12px}
+.carregando .cg-blocos{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.carregando .skel{border-radius:var(--r-sm)}
+.carregando .cg-blocos .skel{border-radius:var(--r)}
+.sr-so{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 
 /* ------------------------------------------------------------------ acesso */
 .auth{min-height:100dvh;display:grid;place-items:center;padding:24px 16px}
@@ -786,7 +800,7 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns
      uma só faixa cinza. Solta, com canto redondo, a tela termina antes dela e
      dá para ver que o conteúdo continua por baixo. */
   .tabbar{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;position:fixed;
-    left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));
+    left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));
     z-index:40;background:color-mix(in srgb,var(--panel) 92%,transparent);backdrop-filter:blur(18px);
     border:1px solid var(--line-2);border-radius:var(--r-lg);
     box-shadow:0 14px 34px -12px rgba(0,0,0,.55)}
