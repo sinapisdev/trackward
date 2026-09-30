@@ -1249,6 +1249,36 @@ todos os espaços, porque é o que alimenta o seletor de empresa. Misturar isso 
 escolha de responsável cria tarefa que o dono nunca enxerga. `Dados.tsx` filtra por
 `org_id`, e no banco existe `gente_daqui()` para quem precisar da lista certa.
 
+## O app na tela do celular, sem passar por loja
+
+O TrackWard é instalável como PWA, e isso não é consolo de quem não fez app nativo: é o
+mesmo código que um Capacitor rodaria depois, com manifest e ícones que se aproveitam
+inteiros. O que a loja daria a mais são três coisas concretas, e nenhuma delas vale a
+revisão da Apple na fase de validar: vitrine, receber conteúdo compartilhado no iPhone, e
+push mais firme por lá.
+
+**O iPhone é o motivo de existir o convite.** No Android o Chrome oferece sozinho e bastaria
+não atrapalhar. No iPhone não há evento nenhum: o caminho é Compartilhar, rolar e achar
+"Adicionar à Tela de Início", e ninguém descobre isso sozinho. Pior, **só funciona no
+Safari**: quem está no Chrome do iPhone não tem a opção e conclui que o app não dá para
+instalar. O convite diz as duas coisas, e é a diferença entre ser instalado e não ser.
+
+**O service worker ganhou um `fetch` que não faz nada**, e é burocracia do Chrome: sem
+ouvinte de fetch ele nunca dispara `beforeinstallprompt`, e o convite simplesmente não
+aparece, sem erro e sem nada para depurar. Ele não chama `respondWith`, então nada é
+guardado: a regra de o worker não decidir qual versão a pessoa vê continua valendo.
+
+**E ele é registrado na abertura, não no fluxo de push.** Registrado só quando alguém ligava
+o aviso, um app instalado sem push ficava sem trabalhador nenhum.
+
+**Uma coisa de cada vez, e instalar é a última das três.** O primeiro teste mostrou o convite
+por cima do tutorial: dois cartões empilhados, o de baixo ilegível, e a pessoa fechando os
+dois sem ler nenhum. Ele espera o nome e espera o tour `inicio` ter rodado, porque quem já
+passou por ele não está mais na primeira vez, e é a quem vale oferecer.
+
+**Quem disse não, não é perguntado de novo.** A porta fica em Ajustes, que é onde se procura
+o que se recusou antes. Tarja que volta toda semana é tarja que se aprende a ignorar.
+
 ## O tutorial de cada tela
 
 O app não se explica sozinho: a tela inicial mostra conversa, fila e radar ao mesmo tempo,

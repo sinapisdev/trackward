@@ -10,6 +10,7 @@ import { Ic } from './Icones'
 import { AjustesAvisos } from './AjustesAvisos'
 import { isoDe, rel } from '@/lib/datas'
 import { MODO_LOCAL } from '@/lib/modo'
+import { ComoNoIphone, useConviteDeInstalar } from './Instalar'
 import { comoTexto } from '@/lib/pulso'
 import { porque } from '@/lib/ritmo'
 import { reiniciarLocal } from '@/lib/local/cliente'
@@ -57,6 +58,7 @@ export function TelaAjustes() {
           {admin && <a href="#aj-org">Organização</a>}
           <a href="#aj-ia">Leitura da conversa</a>
           <a href="#aj-saida">O que sai daqui</a>
+          <a href="#aj-instalar">Na tela do celular</a>
           {admin && <a href="#aj-multi">Mais de um negócio</a>}
           <a href="#aj-avisos">Como quero ser avisado</a>
           <a href="#aj-agenda">Minha agenda externa</a>
@@ -258,6 +260,25 @@ export function TelaAjustes() {
                 preciso pedir a ninguém.
               </p>
             </div>
+          </div>
+        </div>
+
+        {/*
+          * A porta permanente de instalar.
+          *
+          * O convite aparece uma vez e some para sempre quando alguém diz que
+          * não, porque tarja que volta toda semana é tarja que se aprende a
+          * ignorar. Mas quem disse não hoje pode querer amanhã, e quem já usa o
+          * app vai atrás quando descobrir que existe. É este o lugar onde se
+          * procura o que se recusou antes.
+          */}
+        <div className="blk" id="aj-instalar">
+          <div className="bh">
+            <h2>Na tela do celular</h2>
+            <span className="c">abre direto, em tela cheia, e avisa com o app fechado</span>
+          </div>
+          <div className="card" style={{ padding: 15 }}>
+            <Instalacao />
           </div>
         </div>
 
@@ -568,6 +589,43 @@ export function TelaAjustes() {
         )}
         </div>
       </div>
+    </>
+  )
+}
+
+/**
+ * O estado da instalação, em três cenários e nenhum a mais.
+ *
+ * Já instalado, não há o que oferecer e dizer isso evita a pessoa procurar de
+ * novo. Com o convite do navegador na mão, um botão. Sem ele, que é o iPhone e
+ * qualquer navegador que não ofereça, o caminho escrito, porque ali não existe
+ * botão nenhum para dar.
+ */
+function Instalacao() {
+  const { convite, jaEsta } = useConviteDeInstalar()
+  const [indo, setIndo] = useState(false)
+
+  if (jaEsta) {
+    return (
+      <p className="hint" style={{ marginTop: 0 }}>
+        <b>Já está instalado neste aparelho.</b> Se quiser tirar, é como qualquer app: segure
+        o ícone e apague. Nada do que está no TrackWard se perde, porque ele mora no servidor.
+      </p>
+    )
+  }
+
+  return (
+    <>
+      <p className="hint" style={{ marginTop: 0 }}>
+        É o mesmo app, sem a barra do navegador em cima. O que muda de verdade é o aviso: só
+        instalado ele chega com o app fechado.
+      </p>
+      {convite ? (
+        <button className="btn pri" style={{ marginTop: 12 }} disabled={indo}
+          onClick={() => { setIndo(true); void convite.prompt().catch(() => setIndo(false)) }}>
+          Instalar agora
+        </button>
+      ) : <ComoNoIphone />}
     </>
   )
 }

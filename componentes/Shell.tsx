@@ -6,6 +6,7 @@ import { Barra, Rodape } from './Barra'
 import { TabBar } from './TabBar'
 import { Ic } from './Icones'
 import { PedeNome } from './PedeNome'
+import { Instalar } from './Instalar'
 import { Tutorial } from './Tutorial'
 import { FaixaDoPlano } from './Plano'
 
@@ -67,6 +68,10 @@ export function Shell({ children }: { children: ReactNode }) {
 
       {/* Quem entrou sem nome é chamado pelo e-mail, e a equipe inteira vê isso. */}
       <PedeNome />
+
+      {/* No celular, o convite para deixar o app na tela. Ele espera o tutorial
+          e o nome: uma coisa de cada vez, e instalar é a menos urgente das três. */}
+      <Instalar />
 
       {/* A primeira vez de cada pessoa, apontando para a tela de verdade. */}
       <Tutorial />

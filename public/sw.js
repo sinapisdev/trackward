@@ -11,6 +11,21 @@
  * ele só escuta push e cuida do clique.
  */
 
+/*
+ * Um `fetch` que deixa tudo passar, e existe por um motivo burocrático.
+ *
+ * O Chrome só oferece "instalar" (o evento `beforeinstallprompt`) quando existe
+ * um service worker COM ouvinte de fetch. Sem esta linha, o app tem manifest,
+ * ícone e tudo mais, e o convite para instalar simplesmente nunca aparece, sem
+ * erro nenhum e sem nada para depurar.
+ *
+ * Ele não chama `respondWith`, então o navegador segue com a requisição normal:
+ * nada é guardado, nada é servido de cache, e a regra lá de cima continua
+ * valendo. Um service worker que faz cache passa a decidir que versão do app a
+ * pessoa vê, e um dia alguém está olhando uma tela de duas semanas atrás.
+ */
+self.addEventListener('fetch', () => {})
+
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()))
 
