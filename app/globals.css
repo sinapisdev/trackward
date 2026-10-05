@@ -692,6 +692,26 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns
    ========================================================================== */
 
 .tabbar,.fab,.folha-fundo{display:none}
+/* A folga da barra de abas até o fim da janela. Um token para haver UM lugar
+   onde mexer, porque o `.fab` e as folhas se posicionam a partir dela. */
+:root{--abas-chao:calc(14px + env(safe-area-inset-bottom,0px))}
+
+/*
+ * No iPhone INSTALADO a janela vai até o fim da tela, e a faixa de gesto do
+ * aparelho (uns 34px) fica por cima da barra de abas. `env(safe-area-inset-*)`
+ * não ajuda aqui: ele só é preenchido com `viewport-fit:cover`, e `cover` põe a
+ * barra de CIMA embaixo do relógio no Android, que foi o estrago de 05/10/2026.
+ *
+ * Então a conta é feita à mão e só para esse caso. `-webkit-touch-callout` é
+ * uma propriedade que só existe no WebKit, e `display-mode:standalone` é só
+ * quando foi instalado: juntas, elas querem dizer "iPhone, na tela de início",
+ * e mais nada. Navegador, Android e computador não veem esta regra.
+ */
+@supports (-webkit-touch-callout: none) {
+  @media (display-mode: standalone) {
+    :root{--abas-chao:46px}
+  }
+}
 
 @media (max-width:840px){
   :root{--gutter:16px}
@@ -800,7 +820,7 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns
      uma só faixa cinza. Solta, com canto redondo, a tela termina antes dela e
      dá para ver que o conteúdo continua por baixo. */
   .tabbar{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;position:fixed;
-    left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));
+    left:12px;right:12px;bottom:var(--abas-chao);
     z-index:40;background:color-mix(in srgb,var(--panel) 92%,transparent);backdrop-filter:blur(18px);
     border:1px solid var(--line-2);border-radius:var(--r-lg);
     box-shadow:0 14px 34px -12px rgba(0,0,0,.55)}

@@ -1511,6 +1511,15 @@ mexer no `scrollTop` do próprio container, e só se ele realmente rolar.
 prontas, e boiando sobre a lista ele cobria justamente o que precisava ser feito para
 ligá-lo.
 
+**A folga da barra de abas é um token, `--abas-chao`, e tem um caso especial.** No iPhone
+INSTALADO a janela vai até o fim da tela e a faixa de gesto do aparelho fica por cima da
+barra. `env(safe-area-inset-bottom)` não resolve, porque ele só é preenchido com `cover`, e
+`cover` quebra o topo no Android (abaixo). Então a conta é feita à mão, e só ali: `@supports
+(-webkit-touch-callout: none)` é WebKit, `@media (display-mode: standalone)` é instalado, e
+juntas querem dizer "iPhone, na tela de início" e mais nada. Navegador, Android e computador
+não veem a regra. Ao mexer na posição da barra, mexer no token: o botão redondo e as folhas
+se posicionam a partir dele.
+
 **`viewport-fit` fica no padrão, e NÃO em `cover`.** A tentação é ligar `cover` para o app ir
 até a borda, e aí `env(safe-area-inset-*)` passa a valer e todo mundo fica no lugar. **No
 iPhone funciona; no Android não.** Lá a janela vai para a borda e a margem volta **zero**, e
