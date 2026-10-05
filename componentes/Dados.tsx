@@ -145,7 +145,11 @@ type Contexto = {
   editarItem: (item: Item, d: DadosItem) => Promise<void>
   definirTravas: (item: Item, ids: string[]) => Promise<void>
   excluirItem: (item: Item) => Promise<void>
-  alternarItem: (item: Item, porIa?: boolean) => Promise<void>
+  /**
+   * `semRastro` para quem já escreveu a própria notícia no canal, que hoje é
+   * só o aceite de uma proposta de "ficou pronto".
+   */
+  alternarItem: (item: Item, porIa?: boolean, semRastro?: boolean) => Promise<void>
   aprovar: (f: Fluxo) => Promise<void>
   /** Os anexos de uma tarefa, que são a prova de que ela saiu. */
   /** Os anexos de uma tarefa ou de uma nota, pelo id de uma das duas. */
@@ -797,6 +801,33 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     await sb.from('atividades').insert({ fluxo_id, quem_id: porIa ? null : eu.id, texto, por_ia: porIa })
   }, [sb, eu.id])
 
+  /**
+   * O que acontece com o trabalho volta para a conversa onde ele nasceu.
+   *
+   * `logar` escreve na ATIVIDADE da track, que é um histórico que ninguém abre:
+   * quem entra numa track quer falar e ver o checkpoint, não ler o passado. O
+   * resultado é que o trabalho saía da conversa e nunca voltava: você combinava
+   * o relatório no canal, a tarefa ia para o Meu trabalho de alguém, e o canal
+   * não ficava sabendo nem que ela existiu nem quando ficou pronta.
+   *
+   * Aqui a notícia vai para o CANAL da track, que é onde as pessoas estão. É a
+   * mesma regra que o comando já segue ("tudo que nasce de comando deixa rastro
+   * na conversa"), estendida ao que acontece depois.
+   *
+   * Falha calada de propósito: um rastro que não saiu não pode impedir uma
+   * tarefa de ser concluída.
+   */
+  const contarNoCanal = useCallback(async (fluxo_id: string, texto: string, porIa = false) => {
+    const canal = canais.find((c) => c.fluxo_id === fluxo_id)
+    if (!canal) return
+    try {
+      await sb.from('mensagens').insert({
+        id: novoId(), canal_id: canal.id, nota_id: null,
+        autor_id: porIa ? null : eu.id, texto, sistema: true, por_ia: porIa, responde_a: null,
+      })
+    } catch { /* o trabalho é o que importa; o aviso na conversa é o acréscimo */ }
+  }, [sb, eu.id, canais])
+
   // ---------------------------------------------------------------- ações
 
   const salvarArea: Contexto['salvarArea'] = useCallback(async (d) => {
@@ -951,11 +982,25 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       ordem: et.itens.length,
     })
     if (error) { falhou(error, 'Não foi possível adicionar o item.'); return null }
-    if (!d.priv) await logar(et.fluxo_id, `adicionou ${d.texto}`, porIa)
+    if (!d.priv) {
+      await logar(et.fluxo_id, `adicionou ${d.texto}`, porIa)
+      /**
+       * O canal só fica sabendo quando a tarefa é PEDIDO, e não lembrete.
+       *
+       * Anunciar toda tarefa criada transformaria a conversa numa lista de
+       * afazeres, e aí ninguém lê mais nada ali. O que a casa precisa saber é
+       * quando alguém passa trabalho para outra pessoa: aí existe um combinado,
+       * e combinado some quando fica guardado num canto que o outro não abre.
+       */
+      if (d.resp_id && d.resp_id !== eu.id) {
+        await contarNoCanal(et.fluxo_id,
+          `pediu a ${nomeDe(d.resp_id)}: ${d.texto}${d.prazo ? `, até ${curta(d.prazo)}` : ''}`, porIa)
+      }
+    }
     if (!porIa) toast('Item adicionado.')
     recarregar()
     return id
-  }, [sb, eu.id, falhou, toast, recarregar, logar])
+  }, [sb, eu.id, falhou, toast, recarregar, logar, contarNoCanal, nomeDe])
 
   const editarItem: Contexto['editarItem'] = useCallback(async (item, d) => {
     const { error } = await sb
@@ -989,7 +1034,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   }, [sb, falhou, toast, recarregar, logar])
 
   /** Marca na hora e confirma depois, para o clique não parecer lento. */
-  const alternarItem: Contexto['alternarItem'] = useCallback(async (item, porIa = false) => {
+  const alternarItem: Contexto['alternarItem'] = useCallback(async (item, porIa = false, semRastro = false) => {
     const feito = !item.feito
     setFluxos((atual) =>
       atual.map((f) =>
@@ -1007,11 +1052,23 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     const { error } = await sb.from('itens').update({ feito }).eq('id', item.id)
     if (error) { falhou(error, 'Não foi possível salvar.'); recarregar(); return }
     if (feito) {
-      if (!item.priv) await logar(item.fluxo_id, `concluiu ${item.texto}`, porIa)
+      if (!item.priv) {
+        await logar(item.fluxo_id, `concluiu ${item.texto}`, porIa)
+        /**
+         * E o canal fica sabendo, que é onde as pessoas estão.
+         *
+         * `semRastro` existe para um caso só: quando quem concluiu foi o aceite
+         * de uma proposta, ele já escreve a própria notícia no canal de origem,
+         * e sem isto a mesma conclusão apareceria duas vezes na conversa.
+         */
+        if (!semRastro) {
+          await contarNoCanal(item.fluxo_id, `concluiu: ${item.texto}`, porIa)
+        }
+      }
       if (!porIa) toast(`Concluído: ${item.texto}`)
     }
     recarregar()
-  }, [sb, falhou, toast, recarregar, logar])
+  }, [sb, falhou, toast, recarregar, logar, contarNoCanal])
 
   // ------------------------------------------------------------- anexos
 
@@ -2059,7 +2116,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     } else if (tipo === 'concluir') {
       const achado = itemPorId(dados.item_id)
       if (!achado) return toast('A tarefa não existe mais.', true)
-      if (!achado.item.feito) await alternarItem(achado.item, porIa)
+      if (!achado.item.feito) await alternarItem(achado.item, porIa, true)
       contou = `marcou "${achado.item.texto}" como feita`
     } else if (tipo === 'prazo') {
       const achado = itemPorId(dados.item_id)

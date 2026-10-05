@@ -1192,6 +1192,31 @@ A gramática mora em `lib/comandos.ts`, as datas em `lib/quando.ts`, o menu em
 São três campos de escrita (canal, conversa do Forward, conversa da nota) e um
 gancho só: três cópias virariam três linguagens diferentes no mês seguinte.
 
+## O que acontece com o trabalho volta para a conversa onde ele nasceu
+
+`logar` escreve na ATIVIDADE da track, que é um histórico que ninguém abre: quem entra numa
+track quer falar e ver o checkpoint, não ler o passado. O resultado era que **o trabalho saía
+da conversa e nunca voltava**. Você combinava o relatório no canal, a tarefa ia para o Meu
+trabalho de alguém, e o canal não ficava sabendo nem que ela existiu nem quando ficou pronta.
+
+`contarNoCanal` manda a notícia para o CANAL da track, que é onde as pessoas estão. É a mesma
+regra que o comando já seguia ("tudo que nasce de comando deixa rastro na conversa"),
+estendida ao que acontece **depois**.
+
+**Mas só o que é combinado entre duas pessoas.** Tarefa criada para si mesmo não vira
+mensagem: anunciar toda tarefa transformaria a conversa numa lista de afazeres e aí ninguém
+lê mais nada ali. O que a casa precisa saber é quando alguém passa trabalho para outra
+pessoa, porque aí existe um combinado, e combinado some quando fica guardado num canto que o
+outro não abre.
+
+**E a mesma notícia não sai duas vezes.** O aceite de uma proposta de "ficou pronto" já
+escreve no canal de origem, então ele chama `alternarItem` com `semRastro`. Sem isso a
+conclusão apareceria duplicada, e duplicata na conversa é o jeito mais rápido de alguém
+começar a ignorar as mensagens de sistema.
+
+**Falha calada de propósito.** Um rastro que não saiu não pode impedir uma tarefa de ser
+concluída.
+
 ## A proposta tem três portas, e "quase isso" não é motivo para recomeçar
 
 Eram duas: aceitar e dispensar. Com isso, **dispensar virava a saída de "quase isso"**, e aí
