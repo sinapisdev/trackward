@@ -30,7 +30,11 @@ export const metadata: Metadata = {
   manifest: '/manifest.webmanifest',
   // `capable` é o que faz o iPhone abrir o app em tela cheia depois de
   // adicionado à tela de início, e é ele que destrava o push no iOS.
-  appleWebApp: { capable: true, title: 'TrackWard', statusBarStyle: 'black-translucent' },
+    // `default`, e não `black-translucent`: aquele faz o iPhone desenhar o
+  // conteúdo EMBAIXO da barra de status, que é o mesmo problema do `cover` por
+  // outro caminho. Com `default` o sistema reserva a faixa e o app começa
+  // abaixo dela.
+  appleWebApp: { capable: true, title: 'TrackWard', statusBarStyle: 'default' },
   icons: {
     icon: [
       { url: '/icone-192.png', sizes: '192x192', type: 'image/png' },
@@ -56,17 +60,20 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   /**
-   * `cover` é o que faz `env(safe-area-inset-*)` valer alguma coisa.
+   * `viewport-fit` fica no padrão, e isso é uma decisão, não um esquecimento.
    *
-   * O CSS já pedia essas margens em nove lugares, entre eles a barra de abas,
-   * e sem esta linha elas valiam ZERO: o navegador não erra, ele devolve zero
-   * calado. Instalado na tela do iPhone, a barra ficava encostada no fim da
-   * janela e a faixa do aparelho passava por cima dela.
+   * Com `cover` o app vai até a borda da tela e passa a depender de
+   * `env(safe-area-inset-*)` para não ficar embaixo do relógio e da faixa do
+   * aparelho. No iPhone funciona. **No Android não**: a janela vai para a borda
+   * e a margem volta ZERO, então a barra de cima foi parar embaixo do relógio e
+   * o seletor de empresa e os ajustes ficaram inalcançáveis. Foi exatamente o
+   * que aconteceu em 05/10/2026, instalado na tela.
    *
-   * Em aparelho sem entalhe todas as margens continuam zero, então isto não
-   * muda nada onde não precisava mudar.
+   * Sem `cover`, quem recua a janela é o próprio sistema, nos dois. O app perde
+   * o visual que vai até a borda e ganha nunca ficar embaixo de nada. Para uma
+   * barra onde moram o seletor de espaço e os ajustes, essa troca não tem
+   * discussão.
    */
-  viewportFit: 'cover',
   // As mesmas cores de chão de app/globals.css. Desencontrado, a barra do
   // navegador e a tela de abertura ficam de uma cor e o app de outra, e a
   // emenda aparece justamente no telefone, que é onde ela é uma faixa.

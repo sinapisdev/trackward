@@ -1511,12 +1511,18 @@ mexer no `scrollTop` do próprio container, e só se ele realmente rolar.
 prontas, e boiando sobre a lista ele cobria justamente o que precisava ser feito para
 ligá-lo.
 
-**`env(safe-area-inset-*)` só vale com `viewport-fit:cover`.** O CSS pedia essas margens em
-nove lugares, entre eles a barra de abas, e sem aquela linha no `viewport` elas valiam
-**zero**: o navegador não erra, devolve zero calado. Instalado na tela do iPhone, a barra
-ficava encostada no fim da janela e a faixa do aparelho passava por cima. Ligando `cover`, o
-conteúdo passa a poder ficar embaixo do relógio também, então a barra de cima ganhou o
-`inset-top` junto: ligar um sem o outro conserta um lado e quebra o outro.
+**`viewport-fit` fica no padrão, e NÃO em `cover`.** A tentação é ligar `cover` para o app ir
+até a borda, e aí `env(safe-area-inset-*)` passa a valer e todo mundo fica no lugar. **No
+iPhone funciona; no Android não.** Lá a janela vai para a borda e a margem volta **zero**, e
+em 05/10/2026 isso pôs a barra de cima embaixo do relógio, com o seletor de espaço e os
+ajustes inalcançáveis, no app instalado. `statusBarStyle` segue `default` pelo mesmo motivo:
+`black-translucent` é o mesmo problema por outro caminho, no iPhone.
+
+Sem `cover`, quem recua a janela é o sistema, nos dois. O app perde o visual que vai até a
+borda e ganha nunca ficar embaixo de nada. Numa barra onde moram o seletor de espaço e os
+ajustes, essa troca não tem discussão. Os `env(safe-area-inset-*)` espalhados pelo CSS
+continuam lá e valem zero, e é esse o estado certo: eles são a rede para o dia em que alguém
+voltar a tentar, e tentar exige provar no Android ANTES.
 
 **Rota dinâmica sem `loading.tsx` não é pré-carregada.** Todas as rotas de `(app)` são
 dinâmicas, porque o layout lê cookie para saber quem entrou, e não existia fronteira de
