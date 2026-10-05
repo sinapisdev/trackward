@@ -1548,6 +1548,15 @@ paralelas: `perfis_sel` devolve `user_id = auth.uid()` incondicionalmente, entã
 perfis chegam sem precisar saber antes qual é o do espaço em uso. Quem escolhe entre eles
 continua sendo `meu_perfil()`, no banco.
 
+**Pedido demais ao mesmo tempo faz fila, e fila fria custa o dobro.** O carregamento dispara
+39 consultas de uma vez. Medido: uma sozinha e quente leva 63ms; as 39 juntas, **485ms a
+pior**. A tentação é separar em ondas, e a medição mostrou que não adianta: com a conexão já
+aberta, as 37 juntas levam 204ms e onze levam 215ms. **O custo não é a quantidade, é abrir a
+conexão.** Por isso o `preconnect` para o endereço do banco no `<head>`: o aperto de mão
+começa junto com o HTML em vez de esperar o JavaScript resolver perguntar. Antes de dividir
+o carregamento em pedaços, medir frio e quente separados, senão se paga uma refatoração por
+um ganho que não existe.
+
 **Rota dinâmica sem `loading.tsx` não é pré-carregada.** Todas as rotas de `(app)` são
 dinâmicas, porque o layout lê cookie para saber quem entrou, e não existia fronteira de
 carregamento em lugar nenhum. O efeito é duplo: o `<Link>` prefetch não fazia nada, e o Next

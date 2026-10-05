@@ -83,13 +83,33 @@ export const viewport: Viewport = {
   ],
 }
 
+/** O endereço do banco, para o navegador já ir abrindo caminho até ele. */
+const API = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+
 /** Aplica o tema salvo antes da primeira pintura, para a tela não piscar. */
 const TEMA = `try{var t=localStorage.getItem('track.tema');if(t)document.documentElement.dataset.tema=t}catch(e){}`
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR" className={sans.variable} suppressHydrationWarning>
-      <head><script dangerouslySetInnerHTML={{ __html: TEMA }} /></head>
+      <head>
+        {/*
+          * Abre a conversa com o banco ANTES de precisar dela.
+          *
+          * A primeira consulta paga DNS, conexão e TLS, e medindo deu 400 a
+          * 500ms só nisso: com a conexão quente, as 37 consultas do
+          * carregamento levam 204ms juntas; frias, levam 496ms. O navegador só
+          * descobre o endereço do banco quando o JavaScript já carregou e
+          * resolveu perguntar, ou seja, no fim da fila.
+          *
+          * `preconnect` manda ele começar o aperto de mão junto com o HTML, em
+          * paralelo com tudo. Quando a primeira consulta sair, o cano já está
+          * aberto. Não baixa nada e não custa nada para quem nunca chega lá.
+          */}
+        {API && <link rel="preconnect" href={API} crossOrigin="anonymous" />}
+        {API && <link rel="dns-prefetch" href={API} />}
+        <script dangerouslySetInnerHTML={{ __html: TEMA }} />
+      </head>
       <body>{children}</body>
     </html>
   )
