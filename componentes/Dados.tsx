@@ -169,6 +169,15 @@ type Contexto = {
   preverCascata: (item: Item, novo: string) => Promise<NaCascata[]>
   /** Aplica o que é da mesma esteira e pede o resto. */
   moverPrazo: (item: Item, novo: string, motivo: string) => Promise<boolean>
+  /**
+   * Devolve a tarefa a quem pediu, com o motivo.
+   *
+   * Não é recusar trabalho: é devolver a DECISÃO a quem pediu. Sem esta porta,
+   * a resposta mais comum da vida real a um pedido errado ("isso é com a
+   * Erika") não tinha para onde ir, e a tarefa apodrecia no nome de quem nunca
+   * ia fazê-la.
+   */
+  devolverItem: (item: Item, motivo: string) => Promise<boolean>
   /** Os agentes da empresa: o que reconhecer na conversa, e o que fazer. */
   agentes: Agente[]
   salvarAgente: (a: Partial<Agente>) => Promise<void>
@@ -1649,6 +1658,20 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     return (data || []) as NaCascata[]
   }, [sb, falhou])
 
+  const devolverItem: Contexto['devolverItem'] = useCallback(async (item, motivo) => {
+    const { error } = await sb.rpc('devolver_item', { p_item: item.id, p_motivo: motivo })
+    if (error) { falhou(error, 'Não foi possível devolver.'); return false }
+    // O canal fica sabendo, como fica de tudo que acontece com o trabalho que
+    // nasceu de uma conversa. Quem pediu também recebe aviso, mas o aviso é de
+    // uma pessoa só e a combinação foi de todo mundo que estava ali.
+    if (!item.priv) {
+      await contarNoCanal(item.fluxo_id, `devolveu "${item.texto}": ${motivo.trim()}`)
+    }
+    toast('Devolvida para quem pediu.')
+    recarregar()
+    return true
+  }, [sb, falhou, toast, recarregar, contarNoCanal])
+
   const moverPrazo: Contexto['moverPrazo'] = useCallback(async (item, novo, motivo) => {
     const { data, error } = await sb.rpc('aplicar_cascata', {
       p_item: item.id, p_novo: novo, p_motivo: motivo,
@@ -3124,7 +3147,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     lerAvisos, apagarAviso, contato, salvarContato,
     aparelhos: aparelhos.filter((a) => a.perfil_id === eu.id),
     ligarPushAqui, desligarPushAqui, esquecerAparelho,
-    preverCascata, moverPrazo, pedidosPrazo, decidirPrazo,
+    preverCascata, moverPrazo, devolverItem, pedidosPrazo, decidirPrazo,
     enviar, enviarAudio, abrirAudio, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
     executarComando,
     lerConversa, lerNota, aceitarSugestao, recusarSugestao,

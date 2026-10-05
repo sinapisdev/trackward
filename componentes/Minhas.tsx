@@ -244,10 +244,20 @@ function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoA
   aoConcluir: () => void
   aoAprovar: () => void
 }) {
+  const { devolverItem, eu } = useDados()
+  const [devolvendo, setDevolvendo] = useState(false)
+  const [motivo, setMotivo] = useState('')
+  const [indo, setIndo] = useState(false)
+
   const et = etapaAtual(p.fluxo)
   const titulo = p.tipo === 'aprov' ? `Aprovar saída de ${p.etapa.nome}` : p.item.texto
   const resp = p.tipo === 'aprov' ? p.etapa.aprovador_id : p.item.resp_id
   const feito = p.tipo === 'item' && p.item.feito
+
+  // Tarefa minha, pedida por outra pessoa, e ainda por fazer.
+  const podeDevolver = p.tipo === 'item' && !feito
+    && p.item.resp_id === eu.id
+    && !!p.item.autor_id && p.item.autor_id !== eu.id
 
   return (
     <aside className="gaveta" data-tut="minhas-gaveta">
@@ -306,6 +316,47 @@ function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoA
           <Ic.check />{feito ? 'Reabrir tarefa' : 'Marcar como feita'}
         </button>
       )}
+      {/*
+        * Devolver, e só quando há para quem.
+        *
+        * Aparece na tarefa que OUTRA PESSOA pediu, nunca na que você mesmo
+        * escreveu, porque devolver para si não quer dizer nada. E some depois
+        * de feita: devolver o que já foi entregue não é devolver, é desfazer, e
+        * isso é outra conversa.
+        *
+        * Fica abaixo da ação principal e sem destaque. O lima é de quem faz o
+        * trabalho andar, e devolver é o contrário: é dizer que ele não anda
+        * por aqui.
+        */}
+      {podeDevolver && (
+        devolvendo ? (
+          <div className="gav-devolver">
+            <label htmlFor="gav-pq">Por que está devolvendo?</label>
+            <textarea className="inp" id="gav-pq" rows={2} autoFocus value={motivo}
+              placeholder="Quem deveria fazer, ou o que falta"
+              onChange={(e) => setMotivo(e.target.value)} />
+            <p className="hint">
+              Ela volta para {nomeDe(p.item.autor_id)}, com o que você escreveu junto. Sem o
+              motivo, quem pediu não sabe o que fazer com ela.
+            </p>
+            <div className="row-inline">
+              <button className="btn ghost" onClick={() => setDevolvendo(false)}>Deixa pra lá</button>
+              <button className="btn" disabled={!motivo.trim() || indo}
+                onClick={async () => {
+                  setIndo(true)
+                  const deu = await devolverItem(p.item, motivo)
+                  setIndo(false)
+                  if (deu) { setDevolvendo(false); setMotivo(''); aoFechar() }
+                }}>Devolver</button>
+            </div>
+          </div>
+        ) : (
+          <button className="btn ghost larga" onClick={() => setDevolvendo(true)}>
+            <Ic.devolver />Devolver para quem pediu
+          </button>
+        )
+      )}
+
       {!avulsa && (
         <Link className="gaveta-abrir" href={`/fluxo/${p.fluxo.id}`}>Abrir track <Ic.seta /></Link>
       )}

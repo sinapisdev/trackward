@@ -1245,6 +1245,11 @@ Erika". Sem porta para isso, a pessoa ignora e a tarefa apodrece no nome de quem
 fazê-la. Por isso o motivo é **obrigatório** e por isso ela volta para o colo do autor em vez
 de ficar sem dono: tarefa sem dono é tarefa que ninguém olha, e o ponto é que alguém olhe.
 
+**O botão aparece só onde faz sentido**: tarefa sua, pedida por outra pessoa, e ainda por
+fazer. Na que você mesmo escreveu não há para quem devolver, e na já concluída devolver não é
+devolver, é desfazer, que é outra conversa. **E ele não é lima**: o acento é de quem faz o
+trabalho andar, e devolver é dizer que ele não anda por aqui.
+
 **E devolução não dispara "Nova tarefa com você".** Ela muda o responsável, então
 `aviso_tarefa` disparava junto: dois avisos para o mesmo gesto, e o genérico ainda escondia o
 motivo, que é a única coisa que a pessoa precisa ler.
