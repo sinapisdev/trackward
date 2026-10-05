@@ -5228,6 +5228,216 @@ revoke all on function public.teto_de_leituras(uuid) from public, anon;
 grant execute on function public.teto_de_leituras(uuid) to authenticated, service_role;
 
 
+-- O aviso de tarefa nova ganha a exceção da devolução (seção 58).
+create or replace function public.aviso_tarefa()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_fluxo text;
+begin
+  if new.resp_id is null then return new; end if;
+  if tg_op = 'UPDATE' and new.resp_id is not distinct from old.resp_id then return new; end if;
+  if new.resp_id = meu_perfil() then return new; end if;
+  /**
+   * Devolução não é tarefa nova.
+   *
+   * Devolver muda o responsável, então este gatilho dispara e manda "Nova
+   * tarefa com você" junto com o "Devolveram uma tarefa para você" da seção 58:
+   * dois avisos para o mesmo gesto, e o genérico ainda esconde o motivo, que é
+   * a única coisa que a pessoa precisa ler. Quem conta devolução é o outro.
+   */
+  if tg_op = 'UPDATE' and new.devolvida_em is distinct from old.devolvida_em then
+    return new;
+  end if;
+
+  select nome into v_fluxo from fluxos where id = new.fluxo_id;
+  perform avisar(
+    new.resp_id, 'tarefa', 'Nova tarefa com você',
+    new.texto || coalesce(' · ' || v_fluxo, ''),
+    'tarefa:' || new.id::text || ':' || new.resp_id::text,
+    false, new.fluxo_id, new.id, new.etapa_id, null);
+  return new;
+end $$;
+
+drop trigger if exists ao_dar_tarefa on public.itens;
+create trigger ao_dar_tarefa after insert or update of resp_id on public.itens
+  for each row execute function public.aviso_tarefa();
+
+-- ==========================================================================
+-- 58. Quem pediu fica sabendo, e quem recebeu pode devolver
+--
+--     Três buracos do mesmo ciclo, e os três apareceram na mesma conversa de
+--     uso real.
+--
+--     **Quem pediu não era avisado.** `aviso_ao_concluir` avisava só quem estava
+--     TRAVADO pela tarefa. Se ninguém dependia dela, ela ficava pronta em
+--     silêncio: quem pediu o relatório só descobria perguntando, que é
+--     exatamente o que este app existe para evitar.
+--
+--     **E quem recebeu não tinha voz.** A tarefa nascia no nome de alguém e
+--     pronto. Na vida real a resposta mais comum a um pedido errado não é fazer
+--     nem ignorar, é "isso não é comigo, é com a Erika". Sem porta para isso, a
+--     pessoa ignora, e a tarefa apodrece no nome de quem nunca ia fazê-la.
+--
+--     Devolver não é recusar trabalho: é **devolver a decisão a quem pediu**,
+--     com o motivo junto. Por isso o motivo é obrigatório e por isso a tarefa
+--     volta para o colo do autor em vez de ficar sem dono: tarefa sem dono é
+--     tarefa que ninguém olha, e o ponto é justamente que alguém olhe.
+-- ==========================================================================
+
+alter table public.itens add column if not exists devolvida_em  timestamptz;
+alter table public.itens add column if not exists devolvida_por uuid references public.perfis on delete set null;
+alter table public.itens add column if not exists devolvida_pq  text;
+
+/**
+ * Devolver a tarefa a quem pediu, com o motivo.
+ *
+ * Só quem está no nome dela devolve: devolver tarefa alheia seria mexer no
+ * trabalho de outra pessoa, e isso aqui sempre pede botão de quem é dono dele.
+ * O autor não devolve para si mesmo, porque não há para onde.
+ */
+create or replace function public.devolver_item(p_item uuid, p_motivo text)
+returns void language plpgsql security definer set search_path = public as $$
+declare v itens%rowtype; v_eu uuid := meu_perfil();
+begin
+  select * into v from itens where id = p_item;
+  if v.id is null then raise exception 'Tarefa não encontrada.'; end if;
+  if not minha(v.org_id) then raise exception 'Tarefa de outra empresa.'; end if;
+  if v.resp_id is distinct from v_eu then
+    raise exception 'Só quem está no nome da tarefa pode devolvê-la.';
+  end if;
+  if coalesce(btrim(p_motivo), '') = '' then
+    raise exception 'Diga por que está devolvendo: sem o motivo, quem pediu não sabe o que fazer com ela.';
+  end if;
+  if v.autor_id is null or v.autor_id = v_eu then
+    raise exception 'Esta tarefa não tem para quem voltar.';
+  end if;
+
+  update itens set
+    resp_id = v.autor_id,
+    devolvida_em = now(), devolvida_por = v_eu, devolvida_pq = btrim(p_motivo)
+   where id = p_item;
+
+  perform auditar(v.org_id, 'devolveu', 'item', p_item,
+    jsonb_build_object('de', v_eu, 'para', v.autor_id));
+end $$;
+
+revoke all on function public.devolver_item(uuid, text) from public, anon;
+grant execute on function public.devolver_item(uuid, text) to authenticated;
+
+/**
+ * Quem pediu fica sabendo: ao concluir e ao devolver.
+ *
+ * Separado de `aviso_ao_concluir`, que cuida de quem estava travado. Os dois
+ * olham o mesmo instante e respondem a perguntas diferentes: lá é "já dá para
+ * tocar o meu", aqui é "aquilo que eu pedi aconteceu".
+ *
+ * Nada sai quando a pessoa conclui a própria tarefa: avisar alguém do que ele
+ * mesmo acabou de fazer é o começo de o sino virar ruído.
+ */
+create or replace function public.aviso_de_quem_pediu()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_nome text;
+begin
+  if new.autor_id is null then return null; end if;
+
+  if new.feito and not old.feito and new.autor_id is distinct from new.resp_id then
+    select nome into v_nome from perfis where id = new.resp_id;
+    perform avisar(new.autor_id, 'tarefa', 'Ficou pronto',
+      coalesce(v_nome, 'Alguém') || ' concluiu: ' || new.texto,
+      -- A chave carrega a tarefa e o estado: concluir, reabrir e concluir de
+      -- novo são três notícias, e a segunda não pode ser engolida pela primeira.
+      'feito:' || new.id::text, false, new.fluxo_id, new.id);
+  end if;
+
+  if new.devolvida_em is distinct from old.devolvida_em and new.devolvida_em is not null then
+    select nome into v_nome from perfis where id = new.devolvida_por;
+    perform avisar(new.autor_id, 'tarefa', 'Devolveram uma tarefa para você',
+      coalesce(v_nome, 'Alguém') || ' devolveu "' || new.texto || '": ' || coalesce(new.devolvida_pq, ''),
+      'devolvida:' || new.id::text || ':' || new.devolvida_em::text, false, new.fluxo_id, new.id);
+  end if;
+  return null;
+end $$;
+
+drop trigger if exists ao_pedir_saber on public.itens;
+create trigger ao_pedir_saber after update on public.itens
+  for each row execute function public.aviso_de_quem_pediu();
+
+-- ==========================================================================
+-- 59. A track que o canal ganha sem ninguém pedir
+--
+--     O app deixava CONVERSAR sem track e não deixava TRABALHAR sem track:
+--     `itens.fluxo_id` e `etapa_id` são obrigatórios, então a primeira coisa
+--     combinada num canal livre batia em "escolha para qual projeto esta tarefa
+--     vai". E a pessoa não sabe: ela acabou de criar o canal justamente porque
+--     ainda não sabe que forma aquele trabalho tem.
+--
+--     Pedir que ela invente a track antes de trabalhar é pedir que desenhe o
+--     processo antes de ter vivido ele, que é o oposto do que este produto diz
+--     em toda a seção de processos descobertos.
+--
+--     A saída já existia em outro lugar: a tarefa avulsa mora numa track
+--     privada chamada "Minha lista", que **nasce sozinha na primeira tarefa** e
+--     que ninguém nunca vê. O mesmo truque serve aqui, e usar duas vezes um
+--     mecanismo que já existe vale mais do que inventar um segundo.
+--
+--     `implicita` é o que a mantém fora do caminho: ela não aparece em Tracks,
+--     e o canal continua listado como canal. O dia em que o trabalho ali tiver
+--     forma, alguém aceita dar-lhe uma trilha e ela deixa de ser implícita.
+--     Até lá, ela é só o lugar onde o trabalho fica guardado enquanto ninguém
+--     sabe ainda que forma ele tem.
+-- ==========================================================================
+
+alter table public.fluxos add column if not exists implicita boolean not null default false;
+
+create index if not exists fluxos_implicita_idx on public.fluxos (org_id) where implicita;
+
+/**
+ * A track daquele canal, abrindo-a se ainda não existir.
+ *
+ * `security definer` porque ela cria um fluxo e uma etapa, e quem chama é uma
+ * pessoa comum aceitando uma proposta: exigir que ela possa criar track à mão
+ * seria exigir permissão para uma coisa que ela não pediu e não vai ver.
+ *
+ * A visibilidade sai do canal, e isso não é detalhe: canal fechado não pode
+ * ganhar uma track que a empresa inteira lê, senão o que foi dito a portas
+ * fechadas vira tarefa visível por tabela.
+ */
+create or replace function public.track_do_canal(p_canal uuid, p_como uuid default null)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare c canais%rowtype; v_eu uuid := quem_age(p_como); f uuid; e uuid;
+begin
+  select * into c from canais where id = p_canal;
+  if c.id is null then raise exception 'Canal não encontrado.'; end if;
+  if c.fluxo_id is not null then return c.fluxo_id; end if;
+
+  f := gen_random_uuid();
+  e := gen_random_uuid();
+  insert into fluxos (id, org_id, nome, tipo, visib, dono_id, autor_id, atual, area_id,
+                      empresa_id, implicita)
+  values (f, c.org_id, c.nome, 'esteira',
+          case when c.tipo = 'aberto' then 'equipe' else 'escolhidas' end,
+          v_eu, v_eu, 0, c.area_id, c.empresa_id, true);
+
+  -- Um checkpoint só, e sem nome de processo: dar nome agora seria inventar a
+  -- primeira etapa de um processo que ninguém desenhou. "Em andamento" diz o
+  -- que é verdade e não finge saber mais do que se sabe.
+  insert into etapas (id, fluxo_id, nome, criterio, ordem)
+  values (e, f, 'Em andamento', '', 0);
+
+  -- Em canal fechado, quem já está lá é quem enxerga.
+  if c.tipo <> 'aberto' then
+    insert into fluxo_pessoas (fluxo_id, perfil_id, org_id)
+    select f, m.perfil_id, c.org_id from canal_membros m where m.canal_id = p_canal
+    on conflict do nothing;
+  end if;
+
+  update canais set fluxo_id = f where id = p_canal;
+  return f;
+end $$;
+
+revoke all on function public.track_do_canal(uuid, uuid) from public, anon;
+grant execute on function public.track_do_canal(uuid, uuid) to authenticated, service_role;
+
+
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
     as "carimbo de organizacao (40)",
@@ -5552,4 +5762,22 @@ select
   -- casa com nenhum `case`, cai no `else` e vira sem teto. O erro mais caro
   -- possível, escrito por quem estava tentando cobrar.
   (select count(*) from pg_constraint where conname = 'org_plano_check')
-    as "plano invalido e recusado (1)";
+    as "plano invalido e recusado (1)",
+  -- Quem pediu fica sabendo. Antes, só quem estava TRAVADO pela tarefa era
+  -- avisado: se ninguém dependia dela, ela ficava pronta em silêncio.
+  (select count(*) from pg_trigger where tgname = 'ao_pedir_saber')
+    as "quem pediu e avisado (1)",
+  -- Devolver é devolver a decisão a quem pediu, com o motivo junto, e por isso
+  -- o motivo é obrigatório e a tarefa volta para o colo do autor.
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'itens'
+      and column_name in ('devolvida_em','devolvida_por','devolvida_pq'))
+    as "a tarefa pode ser devolvida (3)",
+  -- O canal ganha onde guardar o trabalho antes de alguém saber que forma ele
+  -- tem. Ela não aparece em Tracks: `implicita` é o que a mantém fora do caminho.
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'fluxos' and column_name = 'implicita')
+    as "a track implicita existe (1)",
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname in ('track_do_canal','devolver_item'))
+    as "as duas funcoes novas (2)";

@@ -480,6 +480,11 @@ export type Atividade = {
 }
 
 export type Fluxo = {
+  /**
+   * Nasceu para um canal ter onde guardar o trabalho, e não aparece em Tracks
+   * (seção 59). Deixa de ser implícita no dia em que alguém lhe dá uma trilha.
+   */
+  implicita?: boolean
   id: string
   tipo: Tipo
   nome: string

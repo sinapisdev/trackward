@@ -510,6 +510,38 @@ class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
 
 // ----------------------------------------------------------------- funções
 
+/**
+ * A track implícita do canal. Espelha `track_do_canal` (seção 59 do schema).
+ *
+ * Existe aqui porque a demonstração é o que se mostra a quem ainda não usa, e
+ * uma proposta que não dá para aceitar ali é a pior primeira impressão possível.
+ */
+function trackDoCanal(canalId: string): string {
+  const b = ler()
+  const c = b.canais.find((x: Linha) => x.id === canalId)
+  if (!c) throw new Error('Canal não encontrado.')
+  if (c.fluxo_id) return c.fluxo_id as string
+
+  const eu = euLocal()
+  const id = uid('f')
+  b.fluxos.push({
+    id, tipo: 'esteira', nome: c.nome, area_id: c.area_id ?? null,
+    dono_id: eu, autor_id: eu, empresa_id: c.empresa_id ?? null,
+    // A visibilidade sai do canal: canal fechado não ganha track que a casa lê.
+    visib: c.tipo === 'aberto' ? 'equipe' : 'escolhidas',
+    freq: null, periodo: null, atual: 0, concluido: false,
+    desfecho: null, motivo: null, detalhe: null, arquivado_em: null,
+    implicita: true, criado_em: new Date().toISOString(),
+  })
+  b.etapas.push({
+    id: uid('e'), fluxo_id: id, nome: 'Em andamento', criterio: '',
+    aprovador_id: null, prazo: null, ordem: 0,
+  })
+  c.fluxo_id = id
+  gravar()
+  return id
+}
+
 function salvarFluxo(pFluxo: Linha, pEtapas: Linha[]): string {
   const b = ler()
   const eu = euLocal()
@@ -1585,6 +1617,9 @@ function montarCliente() {
         }
         if (nome === 'aprovar_etapa') {
           return { data: aprovarEtapa(args.p_fluxo as string, (args.p_periodo as string) || null), error: null }
+        }
+        if (nome === 'track_do_canal') {
+          return { data: trackDoCanal(args.p_canal as string), error: null }
         }
         return { data: null, error: { message: `Função ${nome} não existe no modo demonstração.` } }
       } catch (e) {

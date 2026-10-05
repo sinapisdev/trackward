@@ -293,7 +293,7 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
           <label>
             <span>Onde</span>
             <select value={fluxoId} onChange={(e) => setFluxoId(e.target.value)}>
-              <option value="">Escolha o projeto</option>
+              <option value="">{s.canal_id ? 'Fica neste canal' : 'Escolha o projeto'}</option>
               {abertos.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
             </select>
           </label>
@@ -346,7 +346,11 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
         {!ajustando && (
           <button className="btn ghost" onClick={() => setAjustando(true)}>Ajustar</button>
         )}
-        <button className="btn pri" disabled={ocupado || (editavel && !fluxoId)} onClick={() => void aceitar()}>
+        {/* Sem track escolhida o aceite continua possível quando a proposta veio
+            de um canal: ali o próprio canal vira o lugar (seção 59). Exigir que
+            a pessoa escolha um projeto que ela não tem era o muro que a impedia
+            de usar o app sem inventar track antes de saber a forma do trabalho. */}
+        <button className="btn pri" disabled={ocupado || (editavel && !fluxoId && !s.canal_id)} onClick={() => void aceitar()}>
           <Ic.check />
           {/* O rótulo segue o tipo VIVO, não o que a leitura propôs: trocando a
               espécie e lendo "Registrar" num cartão que virou tarefa, a pessoa

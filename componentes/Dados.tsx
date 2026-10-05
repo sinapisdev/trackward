@@ -730,7 +730,17 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    * meio das vivas, e um ano de operação deixava a tela ilegível justamente
    * para quem mais usa o app.
    */
-  const fluxos = useMemo(() => doEspaco.filter((f) => !arquivada(f)), [doEspaco])
+  /**
+   * A track implícita do canal fica fora da lista (seção 59).
+   *
+   * Ela existe só para o trabalho combinado num canal livre ter onde morar, e
+   * quem usa nunca pediu por ela. Aparecendo em Tracks, cada canal viraria uma
+   * track vazia na tela, que é exatamente o contrário do que ela resolve.
+   */
+  const fluxos = useMemo(
+    () => doEspaco.filter((f) => !arquivada(f) && !f.implicita),
+    [doEspaco],
+  )
   const arquivadas = useMemo(
     () => doEspaco.filter(arquivada)
       .sort((a, b) => (b.arquivado_em || '').localeCompare(a.arquivado_em || '')),
@@ -2087,7 +2097,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   const aceitarSugestao: Contexto['aceitarSugestao'] = useCallback(async (sug, ajuste, porIa = false) => {
     const dados: Alvo = { ...sug.dados, ...ajuste }
-    const fluxo = todosFluxos.find((x) => x.id === dados.fluxo_id) || null
+    const fluxoEscolhido = todosFluxos.find((x) => x.id === dados.fluxo_id) || null
     // O que vale é o texto corrigido, quando houve correção. A leitura entende
     // quase certo com frequência, e sem isto "quase" valia o mesmo que errado.
     const texto = (dados.texto || '').trim() || sug.texto
@@ -2102,17 +2112,48 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     let contou = ''
 
     if (tipo === 'tarefa') {
-      if (!fluxo) return toast('Escolha para qual projeto esta tarefa vai.', true)
-      const et = fluxo.etapas.find((e) => e.id === dados.etapa_id)
-        || fluxo.etapas[fluxo.atual] || fluxo.etapas[0]
-      if (!et) return toast('Este projeto ainda não tem checkpoint.', true)
+      /**
+       * Sem track escolhida, o CANAL vira o lugar.
+       *
+       * Era aqui que o app parava: a pessoa combinava algo num canal livre e
+       * batia em "escolha para qual projeto", sem ter projeto nenhum, porque
+       * criou o canal justamente por ainda não saber que forma aquilo tem.
+       * `track_do_canal` abre uma track implícita por baixo, que não aparece em
+       * lugar nenhum, e a tarefa passa a ter onde morar.
+       */
+      let onde = fluxoEscolhido
+      let et = onde
+        ? onde.etapas.find((e) => e.id === dados.etapa_id) || onde.etapas[onde.atual] || onde.etapas[0]
+        : null
+
+      if (!et && sug.canal_id) {
+        const { data: novo } = await sb.rpc('track_do_canal', { p_canal: sug.canal_id })
+        if (novo) {
+          /**
+           * A track acabou de nascer, então ela ainda não está na árvore que a
+           * tela guarda. Buscar o checkpoint direto é o que permite criar a
+           * tarefa AGORA: esperar o recarregar seria perder o aceite que a
+           * pessoa acabou de dar, e pedir que ela clicasse de novo.
+           */
+          const { data: linha } = await sb.from('etapas')
+            .select('id,fluxo_id').eq('fluxo_id', novo as string).order('ordem').limit(1).maybeSingle()
+          if (linha) {
+            et = { ...(linha as { id: string; fluxo_id: string }), nome: '', criterio: '',
+                   aprovador_id: null, prazo: null, ordem: 0, itens: [] } as unknown as Etapa
+            onde = todosFluxos.find((x) => x.id === novo) || null
+          }
+        }
+      }
+
+      if (!et) return toast('Escolha para qual projeto esta tarefa vai.', true)
       const id = await adicionarItem(et, {
         texto, resp_id: dados.resp_id ?? null, prazo: dados.prazo || '', priv: false,
       }, porIa)
       if (!id) return
       // Guardamos o que nasceu daqui, senão não há como desfazer depois.
       dados.criou_id = id
-      contou = `criou a tarefa "${texto}" em ${fluxo.nome}`
+      dados.fluxo_id = et.fluxo_id
+      contou = `criou a tarefa "${texto}"${onde ? ` em ${onde.nome}` : ''}`
     } else if (tipo === 'concluir') {
       const achado = itemPorId(dados.item_id)
       if (!achado) return toast('A tarefa não existe mais.', true)
@@ -2130,12 +2171,12 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       })
       contou = `mudou o prazo de "${achado.item.texto}"`
     } else if (tipo === 'trava') {
-      if (!fluxo) return toast('Esta proposta não aponta para um projeto.', true)
-      await travar(fluxo, texto.replace(/^Travar [^:]+:\s*/, ''))
-      contou = `travou ${fluxo.nome}`
+      if (!fluxoEscolhido) return toast('Esta proposta não aponta para um projeto.', true)
+      await travar(fluxoEscolhido, texto.replace(/^Travar [^:]+:\s*/, ''))
+      contou = `travou ${fluxoEscolhido.nome}`
     } else if (tipo === 'decisao') {
-      if (fluxo) await logar(fluxo.id, `registrou da conversa: ${texto}`, porIa)
-      contou = fluxo ? `registrou a decisão em ${fluxo.nome}` : 'registrou a decisão'
+      if (fluxoEscolhido) await logar(fluxoEscolhido.id, `registrou da conversa: ${texto}`, porIa)
+      contou = fluxoEscolhido ? `registrou a decisão em ${fluxoEscolhido.nome}` : 'registrou a decisão'
     } else if (tipo === 'agente') {
       const a = agentes.find((x) => x.id === dados.agente_id)
       if (!a) return toast('Este agente não existe mais.', true)

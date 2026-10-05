@@ -1192,6 +1192,48 @@ A gramática mora em `lib/comandos.ts`, as datas em `lib/quando.ts`, o menu em
 São três campos de escrita (canal, conversa do Forward, conversa da nota) e um
 gancho só: três cópias virariam três linguagens diferentes no mês seguinte.
 
+## O canal ganha uma track sem ninguém pedir
+
+O app deixava CONVERSAR sem track e **não deixava TRABALHAR** sem track: `itens.fluxo_id` e
+`etapa_id` são obrigatórios, então a primeira coisa combinada num canal livre batia em
+"escolha para qual projeto esta tarefa vai". E a pessoa não sabe: ela criou o canal
+justamente porque ainda não sabe que forma aquele trabalho tem. Pedir que ela invente a
+track antes é pedir que desenhe o processo antes de ter vivido ele, o oposto do que este
+produto diz em toda a seção de processos descobertos.
+
+A saída já existia em outro lugar: a tarefa avulsa mora em "Minha lista", uma track privada
+que **nasce sozinha na primeira tarefa** e que ninguém nunca vê. `track_do_canal` (seção 59)
+é o mesmo truque, e usar duas vezes um mecanismo que já existe vale mais do que inventar um
+segundo.
+
+**`fluxos.implicita` é o que a mantém fora do caminho**: não aparece em Tracks, e o canal
+continua listado como canal. O dia em que o trabalho ali tiver forma, alguém aceita dar-lhe
+uma trilha e ela deixa de ser implícita.
+
+**A visibilidade sai do canal, e isso não é detalhe.** Canal fechado não pode ganhar uma
+track que a empresa inteira lê, senão o que foi dito a portas fechadas vira tarefa visível
+por tabela. Fechado nasce `escolhidas`, com quem já está no canal convidado.
+
+**E o checkpoint se chama "Em andamento".** Dar nome de etapa agora seria inventar o primeiro
+passo de um processo que ninguém desenhou.
+
+## Quem pediu fica sabendo, e quem recebeu pode devolver
+
+`aviso_ao_concluir` avisava só quem estava TRAVADO pela tarefa. Se ninguém dependia dela, ela
+ficava pronta **em silêncio**, e quem pediu o relatório só descobria perguntando, que é
+exatamente o que este app existe para evitar. `aviso_de_quem_pediu` (seção 58) cobre as duas
+pontas: concluiu e devolveu.
+
+**Devolver não é recusar trabalho, é devolver a decisão a quem pediu.** Na vida real a
+resposta mais comum a um pedido errado não é fazer nem ignorar, é "isso não é comigo, é com a
+Erika". Sem porta para isso, a pessoa ignora e a tarefa apodrece no nome de quem nunca ia
+fazê-la. Por isso o motivo é **obrigatório** e por isso ela volta para o colo do autor em vez
+de ficar sem dono: tarefa sem dono é tarefa que ninguém olha, e o ponto é que alguém olhe.
+
+**E devolução não dispara "Nova tarefa com você".** Ela muda o responsável, então
+`aviso_tarefa` disparava junto: dois avisos para o mesmo gesto, e o genérico ainda escondia o
+motivo, que é a única coisa que a pessoa precisa ler.
+
 ## O que acontece com o trabalho volta para a conversa onde ele nasceu
 
 `logar` escreve na ATIVIDADE da track, que é um histórico que ninguém abre: quem entra numa
