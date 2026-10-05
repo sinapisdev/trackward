@@ -67,7 +67,37 @@ export async function proxy(req: NextRequest) {
     },
   })
 
-  const { data: { user } } = await supabase.auth.getUser()
+  /**
+   * `getClaims()` e não `getUser()`, e a diferença é um segundo por clique.
+   *
+   * `getUser()` vai à REDE a cada chamada, para o servidor de autenticação
+   * dizer se o token vale. Isso roda aqui em TODA navegação, e o layout
+   * perguntava outras três vezes: eram quatro idas em fila ao banco antes de
+   * qualquer coisa aparecer. Medido em 05/10/2026, com a régua do `?medir=1`:
+   * cada pedido de rota levava de 600 a 1000ms, e o Supabase respondia em 461ms
+   * no pior caso. O tempo não estava no banco, estava em ir até ele quatro
+   * vezes.
+   *
+   * `getClaims()` faz o mesmo trabalho sem sair: ele pega a sessão (renovando
+   * quando vencida, como antes) e CONFERE A ASSINATURA aqui mesmo, com a chave
+   * pública do projeto, que é buscada uma vez e fica guardada. Não é afrouxar a
+   * trava: é parar de perguntar ao outro lado do mundo uma coisa que dá para
+   * conferir na mão.
+   */
+  const { data: cl, error: erroCl } = await supabase.auth.getClaims()
+  /**
+   * Se a conferência local falhar, pergunta do jeito antigo.
+   *
+   * `getClaims()` depende de buscar a chave pública do projeto uma vez. Num dia
+   * em que isso falhar, sem esta volta atrás TODO MUNDO cairia na tela de
+   * entrar, inclusive quem está com sessão boa, e ninguém entenderia por quê.
+   * Erro de verificação é diferente de não ter sessão, e só o primeiro merece
+   * uma segunda pergunta.
+   */
+  const claims = erroCl
+    ? (await supabase.auth.getUser()).data.user
+    : (cl?.claims ? { id: String(cl.claims.sub || '') } : null)
+  const user = claims
   const caminho = req.nextUrl.pathname
 
   if (ABERTAS.some((p) => caminho.startsWith(p))) return res

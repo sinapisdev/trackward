@@ -1524,6 +1524,30 @@ ajustes, essa troca não tem discussão. Os `env(safe-area-inset-*)` espalhados 
 continuam lá e valem zero, e é esse o estado certo: eles são a rede para o dia em que alguém
 voltar a tentar, e tentar exige provar no Android ANTES.
 
+**Autenticação se confere SEM ir à rede, e isso valia um segundo por clique.**
+`auth.getUser()` pergunta ao servidor de autenticação se o token vale, e isso é uma ida à
+rede. O porteiro (`proxy.ts`) fazia uma a cada navegação, e o `(app)/layout.tsx` fazia outras
+três em fila (`getUser`, `meu_perfil`, o perfil): **quatro idas sequenciais antes de qualquer
+coisa aparecer**. Medido em 05/10/2026 com a régua do `?medir=1`: cada pedido de rota levava
+de 600 a 1000ms, e o Supabase respondia em 461ms no pior caso. O tempo não estava no banco,
+estava em ir até ele quatro vezes.
+
+`getClaims()` faz o mesmo trabalho sem sair: pega a sessão (renovando quando vencida, igual
+antes) e **confere a assinatura aqui mesmo**, com a chave pública do projeto, buscada uma vez
+e guardada. Não é afrouxar a trava, é parar de perguntar ao outro lado do mundo o que dá para
+conferir na mão. Só funciona com chave assimétrica, e dá para checar em
+`/auth/v1/.well-known/jwks.json`: se vier `ES256`, vale.
+
+**Falha de verificação não pode virar "você não está logado".** Os dois lugares caem de volta
+em `getUser()` quando `getClaims()` devolve ERRO, porque um tropeço na chave pública mandaria
+a casa inteira para a tela de entrar, inclusive quem tem sessão boa. Não ter sessão é outra
+coisa, e essa não merece segunda pergunta.
+
+**E o que não depende de ninguém vai junto.** As duas consultas que sobraram no layout são
+paralelas: `perfis_sel` devolve `user_id = auth.uid()` incondicionalmente, então os seus
+perfis chegam sem precisar saber antes qual é o do espaço em uso. Quem escolhe entre eles
+continua sendo `meu_perfil()`, no banco.
+
 **Rota dinâmica sem `loading.tsx` não é pré-carregada.** Todas as rotas de `(app)` são
 dinâmicas, porque o layout lê cookie para saber quem entrou, e não existia fronteira de
 carregamento em lugar nenhum. O efeito é duplo: o `<Link>` prefetch não fazia nada, e o Next
