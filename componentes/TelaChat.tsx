@@ -180,6 +180,23 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
   const [respId, setRespId] = useState(s.dados.resp_id || (despejo ? eu.id : ''))
   const [prazo, setPrazo] = useState(s.dados.prazo || '')
   const [ocupado, setOcupado] = useState(false)
+  const [texto, setTexto] = useState(s.texto)
+  const [ajustando, setAjustando] = useState(false)
+
+  /**
+   * Onde o TEXTO pode ser corrigido antes de aceitar.
+   *
+   * Eram duas portas, aceitar e dispensar, e dispensar era a única saída para
+   * "quase isso". Aí a pessoa recusava e digitava tudo de novo, e o trabalho da
+   * leitura virava zero justamente quando ela quase acertou. "Conferir os
+   * documentos" vira "Conferir a ART do engenheiro" em duas palavras, e o resto
+   * da ficha (quem, quando, onde) já estava certo.
+   *
+   * Nos tipos em que o texto não é conteúdo, e sim a descrição do que vai
+   * acontecer ("ficou pronto", "prazo", "travou"), não há o que corrigir ali:
+   * o que muda é o campo ao lado, que já é editável.
+   */
+  const textoEhConteudo = s.tipo === 'tarefa' || s.tipo === 'decisao' || s.tipo === 'nota'
 
   const editavel = s.tipo === 'tarefa' && !despejo
   const abertos = todosFluxos.filter((f) => !f.concluido)
@@ -191,15 +208,20 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
 
   const aceitar = async () => {
     setOcupado(true)
+    // Só viaja o texto que FOI mexido: mandar o original de volta faria toda
+    // proposta parecer corrigida na atividade, e aí "corrigida" deixaria de
+    // querer dizer alguma coisa.
+    const corrigido = texto.trim() && texto.trim() !== s.texto.trim() ? { texto: texto.trim() } : {}
+
     if (s.tipo === 'tarefa' && despejo) {
       // A lista pessoal nasce aqui, na primeira tarefa que precisa dela, e não
       // no cadastro: conta nova não deve começar com uma esteira vazia dentro.
       const destino = fluxoId || await abrirMinhaLista()
-      await aceitarSugestao(s, { fluxo_id: destino, resp_id: eu.id, prazo: prazo || null })
+      await aceitarSugestao(s, { ...corrigido, fluxo_id: destino, resp_id: eu.id, prazo: prazo || null })
     } else {
       await aceitarSugestao(s, editavel
-        ? { fluxo_id: fluxoId || null, resp_id: respId || null, prazo: prazo || null }
-        : undefined)
+        ? { ...corrigido, fluxo_id: fluxoId || null, resp_id: respId || null, prazo: prazo || null }
+        : (corrigido.texto ? corrigido : undefined))
     }
     setOcupado(false)
   }
@@ -208,7 +230,13 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
     <div className="sug">
       <div className="sug-h">
         <span className={`sug-tag ${s.tipo}`}>{ROTULO[s.tipo]}</span>
-        <span className="sug-txt">{s.texto}</span>
+        {ajustando
+          ? (
+            <textarea className="sug-txt sug-edit" value={texto} autoFocus rows={2}
+              aria-label="O que vai ser criado"
+              onChange={(e) => setTexto(e.target.value)} />
+          )
+          : <span className="sug-txt">{texto}</span>}
       </div>
 
       {mostraMotivo && <div className="sug-pq">{s.motivo}</div>}
@@ -268,6 +296,9 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
 
       <div className="sug-f">
         <button className="btn ghost" onClick={() => void recusarSugestao(s)}>Dispensar</button>
+        {textoEhConteudo && !ajustando && (
+          <button className="btn ghost" onClick={() => setAjustando(true)}>Ajustar</button>
+        )}
         <button className="btn pri" disabled={ocupado || (editavel && !fluxoId)} onClick={() => void aceitar()}>
           <Ic.check />
           {s.tipo === 'concluir' ? 'Marcar feita'

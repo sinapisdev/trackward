@@ -2031,6 +2031,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const aceitarSugestao: Contexto['aceitarSugestao'] = useCallback(async (sug, ajuste, porIa = false) => {
     const dados: Alvo = { ...sug.dados, ...ajuste }
     const fluxo = todosFluxos.find((x) => x.id === dados.fluxo_id) || null
+    // O que vale é o texto corrigido, quando houve correção. A leitura entende
+    // quase certo com frequência, e sem isto "quase" valia o mesmo que errado.
+    const texto = (dados.texto || '').trim() || sug.texto
     let contou = ''
 
     if (sug.tipo === 'tarefa') {
@@ -2039,12 +2042,12 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
         || fluxo.etapas[fluxo.atual] || fluxo.etapas[0]
       if (!et) return toast('Este projeto ainda não tem checkpoint.', true)
       const id = await adicionarItem(et, {
-        texto: sug.texto, resp_id: dados.resp_id ?? null, prazo: dados.prazo || '', priv: false,
+        texto, resp_id: dados.resp_id ?? null, prazo: dados.prazo || '', priv: false,
       }, porIa)
       if (!id) return
       // Guardamos o que nasceu daqui, senão não há como desfazer depois.
       dados.criou_id = id
-      contou = `criou a tarefa "${sug.texto}" em ${fluxo.nome}`
+      contou = `criou a tarefa "${texto}" em ${fluxo.nome}`
     } else if (sug.tipo === 'concluir') {
       const achado = itemPorId(dados.item_id)
       if (!achado) return toast('A tarefa não existe mais.', true)
@@ -2063,10 +2066,10 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       contou = `mudou o prazo de "${achado.item.texto}"`
     } else if (sug.tipo === 'trava') {
       if (!fluxo) return toast('Esta proposta não aponta para um projeto.', true)
-      await travar(fluxo, sug.texto.replace(/^Travar [^:]+:\s*/, ''))
+      await travar(fluxo, texto.replace(/^Travar [^:]+:\s*/, ''))
       contou = `travou ${fluxo.nome}`
     } else if (sug.tipo === 'decisao') {
-      if (fluxo) await logar(fluxo.id, `registrou da conversa: ${sug.texto}`, porIa)
+      if (fluxo) await logar(fluxo.id, `registrou da conversa: ${texto}`, porIa)
       contou = fluxo ? `registrou a decisão em ${fluxo.nome}` : 'registrou a decisão'
     } else if (sug.tipo === 'agente') {
       const a = agentes.find((x) => x.id === dados.agente_id)

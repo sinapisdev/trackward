@@ -1192,6 +1192,30 @@ A gramática mora em `lib/comandos.ts`, as datas em `lib/quando.ts`, o menu em
 São três campos de escrita (canal, conversa do Forward, conversa da nota) e um
 gancho só: três cópias virariam três linguagens diferentes no mês seguinte.
 
+## A proposta tem três portas, e "quase isso" não é motivo para recomeçar
+
+Eram duas: aceitar e dispensar. Com isso, **dispensar virava a saída de "quase isso"**, e aí
+a pessoa recusava e digitava tudo de novo: o trabalho da leitura virava zero justamente
+quando ela quase acertou, que é o caso mais comum. "Conferir os documentos" vira "Conferir a
+ART do engenheiro" em duas palavras, e quem, quando e onde já estavam certos.
+
+A ficha já deixava trocar **onde, quem e até**. Faltava o texto, que é o que mais erra,
+porque é o que exige entender a frase. `Ajustar` abre a linha do resumo como campo, e o
+aceite usa o texto corrigido (`Alvo.texto`).
+
+**Só viaja o que foi mexido.** Mandar o texto original de volta faria toda proposta parecer
+corrigida na atividade, e aí "corrigida" deixaria de querer dizer alguma coisa.
+
+**E só onde o texto é CONTEÚDO**: tarefa, decisão e nota. Em "ficou pronto", "prazo" e
+"travou" aquela linha descreve o que vai acontecer, não o que vai ser escrito, e o que muda
+ali é o campo ao lado, que já era editável.
+
+**O que ficou de fora, de propósito, e com motivo:** corrigir conversando ("na verdade são
+duas tarefas", "isso não é tarefa, é nota"). Para trocar uma palavra, digitar a palavra é
+mais rápido, é de graça e é certo; pedir ao modelo custa uma chamada e pode errar de novo. A
+conversa só ganha quando a ESTRUTURA está errada, e essa é a minoria. Ao retomar, é esse o
+critério: campo para o conteúdo, conversa para a forma.
+
 ## A memória atravessa a conversa, e a privacidade é de mão única
 
 Cada canal era uma empresa diferente: a leitura de #financeiro não sabia que a

@@ -625,6 +625,14 @@ export type TipoProposta =
 
 /** O que a leitura da conversa propõe. Nada acontece antes de alguém aceitar. */
 export type Alvo = {
+  /**
+   * O texto, quando quem aceita corrigiu o que a leitura entendeu.
+   *
+   * A proposta chegava em duas portas, aceitar e dispensar, e dispensar era a
+   * única saída para "quase isso". Aí a pessoa recusava e digitava de novo, e o
+   * trabalho da leitura virava zero justamente quando ela quase acertou.
+   */
+  texto?: string
   fluxo_id?: string | null
   etapa_id?: string | null
   item_id?: string | null
