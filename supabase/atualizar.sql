@@ -1798,8 +1798,15 @@ do $$
 begin
   alter table public.avisos drop constraint if exists avisos_tipo_check;
   alter table public.avisos add constraint avisos_tipo_check check (tipo in (
+    -- A lista inteira, desde a primeira vez que a restrição é posta.
+    -- Ela já nasceu estreita uma vez e foi alargada mais adiante no arquivo, e
+    -- aí a passada seguinte quebrava: a versão estreita recusava linhas que a
+    -- versão larga tinha deixado entrar. Restrição que se alarga depois precisa
+    -- nascer larga, senão o arquivo não roda duas vezes no mesmo banco.
+    -- `raiox` faltava nas DUAS, e o raio-X cria aviso desse tipo: no primeiro
+    -- dia em que ele tivesse o que dizer, o aviso falharia e ninguém saberia.
     'tarefa','aprovacao','prazo','travou','destravou','citacao','pedido_prazo',
-    'nota','feedback','mensagem'));
+    'nota','feedback','mensagem','parada','carga','rotina','raiox'));
 end $$;
 
 -- `avisar()` ganha o destino de nota. Assinatura nova, então a antiga sai.
@@ -2826,8 +2833,15 @@ do $$
 begin
   alter table public.avisos drop constraint if exists avisos_tipo_check;
   alter table public.avisos add constraint avisos_tipo_check check (tipo in (
+    -- A lista inteira, desde a primeira vez que a restrição é posta.
+    -- Ela já nasceu estreita uma vez e foi alargada mais adiante no arquivo, e
+    -- aí a passada seguinte quebrava: a versão estreita recusava linhas que a
+    -- versão larga tinha deixado entrar. Restrição que se alarga depois precisa
+    -- nascer larga, senão o arquivo não roda duas vezes no mesmo banco.
+    -- `raiox` faltava nas DUAS, e o raio-X cria aviso desse tipo: no primeiro
+    -- dia em que ele tivesse o que dizer, o aviso falharia e ninguém saberia.
     'tarefa','aprovacao','prazo','travou','destravou','citacao','pedido_prazo',
-    'nota','feedback','mensagem','parada','carga','rotina'));
+    'nota','feedback','mensagem','parada','carga','rotina','raiox'));
 end $$;
 
 /**

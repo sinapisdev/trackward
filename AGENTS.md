@@ -661,6 +661,21 @@ conexão existe uma fresta em que o DNS pode mudar de resposta (rebinding). Fech
 conferir na hora de abrir o socket, não na hora de decidir. O caminho fácil deixou de
 existir; o difícil continua lá.
 
+## Restrição que se alarga depois precisa nascer larga
+
+`avisos_tipo_check` era posta estreita numa seção e alargada numa seção adiante, com
+`parada`, `carga` e `rotina`. Num banco que já rodou, a passada seguinte quebra: a versão
+estreita recusa linhas que a versão larga deixou entrar, e o arquivo inteiro para no meio.
+Aconteceu em 05/10/2026, com duas linhas de `rotina` na produção.
+
+E a lista estava errada nas duas: **`raiox` não aparecia em nenhuma**, e o raio-X cria aviso
+desse tipo. No primeiro dia em que ele tivesse o que dizer, o aviso falharia, e falharia
+dentro de `avisar()`, que engole o erro de propósito: ninguém saberia.
+
+A regra: **lista de valores permitidos se escreve uma vez, completa, no primeiro lugar em que
+aparece.** Ao criar um tipo novo de aviso, acrescentá-lo ali, não numa seção depois. Vale
+para qualquer `check (x in (...))` que o arquivo repita.
+
 ## Um `update` no meio do arquivo dispara gatilho, e gatilho escolhe função
 
 `avisar` nasce com dez argumentos na seção 14 e ganha o décimo primeiro na 27. Numa segunda
