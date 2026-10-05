@@ -182,23 +182,35 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
   const [ocupado, setOcupado] = useState(false)
   const [texto, setTexto] = useState(s.texto)
   const [ajustando, setAjustando] = useState(false)
+  const [vira, setVira] = useState<'' | 'tarefa' | 'nota' | 'decisao'>('')
+  const [mexeuNoTexto, setMexeu] = useState(false)
 
   /**
-   * Onde o TEXTO pode ser corrigido antes de aceitar.
+   * O ajuste tem dois andares, e o segundo é o que faltava.
    *
-   * Eram duas portas, aceitar e dispensar, e dispensar era a única saída para
-   * "quase isso". Aí a pessoa recusava e digitava tudo de novo, e o trabalho da
-   * leitura virava zero justamente quando ela quase acertou. "Conferir os
-   * documentos" vira "Conferir a ART do engenheiro" em duas palavras, e o resto
-   * da ficha (quem, quando, onde) já estava certo.
+   * O primeiro é o TEXTO, que resolve "quase isso": "Conferir os documentos"
+   * vira "Conferir a ART do engenheiro" em duas palavras, e quem, quando e onde
+   * já estavam certos.
    *
-   * Nos tipos em que o texto não é conteúdo, e sim a descrição do que vai
-   * acontecer ("ficou pronto", "prazo", "travou"), não há o que corrigir ali:
-   * o que muda é o campo ao lado, que já é editável.
+   * O segundo é a ESPÉCIE, que resolve "não é isso". A leitura entendeu "Helo
+   * termine o relatório até 25/10" como mudança de prazo de uma tarefa parecida
+   * que já existia, e era tarefa nova. Nenhum campo conserta isso, porque o que
+   * está errado não é o conteúdo. Sem esta porta, a única saída era dispensar e
+   * digitar tudo de novo, e aí a leitura não serviu para nada justamente na vez
+   * em que ela entendeu a frase quase toda.
+   *
+   * Para onde dá para ir: tarefa, nota e decisão, que nascem de texto e mais
+   * nada. Virar `prazo`, `concluir` ou `trava` exigiria apontar QUAL tarefa, e
+   * isso é escolha de outra tela, não de uma ficha no meio da conversa.
    */
-  const textoEhConteudo = s.tipo === 'tarefa' || s.tipo === 'decisao' || s.tipo === 'nota'
+  const VIRAR: { id: 'tarefa' | 'nota' | 'decisao'; rotulo: string }[] = [
+    { id: 'tarefa', rotulo: 'Tarefa nova' },
+    { id: 'decisao', rotulo: 'Decisão' },
+    { id: 'nota', rotulo: 'Nota' },
+  ]
+  const tipoVivo = vira || s.tipo
 
-  const editavel = s.tipo === 'tarefa' && !despejo
+  const editavel = tipoVivo === 'tarefa' && !despejo
   const abertos = todosFluxos.filter((f) => !f.concluido)
 
   // A linha de resumo e o trecho de origem, no despejo, são a mesma frase: a
@@ -211,7 +223,9 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
     // Só viaja o texto que FOI mexido: mandar o original de volta faria toda
     // proposta parecer corrigida na atividade, e aí "corrigida" deixaria de
     // querer dizer alguma coisa.
-    const corrigido = texto.trim() && texto.trim() !== s.texto.trim() ? { texto: texto.trim() } : {}
+    const corrigido: { texto?: string; vira?: 'tarefa' | 'nota' | 'decisao' } = {}
+    if (texto.trim() && texto.trim() !== s.texto.trim()) corrigido.texto = texto.trim()
+    if (vira) corrigido.vira = vira
 
     if (s.tipo === 'tarefa' && despejo) {
       // A lista pessoal nasce aqui, na primeira tarefa que precisa dela, e não
@@ -221,7 +235,7 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
     } else {
       await aceitarSugestao(s, editavel
         ? { ...corrigido, fluxo_id: fluxoId || null, resp_id: respId || null, prazo: prazo || null }
-        : (corrigido.texto ? corrigido : undefined))
+        : (corrigido.texto || corrigido.vira ? corrigido : undefined))
     }
     setOcupado(false)
   }
@@ -229,15 +243,48 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
   return (
     <div className="sug">
       <div className="sug-h">
-        <span className={`sug-tag ${s.tipo}`}>{ROTULO[s.tipo]}</span>
+        <span className={`sug-tag ${tipoVivo}`}>{ROTULO[tipoVivo]}</span>
         {ajustando
           ? (
             <textarea className="sug-txt sug-edit" value={texto} autoFocus rows={2}
               aria-label="O que vai ser criado"
-              onChange={(e) => setTexto(e.target.value)} />
+              onChange={(e) => { setTexto(e.target.value); setMexeu(true) }} />
           )
           : <span className="sug-txt">{texto}</span>}
       </div>
+
+      {ajustando && (
+        <div className="sug-vira">
+          <span className="lbl">Isto é</span>
+          <div className="seg">
+          {VIRAR.map((v) => (
+            <button
+              key={v.id}
+              className={tipoVivo === v.id ? 'on' : ''}
+              onClick={() => {
+                setVira(v.id === s.tipo ? '' : v.id)
+                /**
+                 * Trocando a espécie, o texto que estava ali deixa de servir:
+                 * "Prazo alterado para 25/10/2026" não é nome de tarefa. A
+                 * frase original está no motivo, e é dela que a pessoa parte.
+                 * Só troco o que ela não mexeu: reescrever por cima do que
+                 * alguém acabou de digitar é o pior que um campo pode fazer.
+                 */
+                if (!mexeuNoTexto && s.motivo) {
+                  setTexto(s.motivo.replace(/^[^:]{1,24}:\s*/, '').trim())
+                }
+              }}>
+              {v.rotulo}
+            </button>
+          ))}
+          {s.tipo !== 'tarefa' && s.tipo !== 'decisao' && s.tipo !== 'nota' && (
+            <button className={!vira ? 'on' : ''} onClick={() => setVira('')}>
+              {ROTULO[s.tipo]}
+            </button>
+          )}
+          </div>
+        </div>
+      )}
 
       {mostraMotivo && <div className="sug-pq">{s.motivo}</div>}
 
@@ -296,15 +343,18 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
 
       <div className="sug-f">
         <button className="btn ghost" onClick={() => void recusarSugestao(s)}>Dispensar</button>
-        {textoEhConteudo && !ajustando && (
+        {!ajustando && (
           <button className="btn ghost" onClick={() => setAjustando(true)}>Ajustar</button>
         )}
         <button className="btn pri" disabled={ocupado || (editavel && !fluxoId)} onClick={() => void aceitar()}>
           <Ic.check />
-          {s.tipo === 'concluir' ? 'Marcar feita'
-            : s.tipo === 'decisao' ? 'Registrar'
-              : s.tipo === 'nota' ? 'Guardar'
-                : s.tipo === 'compromisso' ? 'Marcar' : 'Aceitar'}
+          {/* O rótulo segue o tipo VIVO, não o que a leitura propôs: trocando a
+              espécie e lendo "Registrar" num cartão que virou tarefa, a pessoa
+              não sabe mais o que o botão faz. */}
+          {tipoVivo === 'concluir' ? 'Marcar feita'
+            : tipoVivo === 'decisao' ? 'Registrar'
+              : tipoVivo === 'nota' ? 'Guardar'
+                : tipoVivo === 'compromisso' ? 'Marcar' : 'Aceitar'}
         </button>
       </div>
 

@@ -2034,9 +2034,17 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     // O que vale é o texto corrigido, quando houve correção. A leitura entende
     // quase certo com frequência, e sem isto "quase" valia o mesmo que errado.
     const texto = (dados.texto || '').trim() || sug.texto
+    /**
+     * O tipo EFETIVO: o que a leitura disse, ou o que a pessoa corrigiu.
+     *
+     * Daqui para baixo nada mais pergunta `sug.tipo`, senão a correção valeria
+     * para o texto e não para o que vai acontecer com ele, que é o oposto do
+     * que ela existe para fazer.
+     */
+    const tipo = dados.vira || sug.tipo
     let contou = ''
 
-    if (sug.tipo === 'tarefa') {
+    if (tipo === 'tarefa') {
       if (!fluxo) return toast('Escolha para qual projeto esta tarefa vai.', true)
       const et = fluxo.etapas.find((e) => e.id === dados.etapa_id)
         || fluxo.etapas[fluxo.atual] || fluxo.etapas[0]
@@ -2048,12 +2056,12 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       // Guardamos o que nasceu daqui, senão não há como desfazer depois.
       dados.criou_id = id
       contou = `criou a tarefa "${texto}" em ${fluxo.nome}`
-    } else if (sug.tipo === 'concluir') {
+    } else if (tipo === 'concluir') {
       const achado = itemPorId(dados.item_id)
       if (!achado) return toast('A tarefa não existe mais.', true)
       if (!achado.item.feito) await alternarItem(achado.item, porIa)
       contou = `marcou "${achado.item.texto}" como feita`
-    } else if (sug.tipo === 'prazo') {
+    } else if (tipo === 'prazo') {
       const achado = itemPorId(dados.item_id)
       if (!achado) return toast('A tarefa não existe mais.', true)
       if (!podeMexerNoPrazo(eu, achado.fluxo, perfis)) {
@@ -2064,14 +2072,14 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
         prazo: dados.prazo || '', priv: achado.item.priv,
       })
       contou = `mudou o prazo de "${achado.item.texto}"`
-    } else if (sug.tipo === 'trava') {
+    } else if (tipo === 'trava') {
       if (!fluxo) return toast('Esta proposta não aponta para um projeto.', true)
       await travar(fluxo, texto.replace(/^Travar [^:]+:\s*/, ''))
       contou = `travou ${fluxo.nome}`
-    } else if (sug.tipo === 'decisao') {
+    } else if (tipo === 'decisao') {
       if (fluxo) await logar(fluxo.id, `registrou da conversa: ${texto}`, porIa)
       contou = fluxo ? `registrou a decisão em ${fluxo.nome}` : 'registrou a decisão'
-    } else if (sug.tipo === 'agente') {
+    } else if (tipo === 'agente') {
       const a = agentes.find((x) => x.id === dados.agente_id)
       if (!a) return toast('Este agente não existe mais.', true)
       if (!a.ativo) return toast(`O agente ${a.nome} está desligado.`, true)
@@ -2174,7 +2182,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
         // demonstração, pode chegar sem o campo, e undefined + 1 é NaN.
         disparos: (a.disparos ?? 0) + 1, disparado_em: new Date().toISOString(),
       }).eq('id', a.id)
-    } else if (sug.tipo === 'nota') {
+    } else if (tipo === 'nota') {
       /**
        * Guardar como nota.
        *
@@ -2198,7 +2206,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       if (!id) return
       dados.nota_id = id
       contou = `guardou a nota "${titulo}"`
-    } else if (sug.tipo === 'compromisso') {
+    } else if (tipo === 'compromisso') {
       if (!dados.quando) return toast('A proposta não diz o dia.', true)
       const id = await salvarCompromisso({
         titulo: sug.texto, quando: dados.quando, inicio: dados.inicio || null,
@@ -2207,7 +2215,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       if (!id) return
       dados.compromisso_id = id
       contou = `marcou "${sug.texto}" para ${curta(dados.quando)}`
-    } else if (sug.tipo === 'distribuir') {
+    } else if (tipo === 'distribuir') {
       const achado = itemPorId(dados.item_id)
       if (!achado) return toast('A tarefa não existe mais.', true)
       if (achado.item.resp_id) return toast('Esta tarefa já tem dono.', true)

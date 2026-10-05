@@ -633,6 +633,19 @@ export type Alvo = {
    * trabalho da leitura virava zero justamente quando ela quase acertou.
    */
   texto?: string
+  /**
+   * O tipo que a proposta VIRA, quando a leitura errou a espécie.
+   *
+   * O ajuste de texto resolve "quase isso". Isto resolve "não é isso": a
+   * leitura entendeu "Helo termine o relatório até 25/10" como mudança de prazo
+   * de uma tarefa parecida que já existia, e era tarefa nova. Nenhum campo
+   * conserta isso, porque o que está errado não é o conteúdo, é a espécie.
+   *
+   * Só para onde dá para ir com texto e mais nada: tarefa, nota e decisão.
+   * Virar `prazo`, `concluir` ou `trava` exigiria apontar QUAL tarefa, e isso
+   * é escolha de outra tela, não de uma ficha no meio da conversa.
+   */
+  vira?: 'tarefa' | 'nota' | 'decisao'
   fluxo_id?: string | null
   etapa_id?: string | null
   item_id?: string | null

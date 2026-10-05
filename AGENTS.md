@@ -1199,22 +1199,38 @@ a pessoa recusava e digitava tudo de novo: o trabalho da leitura virava zero jus
 quando ela quase acertou, que é o caso mais comum. "Conferir os documentos" vira "Conferir a
 ART do engenheiro" em duas palavras, e quem, quando e onde já estavam certos.
 
-A ficha já deixava trocar **onde, quem e até**. Faltava o texto, que é o que mais erra,
-porque é o que exige entender a frase. `Ajustar` abre a linha do resumo como campo, e o
-aceite usa o texto corrigido (`Alvo.texto`).
+**O ajuste tem dois andares, e o segundo é o que importa mais.** O primeiro é o TEXTO, que
+resolve "quase isso": a ficha já deixava trocar onde, quem e até, e faltava a frase, que é o
+que mais erra porque é o que exige entender.
+
+O segundo é a ESPÉCIE, que resolve "não é isso", e foi o primeiro uso real que o mostrou: a
+leitura entendeu "Helo termine o relatório até 25/10" como mudança de prazo de uma tarefa
+parecida que já existia, e era tarefa nova. Essa leitura é **defensável**, porque o contexto
+leva o que a casa já tem justamente para não propor a mesma tarefa duas vezes. Mas nenhum
+campo conserta, porque o que está errado não é o conteúdo. Sem essa porta, a saída era
+dispensar e digitar tudo de novo, e aí a leitura não serviu para nada justamente na vez em
+que ela entendeu a frase quase toda.
+
+Por isso `Ajustar` aparece em **toda** proposta, e abre as duas coisas: a frase e um segmento
+"Isto é". Para onde dá para ir: tarefa, nota e decisão, que nascem de texto e mais nada.
+Virar `prazo`, `concluir` ou `trava` exigiria apontar QUAL tarefa, e isso é escolha de outra
+tela, não de uma ficha no meio da conversa.
+
+**Trocando a espécie, o texto antigo deixa de servir** ("Prazo alterado para 25/10/2026" não
+é nome de tarefa), e a ficha parte do `motivo`, que é a frase original. Mas só quando a
+pessoa ainda não digitou nada: reescrever por cima do que alguém acabou de escrever é o pior
+que um campo pode fazer.
+
+**Daqui para baixo nada pergunta `sug.tipo`**, nem no aceite nem no rótulo do botão. Trocar
+a espécie e continuar lendo "Registrar" num cartão que virou tarefa é não saber mais o que o
+botão faz.
 
 **Só viaja o que foi mexido.** Mandar o texto original de volta faria toda proposta parecer
 corrigida na atividade, e aí "corrigida" deixaria de querer dizer alguma coisa.
 
-**E só onde o texto é CONTEÚDO**: tarefa, decisão e nota. Em "ficou pronto", "prazo" e
-"travou" aquela linha descreve o que vai acontecer, não o que vai ser escrito, e o que muda
-ali é o campo ao lado, que já era editável.
-
-**O que ficou de fora, de propósito, e com motivo:** corrigir conversando ("na verdade são
-duas tarefas", "isso não é tarefa, é nota"). Para trocar uma palavra, digitar a palavra é
-mais rápido, é de graça e é certo; pedir ao modelo custa uma chamada e pode errar de novo. A
-conversa só ganha quando a ESTRUTURA está errada, e essa é a minoria. Ao retomar, é esse o
-critério: campo para o conteúdo, conversa para a forma.
+**O que ainda não existe:** corrigir conversando ("na verdade são duas tarefas"). Para trocar
+palavra ou espécie, o campo é mais rápido, de graça e certo. A conversa só ganharia para
+dividir uma proposta em duas, e isso ainda não apareceu em uso real.
 
 ## A memória atravessa a conversa, e a privacidade é de mão única
 
