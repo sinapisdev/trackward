@@ -165,7 +165,13 @@ type Contexto = {
   anexosDe: (id: string) => Anexo[]
   /** As voltas encerradas de uma rotina, da mais recente para a mais antiga. */
   ciclosDe: (fluxoId: string) => Ciclo[]
-  anexar: (dono: Item | Nota, arquivos: FileList | File[]) => Promise<void>
+  /**
+   * `quemVe` vazio é o caso normal: o anexo segue a coisa a que pertence.
+   * Com gente dentro, só ela e quem mandou abrem, e mais ninguém vê que ele
+   * existe.
+   */
+  anexar: (dono: Item | Nota | Mensagem, arquivos: FileList | File[], quemVe?: string[])
+    => Promise<void>
   removerAnexo: (a: Anexo) => Promise<void>
   /** URL temporária para abrir o arquivo. Vale poucos minutos, de propósito. */
   abrirAnexo: (a: Anexo) => Promise<string | null>
@@ -339,7 +345,14 @@ type Contexto = {
   naoLidas: (canalId: string) => number
   /** Quantas mensagens novas deste canal chamam você pelo nome. */
   meChamaram: (canalId: string) => number
-  enviar: (canalId: string, texto: string, respondeA?: string | null) => Promise<void>
+  /**
+   * Devolve o id da mensagem, para quem precisar pendurar um anexo nela.
+   *
+   * O id nasce aqui e não no banco: pedir a linha de volta num insert é o que o
+   * AGENTS proíbe, porque o RETURNING passa pela política de LEITURA e
+   * `ve_canal` não enxerga a linha que está sendo inserida na mesma instrução.
+   */
+  enviar: (canalId: string, texto: string, respondeA?: string | null) => Promise<string | null>
   /** Manda um recado de voz. O texto é a transcrição, e vai no corpo da mensagem. */
   enviarAudio: (canalId: string, g: {
     blob: Blob; mime: string; segundos: number; texto: string
@@ -1146,7 +1159,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       // O ciclo encerrado é o terceiro dono possível. Entra no mesmo mapa
       // porque quem pergunta "os anexos disto" não quer saber de qual dos três
       // tipos "isto" é.
-      const chave = a.item_id || a.nota_id || a.ciclo_id
+      const chave = a.item_id || a.nota_id || a.ciclo_id || a.mensagem_id
       if (!chave) continue
       const lista = m.get(chave)
       if (lista) lista.push(a)
@@ -1160,12 +1173,14 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const ciclosDe = useCallback(
     (fluxoId: string) => ciclos.filter((c) => c.fluxo_id === fluxoId), [ciclos])
 
-  const anexar: Contexto['anexar'] = useCallback(async (dono, arquivos) => {
-    // Tarefa tem etapa; nota não. É o que distingue as duas sem precisar de um
-    // sinalizador a mais na chamada.
+  const anexar: Contexto['anexar'] = useCallback(async (dono, arquivos, quemVe = []) => {
+    // Tarefa tem etapa, mensagem tem texto e canal, nota tem título. É o que
+    // distingue as três sem precisar de um sinalizador a mais na chamada.
     const ehItem = 'etapa_id' in dono
+    const ehMensagem = !ehItem && 'canal_id' in dono
     const item = ehItem ? (dono as Item) : null
-    const nota = ehItem ? null : (dono as Nota)
+    const msg = ehMensagem ? (dono as Mensagem) : null
+    const nota = ehItem || ehMensagem ? null : (dono as Nota)
     const lista = Array.from(arquivos)
     if (!lista.length) return
     if (!org.id) return falhou(null, 'Organização ainda carregando. Tente de novo.')
@@ -1181,18 +1196,46 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       // confere no envio, antes de olhar qualquer outra coisa.
       const caminho = item
         ? `${org.id}/${item.fluxo_id}/${item.id}/${Date.now()}-${nomeLimpo(arquivo.name)}`
-        : `${org.id}/notas/${nota!.id}/${Date.now()}-${nomeLimpo(arquivo.name)}`
+        : msg
+          ? `${org.id}/conversa/${msg.id}/${Date.now()}-${nomeLimpo(arquivo.name)}`
+          : `${org.id}/notas/${nota!.id}/${Date.now()}-${nomeLimpo(arquivo.name)}`
       const { error: erroArquivo } = await sb.storage.from('anexos').upload(caminho, arquivo)
       if (erroArquivo) { falhou(erroArquivo, `Não foi possível enviar ${cru.name}.`); continue }
 
+      const idAnexo = novoId()
       const { error } = await sb.from('anexos').insert({
-        id: novoId(),
+        id: idAnexo,
         item_id: item?.id ?? null,
         fluxo_id: item?.fluxo_id ?? null,
         nota_id: nota?.id ?? null,
+        mensagem_id: msg?.id ?? null,
         nome: arquivo.name,
         tipo: arquivo.type, tamanho: arquivo.size, caminho, autor_id: eu.id,
       })
+      if (!error && quemVe.length) {
+        /**
+         * A lista entra depois da linha, e nunca antes: a política de
+         * `anexo_pessoas` pergunta se o anexo é seu, e um anexo que ainda não
+         * existe não é de ninguém.
+         *
+         * Falhando aqui, o anexo nasceria ABERTO quando a pessoa pediu
+         * fechado, que é o erro que não dá para cometer. Então o arquivo e a
+         * linha saem junto com a falha.
+         */
+        // Uma por vez, e não em lote: o cliente do modo local aceita uma linha
+        // por insert, e duas formas da mesma chamada é uma a mais para manter.
+        let erroLista = null as unknown
+        for (const quem of quemVe.filter((x) => x !== eu.id)) {
+          const r = await sb.from('anexo_pessoas').insert({ anexo_id: idAnexo, perfil_id: quem })
+          if (r.error) { erroLista = r.error; break }
+        }
+        if (erroLista) {
+          await sb.from('anexos').delete().eq('id', idAnexo)
+          await sb.storage.from('anexos').remove([caminho])
+          falhou(erroLista, `Não foi possível fechar ${cru.name} para as pessoas escolhidas.`)
+          continue
+        }
+      }
       if (error) {
         // A linha não entrou, então o arquivo sozinho não serve para nada.
         await sb.storage.from('anexos').remove([caminho])
@@ -2045,12 +2088,14 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   const enviar: Contexto['enviar'] = useCallback(async (canalId, texto, respondeA = null) => {
     const limpo = texto.trim()
-    if (!limpo) return
+    if (!limpo) return null
+    const id = novoId()
     const { error } = await sb.from('mensagens').insert({
-      canal_id: canalId, autor_id: eu.id, texto: limpo, responde_a: respondeA, sistema: false,
+      id, canal_id: canalId, autor_id: eu.id, texto: limpo, responde_a: respondeA, sistema: false,
     })
-    if (error) return falhou(error, 'Não foi possível enviar.')
+    if (error) { falhou(error, 'Não foi possível enviar.'); return null }
     recarregar()
+    return id
   }, [sb, eu.id, falhou, recarregar])
 
   const enviarAudio: Contexto['enviarAudio'] = useCallback(async (canalId, g, respondeA = null) => {

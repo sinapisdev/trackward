@@ -49,6 +49,30 @@ function Ficha({ a, podeTirar }: { a: Anexo; podeTirar: boolean }) {
 }
 
 /**
+ * Os anexos de uma mensagem, embaixo dela.
+ *
+ * Sem campo de anexar: na conversa o arquivo vai JUNTO com a frase, pelo clipe
+ * do campo de escrever. Anexar depois seria mexer numa mensagem que já foi
+ * lida, e mensagem que muda depois de lida é a coisa mais confusa que um chat
+ * pode ter.
+ *
+ * O que não pode ser aberto nem aparece: a lista chega já filtrada pela
+ * política, então quem está de fora não vê nem que o arquivo existe.
+ */
+export function AnexosDaMensagem({ mensagemId }: { mensagemId: string }) {
+  const { anexosDe, eu } = useDados()
+  const lista = anexosDe(mensagemId)
+  if (!lista.length) return null
+  return (
+    <div className="msg-anexos">
+      {lista.map((a) => (
+        <Ficha key={a.id} a={a} podeTirar={a.autor_id === eu.id} />
+      ))}
+    </div>
+  )
+}
+
+/**
  * O bloco de anexos. Serve à tarefa e à nota, porque o documento que importa
  * nem sempre nasce preso a uma tarefa: a proposta que chegou por e-mail, o PDF
  * que alguém mandou e que você ainda não sabe em que vai dar.

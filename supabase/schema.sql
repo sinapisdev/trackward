@@ -8242,3 +8242,190 @@ end $$;
 
 revoke all on function public.virar_track(uuid, text, text, jsonb, uuid) from public, anon;
 grant execute on function public.virar_track(uuid, text, text, jsonb, uuid) to authenticated, service_role;
+
+-- ==========================================================================
+-- 61. O anexo na conversa, e o anexo que só algumas pessoas abrem
+--
+--     Faltavam duas coisas, e elas são uma só na cabeça de quem usa.
+--
+--     A PRIMEIRA: anexo só existia pendurado numa tarefa ou numa nota. No meio
+--     de uma conversa, que é onde o trabalho nasce, não dava para mandar um
+--     arquivo. Quem precisava mandar o contrato ia para o WhatsApp, e com ele
+--     ia a conversa inteira, que é exatamente o que este produto existe para
+--     não deixar acontecer. Agora o anexo também pertence a uma MENSAGEM, e a
+--     regra de um dono só continua valendo, porque anexo pendurado em nada é
+--     arquivo que ninguém acha e ninguém apaga.
+--
+--     A SEGUNDA: quem manda escolhe quem abre. Num canal com doze pessoas, o
+--     contrato do fornecedor não é assunto de doze. Hoje a única saída era não
+--     mandar, ou abrir um canal novo só para isso, e canal aberto por causa de
+--     um arquivo é canal que ninguém mais usa depois.
+--
+--     QUEM ESTÁ DE FORA NÃO VÊ QUE O ARQUIVO EXISTE. Esta é a escolha, e ela é
+--     do Leo, em 06/10/2026. A alternativa (mostrar o anexo trancado) parece
+--     mais honesta e é pior: ela anuncia que existe um documento sobre aquele
+--     assunto, com nome de arquivo e tudo, para quem não pode abri-lo. Isso não
+--     protege, convida a perguntar, e a pergunta chega a quem mandou.
+--
+--     A lista é OPCIONAL. Sem ninguém nela, o anexo segue a coisa a que
+--     pertence, como sempre foi: anexo de tarefa abre com a tarefa, de nota só
+--     para a dona, de mensagem com o canal. O caso restrito é a exceção, e
+--     exceção que vira padrão é burocracia.
+-- ==========================================================================
+
+alter table public.anexos add column if not exists mensagem_id uuid
+  references public.mensagens on delete cascade;
+
+do $$
+begin
+  if exists (select 1 from pg_constraint where conname = 'anexos_de_uma_coisa') then
+    alter table public.anexos drop constraint anexos_de_uma_coisa;
+  end if;
+  alter table public.anexos add constraint anexos_de_uma_coisa
+    check (num_nonnulls(item_id, nota_id, ciclo_id, mensagem_id) = 1);
+end $$;
+
+create index if not exists anexos_mensagem_idx on public.anexos (mensagem_id)
+  where mensagem_id is not null;
+
+/**
+ * Quem foi liberado a abrir UM anexo.
+ *
+ * Vazia para aquele anexo quer dizer "quem vê a coisa a que ele pertence", que
+ * é o comportamento de sempre. Com gente dentro, vira lista fechada.
+ */
+create table if not exists public.anexo_pessoas (
+  anexo_id  uuid not null references public.anexos on delete cascade,
+  perfil_id uuid not null references public.perfis on delete cascade,
+  org_id    uuid not null references public.organizacoes on delete cascade,
+  primary key (anexo_id, perfil_id)
+);
+alter table public.anexo_pessoas enable row level security;
+
+/**
+ * Este anexo tem lista?
+ *
+ * `security definer` para quebrar o círculo: a política de `anexos` pergunta
+ * por `anexo_pessoas` e a de `anexo_pessoas` pergunta por `anexos`. Escritas
+ * como subconsulta normal, o Postgres responde "recursão infinita detectada na
+ * política", que foi o que já aconteceu com `notas` e com a agenda.
+ */
+create or replace function public.anexo_restrito(p_anexo uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from anexo_pessoas where anexo_id = p_anexo);
+$$;
+
+create or replace function public.anexo_comigo(p_anexo uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from anexo_pessoas where anexo_id = p_anexo and perfil_id = meu_perfil());
+$$;
+
+/**
+ * Posso abrir este anexo?
+ *
+ * Duas perguntas, e as duas precisam ser sim:
+ *   1. eu vejo a coisa a que ele pertence (tarefa, nota, ciclo ou mensagem)
+ *   2. ele não tem lista, ou eu estou nela, ou fui eu que mandei
+ *
+ * A segunda nunca ALARGA a primeira: pôr alguém na lista de um anexo de canal
+ * fechado não abre aquele canal para ela. A lista só estreita, e é por isso que
+ * ela pode ser gesto de quem manda, sem passar por administrador nenhum.
+ */
+create or replace function public.ve_anexo(p_anexo uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from anexos a
+     where a.id = p_anexo and minha(a.org_id)
+       and (
+         (a.item_id is not null and ve_item(a.item_id))
+         or (a.nota_id is not null and exists (
+              select 1 from notas n where n.id = a.nota_id and n.dono_id = meu_perfil()))
+         or (a.ciclo_id is not null and exists (
+              select 1 from ciclos c where c.id = a.ciclo_id and ve_fluxo(c.fluxo_id)))
+         or (a.mensagem_id is not null and exists (
+              select 1 from mensagens m where m.id = a.mensagem_id
+                and (m.canal_id is not null and ve_canal(m.canal_id)
+                     or m.nota_id is not null and minha_nota(m.nota_id))))
+       )
+       and (a.autor_id = meu_perfil()
+            or not anexo_restrito(p_anexo)
+            or anexo_comigo(p_anexo))
+  );
+$$;
+
+drop policy if exists anx_sel on public.anexos;
+create policy anx_sel on public.anexos for select using (
+  minha(org_id) and ativo() and ve_anexo(id));
+
+drop policy if exists anx_ins on public.anexos;
+create policy anx_ins on public.anexos for insert with check (
+  minha(org_id) and ativo() and autor_id = meu_perfil() and (
+    (item_id is not null and ve_item(item_id))
+    or (nota_id is not null and exists (
+         select 1 from notas n where n.id = nota_id and n.dono_id = meu_perfil()))
+    or (ciclo_id is not null and exists (
+         select 1 from ciclos c where c.id = ciclo_id and ve_fluxo(c.fluxo_id)))
+    or (mensagem_id is not null and exists (
+         select 1 from mensagens m where m.id = mensagem_id and m.autor_id = meu_perfil()))
+  ));
+
+/**
+ * A lista é de quem mandou o arquivo, e de mais ninguém.
+ *
+ * Ninguém se convida: sem esta trava, bastaria um insert para a pessoa entrar
+ * na lista de qualquer anexo, e a restrição existiria só na tela. Mesmo
+ * desenho de `nota_pessoas`.
+ */
+drop policy if exists axp_sel on public.anexo_pessoas;
+create policy axp_sel on public.anexo_pessoas for select using (
+  minha(org_id) and ativo() and ve_anexo(anexo_id));
+
+drop policy if exists axp_ins on public.anexo_pessoas;
+create policy axp_ins on public.anexo_pessoas for insert with check (
+  minha(org_id) and ativo()
+  and exists (select 1 from anexos a where a.id = anexo_id and a.autor_id = meu_perfil()));
+
+drop policy if exists axp_del on public.anexo_pessoas;
+create policy axp_del on public.anexo_pessoas for delete using (
+  minha(org_id) and ativo()
+  and exists (select 1 from anexos a where a.id = anexo_id and a.autor_id = meu_perfil()));
+
+/**
+ * O Storage segue a mesma régua.
+ *
+ * Sem isto, a política da tabela esconderia a LINHA e o arquivo continuaria
+ * aberto a quem tivesse o caminho. O caminho não é segredo: ele aparece em
+ * `anexos.caminho` para quem lê a linha, e um dia aparece num log.
+ */
+create or replace function public.posso_ver_anexo(p_caminho text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from anexos a where a.caminho = p_caminho and ve_anexo(a.id)
+  )
+  -- Recado de voz: abre quando o canal abre. Ele não é linha de `anexos`, e por
+  -- isso continua tendo conta própria.
+  or exists (
+    select 1 from mensagens m
+    where m.audio_caminho = p_caminho and minha(m.org_id) and ve_canal(m.canal_id)
+  );
+$$;
+
+revoke all on function public.ve_anexo(uuid) from public, anon;
+revoke all on function public.anexo_restrito(uuid) from public, anon;
+revoke all on function public.anexo_comigo(uuid) from public, anon;
+grant execute on function public.ve_anexo(uuid) to authenticated, service_role;
+grant execute on function public.anexo_restrito(uuid) to authenticated, service_role;
+grant execute on function public.anexo_comigo(uuid) to authenticated, service_role;
+
+/**
+ * O carimbo da organização, que a tela não manda e não deve mandar.
+ *
+ * Mesmo cuidado de `nota_pessoas`, e pelo mesmo motivo: sem ele, toda inserção
+ * aqui nasceria com `org_id` vazio e seria recusada por `minha(org_id)`, com
+ * uma mensagem falando da política em vez do carimbo que falta. Foi assim que
+ * salvar o próprio telefone ficou quatro dias quebrado sem ninguém ver.
+ */
+drop trigger if exists ao_inserir_org on public.anexo_pessoas;
+create trigger ao_inserir_org before insert on public.anexo_pessoas
+  for each row execute function public.carimbar_org();

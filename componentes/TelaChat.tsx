@@ -16,6 +16,7 @@ import { chama, pedacos } from '@/lib/mencao'
 import { progresso, status } from '@/lib/regras'
 import { mandaNoProcesso } from '@/lib/acesso'
 import { BotaoVoz, Recado } from './Voz'
+import { AnexosDaMensagem } from './Anexos'
 
 const ROTULO: Record<TipoProposta, string> = {
   tarefa: 'Tarefa nova',
@@ -469,8 +470,17 @@ function Campo({ canalId, respondendo, fecharResposta }: {
   respondendo: Mensagem | null
   fecharResposta: () => void
 }) {
-  const { enviar, perfis, eu, nomeDe } = useDados()
+  const { enviar, anexar, perfis, eu, nomeDe, canais } = useDados()
   const [texto, setTexto] = useState('')
+  /** Os arquivos escolhidos, ainda não mandados. */
+  const [arquivos, setArquivos] = useState<File[]>([])
+  /**
+   * Quem pode abrir o que vai junto. Vazio é o caso normal: quem vê o canal vê
+   * o arquivo. Com gente dentro, quem está de fora não vê que ele existe.
+   */
+  const [quemVe, setQuemVe] = useState<string[]>([])
+  const [escolhendoQuem, setEscolhendoQuem] = useState(false)
+  const entrada = useRef<HTMLInputElement>(null)
   const [mencao, setMencao] = useState<string | null>(null)
   const area = useRef<HTMLTextAreaElement>(null)
   const cmd = useComandos({ canalId })
@@ -530,16 +540,35 @@ function Campo({ canalId, respondendo, fecharResposta }: {
 
   const mandar = async () => {
     const v = texto.trim()
-    if (!v) return
+    // Com arquivo escolhido, a frase deixa de ser obrigatória: mandar um
+    // documento sem dizer nada é o que se faz o tempo todo, e exigir legenda
+    // seria inventar burocracia para o caso mais comum.
+    if (!v && !arquivos.length) return
+    const anexando = arquivos
+    const lista = quemVe
     setTexto('')
+    setArquivos([])
+    setQuemVe([])
+    setEscolhendoQuem(false)
     setMencao(null)
     if (area.current) area.current.style.height = 'auto'
     // A linha que começa por barra é ordem, não recado: ela vira a coisa feita
     // e não aparece como mensagem. O que aparece é o rastro do que aconteceu.
-    if (await cmd.rodar(v)) { fecharResposta(); return }
-    await enviar(canalId, v, respondendo?.id ?? null)
+    if (!anexando.length && await cmd.rodar(v)) { fecharResposta(); return }
+    const id = await enviar(canalId, v || anexando.map((f) => f.name).join(', '),
+      respondendo?.id ?? null)
+    // O anexo vai depois da mensagem porque ele pertence a ela. Sem o id, não
+    // há onde pendurar, e mandar o arquivo sem dono o deixaria invisível.
+    if (id && anexando.length) {
+      await anexar({ id, canal_id: canalId } as unknown as Mensagem, anexando, lista)
+    }
     fecharResposta()
   }
+
+  /** Quem pode entrar na lista: a equipe daquele canal, sem mim. */
+  const doCanal = canais.find((c) => c.id === canalId)
+  const podemVer = perfis.filter((p) => p.ativo && p.id !== eu.id
+    && (doCanal?.tipo === 'aberto' || (doCanal?.membros || []).includes(p.id)))
 
   return (
     <div className="chat-campo" data-tut="chat-campo">
@@ -551,6 +580,44 @@ function Campo({ canalId, respondendo, fecharResposta }: {
           </span>
           <button className="iconbtn" aria-label="Cancelar resposta"
             onClick={fecharResposta}><Ic.x /></button>
+        </div>
+      )}
+      {!!arquivos.length && (
+        <div className="chat-anexando">
+          <div className="chat-anexando-l">
+            <Ic.clipe />
+            <span>{arquivos.map((f) => f.name).join(', ')}</span>
+            <button className="iconbtn" aria-label="Tirar os arquivos"
+              onClick={() => { setArquivos([]); setQuemVe([]); setEscolhendoQuem(false) }}><Ic.x /></button>
+          </div>
+          {/* A escolha de quem abre vive aqui, colada no arquivo, e não numa
+              tela de depois: quem manda já sabe para quem é no instante em que
+              escolhe o arquivo, e perguntar depois é perguntar tarde. */}
+          <button className="chat-quemve" onClick={() => setEscolhendoQuem((v) => !v)}>
+            {quemVe.length
+              ? `Só ${quemVe.map((id) => nomeDe(id).split(' ')[0]).join(', ')} e você abrem`
+              : 'Todos deste canal abrem'}
+          </button>
+          {escolhendoQuem && (
+            <div className="chat-quemve-lista">
+              <p className="hint">
+                Escolhendo alguém, quem ficar de fora não vê nem que o arquivo existe.
+              </p>
+              {podemVer.map((p) => (
+                <label key={p.id} className="chk">
+                  <input type="checkbox" checked={quemVe.includes(p.id)}
+                    onChange={(e) => setQuemVe((v) =>
+                      e.target.checked ? [...v, p.id] : v.filter((x) => x !== p.id))} />
+                  <Av p={p} tam="sm" />{p.nome}
+                </label>
+              ))}
+              {!!quemVe.length && (
+                <button className="btn ghost sm" onClick={() => setQuemVe([])}>
+                  Deixar aberto para o canal
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
       <div className="chat-campo-linha">
@@ -586,8 +653,17 @@ function Campo({ canalId, respondendo, fecharResposta }: {
           }
         }}
       />
+      <input ref={entrada} type="file" multiple hidden
+        onChange={(e) => {
+          setArquivos(Array.from(e.target.files || []))
+          // Zera para a mesma escolha poder ser feita duas vezes seguidas.
+          e.target.value = ''
+        }} />
+      <button className="iconbtn" aria-label="Anexar arquivo" title="Anexar arquivo"
+        onClick={() => entrada.current?.click()}><Ic.clipe /></button>
       <BotaoVoz canalId={canalId} respondeA={respondendo?.id ?? null} aoEnviar={fecharResposta} />
-      <button className="btn pri" onClick={() => void mandar()} disabled={!texto.trim()} aria-label="Enviar">
+      <button className="btn pri" onClick={() => void mandar()}
+        disabled={!texto.trim() && !arquivos.length} aria-label="Enviar">
         <Ic.enviar />
       </button>
       </div>
@@ -775,6 +851,7 @@ function Conversa({ canal }: { canal: Canal }) {
                     <Recado caminho={m.audio_caminho} segundos={m.audio_segundos}
                       aoAbrir={() => abrirAudio(m)} />
                   )}
+                  <AnexosDaMensagem mensagemId={m.id} />
                   {/* Nota posta no canal: um cartão, e não texto solto. O
                       que está aqui é o título e o começo; o resto está na
                       nota, e abrir é o que dá acesso a ela. Ver a seção 25 do

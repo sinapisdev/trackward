@@ -14,7 +14,7 @@ const CHAVE_EU = 'track.local.eu'
 const CHAVE_USUARIO = 'track.local.user'
 const CHAVE_VERSAO = 'track.local.versao'
 /** Sobe quando o exemplo ganha tabelas novas. Ver completar(). */
-const VERSAO = 24
+const VERSAO = 25
 const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], fluxos: [], etapas: [], itens: [],
   dependencias: [], processos: [], processo_etapas: [], processo_itens: [], fluxo_pessoas: [],
   convites: [],
@@ -22,7 +22,8 @@ const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], flu
   compromissos: [], convidados: [], agendas_externas: [], ocupacao_externa: [],
   historico: [], atividades: [], ciclos: [], raiox_achados: [],
   anexos: [], decisoes: [], pedidos_prazo: [], memoria: [], consumo: [], agentes: [], conectores: [], notas: [],
-  avisos: [], avisos_contato: [], push_assinaturas: [], perguntas_abertas: [] }
+  avisos: [], avisos_contato: [], push_assinaturas: [], perguntas_abertas: [],
+  anexo_pessoas: [] }
 
 let base: Base | null = null
 const ouvintes = new Set<() => void>()
@@ -275,6 +276,22 @@ function visiveis(tabela: string, todas: Linha[]): Linha[] {
     const b = ler()
     const ok = new Set(b.fluxos.filter((f) => podeVerFluxo(f, eu)).map((f) => f.id))
     return linhas.filter((i) => ok.has(i.fluxo_id) && (!i.priv || i.autor_id === eu))
+  }
+  /**
+   * Espelho de `ve_anexo` (seção 61), na parte que a demonstração mostra.
+   *
+   * Lista vazia é o comportamento de sempre; com gente dentro, quem está de
+   * fora NÃO VÊ QUE O ARQUIVO EXISTE. Sem isto, a demonstração mostraria o
+   * anexo restrito para todo mundo, que é o contrário do que ele é.
+   */
+  if (tabela === 'anexos') {
+    const b = ler()
+    const lista = b.anexo_pessoas || []
+    return linhas.filter((a) => {
+      if (a.autor_id === eu) return true
+      const dele = lista.filter((x) => x.anexo_id === a.id)
+      return !dele.length || dele.some((x) => x.perfil_id === eu)
+    })
   }
   if (tabela === 'compromissos') {
     const b = ler()

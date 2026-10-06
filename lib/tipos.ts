@@ -290,6 +290,23 @@ export type Anexo = {
    * mesma linha: a virada o move para cá, e a volta seguinte nasce limpa.
    */
   ciclo_id: string | null
+  /**
+   * A mensagem a que ele pertence, quando o arquivo foi mandado na conversa.
+   *
+   * É o quarto dono possível, e continua sendo UM só. Sem ele, mandar um
+   * documento no meio de uma conversa exigia sair do app, e com a pessoa saía a
+   * conversa inteira.
+   */
+  mensagem_id: string | null
+  /**
+   * Quem foi liberado a abrir, quando a lista existe.
+   *
+   * Vazia quer dizer "quem vê a coisa a que ele pertence", que é o caso normal.
+   * Com gente dentro, quem está de fora NÃO VÊ QUE O ARQUIVO EXISTE: anexo
+   * trancado à vista anuncia que há um documento sobre aquele assunto para quem
+   * não pode lê-lo, o que não protege e convida a perguntar.
+   */
+  pessoas?: string[]
 }
 
 /** Uma tarefa que a cascata quer mover, e o que aconteceria com ela. */

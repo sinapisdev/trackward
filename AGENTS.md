@@ -1268,6 +1268,49 @@ relação e cache. Quem responde isso é `falaDeMaquina()`, em `lib/erros.ts`, e
 portas perguntam a ele. Duas cópias da peneira é a garantia de que um dia a tela mostra o
 que o telefone esconde.
 
+## O anexo na conversa, e o anexo que só algumas pessoas abrem
+
+Faltavam duas coisas, e na cabeça de quem usa elas são uma só.
+
+**O anexo só existia pendurado numa tarefa ou numa nota.** No meio de uma conversa, que é
+onde o trabalho nasce, não dava para mandar um arquivo: quem precisava mandar o contrato ia
+para o WhatsApp, e com ele ia a conversa inteira. Agora o anexo também pertence a uma
+**mensagem**, e continua sendo de UM dono só (`num_nonnulls(item_id, nota_id, ciclo_id,
+mensagem_id) = 1`), porque anexo pendurado em nada é arquivo que ninguém acha e ninguém
+apaga.
+
+**Quem manda escolhe quem abre**, em `anexo_pessoas` (seção 61). Num canal de doze pessoas,
+o contrato do fornecedor não é assunto de doze, e a única saída antes era não mandar, ou
+abrir um canal novo só para isso.
+
+**Quem está de fora NÃO VÊ QUE O ARQUIVO EXISTE.** Decisão do Leo, 06/10/2026. Mostrar o
+anexo trancado parece mais honesto e é pior: anuncia que existe um documento sobre aquele
+assunto, com nome e tudo, para quem não pode abri-lo. Isso não protege, convida a
+perguntar, e a pergunta chega a quem mandou.
+
+**A lista é opcional, e só ESTREITA.** Vazia é o comportamento de sempre: o anexo segue a
+coisa a que pertence. E pôr alguém na lista de um anexo de canal fechado não abre aquele
+canal para ela, o que é o que permite a escolha ser gesto de quem manda, sem passar por
+administrador.
+
+Três cuidados que custaram caro em outros lugares e valem aqui:
+
+- **O Storage segue a mesma régua.** Sem isso a política esconderia a LINHA e o arquivo
+  continuaria aberto a quem tivesse o caminho, que não é segredo: ele aparece em
+  `anexos.caminho` e um dia aparece num log.
+- **O círculo de políticas.** `anexos` pergunta por `anexo_pessoas` e vice-versa. Quem
+  quebra são `anexo_restrito()` e `anexo_comigo()`, `security definer`, como em `notas` e na
+  agenda. Sem isso, "recursão infinita detectada na política".
+- **A lista entra DEPOIS da linha, e falhar ali desfaz tudo.** A política pergunta se o
+  anexo é seu, e um anexo que ainda não existe não é de ninguém. E se a lista falhasse, o
+  anexo nasceria ABERTO quando a pessoa pediu fechado, que é o erro que não dá para cometer.
+
+**Na conversa, o arquivo vai junto com a frase**, pelo clipe do campo de escrever, e a
+escolha de quem abre fica colada nele. Perguntar depois é perguntar tarde: quem manda já
+sabe para quem é no instante em que escolhe o arquivo. E não há como anexar numa mensagem
+já enviada, porque mensagem que muda depois de lida é a coisa mais confusa que um chat pode
+ter.
+
 ## O canal que já tem forma ganha uma trilha, e quem nomeia é o modelo
 
 A track escondida (seção 59) resolvia poder trabalhar sem track, e criava um problema no

@@ -1351,6 +1351,20 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
 .sug-vira .seg button{padding:6px 12px;font-size:var(--fs-meta)}
 .sug-pq{margin-top:7px;font-size:11.5px;color:var(--tx-3);line-height:1.5;padding-left:10px;
   border-left:2px solid var(--line-2)}
+/* O arquivo escolhido e ainda não mandado, logo acima do campo de escrever.
+   Ele fica colado no campo porque a escolha de quem abre é parte de mandar, e
+   não uma tela de depois: quem manda já sabe para quem é. */
+.chat-anexando{display:flex;flex-direction:column;gap:7px;padding:9px 11px;margin-bottom:8px;
+  border-radius:var(--r-sm);background:var(--sunken);box-shadow:0 0 0 1px var(--line)}
+.chat-anexando-l{display:flex;align-items:center;gap:8px;min-width:0;font-size:12.5px;color:var(--tx-2)}
+.chat-anexando-l>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-quemve{align-self:flex-start;font-size:11.5px;color:var(--tx-3);background:none;border:0;
+  padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.chat-quemve:hover{color:var(--tx)}
+.chat-quemve-lista{display:flex;flex-direction:column;gap:6px;padding-top:4px;
+  max-height:220px;overflow:auto}
+.msg-anexos{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+
 /* O rascunho da trilha, no cartão que propõe virar track.
    Ele vem DEPOIS do número (que mora no `.sug-pq`), porque a ordem é o
    argumento: quem lê precisa reconhecer a casa dele antes de olhar o desenho. */
