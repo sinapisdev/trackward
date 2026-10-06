@@ -14,6 +14,7 @@ import { curta, hojeIso, isoDe } from '@/lib/datas'
 import type { Canal, Mensagem, Sugestao, TipoProposta } from '@/lib/tipos'
 import { chama, pedacos } from '@/lib/mencao'
 import { progresso, status } from '@/lib/regras'
+import { mandaNoProcesso } from '@/lib/acesso'
 import { BotaoVoz, Recado } from './Voz'
 
 const ROTULO: Record<TipoProposta, string> = {
@@ -26,6 +27,7 @@ const ROTULO: Record<TipoProposta, string> = {
   agente: 'Agente',
   nota: 'Guardar como nota',
   compromisso: 'Marcar na agenda',
+  trilha: 'Virar track',
 }
 
 const hora = (ts: string) =>
@@ -188,6 +190,11 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
   const [ajustando, setAjustando] = useState(false)
   const [vira, setVira] = useState<'' | 'tarefa' | 'nota' | 'decisao'>('')
   const [mexeuNoTexto, setMexeu] = useState(false)
+  /** O desenho da trilha, quando a proposta é de virar track. */
+  const desenho = s.dados.trilha
+  const [nomeTrack, setNomeTrack] = useState(desenho?.nome || '')
+  const [tipoTrack, setTipoTrack] = useState<'esteira' | 'ciclo'>(desenho?.tipo || 'esteira')
+  const [nomesPassos, setNomesPassos] = useState<string[]>(desenho?.passos.map((x) => x.nome) || [])
 
   /**
    * O ajuste tem dois andares, e o segundo é o que faltava.
@@ -213,6 +220,18 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
     { id: 'nota', rotulo: 'Nota' },
   ]
   const tipoVivo = vira || s.tipo
+  const ehTrilha = s.tipo === 'trilha'
+
+  /**
+   * Quem desenha a trilha é quem responde pelo processo.
+   *
+   * A mesma régua de prazo e de critério de saída, e pelo mesmo motivo: a
+   * trilha é o contrato de como o trabalho anda, não a opinião de quem passou
+   * por ali. O banco recusa também (`virar_track`), e esta checagem existe para
+   * a pessoa não descobrir isso só depois de clicar.
+   */
+  const trackDaTrilha = ehTrilha ? todosFluxos.find((f) => f.id === s.dados.fluxo_id) : null
+  const podeDesenhar = !ehTrilha || (!!trackDaTrilha && mandaNoProcesso(eu, trackDaTrilha, perfis))
 
   const editavel = tipoVivo === 'tarefa' && !despejo
   const abertos = todosFluxos.filter((f) => !f.concluido)
@@ -231,7 +250,17 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
     if (texto.trim() && texto.trim() !== s.texto.trim()) corrigido.texto = texto.trim()
     if (vira) corrigido.vira = vira
 
-    if (s.tipo === 'tarefa' && despejo) {
+    if (ehTrilha) {
+      await aceitarSugestao(s, {
+        trilha: {
+          nome: nomeTrack.trim() || desenho?.nome || '',
+          tipo: tipoTrack,
+          passos: (desenho?.passos || []).map((x, i) => ({
+            ...x, nome: (nomesPassos[i] || x.nome).trim() || x.nome,
+          })),
+        },
+      })
+    } else if (s.tipo === 'tarefa' && despejo) {
       // A lista pessoal nasce aqui, na primeira tarefa que precisa dela, e não
       // no cadastro: conta nova não deve começar com uma esteira vazia dentro.
       const destino = fluxoId || await abrirMinhaLista()
@@ -257,7 +286,7 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
           : <span className="sug-txt">{texto}</span>}
       </div>
 
-      {ajustando && (
+      {ajustando && !ehTrilha && (
         <div className="sug-vira">
           <span className="lbl">Isto é</span>
           <div className="seg">
@@ -291,6 +320,61 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
       )}
 
       {mostraMotivo && <div className="sug-pq">{s.motivo}</div>}
+
+      {/*
+        * A ordem do cartão é o argumento, e não arrumação de tela: primeiro o
+        * que já aconteceu com número (que vem no motivo, logo acima), e só
+        * então o rascunho. Começar pelo desenho é pedir opinião sobre algo sem
+        * dizer de onde ele saiu, e a resposta honesta a isso é "não sei".
+        */}
+      {ehTrilha && !!desenho && (
+        <div className="sug-trilha">
+          {ajustando ? (
+            <>
+              <label className="sug-tr-nome">
+                <span>Nome da track</span>
+                <input className="inp" value={nomeTrack} aria-label="Nome da track"
+                  onChange={(e) => setNomeTrack(e.target.value)} />
+              </label>
+              <div className="seg sug-tr-tipo">
+                <button className={tipoTrack === 'esteira' ? 'on' : ''}
+                  onClick={() => setTipoTrack('esteira')}>Objetivo</button>
+                <button className={tipoTrack === 'ciclo' ? 'on' : ''}
+                  onClick={() => setTipoTrack('ciclo')}>Rotina</button>
+              </div>
+            </>
+          ) : (
+            <p className="sug-tr-cab">
+              <b>{nomeTrack || desenho.nome}</b>
+              <span>{tipoTrack === 'ciclo' ? 'rotina' : 'objetivo'}</span>
+            </p>
+          )}
+          <ol className="sug-tr-passos">
+            {desenho.passos.map((passo, i) => (
+              <li key={i}>
+                <span className="sug-tr-n">{i + 1}</span>
+                {ajustando ? (
+                  <input className="inp" value={nomesPassos[i] ?? passo.nome}
+                    aria-label={`Nome do checkpoint ${i + 1}`}
+                    onChange={(e) => setNomesPassos((v) => {
+                      const novo = [...(v.length ? v : desenho.passos.map((x) => x.nome))]
+                      novo[i] = e.target.value
+                      return novo
+                    })} />
+                ) : (
+                  <b>{nomesPassos[i] || passo.nome}</b>
+                )}
+                <small>{passo.itens.length} tarefa{passo.itens.length === 1 ? '' : 's'}</small>
+              </li>
+            ))}
+          </ol>
+          {!podeDesenhar && (
+            <p className="hint">
+              Desenhar a trilha é de quem responde pelo processo. Fale com quem administra.
+            </p>
+          )}
+        </div>
+      )}
 
       {editavel && (
         <div className="sug-campos">
@@ -354,7 +438,9 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
             de um canal: ali o próprio canal vira o lugar (seção 59). Exigir que
             a pessoa escolha um projeto que ela não tem era o muro que a impedia
             de usar o app sem inventar track antes de saber a forma do trabalho. */}
-        <button className="btn pri" disabled={ocupado || (editavel && !fluxoId && !s.canal_id)} onClick={() => void aceitar()}>
+        <button className="btn pri"
+          disabled={ocupado || !podeDesenhar || (editavel && !fluxoId && !s.canal_id)}
+          onClick={() => void aceitar()}>
           <Ic.check />
           {/* O rótulo segue o tipo VIVO, não o que a leitura propôs: trocando a
               espécie e lendo "Registrar" num cartão que virou tarefa, a pessoa
@@ -362,7 +448,8 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
           {tipoVivo === 'concluir' ? 'Marcar feita'
             : tipoVivo === 'decisao' ? 'Registrar'
               : tipoVivo === 'nota' ? 'Guardar'
-                : tipoVivo === 'compromisso' ? 'Marcar' : 'Aceitar'}
+                : tipoVivo === 'compromisso' ? 'Marcar'
+                  : ehTrilha ? 'Montar a trilha' : 'Aceitar'}
         </button>
       </div>
 

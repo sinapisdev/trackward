@@ -5399,6 +5399,170 @@ create trigger ao_pedir_saber after update on public.itens
 --     Até lá, ela é só o lugar onde o trabalho fica guardado enquanto ninguém
 --     sabe ainda que forma ele tem.
 -- ==========================================================================
+-- 60. A track escondida sai do esconderijo
+--
+--     O canal sem track trabalha numa track escondida (seção 59), e até aqui
+--     tudo bem: ela existe para a primeira tarefa combinada ali ter onde morar.
+--     O problema é que ela ficava escondida PARA SEMPRE. O canal acumulava
+--     quarenta tarefas numa lista invisível, com um checkpoint chamado "Em
+--     andamento" e nenhum critério, e ninguém nunca era convidado a nomear
+--     nada. Um canal que trabalha bastante continuava sendo um chat com lista
+--     de tarefas ao lado, que é exatamente o que este produto existe para não
+--     ser.
+--
+--     `virar_track` é a porta de saída. Ela recebe o nome, o tipo e os
+--     checkpoints já decididos (a regra de QUANDO propor e de como repartir
+--     mora em `lib/trilhar.ts`, com o modelo dando só os nomes) e converte a
+--     track no lugar: cria os checkpoints de verdade, reparte as tarefas que já
+--     existem entre eles, e tira o `implicita`.
+--
+--     POR QUE NÃO `salvar_fluxo`: aquela função congela a posição do que já
+--     passou, e com razão, porque mover um checkpoint vencido faria a track
+--     mudar de lugar em silêncio. Mas a track escondida tem UM checkpoint, na
+--     posição 0, com tarefas já concluídas: `trilha_comecou()` é verdadeiro, e
+--     ela recusaria justamente a conversão. São operações diferentes, e dar
+--     duas bocas à mesma função seria pedir que ela decidisse qual regra vale.
+--
+--     SÓ ENQUANTO ESCONDIDA. Depois de virada, mexer na trilha é `salvar_fluxo`
+--     como em qualquer track, com o congelamento valendo. Sem essa trava,
+--     `virar_track` seria um caminho alternativo para remontar trilha que já
+--     andou, e o congelamento passaria a existir só enquanto alguém lembrasse.
+-- ==========================================================================
+
+/**
+ * O gatilho de item devolve `etapa_id` ao que era quando quem escreve não manda
+ * no processo, e está certo. Mas ele pergunta pela SESSÃO, e durante a
+ * conversão quem move as tarefas é a própria `virar_track`, que já conferiu a
+ * permissão uma vez. Sem esta porta, as tarefas ficariam todas no checkpoint
+ * velho e a trilha nasceria com dois checkpoints vazios, sem erro nenhum.
+ *
+ * A porta é estreita de propósito: vale para UMA track, dentro da transação em
+ * que ela está sendo convertida. Mesmo mecanismo de `trackward.esquecendo`, na
+ * seção 55.
+ */
+create or replace function public.proteger_item()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if not manda_no_processo(new.fluxo_id)
+     and coalesce(nullif(current_setting('trackward.virando', true), ''), '') <> new.fluxo_id::text
+  then
+    new.prazo := old.prazo;
+    new.fluxo_id := old.fluxo_id;
+    new.etapa_id := old.etapa_id;
+  end if;
+  -- A hora de ficar pronta é do servidor, não do navegador: se viesse de fora,
+  -- bastaria mudar o relógio do computador para a entrega parecer no prazo.
+  if new.feito and not old.feito then new.feito_em := now();
+  elsif not new.feito and old.feito then new.feito_em := null;
+  else new.feito_em := old.feito_em;
+  end if;
+  return new;
+end $$;
+
+/**
+ * Converte a track escondida de um canal numa track de verdade.
+ *
+ * `p_etapas` é um jsonb assim, na ordem da trilha:
+ *   [{"nome":"Briefing","itens":["<id>","<id>"]}, {"nome":"Execução","itens":[...]}]
+ *
+ * O que não vier em `itens` fica no primeiro checkpoint. Tarefa esquecida fora
+ * da trilha é tarefa que some da tela sem ninguém apagar, e isso é pior do que
+ * ela estar no checkpoint errado, que qualquer um conserta arrastando.
+ */
+create or replace function public.virar_track(
+  p_fluxo uuid, p_nome text, p_tipo text, p_etapas jsonb, p_como uuid default null
+) returns void language plpgsql security definer set search_path = public as $$
+declare
+  f fluxos%rowtype;
+  v_eu uuid := quem_age(p_como);
+  passo jsonb;
+  v_etapa uuid;
+  v_ordem int := 0;
+  v_primeira uuid;
+  v_atual int;
+  v_velhas uuid[];
+begin
+  select * into f from fluxos where id = p_fluxo;
+  if f.id is null then raise exception 'Esta track não existe mais.'; end if;
+  if not f.implicita then
+    raise exception 'Esta track já tem trilha. Para mexer nela, use Montar a trilha.';
+  end if;
+  if not manda_no_processo_como(p_fluxo, v_eu) then
+    raise exception 'Desenhar a trilha é de quem responde pelo processo.';
+  end if;
+  if p_tipo not in ('esteira','ciclo') then
+    raise exception 'Tipo de track inválido.';
+  end if;
+  if jsonb_array_length(coalesce(p_etapas, '[]'::jsonb)) = 0 then
+    raise exception 'Uma trilha sem checkpoint não é trilha.';
+  end if;
+
+  -- A porta do gatilho, só para esta track e só nesta transação.
+  perform set_config('trackward.virando', p_fluxo::text, true);
+
+  -- Os checkpoints velhos são guardados por ID, e não pela ordem deles. A
+  -- primeira versão apagava `ordem >= quantos entraram`, e o "Em andamento"
+  -- tem ordem 0: ele sobrevivia ao lado do primeiro checkpoint novo, com a
+  -- mesma ordem e nenhuma tarefa, e a trilha nascia com um passo fantasma na
+  -- frente. Apareceu no primeiro ensaio com dados.
+  select array_agg(id) into v_velhas from etapas where fluxo_id = p_fluxo;
+
+  for passo in select * from jsonb_array_elements(p_etapas) loop
+    v_etapa := gen_random_uuid();
+    insert into etapas (id, fluxo_id, nome, criterio, ordem, org_id)
+    values (v_etapa, p_fluxo,
+            coalesce(nullif(trim(passo->>'nome'), ''), 'Checkpoint ' || (v_ordem + 1)),
+            coalesce(passo->>'criterio', ''),
+            v_ordem, f.org_id);
+    if v_primeira is null then v_primeira := v_etapa; end if;
+
+    update itens set etapa_id = v_etapa
+     where fluxo_id = p_fluxo
+       and id in (select (jsonb_array_elements_text(coalesce(passo->'itens','[]'::jsonb)))::uuid);
+
+    v_ordem := v_ordem + 1;
+  end loop;
+
+  -- O que ninguém endereçou vai para o primeiro, e não para lugar nenhum.
+  update itens set etapa_id = v_primeira
+   where fluxo_id = p_fluxo and etapa_id = any(v_velhas);
+
+  -- Os checkpoints velhos saem só agora: apagados antes, a cascata de
+  -- `itens.etapa_id` levaria as tarefas junto, e a track nasceria vazia.
+  delete from etapas where id = any(v_velhas);
+
+  /**
+   * Onde a track pousa.
+   *
+   * No primeiro checkpoint que ainda tem tarefa aberta, e não no começo: o
+   * trabalho já andou, e pôr a track na posição 0 diria que nada foi feito.
+   * Com tudo pronto, ela para no último, esperando a aprovação de saída.
+   *
+   * E sem tarefa NENHUMA ela começa do começo. A primeira versão caía no
+   * último também aqui, porque "nenhum checkpoint tem tarefa aberta" é
+   * verdade tanto quando tudo ficou pronto quanto quando nada existe, e as
+   * duas coisas querem dizer o contrário uma da outra.
+   */
+  select coalesce(
+    (select min(e.ordem) from etapas e
+      where e.fluxo_id = p_fluxo
+        and exists (select 1 from itens i where i.etapa_id = e.id and not i.feito)),
+    case when exists (select 1 from itens where fluxo_id = p_fluxo)
+         then v_ordem - 1 else 0 end
+  ) into v_atual;
+
+  update fluxos
+     set nome = coalesce(nullif(trim(p_nome), ''), nome),
+         tipo = p_tipo,
+         implicita = false,
+         atual = v_atual
+   where id = p_fluxo;
+end $$;
+
+revoke all on function public.virar_track(uuid, text, text, jsonb, uuid) from public, anon;
+grant execute on function public.virar_track(uuid, text, text, jsonb, uuid) to authenticated, service_role;
+
+-- ==========================================================================
 
 alter table public.fluxos add column if not exists implicita boolean not null default false;
 
@@ -5794,4 +5958,17 @@ select
     as "a track implicita existe (1)",
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname in ('track_do_canal','devolver_item'))
-    as "as duas funcoes novas (2)";
+    as "as duas funcoes novas (2)",
+  -- A track escondida sai do esconderijo: a conversão é função própria, porque
+  -- `salvar_fluxo` congela a posição do que já passou e recusaria justamente
+  -- esta operação.
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'virar_track')
+    as "virar_track existe (1)",
+  -- O gatilho de item devolve `etapa_id` ao que era para quem não manda no
+  -- processo, e pergunta pela sessão. Sem a porta, a conversão deixava as
+  -- tarefas todas no checkpoint velho, sem erro nenhum.
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'proteger_item'
+      and pg_get_functiondef(p.oid) like '%trackward.virando%')
+    as "a porta da conversao existe (1)";

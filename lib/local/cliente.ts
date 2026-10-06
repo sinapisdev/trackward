@@ -554,6 +554,56 @@ function trackDoCanal(canalId: string): string {
   return id
 }
 
+/**
+ * Espelho de `virar_track` (seção 60): a track escondida sai do esconderijo.
+ *
+ * As mesmas recusas do banco, e na mesma ordem: só enquanto escondida, só com
+ * checkpoint, e tarefa que ninguém endereçou cai no primeiro em vez de sumir.
+ * Quem decide QUANDO propor é `lib/trilhar.ts`, e isso não é espelhado aqui
+ * porque é regra de TypeScript dos dois lados.
+ */
+function virarTrack(
+  pFluxo: string, pNome: string, pTipo: string,
+  pEtapas: { nome?: string; criterio?: string; itens?: string[] }[],
+): void {
+  const b = ler()
+  const f = b.fluxos.find((x: Linha) => x.id === pFluxo)
+  if (!f) throw new Error('Esta track não existe mais.')
+  if (!f.implicita) throw new Error('Esta track já tem trilha. Para mexer nela, use Montar a trilha.')
+  if (pTipo !== 'esteira' && pTipo !== 'ciclo') throw new Error('Tipo de track inválido.')
+  if (!pEtapas?.length) throw new Error('Uma trilha sem checkpoint não é trilha.')
+
+  const velhas = b.etapas.filter((e: Linha) => e.fluxo_id === pFluxo).map((e: Linha) => e.id)
+  const novas: string[] = []
+  pEtapas.forEach((passo, i) => {
+    const id = uid('e')
+    novas.push(id)
+    b.etapas.push({
+      id, fluxo_id: pFluxo, nome: (passo.nome || '').trim() || `Checkpoint ${i + 1}`,
+      criterio: passo.criterio || '', aprovador_id: null, prazo: null, ordem: i,
+    })
+    for (const it of b.itens) {
+      if (it.fluxo_id === pFluxo && (passo.itens || []).includes(it.id as string)) it.etapa_id = id
+    }
+  })
+  // O que ninguém endereçou vai para o primeiro, e não para lugar nenhum.
+  for (const it of b.itens) {
+    if (it.fluxo_id === pFluxo && velhas.includes(it.etapa_id as string)) it.etapa_id = novas[0]
+  }
+  b.etapas = b.etapas.filter((e: Linha) => !velhas.includes(e.id as string))
+
+  // Pousa no primeiro checkpoint com tarefa aberta. Sem tarefa nenhuma começa do
+  // começo; com tudo pronto, para no último, esperando a aprovação de saída.
+  const daEtapa = (id: string) => b.itens.filter((i: Linha) => i.etapa_id === id)
+  const comAberta = novas.findIndex((id) => daEtapa(id).some((i: Linha) => !i.feito))
+  const temTarefa = b.itens.some((i: Linha) => i.fluxo_id === pFluxo)
+  f.nome = pNome.trim() || f.nome
+  f.tipo = pTipo
+  f.implicita = false
+  f.atual = comAberta >= 0 ? comAberta : (temTarefa ? novas.length - 1 : 0)
+  gravar()
+}
+
 function salvarFluxo(pFluxo: Linha, pEtapas: Linha[]): string {
   const b = ler()
   const eu = euLocal()
@@ -1632,6 +1682,11 @@ function montarCliente() {
         }
         if (nome === 'track_do_canal') {
           return { data: trackDoCanal(args.p_canal as string), error: null }
+        }
+        if (nome === 'virar_track') {
+          virarTrack(args.p_fluxo as string, args.p_nome as string, args.p_tipo as string,
+            args.p_etapas as { nome?: string; criterio?: string; itens?: string[] }[])
+          return { data: null, error: null }
         }
         return { data: null, error: { message: `Função ${nome} não existe no modo demonstração.` } }
       } catch (e) {

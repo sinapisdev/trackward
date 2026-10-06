@@ -1268,6 +1268,53 @@ relação e cache. Quem responde isso é `falaDeMaquina()`, em `lib/erros.ts`, e
 portas perguntam a ele. Duas cópias da peneira é a garantia de que um dia a tela mostra o
 que o telefone esconde.
 
+## O canal que já tem forma ganha uma trilha, e quem nomeia é o modelo
+
+A track escondida (seção 59) resolvia poder trabalhar sem track, e criava um problema no
+lugar: ela ficava escondida **para sempre**. O canal acumulava quarenta tarefas numa lista
+invisível, com um checkpoint chamado "Em andamento" e nenhum critério, e ninguém nunca era
+convidado a nomear nada. Um canal que trabalha bastante continuava sendo um chat com lista
+de tarefas ao lado.
+
+**A regra de QUANDO propor é código, e o modelo só dá NOME.** É a mesma divisão de
+`lib/descobrir.ts` e de `lib/raiox.ts`: o limiar mora em `lib/trilhar.ts`, onde se lê e se
+discute, e o modelo faz o que só ele faz bem, que é achar a palavra que a casa usaria.
+Pedir ao modelo para decidir se propõe seria trocar um número que se audita por um palpite
+que ninguém explica depois.
+
+**Os limiares são conservadores de propósito** (`MATURIDADE`): seis tarefas, porque
+checkpoint com uma tarefa não é porta, é item; três concluídas, porque sem conclusão não há
+sequência, só lista de desejos; e catorze dias, porque uma tarde movimentada não é processo.
+É a regra 1.6 aplicada aqui: propor um processo a partir de três tarefas é afirmar sobre o
+acaso, e a primeira vez que o app fizer isso a pessoa para de acreditar no resto.
+
+**A ordem do rascunho é a ordem em que as coisas FICARAM PRONTAS**, e não a ordem em que
+foram escritas. A trilha de um processo é a sequência que a casa cumpriu. E reparte igual,
+nunca por semelhança de texto: agrupar por palavra parecida juntaria "conferir o orçamento"
+com "conferir as férias", que é o erro que a descoberta evita de propósito.
+
+**O cartão começa pelo número, e só então mostra o desenho.** A ordem é o argumento, igual
+à de `componentes/Descobertos.tsx`: começar pelo rascunho é pedir opinião sobre um desenho
+sem dizer de onde ele saiu, e a resposta honesta a isso é "não sei".
+
+**Aceitar é `virar_track`, e não `salvar_fluxo`** (seção 60). Aquela congela a posição do
+que já passou, com razão, e a track escondida tem UM checkpoint na posição 0 com tarefas já
+concluídas: `trilha_comecou()` é verdadeiro e ela recusaria justamente a conversão. Depois
+de virada, mexer na trilha é `salvar_fluxo` como em qualquer track. Sem a trava de "só
+enquanto escondida", `virar_track` seria um caminho alternativo para remontar trilha que já
+andou.
+
+**Dois cuidados que o ensaio com dados pegou, e a leitura não pegaria.** Os checkpoints
+velhos saem por ID, e não por ordem: o "Em andamento" tem ordem 0 e sobrevivia ao lado do
+primeiro checkpoint novo, com a mesma ordem e nenhuma tarefa. E a track **sem tarefa
+nenhuma** começa do começo: "nenhum checkpoint tem tarefa aberta" é verdade tanto quando
+tudo ficou pronto quanto quando nada existe, e as duas coisas querem dizer o contrário uma
+da outra.
+
+**Quem desenha a trilha é quem responde pelo processo**, a mesma régua de prazo e de
+critério de saída, e o banco recusa também. **E o que foi dispensado não volta**: havendo
+uma proposta de trilha para aquele canal, aberta ou recusada, o pulso não propõe de novo.
+
 ## A track escondida escondeu o trabalho junto
 
 `fluxos`, em `Dados`, filtrava `!f.implicita`, e o motivo era bom: sem isso cada canal

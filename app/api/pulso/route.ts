@@ -7,6 +7,7 @@ import { horariosDoRitmo, horaDeResponder } from '@/lib/ritmo'
 import { descobrir, execucoesDe, inconstancia, type Evento } from '@/lib/descobrir'
 import { perguntasDeHoje, type Historico, type Papel } from '@/lib/perguntas'
 import { raioX, type Empurrao, type Entrega, type Passagem } from '@/lib/raiox'
+import { nomearTrilha, nomesSemModelo, oQueAconteceu, rascunhoDaTrilha } from '@/lib/trilhar'
 import { mandarWhats } from '@/lib/whats'
 import { custoMicro } from '@/lib/precos'
 import { escutaAqui, oQueFaz, porPalavras } from '@/lib/agentes'
@@ -166,6 +167,8 @@ type Org = Agenda & {
   ia_modo: string
   /** Quando o raio-X daquela casa rodou pela última vez. Ver a seção 48. */
   raiox_em: string | null
+  /** Qual modelo esta empresa usa. Vazio é o padrão do servidor. */
+  modelo_ia: string | null
 }
 
 type Linha = Record<string, unknown>
@@ -213,7 +216,7 @@ export async function POST(req: Request) {
   const agora = new Date()
   const { data: orgs } = await sb
     .from('organizacoes')
-    .select('id,nome,ia_ativa,ia_modo,leitura_por_dia,leitura_janela,fuso,pulso_em,raiox_em')
+    .select('id,nome,ia_ativa,ia_modo,leitura_por_dia,leitura_janela,fuso,pulso_em,raiox_em,modelo_ia')
     .eq('ia_ativa', true)
     .gt('leitura_por_dia', 0)
 
@@ -301,6 +304,28 @@ export async function POST(req: Request) {
     await sb.from('organizacoes').update({ raiox_em: agora.toISOString() }).eq('id', o.id)
   }
 
+  /**
+   * O canal que já tem forma ganha uma trilha proposta.
+   *
+   * Roda para todas as empresas, e não só para as que estão no horário de
+   * leitura, porque a conta é de banco e não chama modelo nenhum para DECIDIR:
+   * quem decide é `lib/trilhar.ts`. O modelo entra depois, só para dar nome, e
+   * só quando já se sabe que vale a pena propor.
+   *
+   * Quem segura a repetição é a própria proposta: havendo uma de trilha para
+   * aquele canal, aberta ou recusada, ele não volta a propor. Insistir no que a
+   * pessoa já disse que não é o jeito mais rápido de ela parar de ler o que o
+   * app diz.
+   */
+  let trilhasPropostas = 0
+  for (const o of (orgs || []) as Org[]) {
+    try {
+      trilhasPropostas += await proporTrilhas(sb, o, agora)
+    } catch (e) {
+      console.error('proposta de trilha falhou', o.id, e)
+    }
+  }
+
   const naVez = ((orgs || []) as Org[])
     .filter((o) => devePulsar(o, agora, ritmo.get(o.id) || []).bate)
   const relatorio: { org: string; canais: number; propostas: number; motor: string }[] = []
@@ -321,7 +346,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     quando: agora.toISOString(), perseguiu: perseguiu ?? 0,
-    descobertos, perguntadas, radiografadas, organizacoes: relatorio,
+    descobertos, perguntadas, radiografadas, trilhas: trilhasPropostas, organizacoes: relatorio,
   })
 }
 
@@ -739,4 +764,81 @@ async function raioXDaCasa(
     avisados += (n as number) || 0
   }
   return achados.length
+}
+
+/**
+ * Propõe a trilha dos canais que já trabalharam o bastante.
+ *
+ * Devolve quantas propostas nasceram. Quem decide SE propor e como repartir é
+ * `lib/trilhar.ts`; aqui só se monta o material e se grava.
+ */
+async function proporTrilhas(sb: Servico, org: Org, agora: Date): Promise<number> {
+  const [fluxos, etapas, itens, canais, jaPropostas] = await Promise.all([
+    sb.from('fluxos')
+      .select('id,nome,tipo,atual,concluido,desfecho,criado_em,implicita')
+      .eq('org_id', org.id).eq('implicita', true),
+    todas(sb, 'etapas', org.id, 'id,fluxo_id,nome,ordem'),
+    sb.from('itens')
+      .select('id,etapa_id,fluxo_id,texto,resp_id,feito,feito_em,ordem')
+      .eq('org_id', org.id),
+    todas(sb, 'canais', org.id, 'id,nome,fluxo_id,arquivado'),
+    sb.from('sugestoes').select('canal_id').eq('org_id', org.id).eq('tipo', 'trilha'),
+  ])
+
+  const escondidas = (fluxos.data || []) as unknown as Linha[]
+  if (!escondidas.length) return 0
+  const todosItens = (itens.data || []) as unknown as Linha[]
+  const jaVistas = new Set(((jaPropostas.data || []) as { canal_id: string | null }[])
+    .map((x) => x.canal_id).filter(Boolean) as string[])
+
+  let n = 0
+  for (const linha of escondidas) {
+    const canal = canais.find((c) => c.fluxo_id === linha.id && !c.arquivado)
+    if (!canal || jaVistas.has(canal.id as string)) continue
+
+    // A árvore que `lib/trilhar.ts` espera: a track com os checkpoints dela e as
+    // tarefas dentro. É a mesma forma que o app monta na tela.
+    const f = {
+      ...linha,
+      etapas: etapas.filter((e) => e.fluxo_id === linha.id)
+        .sort((a, b) => Number(a.ordem) - Number(b.ordem))
+        .map((e) => ({ ...e, itens: todosItens.filter((i) => i.etapa_id === e.id) })),
+    } as unknown as Fluxo
+
+    const r = rascunhoDaTrilha(f, String(canal.nome), agora.toISOString())
+    if (!r) continue
+
+    /**
+     * O nome vem do modelo quando dá, e das tarefas quando não dá.
+     *
+     * Aqui o teto de leitura NÃO é consultado: isto é uma chamada por canal
+     * maduro, que acontece uma vez na vida daquele canal, e o custo dela é
+     * ruído perto de uma leitura de conversa. Barrar por teto seria deixar a
+     * empresa que mais trabalha sem o que ela mais ganharia.
+     */
+    const chave = process.env.ANTHROPIC_API_KEY || ''
+    const nomes = (chave ? await nomearTrilha(r, chave, org.modelo_ia || MODELO) : null)
+      || nomesSemModelo(r)
+
+    const { error } = await sb.from('sugestoes').insert({
+      id: novoId(), org_id: org.id, canal_id: canal.id, nota_id: null,
+      mensagem_id: null, tipo: 'trilha',
+      texto: `Virar track: ${nomes.nome}`,
+      motivo: oQueAconteceu(r),
+      dados: {
+        fluxo_id: r.fluxo_id,
+        trilha: {
+          nome: nomes.nome,
+          tipo: r.parece,
+          passos: r.passos.map((passo, i) => ({
+            nome: nomes.passos[i] || `Checkpoint ${i + 1}`,
+            itens: passo.tarefas.map((t) => t.id),
+          })),
+        },
+      },
+      estado: 'aberta',
+    })
+    if (!error) { n++; jaVistas.add(canal.id as string) }
+  }
+  return n
 }

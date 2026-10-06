@@ -21,6 +21,7 @@ const ROTULO: Record<TipoProposta, string> = {
   agente: 'Agente',
   nota: 'Guardar como nota',
   compromisso: 'Marcar na agenda',
+  trilha: 'Virar track',
 }
 
 /**

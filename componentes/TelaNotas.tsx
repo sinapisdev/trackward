@@ -203,6 +203,19 @@ export function TelaNotas() {
             a nota tiver virado trabalho, "Organizar" separa o que é tarefa e o que é
             compromisso, e você aceita ou não.
           </p>
+          {/*
+            * O botão de criar mora na lista, e com zero nota a lista não é
+            * desenhada: a tela explicava o caderno e não deixava escrever nele.
+            * No celular isso não acontecia, porque lá a busca e o "+" ficam de
+            * pé e o texto vazio cai dentro da lista.
+            *
+            * Aqui ele é lima, e não fere o racionamento: numa tela sem nota
+            * nenhuma, escrever a primeira é a única ação que faz o trabalho
+            * andar, e não há segundo acento disputando com ela.
+            */}
+          <button className="btn pri" onClick={() => void nova()}>
+            <Ic.plus />Escrever a primeira nota
+          </button>
         </div>
       ) : (
         <div className="nt-tela">

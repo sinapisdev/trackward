@@ -1351,6 +1351,28 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
 .sug-vira .seg button{padding:6px 12px;font-size:var(--fs-meta)}
 .sug-pq{margin-top:7px;font-size:11.5px;color:var(--tx-3);line-height:1.5;padding-left:10px;
   border-left:2px solid var(--line-2)}
+/* O rascunho da trilha, no cartão que propõe virar track.
+   Ele vem DEPOIS do número (que mora no `.sug-pq`), porque a ordem é o
+   argumento: quem lê precisa reconhecer a casa dele antes de olhar o desenho. */
+.sug-trilha{margin-top:11px;padding:11px 12px;border-radius:var(--r-sm);
+  background:var(--sunken);box-shadow:0 0 0 1px var(--line)}
+.sug-tr-cab{display:flex;align-items:baseline;gap:8px;margin:0 0 8px}
+.sug-tr-cab b{font-size:13.5px;color:var(--tx)}
+.sug-tr-cab span{font-size:10.5px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.06em}
+.sug-tr-nome{display:flex;flex-direction:column;gap:3px;margin-bottom:8px;
+  font-size:10.5px;color:var(--tx-3);font-weight:600;letter-spacing:.03em;text-transform:uppercase}
+.sug-tr-tipo{margin-bottom:10px}
+.sug-tr-tipo button{padding:6px 12px;font-size:var(--fs-meta)}
+.sug-tr-passos{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+.sug-tr-passos li{display:flex;align-items:center;gap:9px;min-width:0}
+.sug-tr-passos li>b{flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--tx)}
+.sug-tr-passos li>.inp{flex:1;min-width:0}
+.sug-tr-passos small{color:var(--tx-3);font-size:11px;white-space:nowrap}
+/* O número do checkpoint é contorno apagado, como na trilha de verdade: o lima
+   é do checkpoint CORRENTE, e num rascunho não existe corrente ainda. */
+.sug-tr-n{flex:none;width:20px;height:20px;border-radius:999px;display:grid;place-items:center;
+  font-size:11px;color:var(--tx-3);box-shadow:inset 0 0 0 1px var(--line-2)}
+
 .sug-campos{display:flex;flex-wrap:wrap;gap:9px;margin-top:11px}
 .sug-campos label{display:flex;flex-direction:column;gap:3px;font-size:10.5px;color:var(--tx-3);font-weight:600;
   letter-spacing:.03em;text-transform:uppercase}

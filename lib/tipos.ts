@@ -636,6 +636,14 @@ export type TipoProposta =
   | 'tarefa' | 'prazo' | 'concluir' | 'decisao' | 'trava' | 'distribuir' | 'agente'
   /** Do canal de despejo: guardar como nota, ou marcar na agenda. */
   | 'nota' | 'compromisso'
+  /**
+   * O canal já trabalhou o bastante para ganhar trilha.
+   *
+   * Não nasce de uma frase da conversa, como as outras: nasce do trabalho que
+   * já aconteceu ali, medido em `lib/trilhar.ts`. Por isso ela não tem
+   * `mensagem_id` e o motivo dela é um número, não um trecho.
+   */
+  | 'trilha'
 
 /** O que a leitura da conversa propõe. Nada acontece antes de alguém aceitar. */
 export type Alvo = {
@@ -669,6 +677,19 @@ export type Alvo = {
   criou_id?: string | null
   /** Quem era o dono antes, para desfazer poder devolver ao que era. */
   de_resp_id?: string | null
+  /**
+   * O desenho da trilha proposta para um canal que já trabalha.
+   *
+   * Vem inteiro na proposta, com as tarefas que já existem repartidas, para a
+   * pessoa ver o que vai acontecer ANTES de aceitar. Quem reparte é
+   * `lib/trilhar.ts`, pela ordem em que as coisas de fato ficaram prontas; o
+   * modelo só dá os nomes.
+   */
+  trilha?: {
+    nome: string
+    tipo: 'esteira' | 'ciclo'
+    passos: { nome: string; itens: string[] }[]
+  }
   /** Qual agente reconheceu a situação, quando a proposta vem de um. */
   agente_id?: string | null
   /** A esteira que o agente abriu, para desfazer poder fechá-la. */

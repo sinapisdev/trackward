@@ -2241,6 +2241,25 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
         prazo: dados.prazo || '', priv: achado.item.priv,
       })
       contou = `mudou o prazo de "${achado.item.texto}"`
+    } else if (tipo === 'trilha') {
+      /**
+       * O canal ganha trilha, e a track escondida sai do esconderijo.
+       *
+       * Quem decide QUANDO propor e como repartir as tarefas é `lib/trilhar.ts`,
+       * pela ordem em que elas de fato ficaram prontas. O modelo só deu os
+       * nomes. Aqui só se executa o que já foi desenhado e visto por quem
+       * aceitou: a conversão inteira é uma chamada só, porque metade de uma
+       * trilha é pior do que trilha nenhuma.
+       */
+      const d = dados.trilha
+      if (!d || !d.passos.length) return toast('Esta proposta não tem trilha dentro.', true)
+      const alvo = dados.fluxo_id
+      if (!alvo) return toast('Esta proposta não aponta para uma track.', true)
+      const { error } = await sb.rpc('virar_track', {
+        p_fluxo: alvo, p_nome: d.nome, p_tipo: d.tipo, p_etapas: d.passos,
+      })
+      if (error) { falhou(error, 'Não foi possível montar a trilha.'); return }
+      contou = `montou a trilha de ${d.nome}, com ${d.passos.length} checkpoints`
     } else if (tipo === 'trava') {
       if (!fluxoEscolhido) return toast('Esta proposta não aponta para um projeto.', true)
       await travar(fluxoEscolhido, texto.replace(/^Travar [^:]+:\s*/, ''))
