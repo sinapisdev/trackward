@@ -34,6 +34,7 @@ import type { Alvo } from '@/lib/tipos'
 import { iso } from '@/lib/datas'
 import { itensVisiveis, podeMexerNoPrazo, veFluxo } from '@/lib/acesso'
 import { NOME_DA_LISTA } from '@/lib/rotulos'
+import { falaDeMaquina } from '@/lib/erros'
 
 /**
  * A faixa que aparece no rodapé por três segundos.
@@ -126,7 +127,8 @@ type Contexto = {
   aviso: Torrada | null
   toast: (texto: string, erro?: boolean) => void
   salvarArea: (d: { id?: string; nome: string; cor: string; responsavel_id?: string | null }) => Promise<Area | null>
-  excluirArea: (id: string) => Promise<void>
+  /** Falso quando o banco recusou, para a tela não limpar a seleção à toa. */
+  excluirArea: (id: string) => Promise<boolean>
   salvarFluxo: (f: Record<string, unknown>, etapas: RascunhoEtapa[]) => Promise<string | null>
   excluirFluxo: (id: string) => Promise<void>
   /** Arquivar sem concluir: o que antes era excluir, agora com motivo. */
@@ -806,7 +808,12 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
         : 'O banco está desatualizado. Rode o supabase/atualizar.sql no SQL Editor.', true)
       return
     }
-    toast(msg && msg.length < 120 ? msg : padrao, true)
+    /**
+     * O teste era o tamanho da frase, e tamanho não diz de quem ela é. A recusa
+     * do schema é português escrito para gente ler e passa direto; a do Postgres
+     * é inglês sobre constraint e coluna, e cabia nos 120 caracteres.
+     */
+    toast(!falaDeMaquina(msg) && msg.length < 200 ? msg : padrao, true)
   }, [toast])
 
   /**
@@ -863,17 +870,31 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       .insert({ ...corpo, id: novoId(), ordem: areas.length })
       .select()
       .maybeSingle()
-    if (error) { falhou(error, 'Só quem é administrador pode criar areas.'); return null }
-    toast(`Area ${d.nome} pronto.`)
+    if (error) { falhou(error, 'Só quem é administrador pode criar áreas.'); return null }
+    toast(`Área ${d.nome} pronta.`)
     recarregar()
     return data as Area
   }, [sb, areas.length, falhou, toast, recarregar, areaDe])
 
   const excluirArea: Contexto['excluirArea'] = useCallback(async (id) => {
     const { error } = await sb.from('areas').delete().eq('id', id)
-    if (error) return falhou(error, 'Não foi possível excluir a área.')
-    toast('Area excluído.')
+    if (error) {
+      /**
+       * `fluxos.area_id` é `on delete restrict`, de propósito: tirar a área de
+       * tracks em andamento sem ninguém pedir é mudar o que a equipe vê sem
+       * aviso. O Postgres recusa com 23503 e fala de constraint e de chave, o
+       * que não diz a ninguém o que fazer. Quem lê precisa da próxima ação.
+       */
+      const codigo = (error as { code?: string })?.code
+      const msg = (error as { message?: string })?.message || ''
+      falhou(error, codigo === '23503' || /foreign key/i.test(msg)
+        ? 'Esta área ainda tem tracks. Troque a área delas antes de apagar.'
+        : 'Não foi possível excluir a área.')
+      return false
+    }
+    toast('Área excluída.')
     recarregar()
+    return true
   }, [sb, falhou, toast, recarregar])
 
   /** Regrava quem foi convidado a ver uma esteira de visibilidade escolhida. */

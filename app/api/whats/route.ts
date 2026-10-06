@@ -11,6 +11,7 @@ import { ondeEh, separaOnde } from '@/lib/comandos'
 import { esqueletoEmBranco } from '@/lib/modelos'
 import { NOME_DA_LISTA } from '@/lib/rotulos'
 import { hojeIso } from '@/lib/datas'
+import { falaDeMaquina } from '@/lib/erros'
 
 /**
  * A porta de entrada do WhatsApp.
@@ -553,16 +554,12 @@ function recado(msg: string): string {
     return 'Isso não está liberado para você. Se achar que deveria, fale com quem administra.'
   }
   /**
-   * Fala de máquina não vai para o telefone.
-   *
-   * As mensagens do schema são escritas em português para gente ler, e o que
-   * vem do PostgREST e do Postgres vem em inglês e fala de função, coluna e
-   * cache. Esta peneira apareceu num teste: uma função que faltava no banco
-   * chegou ao telefone como "Could not find the function public.salvar_fluxo
-   * in the schema cache", que é indepurável para quem está do outro lado e não
-   * diz nada que a pessoa possa resolver.
+   * Fala de máquina não vai para o telefone, e a regra do que é fala de máquina
+   * mora em `lib/erros.ts`, porque a tela precisa da mesma peneira. Ela nasceu
+   * aqui, num teste em que "Could not find the function public.salvar_fluxo in
+   * the schema cache" chegou ao telefone de alguém.
    */
-  if (/could not find|schema cache|does not exist|invalid input|unexpected|null value/i.test(msg)) {
+  if (/unexpected/i.test(msg) || falaDeMaquina(msg)) {
     return 'Não deu para fazer isso agora. Se continuar, me avise pelo app.'
   }
   return msg.length < 200 ? msg : 'Não deu para fazer isso agora.'

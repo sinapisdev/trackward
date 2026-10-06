@@ -624,7 +624,7 @@ function MTrilha({ fluxo, fechar }: { fluxo: Fluxo; fechar: () => void }) {
 
 function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>; fechar: () => void }) {
   const { eu, perfis, areas, areaDe, nomeDe, empresas, org, pessoal, pode, empresaAtiva, processos,
-    salvarFluxo, criarDoProcesso, salvarArea, toast } = useDados()
+    salvarFluxo, criarDoProcesso, salvarArea, excluirArea, toast } = useDados()
   const router = useRouter()
   const edicao = pedido.fluxo
   const ativos = perfis.filter((p) => p.ativo)
@@ -633,6 +633,10 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
   /** Vazio é o campo fechado. Um espaço é o campo aberto e ainda em branco. */
   const [novaArea, setNovaArea] = useState('')
   const [criandoArea, setCriandoArea] = useState(false)
+  /** Vazio é o editor fechado; preenchido, é o nome sendo corrigido. */
+  const [editandoArea, setEditandoArea] = useState('')
+  const [vaiApagar, setVaiApagar] = useState(false)
+  const [mexendoArea, setMexendoArea] = useState(false)
   const [nome, setNome] = useState(edicao?.nome || '')
   const [areaId, setAreaId] = useState<string>(edicao?.area_id || pedido.areaId || areas[0]?.id || '')
   const [donoId, setDonoId] = useState(edicao?.dono_id || eu.id)
@@ -758,6 +762,53 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
     }
   }
 
+  /**
+   * Corrigir e apagar moram aqui pelo mesmo motivo que criar: a área não tem
+   * tela própria, é etiqueta, e quem erra o nome dela erra ao digitá-lo neste
+   * formulário. Mandar a pessoa para outro lugar perderia a track que ela está
+   * no meio de criar, que é a razão de a tela de áreas ter saído do menu.
+   */
+  const areaAberta = areas.find((a) => a.id === areaId)
+
+  const abrirEditorDaArea = () => {
+    if (!areaAberta) return
+    setNovaArea(''); setVaiApagar(false); setEditandoArea(areaAberta.nome)
+  }
+
+  const fecharEditorDaArea = () => { setEditandoArea(''); setVaiApagar(false) }
+
+  const renomearArea = async () => {
+    const nome = editandoArea.trim()
+    if (!nome || !areaAberta || mexendoArea) return
+    setMexendoArea(true)
+    try {
+      const a = await salvarArea({
+        id: areaAberta.id, nome, cor: areaAberta.cor, responsavel_id: areaAberta.responsavel_id,
+      })
+      if (a) fecharEditorDaArea()
+    } finally {
+      setMexendoArea(false)
+    }
+  }
+
+  /**
+   * Dois toques, e não uma caixa de confirmar: a confirmação em modal fecharia
+   * este formulário e levaria junto o que já foi digitado.
+   */
+  const apagarArea = async () => {
+    if (!areaAberta || mexendoArea) return
+    if (!vaiApagar) { setVaiApagar(true); return }
+    setMexendoArea(true)
+    try {
+      // Só solta a seleção quando o banco confirmou. Área com track dentro é
+      // recusada, e limpar o campo faria a recusa parecer sucesso.
+      if (await excluirArea(areaAberta.id)) { setAreaId(''); fecharEditorDaArea() }
+      else setVaiApagar(false)
+    } finally {
+      setMexendoArea(false)
+    }
+  }
+
   return (
     <div className="dlg wide" role="dialog" aria-modal="true" aria-labelledby="mf">
       <div className="dlg-h">
@@ -787,24 +838,57 @@ function MFluxo({ pedido, fechar }: { pedido: Extract<Pedido, { tipo: 'fluxo' }>
           </div>
           <div className="fld">
             <label htmlFor="f-area">Área</label>
-            <select className="inp" id="f-area" value={novaArea ? '__nova' : (areaId || '')}
-              onChange={(e) => {
-                if (e.target.value === '__nova') { setNovaArea(' '); return }
-                setNovaArea(''); setAreaId(e.target.value)
-              }}>
-              {/* Track sem área não é exceção: um negócio novo não tem frente
-                  ainda, e inventar uma para ele caber é organizar antes de
-                  entender. Vale para objetivo e para rotina. */}
-              <option value="">Sem área</option>
-              {areas.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-              <option value="__nova">+ Nova área</option>
-            </select>
+            <div className="row-inline">
+              <select className="inp" id="f-area" value={novaArea ? '__nova' : (areaId || '')}
+                onChange={(e) => {
+                  fecharEditorDaArea()
+                  if (e.target.value === '__nova') { setNovaArea(' '); return }
+                  setNovaArea(''); setAreaId(e.target.value)
+                }}>
+                {/* Track sem área não é exceção: um negócio novo não tem frente
+                    ainda, e inventar uma para ele caber é organizar antes de
+                    entender. Vale para objetivo e para rotina. */}
+                <option value="">Sem área</option>
+                {areas.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                <option value="__nova">+ Nova área</option>
+              </select>
+              {!!areaAberta && !novaArea && !editandoArea && (
+                <button className="btn ghost" onClick={abrirEditorDaArea}
+                  title="Corrigir ou apagar esta área"
+                  aria-label={`Corrigir ou apagar a área ${areaAberta.nome}`}><Ic.edit /></button>
+              )}
+            </div>
+            {!!editandoArea && (
+              <>
+                {/* A coluna da Área tem 275px, e campo mais dois botões lado a
+                    lado deixam 89px para o nome, que mostra "Financei". O nome
+                    fica numa linha dele e os botões descem. A quebra é local, e
+                    não na `.row-inline`, que serve a outras 19 telas. */}
+                <div className="row-inline" style={{ marginTop: 8, flexWrap: 'wrap' }}>
+                  <input className="inp" autoFocus value={editandoArea}
+                    style={{ flex: '1 1 100%', minWidth: 0 }}
+                    aria-label="Nome da área"
+                    onChange={(e) => { setEditandoArea(e.target.value); setVaiApagar(false) }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') void renomearArea() }} />
+                  <button className="btn" disabled={!editandoArea.trim() || mexendoArea}
+                    onClick={() => void renomearArea()}>Salvar</button>
+                  <button className="btn ghost" onClick={fecharEditorDaArea}>Cancelar</button>
+                </div>
+                {/* Apagar fica numa linha só dele, e não ao lado de Salvar: a
+                    ação que desfaz não divide espaço com a que grava. */}
+                <button className="btn danger sm" style={{ marginTop: 6 }} disabled={mexendoArea}
+                  onClick={() => void apagarArea()}>
+                  {vaiApagar ? 'Apagar mesmo? Toque de novo' : 'Apagar esta área'}
+                </button>
+              </>
+            )}
             {!!novaArea && (
               /* A área nasce aqui, e não numa tela à parte. Mandar a pessoa para
                  outro lugar no meio de criar uma track é perder o que ela já
                  digitou, e foi por isso que a tela de áreas sumiu do menu. */
-              <div className="row-inline" style={{ marginTop: 8 }}>
+              <div className="row-inline" style={{ marginTop: 8, flexWrap: 'wrap' }}>
                 <input className="inp" autoFocus value={novaArea.trimStart()}
+                  style={{ flex: '1 1 100%', minWidth: 0 }}
                   placeholder="Nome da área. Ex.: Financeiro"
                   aria-label="Nome da nova área"
                   onChange={(e) => setNovaArea(e.target.value || ' ')}

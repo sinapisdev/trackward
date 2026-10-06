@@ -423,6 +423,18 @@ class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
           } }
         }
       }
+      /**
+       * Mesma recusa de `fluxos.area_id on delete restrict`: apagar a área de
+       * tracks em andamento mudaria o que a equipe vê sem ninguém pedir. A
+       * frase é a do Postgres, em inglês, de propósito: é ela que `falhou` em
+       * Dados.tsx reconhece para dizer o que fazer, e assim o modo local
+       * exercita a mesma tradução que a produção.
+       */
+      if (this.tabela === 'areas' && b.fluxos.some((f) => fora.includes(f.area_id as string))) {
+        return { data: null as T, error: {
+          message: 'update or delete on table "areas" violates foreign key constraint on table "fluxos"',
+        } }
+      }
       b[this.tabela] = lista.filter((l) => !fora.includes(l.id))
       if (this.tabela === 'fluxos') {
         const ids = new Set(fora)

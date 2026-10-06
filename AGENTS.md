@@ -1232,6 +1232,42 @@ por tabela. Fechado nasce `escolhidas`, com quem já está no canal convidado.
 **E o checkpoint se chama "Em andamento".** Dar nome de etapa agora seria inventar o primeiro
 passo de um processo que ninguém desenhou.
 
+## A área se corrige onde ela nasce
+
+A área não tem tela própria, e isso é a regra certa: ela é etiqueta, não lugar. Mas por
+anos ela também não teve **conserto**: dava para criar digitando o nome dentro do
+formulário de track, e quem errasse uma letra ficava com "Marcenariaa" para sempre.
+`excluirArea` existia em `Dados` e **nenhuma tela chamava**. Isso não era decisão, como é
+no caso da track, que não se apaga por motivo escrito: era uma ponta que ninguém fechou.
+
+Corrigir e apagar moram agora ao lado de criar, no mesmo formulário, por um lápis colado
+no campo. Mandar a pessoa para outro lugar perderia a track que ela está no meio de criar,
+que é exatamente por que a tela de áreas saiu do menu.
+
+- **Apagar é dois toques, e não uma caixa de confirmar.** A caixa seria outro modal por
+  cima deste, e fecharia o formulário levando junto o que já foi digitado.
+- **A seleção só é solta quando o banco confirma.** `fluxos.area_id` é `on delete
+  restrict`, de propósito: tirar a área de tracks em andamento mudaria o que a equipe vê
+  sem ninguém pedir. Limpar o campo antes da resposta faria a recusa parecer sucesso.
+- **O campo do nome fica numa linha dele.** A coluna da Área tem 275px, e campo mais dois
+  botões lado a lado deixam 89px, que mostra "Financei". A quebra é local; `.row-inline`
+  serve a outras 19 telas e não muda por causa desta.
+
+## Fala de máquina não vai para a tela, e a regra é uma só
+
+`recado()` peneirava inglês de máquina antes de ir para o WhatsApp, e `falhou()`, que é a
+mesma pergunta na tela, decidia por **tamanho**: `msg.length < 120 ? msg : padrao`. Tamanho
+não diz de quem é a frase. "update or delete on table "areas" violates foreign key
+constraint on table "fluxos"" tem 93 caracteres e chegava inteira a quem só queria apagar
+uma etiqueta.
+
+A distinção certa é de autoria: as recusas escritas no `supabase/schema.sql` são português
+feito para gente ler ("Ressalva não se apaga, se conclui") e passam direto, porque dizem o
+que fazer; o que o Postgres e o PostgREST escrevem sozinhos fala de constraint, coluna,
+relação e cache. Quem responde isso é `falaDeMaquina()`, em `lib/erros.ts`, e as duas
+portas perguntam a ele. Duas cópias da peneira é a garantia de que um dia a tela mostra o
+que o telefone esconde.
+
 ## Quem pediu fica sabendo, e quem recebeu pode devolver
 
 `aviso_ao_concluir` avisava só quem estava TRAVADO pela tarefa. Se ninguém dependia dela, ela
