@@ -13,21 +13,22 @@ import { Av } from './atomos'
 import { TrilhaH } from './Trilha'
 import { classePrazo } from './partes'
 import { dias, isoDe, rel } from '@/lib/datas'
-import { etapaAtual, pendencias } from '@/lib/regras'
+import { etapaAtual, oQuePedi, pendencias } from '@/lib/regras'
 import { AVULSA } from '@/lib/rotulos'
 import type { Pendencia } from '@/lib/tipos'
 
-type Filtro = 'tudo' | 'executar' | 'aprovar' | 'aguardando'
+type Filtro = 'tudo' | 'executar' | 'aprovar' | 'aguardando' | 'pedi'
 
 /** A chave de uma pendência, para saber qual está aberta na gaveta. */
-const chave = (p: Pendencia) => (p.tipo === 'aprov' ? `a-${p.etapa.id}` : `i-${p.item.id}`)
+const chave = (p: Pendencia) =>
+  p.tipo === 'aprov' ? `a-${p.etapa.id}` : p.tipo === 'pedi' ? `p-${p.item.id}` : `i-${p.item.id}`
 
 /**
  * A fila de quem está usando o app: tudo que depende dele, em uma coluna, e o
  * próximo passo aberto ao lado. Um de cada vez, que é como o trabalho anda.
  */
 export function Minhas() {
-  const { eu, fluxos, carregando, nomeDe, perfilDe, minhaLista,
+  const { eu, fluxos, fluxosComImplicitas, carregando, nomeDe, perfilDe, minhaLista,
     alternarItem, aprovar: aprovarSaida } = useDados()
   const { abrir } = useModais()
   const celular = useCelular()
@@ -35,16 +36,24 @@ export function Minhas() {
   const [termo, setTermo] = useState('')
   const [aberta, setAberta] = useState<string | null>(null)
 
-  const tudo = useMemo(() => pendencias(fluxos, eu.id), [fluxos, eu.id])
+  /**
+   * A fila lê `fluxosComImplicitas`, e não `fluxos`: o que foi combinado num
+   * canal sem track mora numa track escondida, e lendo a outra lista a tarefa
+   * não aparecia nem para quem ia executá-la.
+   */
+  const tudo = useMemo(
+    () => [...pendencias(fluxosComImplicitas, eu.id), ...oQuePedi(fluxosComImplicitas, eu.id)],
+    [fluxosComImplicitas, eu.id],
+  )
 
   /** Índice de tarefas, para saber o que está travado por quem. */
   const porId = useMemo(() => {
     const m = new Map<string, { texto: string; feito: boolean; resp: string | null }>()
-    for (const f of fluxos) for (const e of f.etapas) for (const i of e.itens) {
+    for (const f of fluxosComImplicitas) for (const e of f.etapas) for (const i of e.itens) {
       m.set(i.id, { texto: i.texto, feito: i.feito, resp: i.resp_id })
     }
     return m
-  }, [fluxos])
+  }, [fluxosComImplicitas])
 
   const travasDe = (p: Pendencia) =>
     p.tipo === 'item'
@@ -64,23 +73,36 @@ export function Minhas() {
   const busca = tudo.filter((p) => !termo.trim() || limpa(texto(p)).includes(limpa(termo)))
 
   const aprovacoes = busca.filter((p) => p.tipo === 'aprov')
+  const pedidas = busca.filter((p) => p.tipo === 'pedi')
   const travadas = busca.filter((p) => travasDe(p).length > 0)
   const executar = busca.filter((p) => p.tipo === 'item' && !travasDe(p).length)
 
+  /**
+   * "Pedi" é segmento próprio, e não entra em Aguardando.
+   *
+   * Aguardando quer dizer "a MINHA tarefa está travada por outra", e o que se
+   * faz lá é esperar para então executar. Aqui a tarefa não é minha e nunca
+   * vai ser: o que se faz é cobrar, ou deixar quieto. Misturar as duas tira o
+   * sentido da palavra que já existia.
+   */
   const abas: { id: Filtro; nome: string; itens: Pendencia[] }[] = [
     { id: 'tudo', nome: 'Tudo', itens: busca },
     { id: 'executar', nome: 'Executar', itens: executar },
     { id: 'aprovar', nome: 'Aprovar', itens: aprovacoes },
     { id: 'aguardando', nome: 'Aguardando', itens: travadas },
+    { id: 'pedi', nome: 'Pedi', itens: pedidas },
   ]
   const atual = abas.find((a) => a.id === filtro) || abas[0]
 
   const blocos = filtro === 'tudo'
     ? [
-        { titulo: 'Vencida', itens: busca.filter((p) => p.prazo && dias(p.prazo) < 0 && !travasDe(p).length) },
-        { titulo: 'Hoje', itens: busca.filter((p) => p.prazo && dias(p.prazo) === 0 && !travasDe(p).length) },
-        { titulo: 'A seguir', itens: busca.filter((p) => (!p.prazo || dias(p.prazo) > 0) && !travasDe(p).length) },
+        // Em "Tudo", o que eu pedi fica no fim, depois do que é meu: a fila
+        // responde primeiro "o que eu faço", e só depois "o que estou esperando".
+        { titulo: 'Vencida', itens: busca.filter((p) => p.tipo !== 'pedi' && p.prazo && dias(p.prazo) < 0 && !travasDe(p).length) },
+        { titulo: 'Hoje', itens: busca.filter((p) => p.tipo !== 'pedi' && p.prazo && dias(p.prazo) === 0 && !travasDe(p).length) },
+        { titulo: 'A seguir', itens: busca.filter((p) => p.tipo !== 'pedi' && (!p.prazo || dias(p.prazo) > 0) && !travasDe(p).length) },
         { titulo: 'Aguardando', itens: travadas },
+        { titulo: 'Pedi', itens: pedidas },
       ].filter((b) => b.itens.length)
     : [{ titulo: atual.nome, itens: atual.itens }]
 
@@ -97,6 +119,7 @@ export function Minhas() {
 
   const Etiqueta = ({ p }: { p: Pendencia }) =>
     p.tipo === 'aprov' ? <span className="fila-tag">Aprovar</span>
+      : p.tipo === 'pedi' ? <span className="fila-tag">Pedi</span>
       : travasDe(p).length ? <span className="fila-tag">Dependência</span>
         : <span className="fila-tag">Executar</span>
 
@@ -166,7 +189,11 @@ export function Minhas() {
                             seria expor o andaime em que ela se apoia. */}
                         {p.fluxo.id === minhaLista?.id
                           ? AVULSA
-                          : `${p.fluxo.nome}${p.tipo === 'aprov' ? '' : ` / ${etapaAtual(p.fluxo)?.nome || ''}`}`}
+                          /* Na track escondida o checkpoint se chama "Em andamento",
+                             que não diz nada. O endereço de verdade é a conversa. */
+                          : p.fluxo.implicita
+                            ? `#${p.fluxo.nome}`
+                            : `${p.fluxo.nome}${p.tipo === 'aprov' ? '' : ` / ${etapaAtual(p.fluxo)?.nome || ''}`}`}
                       </small>
                       {!!travas.length && (
                         <small className="fila-trava">
@@ -244,7 +271,7 @@ function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoA
   aoConcluir: () => void
   aoAprovar: () => void
 }) {
-  const { devolverItem, eu } = useDados()
+  const { devolverItem, eu, canais } = useDados()
   const [devolvendo, setDevolvendo] = useState(false)
   const [motivo, setMotivo] = useState('')
   const [indo, setIndo] = useState(false)
@@ -253,6 +280,9 @@ function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoA
   const titulo = p.tipo === 'aprov' ? `Aprovar saída de ${p.etapa.nome}` : p.item.texto
   const resp = p.tipo === 'aprov' ? p.etapa.aprovador_id : p.item.resp_id
   const feito = p.tipo === 'item' && p.item.feito
+  /** Nasceu de uma conversa que ainda não virou track. O endereço é o canal. */
+  const doCanal = !!p.fluxo.implicita
+  const canal = doCanal ? canais.find((c) => c.fluxo_id === p.fluxo.id) : undefined
 
   // Tarefa minha, pedida por outra pessoa, e ainda por fazer.
   const podeDevolver = p.tipo === 'item' && !feito
@@ -262,7 +292,9 @@ function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoA
   return (
     <aside className="gaveta" data-tut="minhas-gaveta">
       <div className="gaveta-topo">
-        <span className="gaveta-onde">{avulsa ? AVULSA : `${p.fluxo.nome} / ${et?.nome}`}</span>
+        <span className="gaveta-onde">
+          {avulsa ? AVULSA : doCanal ? `#${p.fluxo.nome}` : `${p.fluxo.nome} / ${et?.nome}`}
+        </span>
         <button className="iconbtn so-celular" aria-label="Fechar" onClick={aoFechar}><Ic.x /></button>
       </div>
       <h2>{titulo}</h2>
@@ -292,6 +324,18 @@ function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoA
             você a enxerga. Para pedir algo a alguém, crie a tarefa dentro de uma track.
           </p>
         </>
+      ) : doCanal ? (
+        /* A track escondida tem um checkpoint só, chamado "Em andamento", e
+           nenhum critério. Desenhar a trilha dela seria mostrar um andaime e
+           chamá-lo de processo. O que é verdade é que isto foi combinado numa
+           conversa, e é para lá que a pessoa precisa poder voltar. */
+        <>
+          <h3>Onde esta tarefa está</h3>
+          <p className="gaveta-crit">
+            Combinada em <b>#{p.fluxo.nome}</b>, que ainda não tem trilha. Enquanto não
+            tiver, ela vive na conversa.
+          </p>
+        </>
       ) : (
         <>
           <h3>Onde esta tarefa está</h3>
@@ -307,7 +351,14 @@ function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoA
         </>
       )}
 
-      {p.tipo === 'aprov' ? (
+      {/* Em "Pedi" a tarefa é de outra pessoa, e não há botão: concluir o
+          trabalho alheio é dizer que foi feito sem ter feito. O que existe
+          aqui é saber em que pé está, e a porta de volta para a conversa. */}
+      {p.tipo === 'pedi' ? (
+        <p className="gaveta-nota">
+          Você pediu isto a {nomeDe(p.item.resp_id)}. Quem marca como feita é quem faz.
+        </p>
+      ) : p.tipo === 'aprov' ? (
         <button className="btn pri larga" onClick={aoAprovar}><Ic.check />Aprovar saída</button>
       ) : travas ? (
         <button className="btn larga" disabled><Ic.lock />Concluir tarefa</button>
@@ -357,8 +408,14 @@ function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoA
         )
       )}
 
-      {!avulsa && (
-        <Link className="gaveta-abrir" href={`/fluxo/${p.fluxo.id}`}>Abrir track <Ic.seta /></Link>
+      {/* A track escondida não está em Tracks, então mandar para ela seria
+          mandar para uma tela que a pessoa não sabe que existe. O endereço
+          dela é a conversa onde o trabalho foi combinado. */}
+      {!avulsa && (doCanal
+        ? canal && (
+          <Link className="gaveta-abrir" href={`/chat/${canal.id}`}>Abrir a conversa <Ic.seta /></Link>
+        )
+        : <Link className="gaveta-abrir" href={`/fluxo/${p.fluxo.id}`}>Abrir track <Ic.seta /></Link>
       )}
     </aside>
   )

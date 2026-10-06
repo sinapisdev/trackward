@@ -461,9 +461,10 @@ function Sino() {
 }
 
 export function Barra() {
-  const { eu, fluxos, canais, naoLidas, pode } = useDados()
+  const { eu, fluxosComImplicitas, canais, naoLidas, pode } = useDados()
   const caminho = usePathname()
-  const minhas = pendencias(fluxos, eu.id).length
+  // A fila conta o que foi combinado em canal sem track. Ver `fluxosComImplicitas`.
+  const minhas = pendencias(fluxosComImplicitas, eu.id).length
   const porLer = canais.reduce((n, c) => n + naoLidas(c.id), 0)
   const emMais = ['/relatorios', '/desempenho', '/agentes', '/conectores', '/processos']
     .some((r) => caminho.startsWith(r))

@@ -41,7 +41,7 @@ type Linha = { item: Item; fluxo: Fluxo; onde: string; avulsa: boolean }
  * você não pode ler" é pior que não mostrar nada.
  */
 export function Painel() {
-  const { eu, fluxos, areas, perfis, canais, naoLidas, carregando, areaDe, perfilDe, nomeDe,
+  const { eu, fluxos, fluxosComImplicitas, areas, perfis, canais, naoLidas, carregando, areaDe, perfilDe, nomeDe,
     minhaLista, alternarItem, pode } = useDados()
   const { abrir } = useModais()
   const [lente, setLente] = useState<Lente>('minhas')
@@ -60,10 +60,16 @@ export function Painel() {
    */
   const aberta: Face = pode.canais ? face : 'notas'
 
-  /** Toda tarefa aberta que eu enxergo, com o endereço dela. */
+  /**
+   * Toda tarefa aberta que eu enxergo, com o endereço dela.
+   *
+   * Lê `fluxosComImplicitas` porque a pergunta aqui é onde está o TRABALHO, e
+   * o combinado num canal sem track mora numa track escondida. Lendo `fluxos`,
+   * essa tarefa não aparecia nem para quem ia executá-la.
+   */
   const tarefas = useMemo<Linha[]>(() => {
     const saida: Linha[] = []
-    for (const f of fluxos) {
+    for (const f of fluxosComImplicitas) {
       if (f.concluido) continue
       const avulsa = f.id === minhaLista?.id
       const etapas = avulsa ? f.etapas : [etapaAtual(f)].filter(Boolean)
@@ -73,14 +79,17 @@ export function Painel() {
           saida.push({
             item: i,
             fluxo: f,
-            onde: avulsa ? AVULSA : `${f.nome} · ${et.nome}`,
+            // Na track escondida o checkpoint se chama "Em andamento", que não
+            // diz nada. O endereço verdadeiro é a conversa, e `#` é como o app
+            // escreve canal em todo lugar.
+            onde: avulsa ? AVULSA : f.implicita ? `#${f.nome}` : `${f.nome} · ${et.nome}`,
             avulsa,
           })
         }
       }
     }
     return saida
-  }, [fluxos, minhaLista])
+  }, [fluxosComImplicitas, minhaLista])
 
   /** Prende o canal escolhido assim que ele aparece na tela. Ver o comentário
    *  em `canal`, mais abaixo: sem isto, ler uma mensagem troca o canal. */

@@ -24,7 +24,7 @@ export function ListaCanais({ atual, aoEscolher }: {
   atual?: string
   aoEscolher: (id: string) => void
 }) {
-  const { canais, mensagens, naoLidas, meChamaram, eu, perfilDe } = useDados()
+  const { canais, fluxos, mensagens, naoLidas, meChamaram, eu, perfilDe } = useDados()
   const { abrir } = useModais()
 
   /** A hora da última mensagem de cada canal, numa passada só. */
@@ -43,12 +43,19 @@ export function ListaCanais({ atual, aoEscolher }: {
     const ordenar = (lista: Canal[]) => [...lista].sort((a, b) => quando(b.id) - quando(a.id))
     const comum = (c: Canal) => c.tipo !== 'direto'
     const vivos = canais.filter((c) => !c.arquivado)
+      /* A track escondida de um canal NÃO o transforma em objetivo. Ela existe
+         para a primeira tarefa combinada ali ter onde morar, e o canal continua
+         sendo canal. Perguntar só `c.fluxo_id` fazia o canal trocar de grupo na
+         coluna no instante do primeiro aceite, que é o oposto do que `implicita`
+         existe para fazer. `fluxos` já não traz as escondidas, então "tem track
+         de verdade" é estar nela. */
+      const temTrack = (c: Canal) => !!c.fluxo_id && fluxos.some((f) => f.id === c.fluxo_id)
     return [
-      { rotulo: 'Canais', itens: ordenar(vivos.filter((c) => comum(c) && !c.fluxo_id)) },
-      { rotulo: 'Tracks', itens: ordenar(vivos.filter((c) => comum(c) && c.fluxo_id)) },
+      { rotulo: 'Canais', itens: ordenar(vivos.filter((c) => comum(c) && !temTrack(c))) },
+      { rotulo: 'Tracks', itens: ordenar(vivos.filter((c) => comum(c) && temTrack(c))) },
       { rotulo: 'Conversas', itens: ordenar(vivos.filter((c) => c.tipo === 'direto')) },
     ].filter((g) => g.itens.length)
-  }, [canais, ultima])
+  }, [canais, fluxos, ultima])
 
   const nomeDoCanal = (c: Canal) => {
     if (c.tipo !== 'direto') return c.nome

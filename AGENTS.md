@@ -1268,6 +1268,57 @@ relação e cache. Quem responde isso é `falaDeMaquina()`, em `lib/erros.ts`, e
 portas perguntam a ele. Duas cópias da peneira é a garantia de que um dia a tela mostra o
 que o telefone esconde.
 
+## A track escondida escondeu o trabalho junto
+
+`fluxos`, em `Dados`, filtrava `!f.implicita`, e o motivo era bom: sem isso cada canal
+viraria uma track vazia na tela de Tracks. Só que `fluxos` não alimenta só Tracks. Alimenta
+**Meu trabalho, o Forward e os dois contadores**, e ao esconder a track eu escondi o
+trabalho junto: a tarefa combinada num canal sem track não aparecia para NINGUÉM, nem para
+quem ia executá-la. Nada dava erro, a lista só vinha incompleta, que é o modo de falha mais
+caro deste app porque some.
+
+São duas perguntas diferentes, e agora são duas listas. **`fluxos` responde "quais tracks
+existem"** e continua certa em Tracks, no seletor de uma proposta, no radar e nos
+relatórios. **`fluxosComImplicitas` responde "onde está o trabalho"**, e é dela que saem a
+fila e os contadores. O padrão NÃO foi invertido de propósito: uma track de canal aparecendo
+em Tracks é visível e se conserta num dia; uma tarefa sumindo da fila não é, e já aconteceu.
+
+**E a track escondida não transforma o canal em objetivo.** A coluna de conversas agrupava
+por `c.fluxo_id`, então o canal trocava de grupo no instante do primeiro aceite, que é o
+oposto do que `implicita` existe para fazer. A pergunta certa é se a track dele está em
+`fluxos`, que já não traz as escondidas.
+
+**Onde ela aparece, o endereço é a conversa, não a trilha.** O checkpoint da track escondida
+se chama "Em andamento" e não tem critério: desenhar a trilha dela seria mostrar um andaime
+e chamá-lo de processo. A linha e a gaveta dizem `#canal`, e a gaveta leva de volta ao chat
+em vez de a uma track que a pessoa não sabe que existe.
+
+## Quem pediu precisa saber se foi feito
+
+A fila respondia só "o que depende de mim", e quem PEDE não executa: Carlos combinava algo
+com a Ana no canal e, para saber se tinha sido feito, só perguntando. O trabalho voltava
+para a conversa quando concluído, mas conversa rola, e aviso lido some.
+
+`oQuePedi()` em `lib/regras.ts` responde a outra pergunta: tarefa aberta que eu escrevi,
+para outra pessoa. Ela é **função separada de propósito**, e isso não é arquitetura: `pendencias()`
+alimenta o contador da barra, o da TabBar e a fila do Forward, que respondem "o que eu faço
+agora", e tarefa alheia não é isso. Juntas, a fila de quem mais pede (que costuma ser quem
+menos executa) encheria de trabalho dos outros.
+
+**Só Meu trabalho pergunta as duas**, num segmento próprio, "Pedi". Ele **não entra em
+Aguardando**: ali a tarefa é minha e está travada, e o que se faz é esperar para executar;
+aqui ela nunca vai ser minha, e o que se faz é cobrar ou deixar quieto. Misturar tira o
+sentido da palavra que já existia.
+
+**E não existe botão de concluir em "Pedi".** Marcar como feito o trabalho de outra pessoa é
+dizer que foi feito sem ter sido. A gaveta mostra em que pé está e a porta de volta para a
+conversa.
+
+**O administrador não entra nisto por ser administrador.** Ele lê no canal que o Carlos
+pediu e a Ana aceitou, e fica ciente. O painel dele continua sendo só o que ele executa ou
+aprova, senão um dono de empresa abre o app e encontra o pedido de cupom fiscal de todo
+mundo, e para de abrir.
+
 ## Quem pediu fica sabendo, e quem recebeu pode devolver
 
 `aviso_ao_concluir` avisava só quem estava TRAVADO pela tarefa. Se ninguém dependia dela, ela

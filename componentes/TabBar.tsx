@@ -19,11 +19,11 @@ import { hojeIso } from '@/lib/datas'
  * mesma pergunta, "o que mais tem aqui", e agora têm um botão só.
  */
 export function TabBar() {
-  const { eu, fluxos, agenda, canais, naoLidas, pode } = useDados()
+  const { eu, fluxosComImplicitas, agenda, canais, naoLidas, pode } = useDados()
   const { abrir } = useModais()
   const caminho = usePathname()
 
-  const minhas = pendencias(fluxos, eu.id).length
+  const minhas = pendencias(fluxosComImplicitas, eu.id).length
   const hoje = agenda.filter(
     (c) => c.quando === hojeIso() && [c.dono_id, ...c.convidados].includes(eu.id),
   ).length

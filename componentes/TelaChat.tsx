@@ -48,7 +48,7 @@ const marca = (c: Canal) =>
 // ------------------------------------------------------------------ lista
 
 function Lista({ atual }: { atual?: string }) {
-  const { canais, mensagens, naoLidas, meChamaram, sugestoesDe, todosFluxos, eu, perfilDe,
+  const { canais, fluxos, mensagens, naoLidas, meChamaram, sugestoesDe, todosFluxos, eu, perfilDe,
     nomeDe } = useDados()
   const { abrir } = useModais()
   const celular = useCelular()
@@ -88,13 +88,17 @@ function Lista({ atual }: { atual?: string }) {
     const quando = (id: string) => ultima.get(id) ?? 0
     const ordenar = (lista: Canal[]) => [...lista].sort((a, b) => quando(b.id) - quando(a.id))
     const comum = (c: Canal) => c.tipo !== 'direto'
+    const temTrack = (c: Canal) => !!c.fluxo_id && fluxos.some((f) => f.id === c.fluxo_id)
     if (celular) return [{ rotulo: '', itens: ordenar(canais) }].filter((g) => g.itens.length)
     return [
-      { rotulo: 'Canais', itens: ordenar(canais.filter((c) => comum(c) && !c.fluxo_id)) },
-      { rotulo: 'Objetivos', itens: ordenar(canais.filter((c) => comum(c) && c.fluxo_id)) },
+      /* A track escondida de um canal não o torna um objetivo. Ver o mesmo
+         cuidado em Canais.tsx: `fluxos` já não traz as implícitas, então ter
+         track de verdade é estar nela. */
+      { rotulo: 'Canais', itens: ordenar(canais.filter((c) => comum(c) && !temTrack(c))) },
+      { rotulo: 'Objetivos', itens: ordenar(canais.filter((c) => comum(c) && temTrack(c))) },
       { rotulo: 'Conversas', itens: ordenar(canais.filter((c) => c.tipo === 'direto')) },
     ].filter((g) => g.itens.length)
-  }, [canais, ultima, celular])
+  }, [canais, fluxos, ultima, celular])
 
   const nomeDoCanal = (c: Canal) => {
     if (c.tipo !== 'direto') return c.nome

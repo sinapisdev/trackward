@@ -562,6 +562,15 @@ export type AgendaExterna = {
 export type Pendencia =
   | { tipo: 'item'; fluxo: Fluxo; etapa: Etapa; item: Item; prazo: string | null }
   | { tipo: 'aprov'; fluxo: Fluxo; etapa: Etapa; item: null; prazo: string | null }
+  /**
+   * O que eu pedi a outra pessoa e ainda não ficou pronto.
+   *
+   * Não é pendência MINHA, e por isso ela não entra em `pendencias()` nem nos
+   * contadores: quem pede não executa, e um selo que conta trabalho alheio
+   * ensina a ignorar selo. Mas quem pediu precisa saber se foi feito, senão a
+   * única saída é perguntar, que é o que este app existe para evitar.
+   */
+  | { tipo: 'pedi'; fluxo: Fluxo; etapa: Etapa; item: Item; prazo: string | null }
 
 // --------------------------------------------------------------- conversa
 

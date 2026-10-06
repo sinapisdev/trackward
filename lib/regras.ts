@@ -98,6 +98,37 @@ export function envolve(f: Fluxo, perfilId: string | null): boolean {
   )
 }
 
+/**
+ * O que eu pedi, e ainda não ficou pronto.
+ *
+ * Separado de `pendencias` de propósito, e não é zelo de arquitetura: aquela
+ * função alimenta o contador da barra, o da TabBar e a fila do Forward, que
+ * respondem "o que eu faço agora". Tarefa de outra pessoa não é isso. Juntar as
+ * duas poluiria a fila de quem mais pede, que costuma ser quem menos executa, e
+ * é exatamente o motivo de nenhum destes aparecer para o administrador só por
+ * ele ser administrador.
+ *
+ * O que ela responde é outra pergunta, e só Meu trabalho faz: "a Ana já fez o
+ * que combinei com ela?". Sem isso, a resposta é perguntar.
+ */
+export function oQuePedi(fluxos: Fluxo[], perfilId: string | null): Pendencia[] {
+  if (!perfilId) return []
+  const out: Pendencia[] = []
+  for (const f of fluxos) {
+    if (f.concluido || f.travado_motivo) continue
+    const et = etapaAtual(f)
+    if (!et) continue
+    for (const item of et.itens) {
+      // Pedida por mim, para outra pessoa, e ainda aberta. Tarefa que escrevi
+      // para mim mesmo já está na minha fila, e apareceria duas vezes.
+      if (!item.feito && item.autor_id === perfilId && item.resp_id && item.resp_id !== perfilId) {
+        out.push({ tipo: 'pedi', fluxo: f, etapa: et, item, prazo: item.prazo })
+      }
+    }
+  }
+  return out.sort((a, b) => (a.prazo || '9999-12-31').localeCompare(b.prazo || '9999-12-31'))
+}
+
 /** Tudo que depende de uma pessoa agora: itens para executar e checkpoints para aprovar. */
 export function pendencias(fluxos: Fluxo[], perfilId: string | null): Pendencia[] {
   if (!perfilId) return []

@@ -103,8 +103,15 @@ type Contexto = {
   espacos: Espaco[]
   trocarEspaco: (perfilId: string) => Promise<void>
   abrirEspaco: (nome: string, tipo: 'pessoal' | 'equipe') => Promise<void>
-  /** Fluxos da empresa em foco. Sem empresa escolhida, são todos. */
+  /**
+   * Fluxos da empresa em foco. Sem empresa escolhida, são todos.
+   *
+   * Responde "quais TRACKS existem", então a track escondida de um canal fica
+   * de fora. Para "onde está o TRABALHO", use `fluxosComImplicitas`.
+   */
   fluxos: Fluxo[]
+  /** As mesmas, mais a track escondida de cada canal. A fila pergunta a esta. */
+  fluxosComImplicitas: Fluxo[]
   /** Todos, ignorando o filtro de empresa. Serve para contar no seletor. */
   todosFluxos: Fluxo[]
   /** Total de tarefas de uma esteira, inclusive as que você não enxerga. */
@@ -750,6 +757,26 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    */
   const fluxos = useMemo(
     () => doEspaco.filter((f) => !arquivada(f) && !f.implicita),
+    [doEspaco],
+  )
+  /**
+   * As mesmas, MAIS a track escondida de cada canal.
+   *
+   * `fluxos` responde "quais tracks existem", e é a resposta certa para Tracks,
+   * para o seletor de uma proposta, para o radar e para os relatórios. Ela é a
+   * errada para "onde está o trabalho", e essa confusão custou caro: Meu
+   * trabalho, o Forward e os dois contadores liam `fluxos`, então a tarefa
+   * combinada num canal sem track não aparecia para NINGUÉM, nem para quem ia
+   * executá-la. Nada dava erro: a lista só vinha incompleta, que é o modo de
+   * falha mais caro deste app porque some.
+   *
+   * Quem pergunta onde está o trabalho pergunta a esta. Quem pergunta quais
+   * tracks existem continua em `fluxos`, e é por isso que o padrão não foi
+   * invertido: uma track de canal aparecendo em Tracks é visível e se conserta;
+   * uma tarefa sumindo da fila não é, e já aconteceu.
+   */
+  const fluxosComImplicitas = useMemo(
+    () => doEspaco.filter((f) => !arquivada(f)),
     [doEspaco],
   )
   const arquivadas = useMemo(
@@ -3145,7 +3172,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   const valor: Contexto = {
     eu, perfis, areas, empresas, org, pessoal: org.tipo === 'pessoal', pode,
-    plano, diasDeTeste: diasDeTeste(org), ativos, tetoLeituras, fluxos, todosFluxos, totalItens, agenda, minhaAgendaExterna, processos, convites,
+    plano, diasDeTeste: diasDeTeste(org), ativos, tetoLeituras, fluxos, fluxosComImplicitas, todosFluxos, totalItens, agenda, minhaAgendaExterna, processos, convites,
     empresaAtiva, focarEmpresa, empresaDe, carregando,
     perfilDe, nomeDe, areaDe, aviso, toast,
     salvarArea, excluirArea, salvarFluxo, excluirFluxo, arquivarFluxo, reabrirFluxo, arquivadas,
