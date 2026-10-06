@@ -8429,3 +8429,125 @@ grant execute on function public.anexo_comigo(uuid) to authenticated, service_ro
 drop trigger if exists ao_inserir_org on public.anexo_pessoas;
 create trigger ao_inserir_org before insert on public.anexo_pessoas
   for each row execute function public.carimbar_org();
+
+-- ==========================================================================
+-- 62. A trilha melhora enquanto roda, e as tarefas não vão junto
+--
+--     A trilha nasce de um palpite e só o uso diz se ela está certa. O raio-X
+--     já achava o checkpoint que nunca reprova (o carimbo) e o que come o tempo
+--     todo, e só RELATAVA: não existia caminho para tirar nem para acrescentar.
+--
+--     E existe uma armadilha no caminho óbvio. `salvar_fluxo` termina com
+--     `delete from etapas where not (id = any(ids))`, e `itens.etapa_id` tem
+--     cascata: tirar um checkpoint pela lista de etapas APAGA as tarefas dele,
+--     sem avisar. Isso é aceitável enquanto a trilha é rascunho e cada
+--     checkpoint está vazio; deixa de ser no dia em que alguém tira um
+--     checkpoint de uma track que já trabalhou.
+--
+--     Por isso duas funções, e não um `salvar_fluxo` com mais um parâmetro:
+--     elas existem para MOVER a tarefa antes de mexer na trilha, e esse é o
+--     trabalho inteiro delas.
+--
+--     O CONGELAMENTO CONTINUA VALENDO, e é ele que decide o que dá para fazer:
+--     tirar só o que ainda não chegou, porque tirar um checkpoint vencido faria
+--     a track mudar de lugar em silêncio; partir vale também para o corrente,
+--     porque o novo entra DEPOIS dele e nada que já passou muda de posição.
+-- ==========================================================================
+
+/**
+ * Tira um checkpoint da trilha, levando as tarefas dele para outro.
+ *
+ * `p_para` é para onde as tarefas vão. Nulo manda para o checkpoint seguinte,
+ * e no último para o anterior: tarefa sem checkpoint não existe, e o ponto de
+ * tirar a porta é justamente não perder o que estava atrás dela.
+ */
+create or replace function public.tirar_checkpoint(
+  p_etapa uuid, p_para uuid default null, p_como uuid default null
+) returns void language plpgsql security definer set search_path = public as $$
+declare
+  e etapas%rowtype;
+  f fluxos%rowtype;
+  v_eu uuid := quem_age(p_como);
+  v_destino uuid;
+begin
+  select * into e from etapas where id = p_etapa;
+  if e.id is null then raise exception 'Este checkpoint não existe mais.'; end if;
+  select * into f from fluxos where id = e.fluxo_id;
+  if not manda_no_processo_como(f.id, v_eu) then
+    raise exception 'Mexer na trilha é de quem responde pelo processo.';
+  end if;
+  if (select count(*) from etapas where fluxo_id = f.id) < 2 then
+    raise exception 'Uma trilha sem checkpoint não é trilha.';
+  end if;
+  if e.ordem <= f.atual then
+    raise exception 'Este checkpoint já passou ou é o de agora. '
+      'O que ficou para trás fica onde está, senão a track muda de lugar em silêncio.';
+  end if;
+
+  v_destino := coalesce(
+    p_para,
+    (select id from etapas where fluxo_id = f.id and ordem > e.ordem order by ordem limit 1),
+    (select id from etapas where fluxo_id = f.id and ordem < e.ordem order by ordem desc limit 1));
+  if v_destino is null or v_destino = p_etapa then
+    raise exception 'Não há para onde levar as tarefas deste checkpoint.';
+  end if;
+
+  perform set_config('trackward.virando', f.id::text, true);
+  update itens set etapa_id = v_destino where etapa_id = p_etapa;
+  delete from etapas where id = p_etapa;
+  -- As posições fecham a lacuna. O que passou mantém a ordem relativa, e o
+  -- `atual` não se move porque só se tira o que vem depois dele.
+  update etapas set ordem = ordem - 1 where fluxo_id = f.id and ordem > e.ordem;
+
+  insert into atividades (fluxo_id, quem_id, texto)
+  values (f.id, v_eu, 'tirou o checkpoint ' || e.nome);
+end $$;
+
+/**
+ * Parte um checkpoint em dois, levando parte das tarefas para o novo.
+ *
+ * O novo entra LOGO DEPOIS do que foi partido, com as tarefas de `p_itens`.
+ * Vale também para o checkpoint corrente, porque nada que já passou troca de
+ * posição: o que entra, entra à frente.
+ */
+create or replace function public.partir_checkpoint(
+  p_etapa uuid, p_nome text, p_itens uuid[], p_como uuid default null
+) returns uuid language plpgsql security definer set search_path = public as $$
+declare
+  e etapas%rowtype;
+  f fluxos%rowtype;
+  v_eu uuid := quem_age(p_como);
+  v_novo uuid := gen_random_uuid();
+begin
+  select * into e from etapas where id = p_etapa;
+  if e.id is null then raise exception 'Este checkpoint não existe mais.'; end if;
+  select * into f from fluxos where id = e.fluxo_id;
+  if not manda_no_processo_como(f.id, v_eu) then
+    raise exception 'Mexer na trilha é de quem responde pelo processo.';
+  end if;
+  if e.ordem < f.atual then
+    raise exception 'Este checkpoint já passou. O que ficou para trás fica onde está.';
+  end if;
+  if coalesce(array_length(p_itens, 1), 0) = 0 then
+    raise exception 'Partir sem levar tarefa nenhuma deixaria um checkpoint vazio.';
+  end if;
+  if not exists (select 1 from itens where etapa_id = p_etapa and not (id = any(p_itens))) then
+    raise exception 'Levar TODAS as tarefas deixaria o checkpoint de origem vazio.';
+  end if;
+
+  perform set_config('trackward.virando', f.id::text, true);
+  update etapas set ordem = ordem + 1 where fluxo_id = f.id and ordem > e.ordem;
+  insert into etapas (id, fluxo_id, nome, criterio, ordem, aprovador_id, prazo, org_id)
+  values (v_novo, f.id, coalesce(nullif(btrim(p_nome), ''), e.nome || ' (2)'), '',
+          e.ordem + 1, e.aprovador_id, e.prazo, f.org_id);
+  update itens set etapa_id = v_novo where etapa_id = p_etapa and id = any(p_itens);
+
+  insert into atividades (fluxo_id, quem_id, texto)
+  values (f.id, v_eu, 'partiu o checkpoint ' || e.nome);
+  return v_novo;
+end $$;
+
+revoke all on function public.tirar_checkpoint(uuid, uuid, uuid) from public, anon;
+revoke all on function public.partir_checkpoint(uuid, text, uuid[], uuid) from public, anon;
+grant execute on function public.tirar_checkpoint(uuid, uuid, uuid) to authenticated, service_role;
+grant execute on function public.partir_checkpoint(uuid, text, uuid[], uuid) to authenticated, service_role;

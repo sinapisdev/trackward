@@ -2305,6 +2305,30 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       })
       if (error) { falhou(error, 'Não foi possível montar a trilha.'); return }
       contou = `montou a trilha de ${d.nome}, com ${d.passos.length} checkpoints`
+    } else if (tipo === 'checkpoint') {
+      /**
+       * A trilha melhora enquanto roda.
+       *
+       * Duas funções e não `salvar_fluxo`: aquela termina com um `delete from
+       * etapas` e `itens.etapa_id` tem cascata, então tirar um checkpoint pela
+       * lista de etapas APAGARIA as tarefas dele, sem avisar. Aqui a tarefa é
+       * movida antes, que é o trabalho inteiro.
+       */
+      const d = dados.ajuste
+      if (!d) return toast('Esta proposta não diz o que ajustar.', true)
+      if (d.acao === 'tirar') {
+        const { error } = await sb.rpc('tirar_checkpoint', { p_etapa: d.etapa_id, p_para: null })
+        if (error) { falhou(error, 'Não foi possível tirar este checkpoint.'); return }
+        contou = `tirou o checkpoint "${d.etapa}" da trilha`
+      } else {
+        const { error } = await sb.rpc('partir_checkpoint', {
+          p_etapa: d.etapa_id,
+          p_nome: (dados.texto || d.nome || '').trim() || d.nome || '',
+          p_itens: d.itens || [],
+        })
+        if (error) { falhou(error, 'Não foi possível partir este checkpoint.'); return }
+        contou = `partiu o checkpoint "${d.etapa}" em dois`
+      }
     } else if (tipo === 'trava') {
       if (!fluxoEscolhido) return toast('Esta proposta não aponta para um projeto.', true)
       await travar(fluxoEscolhido, texto.replace(/^Travar [^:]+:\s*/, ''))

@@ -22,6 +22,7 @@ const ROTULO: Record<TipoProposta, string> = {
   nota: 'Guardar como nota',
   compromisso: 'Marcar na agenda',
   trilha: 'Virar track',
+  checkpoint: 'Ajuste na trilha',
 }
 
 /**

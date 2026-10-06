@@ -1358,6 +1358,40 @@ da outra.
 critério de saída, e o banco recusa também. **E o que foi dispensado não volta**: havendo
 uma proposta de trilha para aquele canal, aberta ou recusada, o pulso não propõe de novo.
 
+## A trilha melhora enquanto roda, e as tarefas não vão junto
+
+A trilha nasce de um palpite e só o uso diz se ela está certa. O raio-X já achava o
+checkpoint que nunca reprova e **só relatava**: não existia caminho para tirar nem para
+acrescentar, e o achado morria num aviso mensal.
+
+**A armadilha está no caminho óbvio.** `salvar_fluxo` termina com `delete from etapas where
+not (id = any(ids))`, e `itens.etapa_id` tem cascata: tirar um checkpoint pela lista de
+etapas **apaga as tarefas dele**, sem avisar. Isso é inofensivo enquanto a trilha é rascunho
+e cada checkpoint está vazio, e deixa de ser no dia em que alguém tira um checkpoint de uma
+track que já trabalhou. Por isso `tirar_checkpoint` e `partir_checkpoint` (seção 62), e não
+um parâmetro a mais em `salvar_fluxo`: elas existem para MOVER a tarefa antes de mexer na
+trilha, e esse é o trabalho inteiro delas.
+
+**O congelamento decide o que dá para fazer.** Tirar vale só para o que ainda não chegou,
+porque tirar um checkpoint vencido faria a track mudar de lugar em silêncio. Partir vale
+também para o corrente, porque o novo entra DEPOIS dele e nada que já passou troca de
+posição.
+
+**Os dois sinais são de naturezas diferentes, e isso importa.** O carimbo vem do raio-X e é
+afirmação sobre repetição, então precisa de amostra (quatro passagens, a regra 1.6). O
+checkpoint com oito tarefas não precisa: não é inferência, é a descrição daquele checkpoint
+agora, e oito coisas antes de uma única passagem quer dizer que a trilha deixou de dizer
+onde a track está.
+
+**Um ajuste por track, o mais caro.** O mesmo defeito costuma disparar as duas regras, e
+duas propostas sobre a mesma trilha na mesma conversa é o jeito mais rápido de a pessoa
+dispensar as duas sem ler. Mesmo desempate do raio-X: ganha o carimbo, porque tirar o
+checkpoint resolve a espera junto.
+
+**Chega pelo canal daquela track, e não pelo sino.** O raio-X evita por desenho o aviso que
+pede decisão; aqui a decisão tem dono e tem lugar, que é a conversa onde aquele trabalho
+acontece. Track sem canal não recebe proposta.
+
 ## A track escondida escondeu o trabalho junto
 
 `fluxos`, em `Dados`, filtrava `!f.implicita`, e o motivo era bom: sem isso cada canal

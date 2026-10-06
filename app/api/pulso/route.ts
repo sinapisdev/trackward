@@ -7,7 +7,8 @@ import { horariosDoRitmo, horaDeResponder } from '@/lib/ritmo'
 import { descobrir, execucoesDe, inconstancia, type Evento } from '@/lib/descobrir'
 import { perguntasDeHoje, type Historico, type Papel } from '@/lib/perguntas'
 import { raioX, type Empurrao, type Entrega, type Passagem } from '@/lib/raiox'
-import { nomearTrilha, nomesSemModelo, oQueAconteceu, rascunhoDaTrilha } from '@/lib/trilhar'
+import { ajustesDaTrilha, nomearTrilha, nomesSemModelo, oQueAconteceu, rascunhoDaTrilha,
+  type Carimbo } from '@/lib/trilhar'
 import { mandarWhats } from '@/lib/whats'
 import { custoMicro } from '@/lib/precos'
 import { escutaAqui, oQueFaz, porPalavras } from '@/lib/agentes'
@@ -318,9 +319,11 @@ export async function POST(req: Request) {
    * app diz.
    */
   let trilhasPropostas = 0
+  let ajustesPropostos = 0
   for (const o of (orgs || []) as Org[]) {
     try {
       trilhasPropostas += await proporTrilhas(sb, o, agora)
+      ajustesPropostos += await proporAjustes(sb, o)
     } catch (e) {
       console.error('proposta de trilha falhou', o.id, e)
     }
@@ -346,7 +349,8 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     quando: agora.toISOString(), perseguiu: perseguiu ?? 0,
-    descobertos, perguntadas, radiografadas, trilhas: trilhasPropostas, organizacoes: relatorio,
+    descobertos, perguntadas, radiografadas, trilhas: trilhasPropostas,
+    ajustes: ajustesPropostos, organizacoes: relatorio,
   })
 }
 
@@ -835,6 +839,70 @@ async function proporTrilhas(sb: Servico, org: Org, agora: Date): Promise<number
             itens: passo.tarefas.map((t) => t.id),
           })),
         },
+      },
+      estado: 'aberta',
+    })
+    if (!error) { n++; jaVistas.add(canal.id as string) }
+  }
+  return n
+}
+
+/**
+ * Propõe o ajuste da trilha das tracks que já rodam.
+ *
+ * O raio-X já achava o checkpoint que nunca reprova e só RELATAVA. Aqui o
+ * achado vira proposta no canal daquela track, que é onde quem decide está.
+ *
+ * Um ajuste por track, e nunca dois sobre a mesma trilha: havendo proposta de
+ * checkpoint aberta ou recusada naquele canal, ele não propõe de novo.
+ */
+async function proporAjustes(sb: Servico, org: Org): Promise<number> {
+  const [fluxos, etapas, itens, canais, jaPropostas, achados] = await Promise.all([
+    sb.from('fluxos').select('id,nome,tipo,atual,concluido,desfecho,implicita,criado_em')
+      .eq('org_id', org.id).eq('implicita', false),
+    todas(sb, 'etapas', org.id, 'id,fluxo_id,nome,ordem'),
+    sb.from('itens').select('id,etapa_id,fluxo_id,texto,resp_id,feito,feito_em,ordem')
+      .eq('org_id', org.id),
+    todas(sb, 'canais', org.id, 'id,nome,fluxo_id,arquivado'),
+    sb.from('sugestoes').select('canal_id').eq('org_id', org.id).eq('tipo', 'checkpoint'),
+    sb.from('raiox_achados').select('alvo,dias,amostra,texto')
+      .eq('org_id', org.id).eq('chave', 'carimbo').in('estado', ['novo', 'visto']),
+  ])
+
+  const carimbos = ((achados.data || []) as unknown as Carimbo[])
+  const todosItens = (itens.data || []) as unknown as Linha[]
+  const jaVistas = new Set(((jaPropostas.data || []) as { canal_id: string | null }[])
+    .map((x) => x.canal_id).filter(Boolean) as string[])
+
+  let n = 0
+  for (const linha of ((fluxos.data || []) as unknown as Linha[])) {
+    const canal = canais.find((c) => c.fluxo_id === linha.id && !c.arquivado)
+    // Sem canal não há onde propor, e mandar isto para o sino seria aviso que
+    // pede decisão, que é justamente o que o raio-X evita por desenho.
+    if (!canal || jaVistas.has(canal.id as string)) continue
+
+    const f = {
+      ...linha,
+      etapas: etapas.filter((e) => e.fluxo_id === linha.id)
+        .sort((a, b) => Number(a.ordem) - Number(b.ordem))
+        .map((e) => ({ ...e, itens: todosItens.filter((i) => i.etapa_id === e.id) })),
+    } as unknown as Fluxo
+
+    const a = ajustesDaTrilha(f, carimbos)
+    if (!a) continue
+
+    const { error } = await sb.from('sugestoes').insert({
+      id: novoId(), org_id: org.id, canal_id: canal.id, nota_id: null,
+      mensagem_id: null, tipo: 'checkpoint',
+      // Em 'partir' o texto do cartão É o nome do checkpoint novo, então
+      // corrigir o texto já corrige o nome, sem campo a mais.
+      texto: a.acao === 'tirar' ? `Tirar "${a.etapa}" da trilha` : a.nome,
+      motivo: a.porque,
+      dados: {
+        fluxo_id: a.fluxo_id,
+        ajuste: a.acao === 'tirar'
+          ? { acao: 'tirar', etapa_id: a.etapa_id, etapa: a.etapa }
+          : { acao: 'partir', etapa_id: a.etapa_id, etapa: a.etapa, itens: a.itens, nome: a.nome },
       },
       estado: 'aberta',
     })

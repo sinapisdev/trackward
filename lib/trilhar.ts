@@ -303,3 +303,89 @@ export async function nomearTrilha(
     return null
   }
 }
+
+/* ==========================================================================
+   A trilha que melhora enquanto roda
+   ========================================================================== */
+
+/**
+ * Quantas tarefas num checkpoint só já são duas fases.
+ *
+ * Não é afirmação estatística e por isso não precisa de amostra: é a descrição
+ * daquele checkpoint, agora. Oito coisas antes de uma única passagem quer dizer
+ * que ninguém consegue dizer "onde isto está" olhando a trilha, que é a única
+ * coisa que a trilha existe para responder.
+ */
+export const PARTIR = { tarefas: 8 }
+
+export type Ajuste =
+  | {
+      acao: 'tirar'
+      fluxo_id: string
+      etapa_id: string
+      etapa: string
+      /** A frase com o número dentro, vinda do raio-X. */
+      porque: string
+      dias: number
+      amostra: number
+    }
+  | {
+      acao: 'partir'
+      fluxo_id: string
+      etapa_id: string
+      etapa: string
+      porque: string
+      /** As tarefas que vão para o checkpoint novo: a segunda metade. */
+      itens: string[]
+      /** Um nome de partida. Quem aceita troca em Ajustar. */
+      nome: string
+    }
+
+/** O que o raio-X achou sobre um checkpoint, pelo nome dele. */
+export type Carimbo = { alvo: string; dias: number; amostra: number; texto: string }
+
+/**
+ * O que dá para melhorar nesta trilha, agora.
+ *
+ * O congelamento decide o que entra: **tirar** só vale para o que ainda não
+ * chegou, porque tirar um checkpoint vencido faria a track mudar de lugar em
+ * silêncio; **partir** vale também para o corrente, porque o novo entra depois
+ * dele e nada que já passou troca de posição.
+ *
+ * Um ajuste por track, o mais caro. O mesmo defeito costuma disparar as duas
+ * regras, e duas propostas sobre a mesma trilha na mesma conversa é o jeito
+ * mais rápido de a pessoa dispensar as duas sem ler.
+ */
+export function ajustesDaTrilha(f: Fluxo, carimbos: Carimbo[]): Ajuste | null {
+  if (f.implicita || f.concluido || f.desfecho || f.etapas.length < 2) return null
+
+  // 1. O carimbo, que é o mais caro: tirá-lo resolve a espera junto.
+  for (const e of f.etapas) {
+    if (e.ordem <= f.atual) continue
+    const achado = carimbos.find((c) => c.alvo.trim().toLowerCase() === e.nome.trim().toLowerCase())
+    if (achado) {
+      return {
+        acao: 'tirar', fluxo_id: f.id, etapa_id: e.id, etapa: e.nome,
+        porque: achado.texto, dias: achado.dias, amostra: achado.amostra,
+      }
+    }
+  }
+
+  // 2. O checkpoint que virou depósito.
+  for (const e of f.etapas) {
+    if (e.ordem < f.atual) continue
+    if (e.itens.length < PARTIR.tarefas) continue
+    const ordenadas = [...e.itens].sort((a, b) => a.ordem - b.ordem)
+    const metade = Math.ceil(ordenadas.length / 2)
+    const vao = ordenadas.slice(metade)
+    if (!vao.length) continue
+    return {
+      acao: 'partir', fluxo_id: f.id, etapa_id: e.id, etapa: e.nome,
+      porque: `"${e.nome}" tem ${e.itens.length} tarefas antes de uma única passagem. `
+        + 'Com tanta coisa junta, a trilha deixa de dizer onde a track está.',
+      itens: vao.map((i) => i.id),
+      nome: `${e.nome} (2)`,
+    }
+  }
+  return null
+}

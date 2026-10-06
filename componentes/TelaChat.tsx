@@ -29,6 +29,7 @@ const ROTULO: Record<TipoProposta, string> = {
   nota: 'Guardar como nota',
   compromisso: 'Marcar na agenda',
   trilha: 'Virar track',
+  checkpoint: 'Ajuste na trilha',
 }
 
 const hora = (ts: string) =>
@@ -222,6 +223,8 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
   ]
   const tipoVivo = vira || s.tipo
   const ehTrilha = s.tipo === 'trilha'
+  const ehAjuste = s.tipo === 'checkpoint'
+  const ajuste = s.dados.ajuste
 
   /**
    * Quem desenha a trilha é quem responde pelo processo.
@@ -231,8 +234,10 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
    * por ali. O banco recusa também (`virar_track`), e esta checagem existe para
    * a pessoa não descobrir isso só depois de clicar.
    */
-  const trackDaTrilha = ehTrilha ? todosFluxos.find((f) => f.id === s.dados.fluxo_id) : null
-  const podeDesenhar = !ehTrilha || (!!trackDaTrilha && mandaNoProcesso(eu, trackDaTrilha, perfis))
+  const trackDaTrilha = ehTrilha || ehAjuste
+    ? todosFluxos.find((f) => f.id === s.dados.fluxo_id) : null
+  const podeDesenhar = !(ehTrilha || ehAjuste)
+    || (!!trackDaTrilha && mandaNoProcesso(eu, trackDaTrilha, perfis))
 
   const editavel = tipoVivo === 'tarefa' && !despejo
   const abertos = todosFluxos.filter((f) => !f.concluido)
@@ -251,7 +256,11 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
     if (texto.trim() && texto.trim() !== s.texto.trim()) corrigido.texto = texto.trim()
     if (vira) corrigido.vira = vira
 
-    if (ehTrilha) {
+    if (ehAjuste) {
+      // Em 'partir' o texto do cartão É o nome do checkpoint novo, então o
+      // ajuste de texto já é o ajuste do nome. Em 'tirar' não há o que digitar.
+      await aceitarSugestao(s, corrigido.texto ? { texto: corrigido.texto } : undefined)
+    } else if (ehTrilha) {
       await aceitarSugestao(s, {
         trilha: {
           nome: nomeTrack.trim() || desenho?.nome || '',
@@ -287,7 +296,7 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
           : <span className="sug-txt">{texto}</span>}
       </div>
 
-      {ajustando && !ehTrilha && (
+      {ajustando && !ehTrilha && !ehAjuste && (
         <div className="sug-vira">
           <span className="lbl">Isto é</span>
           <div className="seg">
@@ -328,6 +337,47 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
         * então o rascunho. Começar pelo desenho é pedir opinião sobre algo sem
         * dizer de onde ele saiu, e a resposta honesta a isso é "não sei".
         */}
+      {/* O ajuste de uma trilha que já existe. Um por track, o mais caro: o
+          mesmo defeito costuma disparar as duas regras, e duas propostas sobre
+          a mesma trilha é o jeito mais rápido de dispensar as duas sem ler. */}
+      {ehAjuste && !!ajuste && (
+        <div className="sug-trilha">
+          <p className="sug-tr-cab">
+            <b>{trackDaTrilha?.nome || 'Esta track'}</b>
+            <span>{ajuste.acao === 'tirar' ? 'tirar um checkpoint' : 'partir em dois'}</span>
+          </p>
+          <ol className="sug-tr-passos">
+            {(trackDaTrilha?.etapas || []).map((e, i) => {
+              const alvo = e.id === ajuste.etapa_id
+              return (
+                <li key={e.id} className={alvo ? 'sug-tr-alvo' : ''}>
+                  <span className="sug-tr-n">{i + 1}</span>
+                  <b style={alvo && ajuste.acao === 'tirar'
+                    ? { textDecoration: 'line-through', opacity: .6 } : undefined}>{e.nome}</b>
+                  <small>{e.itens.length} tarefa{e.itens.length === 1 ? '' : 's'}</small>
+                </li>
+              )
+            })}
+            {ajuste.acao === 'partir' && (
+              <li className="sug-tr-alvo">
+                <span className="sug-tr-n">+</span>
+                {ajustando ? (
+                  <input className="inp" value={texto} autoFocus
+                    aria-label="Nome do checkpoint novo"
+                    onChange={(e) => { setTexto(e.target.value); setMexeu(true) }} />
+                ) : <b>{texto || ajuste.nome}</b>}
+                <small>{(ajuste.itens || []).length} tarefas</small>
+              </li>
+            )}
+          </ol>
+          {!podeDesenhar && (
+            <p className="hint">
+              Mexer na trilha é de quem responde pelo processo. Fale com quem administra.
+            </p>
+          )}
+        </div>
+      )}
+
       {ehTrilha && !!desenho && (
         <div className="sug-trilha">
           {ajustando ? (
@@ -450,7 +500,9 @@ function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean
             : tipoVivo === 'decisao' ? 'Registrar'
               : tipoVivo === 'nota' ? 'Guardar'
                 : tipoVivo === 'compromisso' ? 'Marcar'
-                  : ehTrilha ? 'Montar a trilha' : 'Aceitar'}
+                  : ehTrilha ? 'Montar a trilha'
+                    : ehAjuste ? (ajuste?.acao === 'tirar' ? 'Tirar da trilha' : 'Partir em dois')
+                      : 'Aceitar'}
         </button>
       </div>
 

@@ -661,6 +661,15 @@ export type TipoProposta =
    * `mensagem_id` e o motivo dela é um número, não um trecho.
    */
   | 'trilha'
+  /**
+   * A trilha que já existe pode melhorar: tirar um checkpoint que só carimba,
+   * ou partir em dois o que virou depósito.
+   *
+   * Separado de `trilha` porque a pergunta é outra: lá é "isto merece ter
+   * forma?", aqui é "a forma que tem está certa?". Juntar as duas num tipo só
+   * faria o cartão ter que explicar qual das duas ele é.
+   */
+  | 'checkpoint'
 
 /** O que a leitura da conversa propõe. Nada acontece antes de alguém aceitar. */
 export type Alvo = {
@@ -706,6 +715,15 @@ export type Alvo = {
     nome: string
     tipo: 'esteira' | 'ciclo'
     passos: { nome: string; itens: string[] }[]
+  }
+  /** O ajuste proposto numa trilha que já existe. Ver `lib/trilhar.ts`. */
+  ajuste?: {
+    acao: 'tirar' | 'partir'
+    etapa_id: string
+    etapa: string
+    /** Só em 'partir': as tarefas que vão para o checkpoint novo, e o nome dele. */
+    itens?: string[]
+    nome?: string
   }
   /** Qual agente reconheceu a situação, quando a proposta vem de um. */
   agente_id?: string | null

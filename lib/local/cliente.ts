@@ -621,6 +621,65 @@ function virarTrack(
   gravar()
 }
 
+/**
+ * Espelho de `tirar_checkpoint` e `partir_checkpoint` (seção 62).
+ *
+ * As mesmas recusas, e na mesma ordem. O que importa aqui é o motivo de as duas
+ * existirem: `salvar_fluxo` apaga o checkpoint removido e `itens.etapa_id` tem
+ * cascata, então tirar pela lista de etapas levaria as tarefas junto.
+ */
+function tirarCheckpoint(pEtapa: string, pPara: string | null): void {
+  const b = ler()
+  const e = b.etapas.find((x: Linha) => x.id === pEtapa)
+  if (!e) throw new Error('Este checkpoint não existe mais.')
+  const f = b.fluxos.find((x: Linha) => x.id === e.fluxo_id)!
+  const daTrilha = b.etapas.filter((x: Linha) => x.fluxo_id === f.id)
+    .sort((a: Linha, c: Linha) => Number(a.ordem) - Number(c.ordem))
+  if (daTrilha.length < 2) throw new Error('Uma trilha sem checkpoint não é trilha.')
+  if (Number(e.ordem) <= Number(f.atual)) {
+    throw new Error('Este checkpoint já passou ou é o de agora. '
+      + 'O que ficou para trás fica onde está, senão a track muda de lugar em silêncio.')
+  }
+  const destino = pPara
+    || daTrilha.find((x: Linha) => Number(x.ordem) > Number(e.ordem))?.id
+    || [...daTrilha].reverse().find((x: Linha) => Number(x.ordem) < Number(e.ordem))?.id
+  if (!destino || destino === pEtapa) {
+    throw new Error('Não há para onde levar as tarefas deste checkpoint.')
+  }
+  for (const i of b.itens) if (i.etapa_id === pEtapa) i.etapa_id = destino
+  b.etapas = b.etapas.filter((x: Linha) => x.id !== pEtapa)
+  for (const x of b.etapas) {
+    if (x.fluxo_id === f.id && Number(x.ordem) > Number(e.ordem)) x.ordem = Number(x.ordem) - 1
+  }
+  gravar()
+}
+
+function partirCheckpoint(pEtapa: string, pNome: string, pItens: string[]): string {
+  const b = ler()
+  const e = b.etapas.find((x: Linha) => x.id === pEtapa)
+  if (!e) throw new Error('Este checkpoint não existe mais.')
+  const f = b.fluxos.find((x: Linha) => x.id === e.fluxo_id)!
+  if (Number(e.ordem) < Number(f.atual)) {
+    throw new Error('Este checkpoint já passou. O que ficou para trás fica onde está.')
+  }
+  if (!pItens?.length) throw new Error('Partir sem levar tarefa nenhuma deixaria um checkpoint vazio.')
+  const daEtapa = b.itens.filter((i: Linha) => i.etapa_id === pEtapa)
+  if (!daEtapa.some((i: Linha) => !pItens.includes(i.id as string))) {
+    throw new Error('Levar TODAS as tarefas deixaria o checkpoint de origem vazio.')
+  }
+  for (const x of b.etapas) {
+    if (x.fluxo_id === f.id && Number(x.ordem) > Number(e.ordem)) x.ordem = Number(x.ordem) + 1
+  }
+  const novo = uid('e')
+  b.etapas.push({
+    id: novo, fluxo_id: f.id, nome: pNome.trim() || `${e.nome} (2)`, criterio: '',
+    aprovador_id: e.aprovador_id ?? null, prazo: e.prazo ?? null, ordem: Number(e.ordem) + 1,
+  })
+  for (const i of b.itens) if (i.etapa_id === pEtapa && pItens.includes(i.id as string)) i.etapa_id = novo
+  gravar()
+  return novo
+}
+
 function salvarFluxo(pFluxo: Linha, pEtapas: Linha[]): string {
   const b = ler()
   const eu = euLocal()
@@ -1699,6 +1758,14 @@ function montarCliente() {
         }
         if (nome === 'track_do_canal') {
           return { data: trackDoCanal(args.p_canal as string), error: null }
+        }
+        if (nome === 'tirar_checkpoint') {
+          tirarCheckpoint(args.p_etapa as string, (args.p_para as string) || null)
+          return { data: null, error: null }
+        }
+        if (nome === 'partir_checkpoint') {
+          return { data: partirCheckpoint(args.p_etapa as string, args.p_nome as string,
+            (args.p_itens as string[]) || []), error: null }
         }
         if (nome === 'virar_track') {
           virarTrack(args.p_fluxo as string, args.p_nome as string, args.p_tipo as string,

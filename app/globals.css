@@ -1364,6 +1364,10 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
 .chat-quemve-lista{display:flex;flex-direction:column;gap:6px;padding-top:4px;
   max-height:220px;overflow:auto}
 .msg-anexos{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+/* O checkpoint de que a proposta fala, no cartão de ajuste da trilha. Fio do
+   acento e nada mais: o lima aqui é do botão que faz o trabalho andar. */
+.sug-tr-alvo{padding:4px 7px;margin:-4px -7px;border-radius:var(--r-sm);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ac) 45%,transparent)}
 
 /* O rascunho da trilha, no cartão que propõe virar track.
    Ele vem DEPOIS do número (que mora no `.sug-pq`), porque a ordem é o
