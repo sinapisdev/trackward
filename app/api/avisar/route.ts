@@ -3,7 +3,7 @@ import webpush from 'web-push'
 import { clienteDeServico } from '@/lib/supabase/servico'
 import { mandarWhats as whatsDaEmpresa } from '@/lib/whats'
 import { decifrar } from '@/lib/cifra'
-import { comoTexto, destino, podeSair, telefoneLimpo } from '@/lib/avisos'
+import { acaoDoAviso, comoTexto, destino, podeSair, telefoneLimpo } from '@/lib/avisos'
 import type { Aviso, AvisoContato } from '@/lib/tipos'
 
 /**
@@ -151,6 +151,12 @@ export async function POST(req: Request) {
               chave: aviso.chave,
               urgente: aviso.urgente,
               url: `${endereco}${destino(aviso)}`,
+              // O botão da notificação, onde o aparelho deixa ter um. Ver
+              // `acaoDoAviso`: hoje só a proposta tem.
+              acao: acaoDoAviso(aviso)
+                ? { rotulo: acaoDoAviso(aviso)!.rotulo,
+                    url: `${endereco}${acaoDoAviso(aviso)!.caminho}` }
+                : null,
             }),
             { TTL: 60 * 60 * 12, urgency: aviso.urgente ? 'high' : 'normal' },
           )

@@ -7,6 +7,7 @@ import { TabBar } from './TabBar'
 import { Ic } from './Icones'
 import { PedeNome } from './PedeNome'
 import { Instalar } from './Instalar'
+import { PedirPush } from './PedirPush'
 import { Medidor } from './Medidor'
 import { Tutorial } from './Tutorial'
 import { FaixaDoPlano } from './Plano'
@@ -76,6 +77,7 @@ export function Shell({ children }: { children: ReactNode }) {
       {/* No celular, o convite para deixar o app na tela. Ele espera o tutorial
           e o nome: uma coisa de cada vez, e instalar é a menos urgente das três. */}
       <Instalar />
+      <PedirPush />
 
       {/* A primeira vez de cada pessoa, apontando para a tela de verdade. */}
       <Tutorial />

@@ -17,6 +17,7 @@ import { reiniciarLocal } from '@/lib/local/cliente'
 import { aplicarTema, temaAtual, TEMAS, type Tema } from '@/lib/tema'
 import { toursDe } from '@/lib/tutorial'
 import { esquecerTutoriais } from './Tutorial'
+import { esquecerPedidoDePush } from './PedirPush'
 
 export function TelaAjustes() {
   const { eu, org, empresas, todosFluxos, carregando, salvarOrg, salvarPerfil, excluirEmpresa,
@@ -557,6 +558,9 @@ export function TelaAjustes() {
             <button className="btn" disabled={!vistos.length}
               onClick={() => {
                 esquecerTutoriais()
+                // O "agora não" do pedido de aviso volta junto: quem pede para
+                // ver tudo de novo está pedindo as perguntas também.
+                esquecerPedidoDePush()
                 void salvarPerfil(eu.id, { tutoriais: [] }, true)
               }}>
               <Ic.faisca />Ver tudo de novo

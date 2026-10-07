@@ -1358,6 +1358,53 @@ da outra.
 critério de saída, e o banco recusa também. **E o que foi dispensado não volta**: havendo
 uma proposta de trilha para aquele canal, aberta ou recusada, o pulso não propõe de novo.
 
+## A proposta avisa quem vai fazer, e o aviso tem botão
+
+A leitura roda sozinha três vezes por dia e deixava a proposta no canal. Quem não abriu o
+app naquele dia não ficava sabendo, e o pedido esperava alguém passar por ali: o ciclo que
+o produto promete parava justamente na beira.
+
+**Só para quem a tarefa é** (seção 64). Para quem vai fazer, "alguém está te pedindo uma
+coisa" é o que merece sair do app. Para os outros do canal é o celular tocando para contar
+o que já está escrito na conversa que eles vão abrir de qualquer jeito, e a faixa de aviso é
+estreita de propósito. **E não avisa quem pediu**, porque a frase foi dele. **Não é
+urgente**: urgente é o que já venceu e o que trava outra pessoa.
+
+**O aviso falha calado, e a proposta entra do mesmo jeito.** Sem isso, um erro no aviso
+derruba o INSERT inteiro: a leitura acha o pedido, o aviso engasga, e a PROPOSTA não é
+gravada. Apareceu num ensaio, com um argumento a mais na chamada de `avisar` fazendo o canal
+cair na posição da nota.
+
+**O botão da notificação ABRE O APP no endereço de aceitar**, em vez de aceitar por conta
+própria. A regra do que acontece ao aceitar mora num lugar só, em `aceitarSugestao`, e uma
+segunda cópia dela num endpoint seria a garantia de que um dia as duas discordam. Quem
+decide se existe botão é `acaoDoAviso`, e hoje só a proposta tem: aprovar checkpoint e
+prorrogar prazo mudam o trabalho de outra pessoa e continuam pedindo a tela.
+
+**No iPhone não há botão**, porque o Safari ignora `actions`. Lá tocar no aviso abre o app
+na conversa, que é o mesmo caminho com um toque a mais. Não há o que consertar nisso, e
+escrever aqui evita alguém "arrumar" depois.
+
+**`?aceitar=<id>` some da url antes de qualquer coisa**, e o controle é um `ref`: recarregar
+a página não pode tentar aceitar de novo o que já foi decidido, e um estado novo dispararia
+uma segunda passada antes de a lista recarregar.
+
+## O push não se liga sozinho, e por isso ele se PEDE
+
+"Ligado por padrão" não existe no navegador: ele exige autorização explícita e, na maioria
+dos casos, um gesto da pessoa para mostrar a caixa. O que dá para fazer é o app **pedir**,
+em vez de esperar alguém achar o interruptor em Ajustes, onde ele ficou meses sem ninguém
+ligar (a tabela de assinaturas estava vazia em 07/10/2026).
+
+**A hora de pedir não é a primeira vez que a pessoa entra.** Ali ela ainda não tem nada para
+ser avisada, nega, e **negar é para sempre**: o navegador não pergunta de novo, e a porta
+volta a existir só nas configurações do aparelho, que ninguém abre. `PedirPush` espera a
+pessoa ter fila: aí a pergunta se responde sozinha.
+
+Uma coisa de cada vez, como no convite de instalar: nome, tour `inicio`, e o convite de
+instalar já respondido. Quem disse "agora não" não é perguntado de novo, e "Ver tudo de
+novo" em Ajustes esquece isso junto com os tutoriais.
+
 ## Encerrar a conta de um cliente precisa funcionar
 
 É obrigação de LGPD, e falhava de duas formas, as duas caladas.

@@ -1806,7 +1806,7 @@ begin
     -- `raiox` faltava nas DUAS, e o raio-X cria aviso desse tipo: no primeiro
     -- dia em que ele tivesse o que dizer, o aviso falharia e ninguém saberia.
     'tarefa','aprovacao','prazo','travou','destravou','citacao','pedido_prazo',
-    'nota','feedback','mensagem','parada','carga','rotina','raiox'));
+    'nota','feedback','mensagem','parada','carga','rotina','raiox','proposta'));
 end $$;
 
 -- `avisar()` ganha o destino de nota. Assinatura nova, então a antiga sai.
@@ -2841,7 +2841,7 @@ begin
     -- `raiox` faltava nas DUAS, e o raio-X cria aviso desse tipo: no primeiro
     -- dia em que ele tivesse o que dizer, o aviso falharia e ninguém saberia.
     'tarefa','aprovacao','prazo','travou','destravou','citacao','pedido_prazo',
-    'nota','feedback','mensagem','parada','carga','rotina','raiox'));
+    'nota','feedback','mensagem','parada','carga','rotina','raiox','proposta'));
 end $$;
 
 /**
@@ -4029,7 +4029,7 @@ begin
   alter table public.avisos drop constraint if exists avisos_tipo_check;
   alter table public.avisos add constraint avisos_tipo_check check (tipo in (
     'tarefa','aprovacao','prazo','travou','destravou','citacao','pedido_prazo',
-    'nota','feedback','mensagem','parada','carga','rotina','raiox'));
+    'nota','feedback','mensagem','parada','carga','rotina','raiox','proposta'));
 end $$;
 
 /**
@@ -5916,6 +5916,75 @@ begin
 end $$;
 
 -- ==========================================================================
+-- 64. A proposta avisa quem vai fazer, e mais ninguém
+--
+--     A leitura roda sozinha três vezes por dia e deixa a proposta no canal.
+--     Quem não abriu o app naquele dia não fica sabendo de nada, e o pedido
+--     fica esperando alguém passar por ali. O ciclo que o produto promete
+--     ("combinou, virou trabalho") parava justamente na beira.
+--
+--     SÓ PARA QUEM A TAREFA É. Para quem vai fazer, "alguém está te pedindo uma
+--     coisa" é exatamente o que merece sair do app. Para os outros do canal, é
+--     o celular tocando para contar o que já está escrito na conversa que eles
+--     vão abrir de qualquer jeito, e a faixa de aviso é estreita de propósito:
+--     se tudo avisa, a primeira coisa que a pessoa faz é desligar tudo.
+--
+--     E NÃO AVISA QUEM PEDIU. A frase foi dele; tocar o celular dele para
+--     repetir o que ele acabou de dizer é o app conversando sozinho.
+--
+--     NÃO É URGENTE. Urgente é o que já venceu, o que trava outra pessoa e o
+--     que só aquela pessoa destrava. Um pedido novo pode esperar a pessoa
+--     olhar o telefone.
+-- ==========================================================================
+
+create or replace function public.aviso_de_proposta()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_quem uuid := nullif(new.dados->>'resp_id', '')::uuid;
+  v_canal canais%rowtype;
+  v_autor uuid;
+begin
+  -- Só proposta de tarefa, só com alguém apontado, e só vinda de um canal: a
+  -- do caderno é da própria dona, e avisar alguém do que ela escreveu para si
+  -- seria vazar a nota pela porta do aviso.
+  if new.tipo <> 'tarefa' or v_quem is null or new.canal_id is null then return new; end if;
+  if new.estado <> 'aberta' then return new; end if;
+
+  select * into v_canal from canais where id = new.canal_id;
+  if v_canal.id is null then return new; end if;
+
+  -- Quem falou na mensagem que originou a proposta é quem pediu. Avisá-lo seria
+  -- repetir para ele o que ele mesmo escreveu.
+  select autor_id into v_autor from mensagens where id = new.mensagem_id;
+  if v_autor is not null and v_autor = v_quem then return new; end if;
+
+  /**
+   * O aviso falha calado, e a proposta entra do mesmo jeito.
+   *
+   * Sem isto, um erro aqui derruba o INSERT inteiro: a leitura acha o pedido, o
+   * aviso engasga, e a PROPOSTA não é gravada. O trabalho é o que importa; o
+   * toque no celular é o acréscimo. Descoberto num ensaio, com um argumento a
+   * mais na chamada fazendo o canal cair na posição da nota.
+   */
+  begin
+    perform avisar(
+      v_quem, 'proposta', 'Pediram uma coisa para você',
+      new.texto || ' · #' || v_canal.nome,
+      'proposta:' || new.id::text || ':' || v_quem::text,
+      false, null, null, null, new.canal_id);
+  exception when others then
+    raise warning 'aviso de proposta falhou: %', sqlerrm;
+  end;
+  return new;
+end $$;
+
+drop trigger if exists ao_propor_tarefa on public.sugestoes;
+create trigger ao_propor_tarefa after insert on public.sugestoes
+  for each row execute function public.aviso_de_proposta();
+
+revoke all on function public.aviso_de_proposta() from public, anon, authenticated;
+
+-- ==========================================================================
 
 alter table public.fluxos add column if not exists implicita boolean not null default false;
 
@@ -6351,4 +6420,8 @@ select
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'proteger_ressalva'
       and pg_get_functiondef(p.oid) like '%not exists (select 1 from fluxos%')
-    as "a porta do encerramento existe (1)";
+    as "a porta do encerramento existe (1)",
+  -- A proposta avisa quem vai fazer, e mais ninguém. Sem isto, a leitura
+  -- automática deixava o pedido no canal e quem não abriu o app não sabia.
+  (select count(*) from pg_trigger where tgname = 'ao_propor_tarefa')
+    as "a proposta avisa (1)";

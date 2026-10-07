@@ -42,6 +42,8 @@ export const ROTULO: Record<TipoAviso, string> = {
   parada: 'Parada',
   carga: 'Distribuição',
   rotina: 'Rotina',
+  raiox: 'Raio-X',
+  proposta: 'Proposta',
 }
 
 /** Para onde o aviso leva quando alguém clica nele. */
@@ -53,6 +55,32 @@ export function destino(a: Aviso): string {
   if (a.tipo === 'pedido_prazo') return '/minhas'
   if (a.fluxo_id) return `/fluxo/${a.fluxo_id}`
   return '/minhas'
+}
+
+/**
+ * O que a notificação oferece como BOTÃO, fora do app.
+ *
+ * Só a proposta tem: ela é a única que se resolve com um toque, porque aceitar
+ * é confirmar o que a leitura entendeu, e quem recebe já sabe se é com ele.
+ * Aprovar checkpoint e prorrogar prazo mudam o trabalho de outra pessoa e
+ * continuam pedindo a tela, como diz a regra do telefone.
+ *
+ * O botão abre o app no endereço de aceitar, em vez de aceitar por conta: a
+ * regra de o que acontece ao aceitar mora num lugar só, em `aceitarSugestao`, e
+ * uma segunda cópia dela num endpoint seria a garantia de que um dia as duas
+ * discordam.
+ *
+ * E ele só aparece onde o aparelho deixa. O Safari do iPhone ignora botões de
+ * notificação, e lá tocar no aviso abre o app na conversa, que é o mesmo
+ * caminho com um toque a mais.
+ */
+export function acaoDoAviso(a: Aviso): { rotulo: string; caminho: string } | null {
+  if (a.tipo !== 'proposta' || !a.canal_id) return null
+  // A chave é `proposta:<id da sugestão>:<perfil>`, e é de onde sai qual
+  // proposta aceitar sem precisar de uma coluna nova só para isto.
+  const id = a.chave.split(':')[1]
+  if (!id) return null
+  return { rotulo: 'Aceitar', caminho: `/chat/${a.canal_id}?aceitar=${id}` }
 }
 
 /**

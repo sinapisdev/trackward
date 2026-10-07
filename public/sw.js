@@ -42,13 +42,20 @@ self.addEventListener('push', (e) => {
     tag: d.chave || undefined,
     renotify: !!d.urgente,
     requireInteraction: !!d.urgente,
-    data: { url: d.url || '/' },
+    // O botão dentro da notificação. Onde o aparelho não suporta (o Safari do
+    // iPhone ignora `actions`), ele simplesmente não aparece, e tocar no aviso
+    // abre o app no mesmo lugar: é o mesmo caminho com um toque a mais.
+    actions: d.acao ? [{ action: 'aceitar', title: d.acao.rotulo }] : undefined,
+    data: { url: d.url || '/', aceitar: d.acao ? d.acao.url : null },
   }))
 })
 
 self.addEventListener('notificationclick', (e) => {
   e.notification.close()
-  const url = (e.notification.data && e.notification.data.url) || '/'
+  const dados = e.notification.data || {}
+  // O botão leva ao endereço de aceitar; o corpo da notificação, ao lugar de
+  // sempre. Quem aperta "Aceitar" não quer ler a conversa, quer resolver.
+  const url = (e.action === 'aceitar' && dados.aceitar) || dados.url || '/'
   e.waitUntil((async () => {
     const abertas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
     // Já existe uma janela do app: leva ela para o lugar, em vez de abrir outra.

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDados } from './Dados'
 import { useComandos } from './Comandos'
@@ -729,12 +729,39 @@ function Conversa({ canal }: { canal: Canal }) {
   const {
     eu, perfis, perfilDe, nomeDe, todosFluxos, areaDe, org,
     mensagensDe, sugestoesDe, marcarLido, lerConversa, apagarMensagem, excluirCanal,
-    desfazerSugestao, abrirAudio, abrirNotaDoCanal,
+    desfazerSugestao, abrirAudio, abrirNotaDoCanal, aceitarSugestao, toast,
   } = useDados()
   const { abrir } = useModais()
   const router = useRouter()
+  const params = useSearchParams()
   const [lendo, setLendo] = useState(false)
   const [verFechadas, setVerFechadas] = useState(false)
+  const aceitouDaUrl = useRef<string | null>(null)
+
+  /**
+   * Aceitar vindo da notificação.
+   *
+   * O botão "Aceitar" do aviso abre `/chat/<canal>?aceitar=<proposta>`. Ele
+   * abre o app em vez de aceitar por conta própria de propósito: a regra do que
+   * acontece ao aceitar mora num lugar só, e uma segunda cópia dela num
+   * endpoint seria a garantia de que um dia as duas discordam.
+   *
+   * `aceitouDaUrl` é um ref, e não estado: o efeito não pode rodar duas vezes
+   * para a mesma proposta, e um estado novo dispararia uma segunda passada
+   * antes de a lista recarregar.
+   */
+  const pedida = params.get('aceitar')
+  useEffect(() => {
+    if (!pedida || aceitouDaUrl.current === pedida) return
+    const s = sugestoesDe(canal.id).find((x) => x.id === pedida)
+    // Some o parâmetro de qualquer jeito: recarregar a página não pode tentar
+    // aceitar de novo o que já foi aceito ou dispensado por outra pessoa.
+    router.replace(`/chat/${canal.id}`)
+    if (!s) return
+    aceitouDaUrl.current = pedida
+    if (s.estado !== 'aberta') { toast('Esta proposta já foi decidida.'); return }
+    void aceitarSugestao(s)
+  }, [pedida, canal.id, sugestoesDe, aceitarSugestao, router, toast])
   const [respondendo, setRespondendo] = useState<Mensagem | null>(null)
   const rolo = useRef<HTMLDivElement>(null)
 

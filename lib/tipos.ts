@@ -771,6 +771,23 @@ export type TipoAviso =
   | 'nota' | 'feedback' | 'mensagem'
   // O sistema que persegue: o que está prestes a dar errado. Seção 37.
   | 'parada' | 'carga' | 'rotina'
+  /**
+   * O raio-X mensal, que diz onde o processo custa dias. Seção 48.
+   *
+   * Ele existia no banco e FALTAVA aqui, então a linha dele no sino saía sem
+   * rótulo nenhum. Ninguém tinha visto porque o raio-X só fala com quatro
+   * passagens, e nenhuma casa chegou lá ainda.
+   */
+  | 'raiox'
+  /**
+   * A leitura entendeu um pedido na conversa e está perguntando.
+   *
+   * Vai só para QUEM A TAREFA É, nunca para o canal inteiro: para quem vai
+   * fazer, "alguém está te pedindo uma coisa" merece sair do app; para os
+   * outros, é o app tocando o celular para contar o que já está escrito na
+   * conversa que eles vão abrir de qualquer jeito.
+   */
+  | 'proposta'
 
 /**
  * Um aviso é sempre de uma pessoa. Não existe aviso do grupo: aviso sem dono
