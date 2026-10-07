@@ -264,7 +264,8 @@ type Contexto = {
    * sua, e perder o que foi escrito porque o modelo caiu seria o pior defeito
    * possível num caderno.
    */
-  escreverNaNota: (notaId: string, texto: string) => Promise<void>
+  /** Devolve o id da fala, para quem precisar pendurar um anexo nela. */
+  escreverNaNota: (notaId: string, texto: string) => Promise<string | null>
   /**
    * Pergunta sobre uma nota, e escreve a resposta DENTRO dela.
    *
@@ -2756,13 +2757,14 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    */
   const escreverNaNota: Contexto['escreverNaNota'] = useCallback(async (notaId, texto) => {
     const limpo = texto.trim()
-    if (!limpo) return
+    if (!limpo) return null
+    const id = novoId()
     const { error } = await sb.from('mensagens').insert({
-      id: novoId(), nota_id: notaId, autor_id: eu.id, texto: limpo, sistema: false,
+      id, nota_id: notaId, autor_id: eu.id, texto: limpo, sistema: false,
     })
-    if (error) return falhou(error, 'Não deu para escrever na nota.')
+    if (error) { falhou(error, 'Não deu para escrever na nota.'); return null }
     recarregar()
-    if (!org.ia_ativa) return
+    if (!org.ia_ativa) return id
 
     const nota = todasNotas.find((n) => n.id === notaId) || null
     const anteriores = mensagens.filter((m) => m.nota_id === notaId)
@@ -2774,7 +2776,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     setRespondendo(notaId)
     try {
       const resposta = await pedirResposta(contextoDaNota(nota, falas))
-      if (!resposta) return
+      // Sem resposta a fala da pessoa já está gravada, e é ela que importa: o
+      // id volta do mesmo jeito para o anexo ter onde morar.
+      if (!resposta) return id
       // A resposta sai assinada por quem escreveu, que é a leitura: `por_ia` é o
       // que a tela usa para não fazer ela parecer com você.
       await sb.from('mensagens').insert({
@@ -2785,6 +2789,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     } finally {
       setRespondendo(null)
     }
+    return id
   }, [sb, eu.id, org.ia_ativa, todasNotas, mensagens, contextoDaNota, pedirResposta,
       falhou, recarregar])
 

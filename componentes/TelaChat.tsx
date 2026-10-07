@@ -181,7 +181,7 @@ function Lista({ atual }: { atual?: string }) {
  *                         pessoa desistir e voltar para o papel
  *   sem escolher quem     é sua
  */
-function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean }) {
+export function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: boolean }) {
   const { todosFluxos, perfis, eu, aceitarSugestao, recusarSugestao, nomeDe,
     minhaLista, abrirMinhaLista } = useDados()
   const [fluxoId, setFluxoId] = useState(s.dados.fluxo_id || (despejo ? minhaLista?.id || '' : ''))
@@ -1155,7 +1155,10 @@ export function TelaChat({ id }: { id?: string }) {
      pelo endereço (favorito, link antigo, botão de voltar) volta para a
      inicial em vez de encontrar uma sala que nunca vai ter gente. */
   useEffect(() => {
-    if (!carregando && !pode.canais) router.replace('/')
+    // Sozinho o lugar de escrever é o secretário, que ocupa esta mesma
+    // posição na navegação. Mandar para a inicial seria mandar para o caderno,
+    // que é lista, quando a pessoa veio para falar.
+    if (!carregando && !pode.canais) router.replace('/secretario')
   }, [carregando, pode.canais, router])
 
   if (carregando) return <Carregando />

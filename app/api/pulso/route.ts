@@ -320,12 +320,27 @@ export async function POST(req: Request) {
    */
   let trilhasPropostas = 0
   let ajustesPropostos = 0
+  let secretariados = 0
   for (const o of (orgs || []) as Org[]) {
     try {
       trilhasPropostas += await proporTrilhas(sb, o, agora)
       ajustesPropostos += await proporAjustes(sb, o)
     } catch (e) {
       console.error('proposta de trilha falhou', o.id, e)
+    }
+    /**
+     * O secretário do espaço pessoal.
+     *
+     * Ele roda com as empresas no mesmo laço, e não dentro de `pulsar`, porque
+     * `pulsar` é sobre CANAL e o espaço pessoal não tem nenhum. O ritmo é o da
+     * casa: `devePulsar` decide quando, igual para os dois.
+     */
+    if (o.ia_ativa && devePulsar(o, agora, ritmo.get(o.id) || []).bate) {
+      try {
+        secretariados += await lerOSecretario(sb, o, agora)
+      } catch (e) {
+        console.error('secretario falhou', o.id, e)
+      }
     }
   }
 
@@ -350,7 +365,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     quando: agora.toISOString(), perseguiu: perseguiu ?? 0,
     descobertos, perguntadas, radiografadas, trilhas: trilhasPropostas,
-    ajustes: ajustesPropostos, organizacoes: relatorio,
+    ajustes: ajustesPropostos, secretario: secretariados, organizacoes: relatorio,
   })
 }
 
@@ -909,4 +924,106 @@ async function proporAjustes(sb: Servico, org: Org): Promise<number> {
     if (!error) { n++; jaVistas.add(canal.id as string) }
   }
   return n
+}
+
+/**
+ * Lê a conversa do secretário e deixa as propostas nela.
+ *
+ * Só a conversa solta de cada pessoa (`notas.conversa`), e só o que foi escrito
+ * desde a última leitura: sem a marca, cada varredura releria o caderno inteiro
+ * e proporia de novo o que já foi proposto, com a conta do modelo crescendo com
+ * o tamanho do acervo em vez de com o que a pessoa escreveu desde ontem.
+ *
+ * `despejo: true` muda o que a leitura procura. Na conversa de uma equipe ela
+ * desconfia, porque ninguém combinou nada com a máquina; aqui a pessoa está
+ * falando COM o app, de propósito, e o que ela escreve é para ser separado.
+ */
+async function lerOSecretario(sb: Servico, org: Org, agora: Date): Promise<number> {
+  const { data: conversas } = await sb.from('notas')
+    .select('id,dono_id,lido_pela_ia_em').eq('org_id', org.id).eq('conversa', true)
+  const notas = (conversas || []) as unknown as Linha[]
+  if (!notas.length) return 0
+
+  const [perfis, mensagens, jaVistas, memoria] = await Promise.all([
+    todas(sb, 'perfis', org.id, 'id,nome,ativo'),
+    sb.from('mensagens').select('id,nota_id,autor_id,texto,criado_em,por_ia,sistema')
+      .eq('org_id', org.id).not('nota_id', 'is', null).order('criado_em'),
+    sb.from('sugestoes').select('id,nota_id,texto,estado').eq('org_id', org.id)
+      .not('nota_id', 'is', null),
+    todas(sb, 'memoria', org.id, '*'),
+  ])
+  const falas = (mensagens.data || []) as unknown as Linha[]
+  const vistas = (jaVistas.data || []) as unknown as Linha[]
+  const lembrancas = memoria as unknown as Lembranca[]
+
+  let total = 0
+  for (const nota of notas) {
+    const desde = nota.lido_pela_ia_em as string | null
+    const novas = falas.filter((m) => m.nota_id === nota.id && !m.por_ia && !m.sistema
+      && (!desde || String(m.criado_em) > desde))
+    if (!novas.length) continue
+
+    const dono = perfis.find((p) => p.id === nota.dono_id)
+    const ctx: Contexto = {
+      hoje: hojeIso(),
+      // Tudo numa fala só, assinada por quem escreveu: para a leitura é
+      // indiferente ter vindo de um campo de texto ou de um chat.
+      mensagens: [{
+        id: String(nota.id), autor_id: String(nota.dono_id),
+        autor: String(dono?.nome || 'Eu'),
+        texto: novas.map((m) => String(m.texto)).join('\n'),
+      }],
+      pessoas: perfis.filter((p) => p.ativo).map((p) => ({ id: String(p.id), nome: String(p.nome) })),
+      fluxo: null,
+      memoria: paraOModelo(lembrancas),
+      canal_id: null,
+      casa: null,
+      despejo: true,
+      agentes: [],
+      caderno: [],
+    } as unknown as Contexto
+
+    let propostas: Proposta[] = []
+    const chave = process.env.ANTHROPIC_API_KEY || ''
+    if (chave) {
+      const { data: pode } = await sb.rpc('pode_chamar_modelo', { p_org: org.id })
+      if (pode) {
+        const medida: { valor: Medida | null } = { valor: null }
+        const doModelo = await porModelo(ctx, chave, org.modelo_ia || MODELO, medida)
+        if (doModelo) propostas = doModelo
+        // O gasto entra pela mesma porta da leitura de canal, e não por um
+        // insert à parte: é `registrar_consumo_de` que faz a conta do teto
+        // bater nos dois lados.
+        const m = medida.valor
+        if (m) {
+          await sb.rpc('registrar_consumo_de', {
+            p_org: org.id, p_onde: 'leitor', p_modelo: m.modelo,
+            p_entrada: m.entrada, p_saida: m.saida,
+            p_cache_leitura: m.cacheLeitura, p_cache_escrita: m.cacheEscrita,
+            p_custo_micro: custoMicro(m.modelo, {
+              entrada: m.entrada, saida: m.saida,
+              cacheLeitura: m.cacheLeitura, cacheEscrita: m.cacheEscrita,
+            }),
+            p_canal: null,
+          })
+        }
+      }
+    }
+    if (!propostas.length) propostas = semModelo(ctx)
+
+    for (const p of podar(propostas)) {
+      // O mesmo texto não entra duas vezes: a pessoa escreve a mesma coisa de
+      // jeitos parecidos, e duas fichas iguais fazem ela dispensar as duas.
+      if (vistas.some((v) => v.nota_id === nota.id
+        && String(v.texto).trim().toLowerCase() === p.texto.trim().toLowerCase())) continue
+      const { error } = await sb.from('sugestoes').insert({
+        id: novoId(), org_id: org.id, canal_id: null, nota_id: nota.id,
+        mensagem_id: null, tipo: p.tipo, texto: p.texto, motivo: p.motivo,
+        dados: p.dados, estado: 'aberta',
+      })
+      if (!error) { total++; vistas.push({ nota_id: nota.id, texto: p.texto }) }
+    }
+    await sb.from('notas').update({ lido_pela_ia_em: agora.toISOString() }).eq('id', nota.id)
+  }
+  return total
 }

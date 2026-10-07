@@ -484,8 +484,12 @@ export function Barra() {
             "Mais" por ser montagem, e não operação: quem mexe em processo senta
             para fazer isso, não passa por ali entre duas reuniões. */}
         <Aba href="/" rotulo="Forward" ativo={caminho === '/'} />
-        {pode.canais && (
+        {pode.canais ? (
           <Aba href="/chat" rotulo="Conversa" conta={porLer} quente ativo={caminho.startsWith('/chat')} />
+        ) : (
+          /* No espaço pessoal a Conversa dá lugar ao secretário, na mesma
+             posição: é onde se escreve o dia inteiro nos dois lugares. */
+          <Aba href="/secretario" rotulo="Secretário" ativo={caminho === '/secretario'} />
         )}
         <Aba href="/notas" rotulo="Notas" ativo={caminho === '/notas'} />
         {/* Objetivos e rotinas moram na mesma tela: são o mesmo objeto, e a

@@ -69,11 +69,11 @@ export function TabBar() {
         {pode.canais
           ? <Aba href="/" icone={<Ic.chat />} rotulo="Conversa" conta={porLer} quente tambem="/chat"
               tut="tab-conversa" />
-          /* Sozinho a inicial é o caderno, que é a mesma lista com outro
-             conteúdo. A aba segue sendo a primeira e segue apontando para a
-             raiz: quem trocou de espaço não deve ter que reaprender onde fica
-             o que ele abre o dia inteiro. */
-          : <Aba href="/" icone={<Ic.edit />} rotulo="Notas" tambem="/notas" tut="tab-notas" />}
+          /* Sozinho não há com quem conversar, mas há com o que: o secretário
+             ocupa a MESMA posição da Conversa, porque quem troca de espaço
+             precisa encontrar a mesma tela com outro conteúdo. Hábito que não
+             atravessa é app que não se usa. */
+          : <Aba href="/secretario" icone={<Ic.faisca />} rotulo="Secretário" tut="tab-conversa" />}
         <Aba href="/minhas" icone={<Ic.inbox />} rotulo="Tarefas" conta={minhas} tut="tab-trabalho" />
         <Aba href="/tracks" icone={<Ic.proj />} rotulo="Tracks" tut="tab-tracks" />
         <Aba href="/agenda" icone={<Ic.agenda />} rotulo="Agenda" conta={hoje} tut="tab-agenda" />
@@ -85,7 +85,11 @@ export function TabBar() {
           app de mensagem. */}
       {/* Na inicial do espaço pessoal quem cria é o "+" do caderno, que já está
           na tela: duas ações de criar na mesma tela é uma a mais. */}
-      {!caminho.startsWith('/chat/') && (pode.canais || caminho !== '/') && (
+      {/* O secretário é uma conversa, e o botão redondo ficaria em cima do
+          campo de escrever, como ficaria dentro de um canal. Lá quem cria usa a
+          barra (`/tarefa`, `/nota`), e aqui é a mesma barra. */}
+      {!caminho.startsWith('/chat/') && caminho !== '/secretario'
+        && (pode.canais || caminho !== '/') && (
         <button className="fab" aria-label="Criar"
           onClick={() => abrir(
             // A inicial do celular é a lista de conversas, então ali o que se

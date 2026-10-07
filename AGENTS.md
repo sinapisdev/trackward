@@ -1358,6 +1358,39 @@ da outra.
 critério de saída, e o banco recusa também. **E o que foi dispensado não volta**: havendo
 uma proposta de trilha para aquele canal, aberta ou recusada, o pulso não propõe de novo.
 
+## O secretário: a conversa onde cabe tudo, e que se organiza sozinha
+
+Quem trabalha sozinho não tem com quem combinar nada, e por isso o espaço pessoal não tem
+canal. Mas a pessoa continua tendo o que todo mundo tem: a ideia no trânsito, o compromisso
+que alguém falou no corredor, o documento que chegou e que ela não sabe onde guardar. Isso
+ia para o bloco de notas do telefone e morria lá, porque bloco de notas guarda e não
+organiza.
+
+**Por dentro ele não é nada novo**: é a conversa solta do caderno (`notas.conversa`, uma por
+pessoa), que já existia e vivia escondida atrás de um botão no meio da lista de notas. Ser
+uma nota, e não uma tabela nova, é o que faz o que for dito ali entrar no acervo pela mesma
+porta do resto: a busca acha, a leitura lembra e o anexo pendura.
+
+**Ele ocupa a posição da Conversa no espaço pessoal**, e isso é a regra dos dois workspaces
+aplicada: quem troca de espaço precisa encontrar a mesma tela com outro conteúdo, senão o
+hábito não atravessa e o app não se usa. Mesmo desenho, mesmos balões, mesmo clipe, mesmos
+cartões de proposta. `/chat` deixou de mandar para a inicial e passa a mandar para cá: a
+pessoa veio falar, e a inicial é lista.
+
+**E ele lê sozinho** (seção 65). Era o que faltava para ele ser secretário em vez de botão:
+quem trabalha sozinho é exatamente quem menos tem alguém para apertar "Organizar", e o que
+ela escreveu no sábado esperava ela lembrar de voltar lá. `notas.lido_pela_ia_em` é a mesma
+marca do canal, pelo mesmo motivo: sem ela, cada varredura releria o caderno inteiro e a
+conta do modelo cresceria com o tamanho do acervo em vez de com o que foi escrito desde
+ontem.
+
+**Só a conversa solta, nunca as outras notas.** Nota é assunto que a pessoa escolheu abrir,
+e ler todas sem ninguém pedir seria o app opinando sobre o que ela ainda está pensando. A
+conversa é o contrário: ela existe para ser lida.
+
+**O botão redondo some aqui**, como dentro de um canal: ele ficaria em cima do campo de
+escrever, e quem cria usa a barra.
+
 ## Dentro de uma conversa a tela é toda dela
 
 Duas coisas saem de cena no celular quando a pessoa entra num canal, e as duas pelo mesmo

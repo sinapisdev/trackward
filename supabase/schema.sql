@@ -8664,3 +8664,27 @@ create trigger ao_propor_tarefa after insert on public.sugestoes
   for each row execute function public.aviso_de_proposta();
 
 revoke all on function public.aviso_de_proposta() from public, anon, authenticated;
+
+-- ==========================================================================
+-- 65. O secretário lê sozinho
+--
+--     No espaço pessoal não existe canal, e o pulso só lê canal. Então a
+--     conversa solta do caderno (`notas.conversa`, uma por pessoa) só era lida
+--     quando alguém apertava "Organizar". Quem trabalha sozinho é exatamente
+--     quem menos tem alguém para apertar botão, e o que ela escreveu no sábado
+--     esperava ela lembrar de voltar lá.
+--
+--     A marca é a mesma do canal, pelo mesmo motivo: sem ela, cada varredura
+--     relê a conversa inteira e propõe de novo o que já foi proposto, e a conta
+--     do modelo cresce com o tamanho do caderno em vez de com o que foi escrito
+--     desde ontem.
+--
+--     Só a conversa solta, e não toda nota. Nota é assunto que a pessoa escolheu
+--     abrir, e ler todas sem ninguém pedir seria o app opinando sobre o que ela
+--     ainda está pensando. A conversa é o contrário: ela existe para ser lida.
+-- ==========================================================================
+
+alter table public.notas add column if not exists lido_pela_ia_em timestamptz;
+
+create index if not exists notas_conversa_idx on public.notas (org_id)
+  where conversa;

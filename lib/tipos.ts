@@ -372,7 +372,14 @@ export type Nota = {
    * Ela não aparece no caderno, e o filtro é na fonte, em `Dados`. Ser uma nota
    * é o que faz o que for dito nela entrar no acervo pela mesma porta do resto.
    */
-  conversa: boolean
+  conversa: boolean  /**
+   * Quando o pulso leu esta conversa pela última vez.
+   *
+   * Só a conversa solta usa: nota é assunto que a pessoa escolheu abrir, e ler
+   * todas sem ninguém pedir seria o app opinando sobre o que ela ainda está
+   * pensando. A conversa é o contrário, ela existe para ser lida.
+   */
+  lido_pela_ia_em?: string | null
 }
 
 /**

@@ -1475,6 +1475,30 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
    Quando a gravação começa, o `BotaoVoz` troca o ícone por uma barra com
    tempo e onda: aí o grupo estica e o campo sai da frente, que é o certo,
    porque nessa hora não se está escrevendo. */
+/* O secretário ocupa a tela, como a conversa.
+   `.chat-conversa` sozinha é uma coluna flex sem altura: dentro do `.chat` ela
+   herda a altura dele, e fora, não. Sem isto o campo de escrever nascia no meio
+   da tela com um vazio embaixo. Mesma conta do chat, e pela mesma razão: quem
+   calcula a própria altura usa as barras medidas, e `--alt-janela` cobre o
+   teclado aberto. */
+.secr{height:calc(var(--alt-janela,100dvh) - var(--alt-topo-real,93px)
+      - var(--alt-abas-real,0px) - 86px)}
+/* No celular o recuo do conteúdo sai (ver o bloco de 840px), então ele não
+   entra na conta. */
+@media (max-width:840px){
+  .secr{height:calc(var(--alt-janela,100dvh) - var(--alt-topo-real,93px)
+        - var(--alt-abas-real,56px))}
+}
+
+/* O secretário: a mesma conversa do chat, com uma cara só dele no avatar.
+   Ele usa `.chat-conversa` inteira de propósito, para quem troca de espaço
+   encontrar a mesma tela com outro conteúdo. */
+.secr .secr-av{display:grid;place-items:center;width:40px;height:40px;border-radius:999px;
+  background:color-mix(in srgb,var(--ac) 16%,var(--alto));color:var(--ac-tinta)}
+.secr .msg-acoes{opacity:0}
+.secr .msg:hover .msg-acoes{opacity:1}
+.secr .chat-topo .mk{color:var(--ac-tinta)}
+
 .chat-entrada{position:relative;flex:1;min-width:0;display:flex}
 .chat-entrada textarea{padding-right:78px}
 .chat-dentro{position:absolute;right:10px;bottom:0;height:56px;
@@ -4388,7 +4412,7 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
      junto: ele sobra embaixo, a página inteira passa a rolar, e aí a barra de
      abas sobe e desce com a barra de endereço do navegador. Quem rola é o texto
      lá dentro, e só ele. */
-  .conteudo:has(>.fwd-cel),.conteudo:has(>.chat){padding-block:0}
+  .conteudo:has(>.fwd-cel),.conteudo:has(>.chat),.conteudo:has(>.secr){padding-block:0}
 }
 
 /* ==========================================================================
