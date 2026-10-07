@@ -1358,6 +1358,38 @@ da outra.
 critério de saída, e o banco recusa também. **E o que foi dispensado não volta**: havendo
 uma proposta de trilha para aquele canal, aberta ou recusada, o pulso não propõe de novo.
 
+## Campo com letra menor que 16px faz o celular dar ZOOM
+
+É regra do aparelho, não do app: tocando num campo com fonte abaixo de 16px, o navegador do
+celular aumenta a página inteira para a letra ficar legível, e **não volta sozinho**.
+
+**O estrago é todo visível e nenhum pedaço dele parece ter a mesma causa.** O texto cresce,
+a página fica mais estreita em pixels de CSS, a barra de abas perde a última aba, o botão de
+enviar sai pela direita e a conversa some. Em 07/10/2026 isso foi diagnosticado como
+problema de teclado duas vezes seguidas, e os dois consertos (medir `visualViewport`, ligar
+`resizes-content`) estavam certos e não eram isto.
+
+A regra está no fim do `app/globals.css`, em `@media (pointer: coarse)`, e usa `!important`:
+é regra da plataforma, precisa ganhar de todo estilo local, e a alternativa é caçar vinte
+seletores agora e lembrar deles para sempre. `pointer: coarse` limita ao que se toca com o
+dedo, então o desenho do computador não muda.
+
+**Não se resolve com `maximum-scale=1`.** Aquilo mata o zoom de pinça, que é de quem precisa
+dele para ler, e o Safari ignora de qualquer forma.
+
+## O clipe e o microfone moram dentro do campo
+
+Quatro controles lado a lado (campo, clipe, microfone, enviar) não cabem em 360px: com a
+letra em 16px, a frase de ajuda quebrava em duas linhas e a segunda era cortada pela altura
+do campo. Encurtar as palavras é remendo, e foi tentado: o que não cabia era o arranjo.
+
+Dentro do campo, como em app de mensagem, sobram 70px e o enviar fica sozinho do lado de
+fora. **No telefone a frase vira só "Escreva, ou /"**, porque a barra é o sinal e quem a
+digita vê o menu abrir com os exemplos: é o MENU que ensina a linguagem, não a frase.
+
+**Gravando, o grupo estica e o campo some**, pelo `:has(.voz-grava)`. É o certo: nessa hora
+ninguém está escrevendo, e a barra de tempo e onda precisa da largura.
+
 ## O teclado é desenhado POR CIMA da página, e `dvh` não sabe disso
 
 A conversa calculava a altura com `100dvh`. No celular, abrir o teclado empurrava a

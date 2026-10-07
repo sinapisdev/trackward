@@ -1467,6 +1467,22 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
   font:var(--fw-regular) var(--fs-body-lg)/1.4 var(--sans);font-family:inherit;color:var(--tx)}
 .chat-campo textarea::placeholder{color:var(--tx-3)}
 .chat-campo textarea:focus{outline:none;border-color:var(--ac-tinta);box-shadow:0 0 0 3px var(--ac-luz)}
+/* O clipe e o microfone dentro do campo, como em app de mensagem.
+   Quatro controles lado a lado não cabem em 360px, e o que estourava era a
+   frase de ajuda, quebrando em duas linhas com a segunda cortada. Mexer nas
+   palavras seria remendo: o que não cabia era o arranjo.
+
+   Quando a gravação começa, o `BotaoVoz` troca o ícone por uma barra com
+   tempo e onda: aí o grupo estica e o campo sai da frente, que é o certo,
+   porque nessa hora não se está escrevendo. */
+.chat-entrada{position:relative;flex:1;min-width:0;display:flex}
+.chat-entrada textarea{padding-right:78px}
+.chat-dentro{position:absolute;right:10px;bottom:0;height:56px;
+  display:flex;align-items:center;gap:2px}
+.chat-dentro .iconbtn{color:var(--tx-3)}
+.chat-dentro .iconbtn:hover{color:var(--ac-tinta)}
+.chat-dentro:has(.voz-grava){position:static;height:auto;flex:1;align-items:flex-end}
+.chat-entrada:has(.voz-grava) textarea{display:none}
 .chat-campo .btn.pri{height:56px;width:56px;padding:0;flex:none;border-radius:var(--r-pill)}
 .mencoes{position:absolute;bottom:calc(100% + 6px);left:0;background:var(--alto);border-radius:var(--r);
   box-shadow:var(--pop);padding:4px;min-width:210px;z-index:5}
@@ -1506,6 +1522,9 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
      em duas linhas dentro de uma caixa de altura fixa e ficava cortado pela
      metade. */
   .chat-campo textarea{padding:12px 14px;min-height:46px;font-size:var(--fs-ui)}
+  /* O grupo acompanha a altura menor do campo no celular. */
+  .chat-dentro{height:46px;right:8px}
+  .chat-entrada textarea{padding-right:74px}
   .chat-campo .btn.pri{height:46px;width:46px}
   .chat-sugs{max-height:54vh}
   .sug-campos select,.sug-campos input{max-width:none;flex:1}
@@ -4795,4 +4814,34 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
   .rx-custo{text-align:left;display:flex;align-items:baseline;gap:6px}
   .rx-f{grid-column:1}
   .rx-conserto{flex:1 0 100%}
+}
+
+/* ==========================================================================
+   Campo com letra menor que 16px faz o navegador dar ZOOM
+   ==========================================================================
+
+   É regra do aparelho, não do app: tocando num campo com fonte abaixo de 16px,
+   o navegador do celular aumenta a página inteira para a letra ficar legível.
+   E ele não volta sozinho.
+
+   O estrago é todo visível e nenhum deles parece ter a mesma causa: o texto
+   cresce, a página fica mais estreita em pixels de CSS, a barra de abas perde
+   a última aba, o botão de enviar sai pela direita e a conversa some. Foi
+   exatamente o que apareceu em 07/10/2026, e eu procurei em três lugares
+   errados antes de olhar o tamanho da letra.
+
+   16px é o limiar, não uma preferência de desenho: abaixo disso qualquer campo
+   dispara o zoom, inclusive os de busca e os seletores pequenos.
+
+   `!important` aqui é o uso certo dele: é uma regra da plataforma que precisa
+   ganhar de todo estilo local, e a alternativa é caçar vinte seletores agora e
+   lembrar deles para sempre. `pointer: coarse` limita ao que se toca com o
+   dedo, então o desenho do computador não muda em nada.
+
+   Não resolvemos isto com `maximum-scale=1`: aquilo mata o zoom de pinça, que
+   é de quem precisa dele para ler, e o Safari ignora de qualquer forma. */
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']),
+  textarea,
+  select { font-size: 16px !important }
 }

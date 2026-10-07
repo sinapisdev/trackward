@@ -523,6 +523,7 @@ function Campo({ canalId, respondendo, fecharResposta }: {
   fecharResposta: () => void
 }) {
   const { enviar, anexar, perfis, eu, nomeDe, canais } = useDados()
+  const celular = useCelular()
   const [texto, setTexto] = useState('')
   /** Os arquivos escolhidos, ainda não mandados. */
   const [arquivos, setArquivos] = useState<File[]>([])
@@ -683,11 +684,22 @@ function Campo({ canalId, respondendo, fecharResposta }: {
           ))}
         </div>
       )}
+      {/* O clipe e o microfone moram DENTRO do campo, como em app de mensagem.
+          Quatro controles lado a lado não cabem em 360px: a frase de ajuda
+          quebrava em duas linhas e a segunda era cortada pela altura do campo.
+          Mexer nas palavras seria remendo; o que não cabia era o arranjo. */}
+      <div className="chat-entrada">
       <textarea
         ref={area}
         value={texto}
         rows={1}
-        placeholder="Escreva, ou / para os comandos"
+        /**
+         * No telefone a frase inteira não cabe ao lado do clipe e do microfone,
+         * nem apertando os dois. O que fica é a BARRA, que é o sinal: quem a
+         * digita vê o menu abrir com os exemplos, e é o menu que ensina a
+         * linguagem, não esta frase. Ver "A linguagem do chat" no AGENTS.
+         */
+        placeholder={celular ? 'Escreva, ou /' : 'Escreva, ou / para os comandos'}
         aria-label="Mensagem"
         onChange={(e) => mudar(e.target.value)}
         onKeyDown={(e) => {
@@ -711,9 +723,12 @@ function Campo({ canalId, respondendo, fecharResposta }: {
           // Zera para a mesma escolha poder ser feita duas vezes seguidas.
           e.target.value = ''
         }} />
-      <button className="iconbtn" aria-label="Anexar arquivo" title="Anexar arquivo"
-        onClick={() => entrada.current?.click()}><Ic.clipe /></button>
-      <BotaoVoz canalId={canalId} respondeA={respondendo?.id ?? null} aoEnviar={fecharResposta} />
+      <span className="chat-dentro">
+        <button className="iconbtn" aria-label="Anexar arquivo" title="Anexar arquivo"
+          onClick={() => entrada.current?.click()}><Ic.clipe /></button>
+        <BotaoVoz canalId={canalId} respondeA={respondendo?.id ?? null} aoEnviar={fecharResposta} />
+      </span>
+      </div>
       <button className="btn pri" onClick={() => void mandar()}
         disabled={!texto.trim() && !arquivos.length} aria-label="Enviar">
         <Ic.enviar />
