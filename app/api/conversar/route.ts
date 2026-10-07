@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { semChave, type ContextoConversa } from '@/lib/conversa'
+import { instrucoes, semChave, type ContextoConversa } from '@/lib/conversa'
+import { doNomeDaFerramenta, ferramentas, validaTodas, type Acao } from '@/lib/secretario'
 import { clienteServidor } from '@/lib/supabase/servidor'
 import { custoMicro } from '@/lib/precos'
 
@@ -20,79 +21,17 @@ export const maxDuration = 30
 
 const MODELO = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5'
 
-function instrucoes(ctx: ContextoConversa) {
-  const aprendido = ctx.memoria
-    ? `\nO QUE ESTA CASA JÁ ENSINOU (use, e não contrarie):\n${ctx.memoria}\n`
-    : ''
-
-  const naNota = ctx.nota
-    ? `A conversa acontece DENTRO de uma nota, e o assunto dela é este:
-
-Título: ${ctx.nota.titulo}
-${ctx.nota.onde ? `Endereço: ${ctx.nota.onde}\n` : ''}Texto:
-${ctx.nota.texto || '(a nota ainda está vazia)'}
-
-Fale desse assunto. Se a pessoa mudar de assunto, acompanhe ela, mas lembre que
-o que for dito aqui fica guardado nesta nota.`
-    : `A conversa é solta: não está dentro de nenhuma nota. A pessoa pode falar do
-que quiser, inclusive de coisas que ela guardou em outras notas.`
-
-  const perto = ctx.caderno.length
-    ? `
-O QUE ELA JÁ GUARDOU E PARECE TER A VER:
-${ctx.caderno.map((n) => `- "${n.titulo}": ${n.trecho}`).join('\n')}
-`
-    : ''
-
-  const casa = ctx.casa
-  const daCasa = casa && (casa.tracks.length || casa.itens.length || casa.decisoes.length)
-    ? `
-O QUE A EMPRESA TEM HOJE:
-${casa.tracks.length ? `Tracks abertas: ${casa.tracks.map((t) => t.nome).join(', ')}\n` : ''}${casa.itens.length ? `Tarefas abertas:
-${casa.itens.slice(0, 30).map((i) => `- ${i.texto}${i.onde ? ` (${i.onde})` : ''}${i.prazo ? `, prazo ${i.prazo}` : ''}`).join('\n')}\n` : ''}${casa.decisoes.length ? `Decisões já tomadas:
-${casa.decisoes.map((d) => `- ${d.texto} (${d.quando})`).join('\n')}\n` : ''}`
-    : ''
-
-  const tudo = ctx.indice.length
-    ? `
-TÍTULOS DE TUDO QUE EXISTE NO CADERNO DELA:
-${ctx.indice.slice(0, 120).map((t) => `- ${t}`).join('\n')}
-`
-    : ''
-
-  return `Você conversa com uma pessoa dentro do caderno de notas dela, no TrackWard.
-
-Hoje é ${ctx.hoje}.${aprendido}
-${naNota}
-${perto}${tudo}${daCasa}
-Como responder:
-- Português do Brasil, direto, sem travessão e sem emoji.
-- Curto. Três parágrafos no máximo, quase sempre um.
-- Puxe o que ela já guardou quando fizer sentido, citando o título entre
-  colchetes duplos, assim: [[título da nota]]. É o que faz o caderno somar: ela
-  escreveu para não precisar lembrar, então lembrar é o seu trabalho.
-- Só cite nota que exista nas listas acima. Nunca invente título, número, nome,
-  data ou fato que ela não tenha escrito.
-- Se ela estiver pensando um negócio, uma decisão ou um problema, ajude a
-  pensar: pergunte o que falta, aponte o que não fecha, sugira o próximo passo.
-- Não crie tarefa, prazo nem compromisso, e não diga que criou. Quem faz isso é
-  o botão "Organizar com a IA", e quem decide é ela.
-- Se não souber, diga que não sabe.
-- Linhas do texto da nota que começam por ">" são respostas SUAS, de antes.
-  Elas são a sua memória desta nota: não repita o que já disse ali, continue.
-- A sua resposta vai entrar DENTRO da nota, logo abaixo da pergunta. Escreva
-  como quem escreve no caderno da pessoa: sem saudação, sem "claro!", sem
-  repetir a pergunta, começando pela resposta.`
-}
-
 type Medida = {
   modelo: string; entrada: number; saida: number
   cacheLeitura: number; cacheEscrita: number
 }
 
+type Volta = { texto: string | null; acoes: Acao[] }
+
 async function porModelo(
   ctx: ContextoConversa, chave: string, modelo: string, medida: { valor: Medida | null },
-): Promise<string | null> {
+): Promise<Volta | null> {
+  const pode = { tracks: !!ctx.pode?.tracks }
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -102,8 +41,12 @@ async function porModelo(
     },
     body: JSON.stringify({
       model: modelo,
-      max_tokens: 1200,
+      max_tokens: 1600,
       system: instrucoes(ctx),
+      // As ferramentas só existem para o secretário. Dentro de uma nota a
+      // conversa não cria nada, e oferecer a ferramenta ali seria convidar o
+      // modelo a usá-la contra a regra escrita na instrução.
+      ...(ctx.secretario ? { tools: ferramentas(pode) } : {}),
       messages: ctx.falas.map((f) => ({
         role: f.de === 'ia' ? 'assistant' : 'user',
         content: f.texto,
@@ -113,7 +56,7 @@ async function porModelo(
   if (!r.ok) return null
 
   const corpo = await r.json() as {
-    content?: { type: string; text?: string }[]
+    content?: { type: string; text?: string; name?: string; input?: unknown }[]
     usage?: {
       input_tokens?: number; output_tokens?: number
       cache_read_input_tokens?: number; cache_creation_input_tokens?: number
@@ -133,7 +76,24 @@ async function porModelo(
     .map((b) => b.text || '')
     .join('\n')
     .trim()
-  return texto || null
+
+  /* O que o modelo pediu para fazer, conferido aqui antes de ir para a tela.
+     Quem ESCREVE no banco é o navegador, com a sessão da pessoa, como em todo
+     o resto: o servidor não tem sessão, e dar-lhe a chave de serviço para isto
+     seria uma terceira rota com ela. */
+  const acoes = ctx.secretario
+    ? validaTodas(
+        (corpo.content || [])
+          .filter((b) => b.type === 'tool_use')
+          .map((b) => ({ ...(b.input as object), faz: doNomeDaFerramenta(b.name || '') })),
+        { tracks: !!ctx.pode?.tracks },
+      )
+    : []
+
+  // Fez alguma coisa e não disse nada: o recibo que o app escreve embaixo conta
+  // o que foi criado, mas uma tela que responde com silêncio parece travada.
+  if (!texto && acoes.length) return { texto: 'Pronto.', acoes }
+  return texto || acoes.length ? { texto: texto || null, acoes } : null
 }
 
 export async function POST(req: Request) {
@@ -201,7 +161,11 @@ export async function POST(req: Request) {
         p_canal: null,
       })
     }
-    if (resposta) return NextResponse.json({ resposta, motor: 'ia', modelo })
+    if (resposta) {
+      return NextResponse.json({
+        resposta: resposta.texto, acoes: resposta.acoes, motor: 'ia', modelo,
+      })
+    }
   } catch {
     // Modelo fora do ar não pode derrubar a tela: a pessoa escreveu, e o que
     // ela escreveu já está guardado na nota.

@@ -1498,6 +1498,15 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
 .secr .msg-acoes{opacity:0}
 .secr .msg:hover .msg-acoes{opacity:1}
 .secr .chat-topo .mk{color:var(--ac-tinta)}
+/* O recibo do que o secretário fez: sem balão, sem avatar e quieto. Ele não é
+   fala dele, é registro, e registro que parece fala faz a máquina se passar
+   pelo que ela disse. Mesma razão da marca de leitura dentro da nota. */
+.secr-feito{display:flex;align-items:flex-start;gap:9px;margin:2px 0 2px 52px;
+  padding:9px 13px;border-radius:var(--r-sm);background:var(--alto);
+  border:1px solid var(--line);font-size:var(--fs-meta);color:var(--tx-2)}
+.secr-feito svg{width:14px;height:14px;flex:none;margin-top:2px;color:var(--ac-tinta)}
+.secr-feito>span{display:flex;flex-direction:column;gap:3px;min-width:0}
+@media (max-width:840px){ .secr-feito{margin-left:0} }
 
 .chat-entrada{position:relative;flex:1;min-width:0;display:flex}
 .chat-entrada textarea{padding-right:78px}

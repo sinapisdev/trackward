@@ -1419,8 +1419,53 @@ ontem.
 e ler todas sem ninguém pedir seria o app opinando sobre o que ela ainda está pensando. A
 conversa é o contrário: ela existe para ser lida.
 
+**E ele FAZ, quando ela pede.** Ele respondia "não consigo, aperte Organizar" a quem pedia
+para criar uma tarefa, que é a resposta de um botão e não de um secretário. A regra velha
+continua inteira e é ela que autoriza isto: **conversa solta vira proposta, comando vira
+coisa feita, e a diferença é quem pediu.** "Preciso ligar para o contador" é pensamento, e
+a máquina não pode decidir que aquilo é tarefa; "cria uma tarefa para ligar para o
+contador" é ORDEM, dita em palavras a um assistente, e pedir confirmação do que a pessoa
+acabou de mandar fazer é desconfiar dela, exatamente como seria na barra.
+
+O que muda em relação à barra é só o risco de leitura: `/tarefa` são as palavras da própria
+pessoa, e aqui um modelo interpreta. Por isso **a lista do que ele pode é curta e só do
+dono**: tarefa avulsa (que nasce privada por construção), compromisso, nota, e, no espaço
+pessoal, track. Nada no nome de outra pessoa, **nada que mude o que já existe e nada que
+apague**: remarcar e cancelar continuam sendo tela, porque desfazer um engano de criação é
+apagar uma linha, e desfazer um engano de remarcação é descobrir que a reunião mudou de
+hora sozinha. **Track só no pessoal**, porque num espaço de equipe ela é da casa: aparece em
+Tracks, conta para a trilha e a equipe inteira a vê.
+
+As regras moram em `lib/secretario.ts`, puras, com a instrução do modelo em `lib/conversa.ts`
+pelo mesmo motivo de `lib/comandar.ts`: isto é regra, e regra tem que poder ser lida e
+ensaiada sem subir servidor. A rota fica com o que é dela, HTTP, teto e conta.
+
+**Ferramenta, e não JSON no meio do texto**: o modelo erra menos preenchendo um esquema do
+que imitando um formato dentro de uma frase, e um JSON quebrado aqui vira trabalho criado
+errado em vez de nada criado. O que volta é conferido antes de virar escrita (`valida`), e
+ação torta é **recusada, nunca corrigida**: consertar um engano por dentro é guardar o
+engano com outra cara.
+
+**Quem escreve é o navegador**, com a sessão da pessoa, como em todo o resto: dar a chave de
+serviço à rota de conversa seria uma terceira rota com ela, por uma razão que não é "quem
+chama não tem sessão".
+
+**E tudo que ele faz fica escrito na conversa**, com o que foi criado, como mensagem de
+SISTEMA e não como fala dele: o que a máquina fez não pode se passar pelo que ela disse. Sem
+o recibo o secretário vira um lugar onde coisas nascem num canto que ninguém viu acontecer,
+que é o mesmo defeito que `contarNoCanal` fechou do lado da equipe. **Uma ação que falha não
+derruba as outras**, e o recibo conta só as que saíram: dizer que criou o que não criou é
+pior que as duas coisas.
+
+**A agenda dos próximos dias vai no contexto.** Metade do que se pergunta a um secretário é
+"o que eu tenho amanhã", e sem isso ele respondia que não sabia e ainda marcava reunião por
+cima de reunião.
+
 **O botão redondo some aqui**, como dentro de um canal: ele ficaria em cima do campo de
-escrever, e quem cria usa a barra.
+escrever, e quem cria usa a barra. **E a barra de abas some junto**, pelo mesmo motivo do
+canal: ela come 56px onde a altura é escassa. A diferença é que o secretário é a PRIMEIRA
+ABA do espaço pessoal, sem lista acima dele, então ele ganhou a seta de voltar no cabeçalho:
+tirar a barra sem ela deixaria a pessoa sem Tarefas, Tracks nem Agenda.
 
 **E dá para DITAR.** Ditar é o jeito mais natural de despejar: quem está dirigindo não
 digita, e é justamente aí que a ideia aparece. O recado passa a poder morar numa NOTA e não

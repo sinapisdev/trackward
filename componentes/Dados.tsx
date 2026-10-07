@@ -21,6 +21,7 @@ import { preencher } from '@/lib/conectores'
 import { comoBloco, parecidas, parecidasCom, resumo, tituloDe } from '@/lib/notas'
 import { novoId } from '@/lib/id'
 import type { AlvoDoConvite } from '@/lib/convite'
+import { contar, type Acao } from '@/lib/secretario'
 import { recursos, type Recursos } from '@/lib/espaco'
 import { diasDeTeste, planoDe, tetoDeLeituras, type Plano } from '@/lib/planos'
 import { arquivada } from '@/lib/desfecho'
@@ -2751,24 +2752,107 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       indice: notas.filter((n) => !n.arquivada).map((n) => n.titulo),
       memoria: paraOModelo(memoria),
       casa: oQueACasaTem,
+      /* A conversa solta É o secretário: ali a pessoa fala com um assistente e
+         o que ela pede acontece. Dentro de uma nota continua sendo conversa, e
+         lá nada é criado, porque ninguém mandou criar nada. */
+      secretario: !!nota?.conversa,
+      /* Track é a única coisa que não é só do dono num espaço de equipe: lá ela
+         é da casa, aparece em Tracks e conta para a trilha de todo mundo. Por
+         isso ela só existe onde não há segunda pessoa. */
+      pode: { tracks: org.tipo === 'pessoal' },
+      /* Só o que vem pela frente: a agenda inteira não cabe e não ajuda, e o
+         que passou não muda o que marcar. */
+      agenda: agenda
+        .filter((c) => c.aberto && c.quando >= hojeIso())
+        .sort((a, b) => a.quando.localeCompare(b.quando))
+        .slice(0, 40)
+        .map((c) => ({ quando: c.quando, titulo: c.titulo, inicio: c.inicio, fim: c.fim })),
     }
-  }, [notas, areaDe, todosFluxos, memoria, oQueACasaTem])
+  }, [notas, areaDe, todosFluxos, memoria, oQueACasaTem, org.tipo, agenda])
 
-  /** Fala com a leitura e devolve o texto da resposta, ou nulo. */
+  /** Fala com a leitura e devolve o texto da resposta e o que ela mandou fazer. */
   const pedirResposta = useCallback(async (corpo: ContextoConversa) => {
     try {
       const r = await fetch('/api/conversar', {
         method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo),
       })
-      const volta = await r.json() as { resposta?: string; porque?: string }
+      const volta = await r.json() as { resposta?: string; acoes?: Acao[]; porque?: string }
       if (volta.porque === 'teto') toast('O teto de uso com IA do mês foi atingido.')
-      if (!volta.resposta) { toast('Não consegui responder agora.', true); return null }
-      return volta.resposta
+      if (!volta.resposta && !volta.acoes?.length) {
+        toast('Não consegui responder agora.', true)
+        return null
+      }
+      return { texto: volta.resposta || '', acoes: volta.acoes || [] }
     } catch {
       toast('Não consegui responder agora.', true)
       return null
     }
   }, [toast])
+
+  /**
+   * O que o secretário mandou fazer, feito.
+   *
+   * Quem escreve é o navegador, com a sessão da pessoa, e não o servidor: a
+   * regra do app é essa em todo lugar, e dar a chave de serviço à rota de
+   * conversa para ela escrever seria uma terceira rota com a chave, por uma
+   * razão que não é "quem chama não tem sessão".
+   *
+   * **Uma falha não derruba as outras.** Pedindo três coisas e falhando a
+   * segunda, as outras duas existem, e o recibo conta as que saíram: parar na
+   * primeira falha deixaria a pessoa sem saber quais foram.
+   */
+  const executarAcoes = useCallback(async (acoes: Acao[]): Promise<string[]> => {
+    const feitas: string[] = []
+    for (const a of acoes) {
+      try {
+        if (a.faz === 'tarefa') {
+          // `quieto`: o recibo na conversa já conta, e o toast por cima dele
+          // seria a mesma notícia duas vezes, oito vezes seguidas.
+          const id = await criarAvulsa(a.texto, a.prazo || undefined, a.descricao)
+          if (id) feitas.push(contar(a))
+        } else if (a.faz === 'compromisso') {
+          const id = await salvarCompromisso({
+            titulo: a.titulo, quando: a.quando, inicio: a.inicio || null, fim: a.fim || null,
+            local: a.local || '', nota: '', bloqueia: true, visivel: true, convidados: [],
+          })
+          if (id) feitas.push(contar(a))
+        } else if (a.faz === 'nota') {
+          const id = await salvarNota({ texto: a.texto })
+          if (id) feitas.push(contar(a))
+        } else if (a.faz === 'track') {
+          const id = await salvarFluxo(
+            { nome: a.nome, tipo: a.tipo, visib: 'so_eu' },
+            a.checkpoints.map((c) => ({
+              id: null, nome: c.nome, criterio: '', aprovador_id: null, prazo: '',
+            })),
+          )
+          if (!id) continue
+          // As tarefas entram depois, porque a trilha precisa existir para elas
+          // terem checkpoint onde morar. O id da etapa vem do banco, e não do
+          // estado: acabada de nascer, a track ainda não chegou aqui.
+          const { data: etapas } = await sb.from('etapas').select('id,ordem')
+            .eq('fluxo_id', id).order('ordem')
+          const lista = (etapas || []) as { id: string; ordem: number }[]
+          for (let k = 0; k < a.checkpoints.length; k++) {
+            const etapa = lista[k]
+            if (!etapa) continue
+            for (const t of a.checkpoints[k].tarefas || []) {
+              await sb.from('itens').insert({
+                id: novoId(), etapa_id: etapa.id, fluxo_id: id, texto: t, descricao: '',
+                resp_id: eu.id, prazo: null, priv: false, prazo_firme: false,
+                autor_id: eu.id, ordem: Date.now() % 100000,
+              })
+            }
+          }
+          feitas.push(contar(a))
+        }
+      } catch {
+        // Uma ação que não saiu não pode impedir as outras, e o recibo conta só
+        // as que saíram: dizer que criou o que não criou é o pior dos dois.
+      }
+    }
+    return feitas
+  }, [criarAvulsa, salvarCompromisso, salvarNota, salvarFluxo, sb, eu.id])
 
   /**
    * A conversa solta: essa continua sendo conversa mesmo.
@@ -2803,17 +2887,35 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       if (!resposta) return id
       // A resposta sai assinada por quem escreveu, que é a leitura: `por_ia` é o
       // que a tela usa para não fazer ela parecer com você.
-      await sb.from('mensagens').insert({
-        id: novoId(), nota_id: notaId, autor_id: eu.id, texto: resposta,
-        sistema: false, por_ia: true,
-      })
+      if (resposta.texto) {
+        await sb.from('mensagens').insert({
+          id: novoId(), nota_id: notaId, autor_id: eu.id, texto: resposta.texto,
+          sistema: false, por_ia: true,
+        })
+      }
+
+      /* O que o secretário fez fica escrito na conversa, com o que foi criado.
+         Sem o recibo ele vira um lugar onde coisas nascem num canto que
+         ninguém viu acontecer, que é o mesmo defeito que `contarNoCanal`
+         fechou do lado da equipe. E ele é mensagem de SISTEMA, não fala dele:
+         o que a máquina fez não pode se passar pelo que ela disse. */
+      if (resposta.acoes.length) {
+        const feitas = await executarAcoes(resposta.acoes)
+        if (feitas.length) {
+          await sb.from('mensagens').insert({
+            id: novoId(), nota_id: notaId, autor_id: eu.id,
+            texto: feitas.map((f) => `Criei. ${f}`).join('\n'),
+            sistema: true, por_ia: true,
+          })
+        }
+      }
       recarregar()
     } finally {
       setRespondendo(null)
     }
     return id
   }, [sb, eu.id, org.ia_ativa, todasNotas, mensagens, contextoDaNota, pedirResposta,
-      falhou, recarregar])
+      executarAcoes, falhou, recarregar])
 
   /**
    * Perguntar dentro da nota, com a resposta entrando no próprio texto.
@@ -2836,13 +2938,13 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
           de: 'pessoa',
           texto: pergunta.trim() || 'O que você acha do que está escrito nesta nota?',
         }]))
-        if (!resposta) return false
+        if (!resposta?.texto) return false
 
         // Entra logo depois da linha perguntada, e não no fim do arquivo: quem
         // pergunta no meio de um raciocínio quer a resposta ali, junto dele.
         const antes = texto.slice(0, corte).replace(/\s+$/, '')
         const depois = texto.slice(corte).replace(/^\s+/, '')
-        const novo = [antes, comoBloco(resposta), depois].filter(Boolean).join('\n\n')
+        const novo = [antes, comoBloco(resposta.texto), depois].filter(Boolean).join('\n\n')
         await salvarNota({
           id: nota.id, titulo: nota.titulo, texto: novo,
           fixada: nota.fixada, arquivada: nota.arquivada,

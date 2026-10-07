@@ -121,7 +121,7 @@ export function Secretario() {
         <span className="mk"><Ic.faisca /></span>
         <div className="chat-titulo">
           <b>Secretário</b>
-          <span>Escreva o que vier. Ele separa o que é tarefa, compromisso e ideia.</span>
+          <span>Escreva o que vier, ou peça: ele cria tarefa, marca na agenda e guarda nota.</span>
         </div>
         <button className="btn" disabled={organizando || !org.ia_ativa}
           onClick={() => void organizar()}>
@@ -139,13 +139,25 @@ export function Secretario() {
               para uma pessoa, sem arrumar nada.
             </p>
             <p>
-              Em <b>Organizar</b>, o que é tarefa vira tarefa, o que tem dia vai para a agenda e
-              o que é ideia vira nota. Você aceita o que fizer sentido e descarta o resto.
+              <b>Pedindo, ele faz na hora</b>: &quot;cria uma tarefa para ligar para o contador
+              amanhã&quot;, &quot;marca o dentista quinta às 15h&quot;. O que você só pensou alto
+              fica como conversa, e em <b>Organizar</b> ele separa o que virou tarefa,
+              compromisso e nota para você aceitar.
             </p>
           </div>
         )}
 
         {falas.map((m) => (
+          /* O recibo do que foi feito é mensagem de SISTEMA, e não fala dele:
+             o que a máquina fez não pode se passar pelo que ela disse, que é a
+             mesma regra da marca de leitura dentro da nota. Por isso ele não
+             tem balão, não tem avatar e é quieto. */
+          m.sistema ? (
+            <p key={m.id} className="secr-feito">
+              <Ic.check />
+              <span>{m.texto.split('\n').map((l, k) => <span key={k}>{l}</span>)}</span>
+            </p>
+          ) : (
           <div key={m.id} id={`msg-${m.id}`}
             className={`msg ${m.por_ia ? '' : 'minha'}`}>
             <span className="msg-av">
@@ -175,6 +187,7 @@ export function Secretario() {
                 onClick={() => void apagarMensagem(m)}><Ic.x /></button>
             </span>
           </div>
+          )
         ))}
 
         {pensando && (
