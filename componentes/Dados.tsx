@@ -20,6 +20,7 @@ import { escutaAqui, oQueFaz, porPalavras } from '@/lib/agentes'
 import { preencher } from '@/lib/conectores'
 import { comoBloco, parecidas, parecidasCom, resumo, tituloDe } from '@/lib/notas'
 import { novoId } from '@/lib/id'
+import type { AlvoDoConvite } from '@/lib/convite'
 import { recursos, type Recursos } from '@/lib/espaco'
 import { diasDeTeste, planoDe, tetoDeLeituras, type Plano } from '@/lib/planos'
 import { arquivada } from '@/lib/desfecho'
@@ -326,10 +327,7 @@ type Contexto = {
   salvarProcesso: (p: Record<string, unknown>, etapas: Record<string, unknown>[]) => Promise<string | null>
   excluirProcesso: (id: string) => Promise<void>
   duplicarProcesso: (id: string) => Promise<string | null>
-  criarConvite: (d: {
-    email: string; nome: string; papel: Papel
-    area_id: string | null; gestor_id: string | null; ve_area: boolean
-  }) => Promise<Convite | null>
+  criarConvite: (d: { alvo: AlvoDoConvite; papel: Papel }) => Promise<Convite | null>
   excluirConvite: (id: string) => Promise<void>
   criarDoProcesso: (
     processoId: string, dados: Record<string, unknown>, pessoas: Record<string, string>, inicio: string,
@@ -1963,25 +1961,39 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     return c
   }
 
+  /**
+   * O convite, com o id nascendo aqui.
+   *
+   * Sem `.select()`: o RETURNING passa pela política de LEITURA, e quando ela
+   * recusa a linha recém-criada o Postgres devolve a mesma frase de quando a
+   * escrita é recusada. Aqui a leitura até permitiria, mas o convite é a linha
+   * que a tela precisa devolver inteira na hora (o link sai do código), e
+   * depender de uma volta do banco para mostrar o que acabou de ser escrito é
+   * justamente o que `lib/id.ts` existe para evitar.
+   */
   const criarConvite: Contexto['criarConvite'] = useCallback(async (d) => {
-    const { data, error } = await sb.from('convites').insert({
-      email: d.email.trim().toLowerCase(),
-      nome: d.nome.trim(),
+    const linha = {
+      id: novoId(),
+      email: d.alvo.email,
+      fone: d.alvo.fone,
+      nome: '',
       codigo: novoCodigo(),
       papel: d.papel,
-      area_id: d.area_id,
-      gestor_id: d.gestor_id,
-      ve_area: d.ve_area,
+      area_id: null,
+      gestor_id: null,
+      ve_area: false,
       criado_por: eu.id,
-    }).select().single()
+    }
+    const { error } = await sb.from('convites').insert(linha)
     if (error) {
-      falhou(error, 'Não foi possível criar o convite. Talvez já exista um aberto para este e-mail.')
+      falhou(error, d.alvo.como === 'fone'
+        ? 'Não foi possível criar o convite. Talvez já exista um aberto para este número.'
+        : 'Não foi possível criar o convite. Talvez já exista um aberto para este e-mail.')
       return null
     }
-    toast('Convite criado.')
     recarregar()
-    return data as Convite
-  }, [sb, eu.id, falhou, toast, recarregar])
+    return { ...linha, criado_em: new Date().toISOString(), usado_em: null, usado_por: null } as Convite
+  }, [sb, eu.id, falhou, recarregar])
 
   const excluirConvite: Contexto['excluirConvite'] = useCallback(async (id) => {
     const { error } = await sb.from('convites').delete().eq('id', id)

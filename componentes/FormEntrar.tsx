@@ -51,9 +51,9 @@ const ESCOLHAS: {
     resumo: 'Entre com um código de 6 letras.',
     forma: 'Entre com o convite', lado: 'O convite já traz tudo', acao: 'Entrar na empresa',
     passos: [
-      ['Use o código', 'Quem convidou mandou um código de 6 letras.'],
+      ['Seu lugar já está reservado', 'Quem te chamou já escolheu o seu papel.'],
       ['Entre já liberado', 'Sem esperar aprovação de ninguém.'],
-      ['Seu lugar já vem pronto', 'Papel, área e a quem você responde.'],
+      ['Seu espaço pessoal vem junto', 'Fica ao lado da empresa, com o mesmo login.'],
     ],
   },
 ]
@@ -61,12 +61,22 @@ const ESCOLHAS: {
 function Formulario() {
   const router = useRouter()
   const params = useSearchParams()
-  const [modo, setModo] = useState<Modo>('entrar')
+  /**
+   * O código que veio no endereço, de `/convite/<codigo>`.
+   *
+   * Com ele, a tela não pergunta "como você quer começar?": a pessoa já
+   * respondeu isso ao abrir um link que alguém mandou para ela. Perguntar de
+   * novo é oferecer a quem foi convidado a chance de abrir uma empresa por
+   * engano, que é o erro mais caro possível aqui: ela entra, não acha ninguém
+   * conhecido, e conclui que o app está vazio.
+   */
+  const doLinkConvite = (params.get('c') || '').trim().toUpperCase()
+  const [modo, setModo] = useState<Modo>(doLinkConvite ? 'criar' : 'entrar')
   const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
-  const [convite, setConvite] = useState('')
-  const [jeito, setJeito] = useState<Jeito>('equipe')
+  const [convite, setConvite] = useState(doLinkConvite)
+  const [jeito, setJeito] = useState<Jeito>(doLinkConvite ? 'convite' : 'equipe')
   const [empresa, setEmpresa] = useState('')
   const [erro, setErro] = useState('')
   const [ok, setOk] = useState('')
@@ -154,7 +164,21 @@ function Formulario() {
         const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password: senha })
         if (error) throw error
       }
-      const destino = params.get('de') || '/'
+      /**
+       * Para onde ir depois, e por que os dois casos do link diferem.
+       *
+       * Quem chegou pelo link e ENTROU numa conta que já existia volta para o
+       * convite, porque é lá que ele é aceito: sem isso, autenticar-se era
+       * perder o convite no caminho, já que o código tinha saído do endereço.
+       *
+       * Quem CRIOU a conta vai para a casa, e não pode voltar: `novo_usuario`
+       * já consumiu o convite no mesmo instante em que o perfil nasceu, então
+       * a página do link receberia a pessoa com "código inválido ou vencido"
+       * logo depois de ele ter funcionado.
+       */
+      const voltarAoConvite = doLinkConvite && modo !== 'criar'
+      const destino = voltarAoConvite ? `/convite/${encodeURIComponent(doLinkConvite)}`
+        : params.get('de') || '/'
       router.push(destino)
       router.refresh()
     } catch (e) {
@@ -272,26 +296,37 @@ function Formulario() {
         <button onClick={() => { setModo('entrar'); setErro(''); setOk('') }}>Já tenho conta <Ic.seta /></button>
       </header>
 
-      <h1>Como você quer começar?</h1>
-      <p className="ent-sub centro">Um login. Seus espaços de trabalho.</p>
+      {doLinkConvite ? (
+        <>
+          <h1>Seu convite está pronto</h1>
+          <p className="ent-sub centro">
+            Diga seu nome e escolha uma senha. O resto já vem com o convite.
+          </p>
+        </>
+      ) : (
+        <>
+          <h1>Como você quer começar?</h1>
+          <p className="ent-sub centro">Um login. Seus espaços de trabalho.</p>
 
-      <div className="ent-jeitos" role="radiogroup" aria-label="Como você quer começar">
-        {ESCOLHAS.map((x) => (
-          <button key={x.id} role="radio" aria-checked={jeito === x.id}
-            className={`ent-jeito ${jeito === x.id ? 'on' : ''}`}
-            onClick={() => { setJeito(x.id); setModo('criar'); setErro(''); setOk('') }}>
-            <span className="ic">
-              {x.id === 'equipe' ? <Ic.team /> : x.id === 'pessoal' ? <Ic.eu /> : <Ic.carta />}
-            </span>
-            <span className="txt"><b>{x.titulo}</b><small>{x.resumo}</small></span>
-            <span className="radio" aria-hidden />
-          </button>
-        ))}
-      </div>
+          <div className="ent-jeitos" role="radiogroup" aria-label="Como você quer começar">
+            {ESCOLHAS.map((x) => (
+              <button key={x.id} role="radio" aria-checked={jeito === x.id}
+                className={`ent-jeito ${jeito === x.id ? 'on' : ''}`}
+                onClick={() => { setJeito(x.id); setModo('criar'); setErro(''); setOk('') }}>
+                <span className="ic">
+                  {x.id === 'equipe' ? <Ic.team /> : x.id === 'pessoal' ? <Ic.eu /> : <Ic.carta />}
+                </span>
+                <span className="txt"><b>{x.titulo}</b><small>{x.resumo}</small></span>
+                <span className="radio" aria-hidden />
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="ent-duas">
           <div>
-            <h2>{escolha.forma}</h2>
+            <h2>{doLinkConvite ? 'Falta só você' : escolha.forma}</h2>
             {erro && <div className="erro"><Ic.x />{erro}</div>}
             {ok && <div className="ok-box"><Ic.check />{ok}</div>}
 
@@ -308,14 +343,21 @@ function Formulario() {
                     onChange={(e) => setEmpresa(e.target.value)} />
                 </div>
               )}
-              {jeito === 'convite' && (
+              {/* Pelo link, o código é um recibo e não um campo: oferecer uma
+                  caixa de texto preenchida convida a pessoa a mexer no que está
+                  certo, e o que ela digitar por cima não tem como estar. */}
+              {jeito === 'convite' && (doLinkConvite ? (
+                <p className="ent-convite-ok">
+                  <Ic.check />Convite <b>{doLinkConvite}</b> reconhecido.
+                </p>
+              ) : (
                 <div className="fld">
                   <label htmlFor="a-convite">Código do convite</label>
                   <input className="inp" id="a-convite" value={convite} placeholder="Ex.: ENG7K2"
                     autoCapitalize="characters" spellCheck={false}
                     onChange={(e) => setConvite(e.target.value.toUpperCase())} />
                 </div>
-              )}
+              ))}
               <div className="ent-par">
                 <div className="fld">
                   <label htmlFor="a-email">E-mail</label>
@@ -341,7 +383,9 @@ function Formulario() {
               </div>
               <div className="ent-acoes">
                 <button type="button" className="btn"
-                  onClick={() => { setModo('escolher'); setErro(''); setOk('') }}>Voltar</button>
+                  onClick={() => { setModo(doLinkConvite ? 'entrar' : 'escolher'); setErro(''); setOk('') }}>
+                  {doLinkConvite ? 'Já tenho conta' : 'Voltar'}
+                </button>
                 <button className="btn pri" type="submit" disabled={indo}>
                   {indo ? 'Um instante...' : escolha.acao}<Ic.seta />
                 </button>
@@ -367,7 +411,7 @@ function Formulario() {
               ) : (
                 <>
                   <p><Ic.team />Você poderá acessar outros espaços com o mesmo login.</p>
-                  <p><Ic.carta />Com convite, o papel e a área vêm definidos por quem convidou.</p>
+                  <p><Ic.carta />Com convite, o papel vem definido por quem convidou.</p>
                 </>
               )}
             </div>

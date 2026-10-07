@@ -52,12 +52,18 @@ export type Area = {
 }
 
 /**
- * Convite: o superior define papel, área e hierarquia antes de a pessoa entrar,
- * para a conta nascer pronta em vez de esperar liberação manual.
+ * Convite: quem entra e com qual papel, e nada mais.
+ *
+ * Área, gestor e "vê a área inteira" continuam nas colunas porque convite
+ * antigo os tem, mas a tela não os pede mais: eles são editáveis em Equipe com
+ * um clique, e pedi-los na porta é decidir a organização de alguém antes de
+ * essa pessoa existir. Ver `lib/convite.ts` e a seção 67 do schema.
  */
 export type Convite = {
   id: string
-  email: string
+  /** Um dos dois é preenchido, nunca nenhum: `convites_tem_quem`, seção 67. */
+  email: string | null
+  fone: string | null
   nome: string
   codigo: string
   papel: Papel

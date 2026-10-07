@@ -128,6 +128,37 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
 - **Entrar numa empresa é só por convite.** O domínio do e-mail não coloca ninguém para dentro:
   quem se cadastra sem convite abre a empresa dele, não cai na sua. `organizacoes.dominio` e
   `entrada_por_dominio` continuam no banco sem abrir porta, e não voltar a usá-las para isso.
+- **O convite carrega uma coisa: quem entra e com qual papel.** Eram seis campos (e-mail, nome,
+  papel, área, gestor, "vê a área inteira") mais um código de seis letras entregue na mão, e do
+  outro lado quatro campos a preencher: dez campos e um copia-e-cola para uma pessoa entrar.
+  Quatro daqueles seis já eram editáveis na tabela de Equipe com um clique, e pedi-los na porta
+  é decidir a organização de alguém antes de essa pessoa existir, que é o mesmo erro de montar a
+  trilha inteira num formulário só. As regras moram em `lib/convite.ts`, puras, e a seção 67 do
+  schema é o lado do banco.
+- **Um campo só para dizer quem entra**, telefone ou e-mail, porque quem convida tem UMA das
+  duas coisas e nunca as duas, e a forma do que foi escrito já diz qual é. O telefone **não é
+  credencial**: ele diz para onde o convite vai, e `novo_usuario` continua casando só por código
+  ou por e-mail. O e-mail deixou de ser obrigatório, então `convites_tem_quem` garante que uma
+  das duas exista: código solto sem ninguém do outro lado funciona para quem o receber primeiro,
+  e "quem o receber primeiro" não é uma pessoa.
+- **O link do convite é `/convite/<codigo>`, e atende os DOIS casos**, porque quem convida não
+  tem como saber se a outra pessoa já usa o TrackWard. Sem conta, vai para o cadastro com o
+  código dentro; com conta, aceita ali e ganha um segundo perfil por `entrar_com_convite`. Esse
+  segundo caminho existia no banco desde sempre e **nada no app o chamava**: a tela de entrar
+  recusa quem está logado, e o porteiro ainda limpava a query no desvio. Por isso `/convite`
+  entra em `ABERTAS` do `proxy.ts`: barrá-lo é o convite chegando vazio.
+- **O app não manda o convite, ele abre a conversa com o recado escrito** (`waDoConvite`, um
+  `wa.me`). Mandar pelo servidor exigiria a chave do conector numa terceira rota de serviço, e
+  exigiria a verificação do negócio na Meta, que é o que ainda não saiu: seria construir o que
+  não tem como funcionar. Quem convida confere antes de enviar, o que é melhor de qualquer jeito.
+- **Pelo link, o código é recibo e não campo.** Oferecer uma caixa de texto preenchida convida a
+  pessoa a mexer no que está certo, e o que ela digitar por cima não tem como estar. Pelo mesmo
+  motivo os três cartões de "como você quer começar" não aparecem: ela já respondeu isso ao abrir
+  um link que alguém mandou, e perguntar de novo é dar a quem foi convidado a chance de abrir uma
+  empresa por engano, entrar, não achar ninguém e concluir que o app está vazio.
+- **O nome da empresa não aparece antes de aceitar.** A política de `convites` é de quem convida,
+  então mostrá-lo exigiria abrir a tabela a quem tem um código, e código se chuta. Quem vem do
+  WhatsApp já leu o nome na mensagem de quem o chamou, que é de quem ele tem que vir.
 - **O mesmo login vive em várias empresas**, uma por convite aceito mais a que ele abriu. São
   perfis distintos do mesmo `user_id`, e `sessoes` guarda em qual ele está. É o caso do grupo e
   da holding, então nada pode assumir que uma pessoa tem um perfil só.

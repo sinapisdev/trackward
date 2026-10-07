@@ -1094,6 +1094,48 @@ function quemMandaAqui(): boolean {
 }
 
 /**
+ * Aceitar um convite estando já logado, espelhando `entrar_com_convite`
+ * (seção 20) com as recusas da seção 67.
+ *
+ * É o caminho de quem já usa o TrackWard e é chamado por uma empresa: ganha um
+ * SEGUNDO perfil, com o mesmo login, e nada em comum com o primeiro além do
+ * e-mail. O que se vê é sempre o do espaço em uso.
+ */
+function entrarComConvite(codigo: string): string {
+  const b = ler()
+  const u = usuarioLocal()
+  if (!u) throw new Error('Entre na sua conta primeiro.')
+  const c = String(codigo || '').trim().toUpperCase()
+  const cv = b.convites.find((x) => String(x.codigo).toUpperCase() === c && !x.usado_em)
+  if (!cv) throw new Error('Código inválido ou vencido.')
+  const org = b.organizacoes.find((o) => o.id === cv.org_id)
+  if (org?.tipo === 'pessoal') {
+    throw new Error('Espaço pessoal é de uma pessoa só, e não recebe convite.')
+  }
+  if (b.perfis.some((pf) => pf.user_id === u && pf.org_id === cv.org_id)) {
+    throw new Error('Você já faz parte deste espaço.')
+  }
+
+  const antigo = b.perfis.find((pf) => pf.user_id === u)
+  const id = uid('perfil')
+  b.perfis.push({
+    id, user_id: u, org_id: cv.org_id,
+    nome: String(cv.nome || '').trim() || String(antigo?.nome || ''),
+    email: String(antigo?.email || ''),
+    cor: '#8A8A8A',
+    papel: cv.papel || 'colaborador',
+    area_id: cv.area_id || null, gestor_id: cv.gestor_id || null,
+    ve_area: !!cv.ve_area, ativo: true, tutoriais: [], criado_em: agora(),
+  } as Linha)
+  cv.usado_em = agora()
+  cv.usado_por = id
+  gravar()
+  // A função do banco troca a sessão junto, e aqui a sessão é esta chave.
+  definirEuLocal(id)
+  return id
+}
+
+/**
  * O raio-X respondido, espelhando a seção 48.
  *
  * Aqui não há pulso para achar nada, então o modo demonstração só sabe
@@ -1303,9 +1345,12 @@ function cadastrarLocal(email: string, dados: Linha): { erro?: string } {
 
   // Espelha novo_usuario() no banco: convite, ou empresa nova. O domínio do
   // e-mail não coloca ninguém dentro de empresa nenhuma.
+  // Espelha a busca de `novo_usuario`: código primeiro, e-mail depois. Convite
+  // por telefone nasce sem e-mail e por isso só entra pelo código, que é o que
+  // se quer: telefone não é senha, e aqui ninguém provou ser dono dele.
   const cv = codigo
     ? b.convites.find((c) => String(c.codigo).toUpperCase() === codigo && !c.usado_em)
-    : b.convites.find((c) => String(c.email).toLowerCase() === e && !c.usado_em)
+    : b.convites.find((c) => String(c.email || '').toLowerCase() === e && !c.usado_em)
 
   if (cv) {
     orgId = (cv.org_id as string) || 'org1'
@@ -1610,6 +1655,9 @@ function montarCliente() {
     },
     async rpc(nome: string, args: Record<string, unknown> = {}) {
       try {
+        if (nome === 'entrar_com_convite') {
+          return { data: entrarComConvite(String(args.p_codigo || '')), error: null }
+        }
         if (nome === 'salvar_fluxo') {
           return { data: salvarFluxo(args.p_fluxo as Linha, args.p_etapas as Linha[]), error: null }
         }

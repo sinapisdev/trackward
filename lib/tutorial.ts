@@ -401,8 +401,8 @@ const TOURS: Tour[] = [
       {
         titulo: 'Entrar aqui é só por convite',
         texto: 'O domínio do e-mail não coloca ninguém para dentro: quem se cadastra sem convite '
-          + 'abre a empresa dele, não cai na sua. O convite é um código de seis letras, e ele já '
-          + 'traz papel, área e a quem a pessoa responde.',
+          + 'abre a empresa dele, não cai na sua. Aqui você põe o telefone da pessoa, escolhe o '
+          + 'papel e manda o link: ela abre, e entra sem digitar código nenhum.',
         alvo: 'equipe-convidar',
       },
       {

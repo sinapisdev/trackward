@@ -21,7 +21,11 @@ import { NextResponse, type NextRequest } from 'next/server'
  *                    ou o segredo na url. Quem chega nele é gente de fora, e
  *                    de fora não existe sessão nem nunca vai existir.
  */
-const ABERTAS = ['/auth', '/feedback', '/api/feedback', '/api/avisar', '/api/pulso', '/api/whats']
+// `/convite` entra aqui porque ele atende os DOIS casos, e um deles é de quem
+// não tem conta: barrá-lo mandaria a pessoa para `/entrar` sem o código, que é
+// o convite chegando vazio. Quem decide o que fazer com a sessão é a página.
+const ABERTAS = ['/auth', '/feedback', '/api/feedback', '/api/avisar', '/api/pulso', '/api/whats',
+  '/convite']
 /** Só faz sentido para quem ainda não entrou. */
 const SO_DESLOGADO = ['/entrar']
 

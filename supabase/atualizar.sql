@@ -6095,6 +6095,64 @@ revoke all on function public.track_do_canal(uuid, uuid) from public, anon;
 grant execute on function public.track_do_canal(uuid, uuid) to authenticated, service_role;
 
 
+-- ==========================================================================
+-- 67. O convite em dois toques, e o link que já traz o código
+--
+--     Pôr uma pessoa dentro custava dez campos e um copia-e-cola: seis de quem
+--     convidava (e-mail, nome, papel, área, gestor, "vê a área inteira") e
+--     quatro de quem entrava (nome, código, e-mail, senha). Quatro daqueles seis
+--     já eram editáveis na tabela ao lado, com um clique, depois de a pessoa
+--     existir, e nenhum deles impedia nada de dar errado.
+--
+--     O convite passa a carregar uma coisa: quem entra e como. O e-mail deixa
+--     de ser obrigatório, porque a porta sempre foi o código; entra o telefone,
+--     que é como se chama alguém de verdade neste país, e que não é credencial
+--     nenhuma: ele diz para onde o convite vai.
+-- --------------------------------------------------------------------------
+
+alter table public.convites alter column email drop not null;
+alter table public.convites add column if not exists fone text;
+
+-- O índice velho não distinguia "sem e-mail" de "e-mail repetido". Convite por
+-- telefone nasce com o e-mail vazio, e dois deles batiam num índice que fala de
+-- endereço: a recusa citava um e-mail que quem convidou nunca digitou.
+drop index if exists convites_email_aberto;
+create unique index if not exists convites_email_aberto
+  on public.convites (lower(email))
+  where usado_em is null and email is not null and btrim(email) <> '';
+
+create unique index if not exists convites_fone_aberto
+  on public.convites (fone)
+  where usado_em is null and fone is not null and btrim(fone) <> '';
+
+-- Um convite precisa dizer quem entra, de alguma forma. Sem nenhuma das duas, o
+-- que sobra é um código solto que funciona para quem o receber primeiro, e
+-- "quem o receber primeiro" não é uma pessoa.
+--
+-- Num banco que já rodou pode haver convite com e-mail vazio e sem telefone, e
+-- a restrição derrubaria o arquivo inteiro no meio por causa de uma linha que
+-- ninguém vai usar. Os abertos sem como chegar a ninguém saem; os já usados
+-- ficam, porque são registro.
+delete from public.convites
+ where usado_em is null
+   and coalesce(btrim(email), '') = '' and coalesce(btrim(fone), '') = '';
+update public.convites set email = 'desconhecido@convite.invalido'
+ where usado_em is not null
+   and coalesce(btrim(email), '') = '' and coalesce(btrim(fone), '') = '';
+
+alter table public.convites drop constraint if exists convites_tem_quem;
+alter table public.convites add constraint convites_tem_quem check (
+  coalesce(btrim(email), '') <> '' or coalesce(btrim(fone), '') <> ''
+);
+
+-- `revoke` de `public` tira o acesso de `authenticated` junto, porque é de
+-- PUBLIC que ele herda o execute. Sem o grant de volta, o convite ficava
+-- impossível de aceitar com um "permission denied" que não diz o que fazer, e
+-- o caminho que isto conserta é justamente o que nunca tinha sido exercido.
+revoke all on function public.entrar_com_convite(text) from public, anon;
+grant execute on function public.entrar_com_convite(text) to authenticated, service_role;
+
+
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
     as "carimbo de organizacao (40)",
@@ -6493,4 +6551,24 @@ select
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'posso_ver_anexo'
       and pg_get_functiondef(p.oid) like '%minha_nota(m.nota_id)%')
-    as "a voz da nota abre para a dona (1)";
+    as "a voz da nota abre para a dona (1)",
+  -- O convite em dois toques. O telefone entra para o convite saber para onde
+  -- vai, e o e-mail deixa de ser obrigatório: a porta sempre foi o código.
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'convites' and column_name = 'fone')
+    as "o convite tem telefone (1)",
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'convites'
+      and column_name = 'email' and is_nullable = 'YES')
+    as "o e-mail do convite e opcional (1)",
+  -- Um convite sem e-mail e sem telefone é um código solto que funciona para
+  -- quem o receber primeiro, e "quem o receber primeiro" não é uma pessoa.
+  (select count(*) from pg_constraint
+    where conname = 'convites_tem_quem' and conrelid = 'public.convites'::regclass)
+    as "o convite diz quem entra (1)",
+  -- E os dois índices de convite aberto, cada um no seu campo. Sem o recorte,
+  -- dois convites por telefone colidiam num índice que fala de endereço.
+  (select count(*) from pg_indexes
+    where schemaname = 'public'
+      and indexname in ('convites_email_aberto','convites_fone_aberto'))
+    as "um convite aberto por pessoa (2)";

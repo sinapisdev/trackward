@@ -6,9 +6,14 @@ import { useModais } from './Modais'
 import { Carregando } from './Shell'
 import { Ic } from './Icones'
 import { Av } from './atomos'
-import type { Papel } from '@/lib/tipos'
+import type { Convite, Papel } from '@/lib/tipos'
+import { alvoDoConvite, alvoEscrito, linkDoConvite, textoDoConvite, waDoConvite } from '@/lib/convite'
 import { equipeDe } from '@/lib/acesso'
 import { MODO_LOCAL } from '@/lib/modo'
+
+const PAPEL: Record<string, string> = {
+  admin: 'Administrador', gestor: 'Gestor', colaborador: 'Colaborador',
+}
 
 const CORES = ['#C2703C', '#7D8471', '#A8763E', '#6E7B8B', '#96705B', '#5F7A6A', '#A5645C', '#7A6E8F']
 
@@ -17,13 +22,12 @@ export function Equipe() {
     criarConvite, excluirConvite, pessoal, salvarOrg, org, ativos: assentosUsados } = useDados()
   const { abrir } = useModais()
   const [nome, setNome] = useState(eu.nome)
-  const [cEmail, setCEmail] = useState('')
-  const [cNome, setCNome] = useState('')
+  /** Um campo só: quem convida tem UMA das duas coisas, nunca as duas. */
+  const [cQuem, setCQuem] = useState('')
   const [cPapel, setCPapel] = useState<Papel>('colaborador')
-  const [cArea, setCArea] = useState('')
-  const [cGestor, setCGestor] = useState(eu.id)
-  const [cVeArea, setCVeArea] = useState(false)
   const [copiado, setCopiado] = useState('')
+  /** O convite recém-criado, que é o único que a tela mostra pronto. */
+  const [feito, setFeito] = useState<Convite | null>(null)
   const [busca, setBusca] = useState('')
   const [filtroPapel, setFiltroPapel] = useState('')
 
@@ -36,19 +40,22 @@ export function Equipe() {
   const naLista = ativos
     .filter((p) => !busca.trim() || limpa(p.nome).includes(limpa(busca)) || limpa(p.email).includes(limpa(busca)))
     .filter((p) => !filtroPapel || p.papel === filtroPapel)
-  /** O convite mais novo é o que a lateral mostra pronto para copiar. */
-  const ultimo = convites[convites.length - 1] || null
-
   // Assentos livres: pessoas ativas mais convites em aberto, que já ocupam.
   const abertos = convites.filter((c) => !c.usado_em).length
   const livres = org.assentos ? org.assentos - assentosUsados - abertos : 0
+  /**
+   * Sem teto de assentos, `livres` é zero, e zero aqui quer dizer "não há
+   * limite", não "acabou". Confundir os dois desliga o botão de convidar de
+   * toda empresa sem teto, que é a maioria: o plano interno e o teste não têm.
+   */
+  const lotado = !!org.assentos && livres <= 0
+
+  const alvo = alvoDoConvite(cQuem)
 
   const criarNovo = async () => {
-    const c = await criarConvite({
-      email: cEmail, nome: cNome, papel: cPapel,
-      area_id: cArea || null, gestor_id: cGestor || null, ve_area: cVeArea,
-    })
-    if (c) { setCEmail(''); setCNome('') }
+    if (!alvo) return
+    const c = await criarConvite({ alvo, papel: cPapel })
+    if (c) { setCQuem(''); setFeito(c) }
   }
 
   return (
@@ -216,78 +223,96 @@ export function Equipe() {
                     : <><b>Os assentos acabaram.</b> Para convidar mais alguém, fale com o TrackWard.</>}
                 </p>
               )}
+              {/* UM campo, e não dois. Quem convida tem o telefone OU o
+                  e-mail na mão, nunca os dois, e a forma do que foi escrito já
+                  diz qual é: perguntar seria perguntar o que está na tela.
+                  O nome saiu porque a pessoa diz o nome dela ao entrar, e o que
+                  quem convida digitava ali era um apelido que depois não batia
+                  com nada. */}
               <div className="fld">
-                <label htmlFor="c-nome">Nome da pessoa</label>
-                <input className="inp" id="c-nome" value={cNome} placeholder="Ex.: Carlos"
-                  onChange={(e) => setCNome(e.target.value)} />
+                <label htmlFor="c-quem">Telefone ou e-mail</label>
+                <input className="inp" id="c-quem" value={cQuem}
+                  placeholder="42 99978-3288"
+                  inputMode="tel" autoComplete="off" spellCheck={false}
+                  onChange={(e) => { setCQuem(e.target.value); setFeito(null) }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && alvo) void criarNovo() }} />
+                {!!cQuem.trim() && !alvo && (
+                  <p className="hint">Não reconheci. Um telefone com DDD, ou um e-mail.</p>
+                )}
               </div>
-              <div className="fld">
-                <label htmlFor="c-email">E-mail</label>
-                <input className="inp" id="c-email" type="email" value={cEmail}
-                  placeholder="carlos@empresa.com.br" onChange={(e) => setCEmail(e.target.value)} />
-              </div>
-              <div className="fld">
-                <label htmlFor="c-papel">Papel</label>
-                <select className="inp" id="c-papel" value={cPapel}
-                  onChange={(e) => setCPapel(e.target.value as Papel)}>
-                  <option value="colaborador">Colaborador</option>
-                  <option value="gestor">Gestor</option>
-                  <option value="admin">Administrador</option>
-                </select>
-              </div>
-              <div className="fld">
-                <label htmlFor="c-area">Área</label>
-                <select className="inp" id="c-area" value={cArea} onChange={(e) => setCArea(e.target.value)}>
-                  <option value="">Sem área</option>
-                  {areas.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
-                </select>
-              </div>
-              <div className="fld">
-                <label htmlFor="c-gestor">Gestor</label>
-                <select className="inp" id="c-gestor" value={cGestor} onChange={(e) => setCGestor(e.target.value)}>
-                  <option value="">Ninguém</option>
-                  {ativos.map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
-                </select>
-              </div>
-              <label className="chk">
-                <input type="checkbox" checked={cVeArea} onChange={(e) => setCVeArea(e.target.checked)} />
-                Vê a área inteira
-              </label>
 
-              {ultimo ? (
-                <>
+              {/* Papel em pílulas e não em lista: são três, e três opções
+                  escondidas atrás de um seletor é um clique a mais para ver o
+                  que já caberia na tela. */}
+              <div className="fld">
+                <span className="lbl">Papel</span>
+                <div className="seg" role="group" aria-label="Papel de quem é convidado">
+                  {([['colaborador', 'Colaborador'], ['gestor', 'Gestor'], ['admin', 'Admin']] as const)
+                    .map(([id, rot]) => (
+                      <button key={id} className={cPapel === id ? 'on' : ''}
+                        aria-pressed={cPapel === id}
+                        onClick={() => setCPapel(id)}>{rot}</button>
+                    ))}
+                </div>
+                <p className="hint">
+                  Área e a quem a pessoa responde se ajustam na tabela ao lado, depois que ela entrar.
+                </p>
+              </div>
+
+              {feito ? (
+                <div className="eq-pronto">
                   <h3>Convite pronto</h3>
-                  <div className="eq-codigo">{ultimo.codigo.split('').join(' ')}</div>
-                  <p className="hint">
-                    Quem entrar com este código receberá o papel definido acima. O convite é a única
-                    porta: quem se cadastra por fora abre a empresa dele, nunca cai dentro da sua.
-                  </p>
-                  <button className="btn pri larga" onClick={() => {
-                    const texto = `${ultimo.nome}, seu acesso ao TrackWard está pronto.\n\n`
-                      + `Entre em ${location.origin}/entrar, escolha Criar conta e use:\n`
-                      + `E-mail: ${ultimo.email}\nCódigo do convite: ${ultimo.codigo}`
+                  <p className="eq-pronto-quem">{alvoEscrito(feito)}</p>
+
+                  {/* O caminho principal é o WhatsApp, e ele abre a conversa
+                      DAQUELA pessoa com o recado escrito. O app não manda a
+                      mensagem: mandar exigiria a chave do conector numa terceira
+                      rota de serviço, e exigiria a verificação do negócio na
+                      Meta, que é o que ainda não saiu. Assim funciona hoje, e
+                      quem convida confere antes de enviar, o que é melhor. */}
+                  {feito.fone && (
+                    <a className="btn pri larga" target="_blank" rel="noreferrer"
+                      href={waDoConvite(feito.fone, textoDoConvite({
+                        empresa: org.nome, quem: eu.nome,
+                        link: linkDoConvite(location.origin, feito.codigo),
+                      }))}>
+                      <Ic.enviar />Mandar no WhatsApp
+                    </a>
+                  )}
+
+                  <button className={`btn larga ${feito.fone ? '' : 'pri'}`} onClick={() => {
+                    const texto = textoDoConvite({
+                      empresa: org.nome, quem: eu.nome,
+                      link: linkDoConvite(location.origin, feito.codigo),
+                    })
                     navigator.clipboard?.writeText(texto).then(
-                      () => { setCopiado(ultimo.id); setTimeout(() => setCopiado(''), 2200) },
+                      () => { setCopiado(feito.id); setTimeout(() => setCopiado(''), 2200) },
                       () => {},
                     )
-                  }}>{copiado === ultimo.id ? 'Copiado' : 'Copiar código'}</button>
-                  <button className="eq-outro" onClick={() => void criarNovo()}
-                    disabled={!cEmail.trim() || !cNome.trim()}>Criar outro convite</button>
-                </>
+                  }}>{copiado === feito.id ? 'Copiado' : 'Copiar o convite'}</button>
+
+                  <p className="hint">
+                    O link já leva o código dentro: quem abrir entra direto, sem digitar nada.
+                    Vale por sete dias e para uma pessoa só.
+                  </p>
+                  <button className="eq-outro" onClick={() => setFeito(null)}>Convidar outra pessoa</button>
+                </div>
               ) : (
-                <button className="btn pri larga" disabled={!cEmail.trim() || !cNome.trim()}
-                  onClick={() => void criarNovo()}>Criar convite</button>
+                <button className="btn pri larga" disabled={!alvo || lotado}
+                  onClick={() => void criarNovo()}>
+                  <Ic.plus />Convidar
+                </button>
               )}
 
-              {convites.length > 1 && (
+              {!!convites.length && (
                 <div className="eq-convites">
-                  <h3>Convites abertos</h3>
+                  <h3>Convites abertos <span className="sec-ct num">{convites.length}</span></h3>
                   {convites.map((c) => (
                     <div className="eq-conv" key={c.id}>
-                      <span><b>{c.nome}</b><small>{c.email}</small></span>
+                      <span><b>{alvoEscrito(c)}</b><small>{PAPEL[c.papel] || c.papel}</small></span>
                       <code className="codigo">{c.codigo}</code>
                       <button className="iconbtn" title="Cancelar convite"
-                        aria-label={`Cancelar convite de ${c.nome}`}
+                        aria-label={`Cancelar o convite de ${alvoEscrito(c)}`}
                         onClick={() => void excluirConvite(c.id)}><Ic.x /></button>
                     </div>
                   ))}

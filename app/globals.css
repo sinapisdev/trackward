@@ -3351,9 +3351,6 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
 .eq-lado h3{font:var(--fw-medium) var(--fs-body)/1.3 var(--sans);margin:26px 0 12px}
 .eq-lado .fld{margin-bottom:16px}
 .eq-lado .chk{margin-bottom:20px}
-.eq-codigo{border:1px solid var(--line);border-radius:var(--r);background:var(--alto);
-  padding:22px 12px;text-align:center;font:var(--fw-semibold) var(--fs-h2)/1 var(--sans);
-  letter-spacing:.24em;text-indent:.24em;color:var(--tx)}
 .eq-outro{display:block;width:100%;margin-top:14px;font-size:var(--fs-ui);color:var(--tx-2);
   text-decoration:underline;text-underline-offset:3px;transition:var(--t)}
 .eq-outro:hover{color:var(--tx)}
@@ -4869,3 +4866,43 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
   textarea,
   select { font-size: 16px !important }
 }
+
+/* ---------------------------------------------- o convite em dois toques */
+
+/* O cartão de "convite pronto", na lateral de Equipe. Os dois botões empilhados
+   e não lado a lado: o de cima é o caminho que se espera (o WhatsApp), e lado a
+   lado eles disputariam o olho como se fossem a mesma coisa. */
+.eq-pronto{margin-top:4px}
+.eq-pronto h3{margin:0 0 6px}
+.eq-pronto-quem{margin:0 0 14px;font:var(--fw-semibold) var(--fs-ui)/1.2 var(--sans);color:var(--tx)}
+.eq-pronto .btn.larga{margin-bottom:10px}
+.eq-pronto .hint{margin-top:4px}
+/* `.btn` num <a>: o sublinhado do link não cabe dentro de um botão. */
+a.btn{text-decoration:none}
+
+/* O recibo do código no cadastro, quando ele veio pelo link. Não é campo: é a
+   confirmação de que o convite foi reconhecido, e por isso não tem moldura de
+   campo nem cursor de texto. */
+.ent-convite-ok{display:flex;align-items:center;gap:10px;margin:0 0 18px;
+  padding:12px 14px;border-radius:var(--r-sm);background:var(--alto);
+  border:1px solid var(--line);font-size:var(--fs-ui);color:var(--tx-2)}
+.ent-convite-ok svg{width:17px;height:17px;flex:none;color:var(--ac-tinta)}
+.ent-convite-ok b{color:var(--tx);letter-spacing:.1em}
+
+/* A página do link, fora do grupo (app): sem Shell, sem TabBar, sem navegação.
+   Quem chega aqui pode não ter conta em lugar nenhum. */
+.cvt{min-height:100dvh;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:28px;padding:24px;background:var(--bg)}
+.cvt-esperando{margin:0;font-size:var(--fs-ui);color:var(--tx-3)}
+.cvt-card{width:100%;max-width:420px;padding:28px;border-radius:var(--r-lg);
+  background:var(--panel);border:1px solid var(--line)}
+.cvt-card h1{margin:0 0 10px;font:var(--fw-semibold) var(--fs-h2)/1.15 var(--sans);color:var(--tx)}
+.cvt-card p{margin:0 0 20px;font-size:var(--fs-ui);line-height:1.5;color:var(--tx-2)}
+.cvt-codigo{display:block;margin:0 0 20px;padding:16px;text-align:center;
+  border-radius:var(--r);background:var(--alto);border:1px solid var(--line);
+  font:var(--fw-semibold) var(--fs-h3)/1 var(--sans);letter-spacing:.24em;
+  text-indent:.24em;color:var(--tx)}
+.cvt-card .erro{margin-bottom:16px}
+.cvt-nao{display:block;width:100%;margin-top:14px;font-size:var(--fs-ui);
+  color:var(--tx-3);text-decoration:underline;text-underline-offset:3px}
+.cvt-nao:hover{color:var(--tx-2)}

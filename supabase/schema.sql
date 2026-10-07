@@ -8721,3 +8721,80 @@ returns boolean language sql stable security definer set search_path = public as
       and m.nota_id is not null and minha_nota(m.nota_id)
   );
 $$;
+
+
+-- ==========================================================================
+-- 67. O convite em dois toques, e o link que já traz o código
+--
+--     Pôr UMA pessoa dentro custava dez campos e um copia-e-cola. A empresa
+--     preenchia e-mail, nome, papel, área, gestor e "vê a área inteira", gerava
+--     um código de seis letras e o entregava na mão; a pessoa preenchia nome,
+--     código, e-mail e senha, e ainda inventava uma senha. Nenhum desses dez
+--     campos impedia nada de dar errado, e quatro deles já eram editáveis na
+--     tabela ao lado, com um clique, depois de a pessoa existir.
+--
+--     Pedir área e gestor na porta é decidir organização antes de a pessoa
+--     existir, e é o mesmo erro que a trilha montada num formulário só: ninguém
+--     conhece a hierarquia de alguém no dia em que o convida. O que o convite
+--     precisa carregar é uma coisa: QUEM ENTRA E COMO. O resto se ajusta depois,
+--     onde já se ajusta.
+--
+--     O que muda aqui:
+--
+--     1. **O e-mail deixa de ser obrigatório**, porque ele nunca foi a porta: a
+--        porta é o código. Ele continua servindo a quem convida por e-mail, e
+--        ao casamento por endereço em `novo_usuario`, que é o que deixa alguém
+--        se cadastrar sem digitar código nenhum.
+--
+--     2. **Entra o telefone**, que é como se chama alguém de verdade neste país.
+--        Ele não é credencial e não coloca ninguém para dentro: serve para o
+--        convite saber para onde vai, e para a tela abrir a conversa certa já
+--        com o link escrito. Guardado em dígitos, como `avisos_contato`.
+--
+--     3. **O índice de convite aberto passa a valer por e-mail E por telefone**,
+--        cada um no seu. Sem o recorte, dois convites por telefone, os dois com
+--        e-mail vazio, colidiriam no índice do e-mail, e a recusa falaria de um
+--        endereço que ninguém digitou.
+--
+--     O código continua sendo a única porta, e continua valendo sete dias. O que
+--     o link resolve é a digitação: `/convite/<codigo>` leva ao cadastro com ele
+--     dentro, e `entrar_com_convite` (seção 20) é quem atende quem já tem conta.
+--     Aquela função existia e NADA no app a chamava, então um convite mandado a
+--     quem já usa o TrackWard não tinha como ser aceito: a tela de entrar
+--     recusa quem está logado, e o porteiro ainda jogava o código fora.
+-- --------------------------------------------------------------------------
+
+alter table public.convites alter column email drop not null;
+alter table public.convites add column if not exists fone text;
+
+-- O índice velho não distinguia "sem e-mail" de "e-mail repetido". Convite por
+-- telefone nasce com o e-mail vazio, e dois deles batiam num índice que fala de
+-- endereço: a recusa citava um e-mail que quem convidou nunca digitou.
+drop index if exists convites_email_aberto;
+create unique index if not exists convites_email_aberto
+  on public.convites (lower(email))
+  where usado_em is null and email is not null and btrim(email) <> '';
+
+create unique index if not exists convites_fone_aberto
+  on public.convites (fone)
+  where usado_em is null and fone is not null and btrim(fone) <> '';
+
+-- Um convite precisa dizer quem entra, de alguma forma. Sem nenhuma das duas, o
+-- que sobra é um código solto que não se liga a ninguém: ele funciona para quem
+-- o receber primeiro, e "quem o receber primeiro" não é uma pessoa.
+alter table public.convites drop constraint if exists convites_tem_quem;
+alter table public.convites add constraint convites_tem_quem check (
+  coalesce(btrim(email), '') <> '' or coalesce(btrim(fone), '') <> ''
+);
+
+-- `novo_usuario` casa por código ou por e-mail, e o `or` continua certo com o
+-- e-mail nulo: `lower(null) = x` dá nulo, que não é verdadeiro, então convite
+-- por telefone só entra pelo código. É o que se quer: telefone não é senha, e
+-- aqui ninguém provou ser dono dele.
+
+-- `revoke` de `public` tira o acesso de `authenticated` junto, porque é de
+-- PUBLIC que ele herda o execute. Sem o grant de volta, o convite ficava
+-- impossível de aceitar com um "permission denied" que não diz o que fazer, e
+-- o caminho que isto conserta é justamente o que nunca tinha sido exercido.
+revoke all on function public.entrar_com_convite(text) from public, anon;
+grant execute on function public.entrar_com_convite(text) to authenticated, service_role;
