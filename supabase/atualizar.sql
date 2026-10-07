@@ -5872,6 +5872,50 @@ grant execute on function public.tirar_checkpoint(uuid, uuid, uuid) to authentic
 grant execute on function public.partir_checkpoint(uuid, text, uuid[], uuid) to authenticated, service_role;
 
 -- ==========================================================================
+-- 63. Encerrar a conta de um cliente precisa funcionar
+--
+--     É obrigação da LGPD, e hoje falha de duas formas, as duas caladas.
+--
+--     A PRIMEIRA é esta trava. `proteger_ressalva` recusa apagar tarefa com
+--     ressalva em aberto, e está certa: ressalva é dívida, e dívida se paga.
+--     Só que ela não pergunta POR QUE alguém está apagando, e quando quem apaga
+--     é a cascata de `delete from organizacoes` ela recusa do mesmo jeito. Um
+--     cliente com uma única ressalva pendente não consegue ser encerrado, e a
+--     mensagem fala de ressalva para quem está apagando uma empresa.
+--
+--     É a terceira trava da mesma família. `ao_apagar_perfil` (seção 55) e
+--     `auditoria_nao_muda` (seção 56) já ganharam a mesma porta, e o comentário
+--     delas registra que as duas foram descobertas TENTANDO, uma depois da
+--     outra. Esta apareceu do mesmo jeito, em 06/10/2026, zerando o banco.
+--
+--     A porta olha o FLUXO, e não a organização: dívida sem checkpoint credor
+--     não é dívida. Assim ela vale tanto para a empresa inteira indo embora
+--     quanto para uma track sendo apagada, e continua recusando o caso que
+--     importa, que é alguém tentando sumir com a pendência na tela.
+--
+--     A SEGUNDA falha não é de banco e não se conserta aqui: os arquivos no
+--     Storage sobrevivem à organização, porque a cascata apaga a linha de
+--     `anexos` e não o arquivo, e o Supabase proíbe apagar arquivo por SQL
+--     ("Direct deletion from storage tables is not allowed"). O caminho é a API
+--     de Storage, ANTES do delete, e a receita inteira está em
+--     `encerrar-conta.mjs`, na raiz, junto da cópia que se entrega ao cliente.
+-- ==========================================================================
+
+create or replace function public.proteger_ressalva()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  -- A track inteira está indo embora: não sobrou checkpoint para cobrar esta
+  -- dívida, e a trava passaria a impedir exatamente o que o cliente pediu.
+  if old.fluxo_id is null or not exists (select 1 from fluxos where id = old.fluxo_id) then
+    return old;
+  end if;
+  if old.ressalva and not old.feito then
+    raise exception 'Ressalva não se apaga, se conclui. Ela é a dívida que ficou do checkpoint anterior.';
+  end if;
+  return old;
+end $$;
+
+-- ==========================================================================
 
 alter table public.fluxos add column if not exists implicita boolean not null default false;
 
@@ -6300,4 +6344,11 @@ select
   -- pela lista de etapas levaria as tarefas junto, sem avisar.
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname in ('tirar_checkpoint','partir_checkpoint'))
-    as "os ajustes da trilha (2)";
+    as "os ajustes da trilha (2)",
+  -- Encerrar a conta de um cliente é obrigação de LGPD e falhava: a trava da
+  -- ressalva não perguntava POR QUE alguém estava apagando, e recusava a
+  -- cascata de `delete from organizacoes` do mesmo jeito.
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'proteger_ressalva'
+      and pg_get_functiondef(p.oid) like '%not exists (select 1 from fluxos%')
+    as "a porta do encerramento existe (1)";

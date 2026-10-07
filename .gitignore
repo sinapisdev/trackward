@@ -42,3 +42,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# A cópia que o encerrar-conta.mjs gera: são os dados de um cliente, e eles
+# nunca entram no repositório, que é público.
+copia-*/

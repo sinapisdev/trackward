@@ -60,7 +60,7 @@ export function TabBar() {
              raiz: quem trocou de espaço não deve ter que reaprender onde fica
              o que ele abre o dia inteiro. */
           : <Aba href="/" icone={<Ic.edit />} rotulo="Notas" tambem="/notas" tut="tab-notas" />}
-        <Aba href="/minhas" icone={<Ic.inbox />} rotulo="Trabalho" conta={minhas} tut="tab-trabalho" />
+        <Aba href="/minhas" icone={<Ic.inbox />} rotulo="Tarefas" conta={minhas} tut="tab-trabalho" />
         <Aba href="/tracks" icone={<Ic.proj />} rotulo="Tracks" tut="tab-tracks" />
         <Aba href="/agenda" icone={<Ic.agenda />} rotulo="Agenda" conta={hoje} tut="tab-agenda" />
       </nav>

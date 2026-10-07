@@ -1358,6 +1358,41 @@ da outra.
 critério de saída, e o banco recusa também. **E o que foi dispensado não volta**: havendo
 uma proposta de trilha para aquele canal, aberta ou recusada, o pulso não propõe de novo.
 
+## Encerrar a conta de um cliente precisa funcionar
+
+É obrigação de LGPD, e falhava de duas formas, as duas caladas.
+
+**A trava da ressalva não perguntava POR QUE.** `proteger_ressalva` recusa apagar tarefa
+com ressalva em aberto, e está certa: ressalva é dívida, e dívida se paga. Só que quando
+quem apaga é a cascata de `delete from organizacoes` ela recusava do mesmo jeito, e um
+cliente com uma única ressalva pendente não conseguia ser encerrado, com uma mensagem que
+falava de ressalva para quem estava apagando uma empresa.
+
+É a **terceira trava da mesma família**, e a porta é a mesma do perfil (seção 55) e da
+auditoria (seção 56). Aqui ela olha o FLUXO, e não a organização: dívida sem checkpoint
+credor não é dívida. Assim vale também para uma track sendo apagada, e continua recusando o
+caso que importa, que é alguém sumindo com a pendência pela tela.
+
+**Os arquivos sobreviviam à empresa.** A cascata apaga a linha de `anexos` e não o arquivo,
+e o Supabase proíbe apagar arquivo por SQL ("Direct deletion from storage tables is not
+allowed"). O caminho é a API de Storage, e ela só apaga por lista de caminhos: tem que
+listar a pasta e remover em lote.
+
+**A receita é `encerrar-conta.mjs`, na raiz, e não uma rota.** A lista de rotas com a chave
+de serviço está fechada em duas de propósito, e encerrar conta é ato raro, deliberado e
+irreversível: ele não deve existir atrás de um botão que alguém aperta sem querer. É
+operação, como o `supabase/planos.sql`.
+
+**São três passos, e a ordem é a regra inteira:** a cópia, os arquivos, o banco. Invertendo
+o primeiro com o último não há o que copiar. Invertendo o segundo com o terceiro os
+arquivos ficam órfãos para sempre, numa pasta com o id de uma empresa que já não existe.
+
+**A cópia vem antes porque ela é do cliente.** É o que a portabilidade da LGPD pede, e é o
+que torna o encerramento uma entrega em vez de uma perda. Dela saem de fora o registro de
+acesso, que existe para proteger a casa, e o segredo cifrado de conector, que é inútil para
+quem recebe e vira um segredo a mais circulando. As pastas `copia-*` estão no `.gitignore`:
+são dados de um cliente, e o repositório é público.
+
 ## A trilha melhora enquanto roda, e as tarefas não vão junto
 
 A trilha nasce de um palpite e só o uso diz se ela está certa. O raio-X já achava o
@@ -1429,10 +1464,22 @@ alimenta o contador da barra, o da TabBar e a fila do Forward, que respondem "o 
 agora", e tarefa alheia não é isso. Juntas, a fila de quem mais pede (que costuma ser quem
 menos executa) encheria de trabalho dos outros.
 
-**Só Meu trabalho pergunta as duas**, num segmento próprio, "Pedi". Ele **não entra em
+**Só Tarefas pergunta as duas**, num segmento próprio, "Pedi". Ele **não entra em
 Aguardando**: ali a tarefa é minha e está travada, e o que se faz é esperar para executar;
 aqui ela nunca vai ser minha, e o que se faz é cobrar ou deixar quieto. Misturar tira o
 sentido da palavra que já existia.
+
+**E "Pedi" é só de canal SEM track.** Tarefa que mora numa track de verdade já tem onde ser
+acompanhada: ela aparece na trilha, conta para o checkpoint, e todo mundo que vê aquela
+track a vê. Pô-la aqui também seria contá-la duas vezes e encher a fila de quem distribui
+trabalho com o que ele já enxerga em Tracks. O buraco que a lista fecha é outro: o que foi
+combinado num canal que ainda não tem forma mora numa track escondida, que não aparece em
+lugar nenhum, e sem ela quem pediu só descobre perguntando.
+
+**A tela chama-se Tarefas**, e não "Meu trabalho". O nome antigo descrevia a tela de quando
+ela só tinha a sua fila; hoje ela tem também o que você pediu, e "trabalho" é a palavra
+mais vaga do app: tudo ali é trabalho. A rota continua `/minhas`, porque endereço está em
+favorito e em aviso já enviado.
 
 **E não existe botão de concluir em "Pedi".** Marcar como feito o trabalho de outra pessoa é
 dizer que foi feito sem ter sido. A gaveta mostra em que pé está e a porta de volta para a

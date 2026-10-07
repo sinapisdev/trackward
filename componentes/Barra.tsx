@@ -492,7 +492,7 @@ export function Barra() {
             diferença entre eles é um filtro, não um endereço. */}
         <Aba href="/tracks" rotulo="Tracks"
           ativo={caminho.startsWith('/tracks') || caminho.startsWith('/fluxo/')} />
-        <Aba href="/minhas" rotulo="Meu trabalho" conta={minhas} ativo={caminho === '/minhas'} />
+        <Aba href="/minhas" rotulo="Tarefas" conta={minhas} ativo={caminho === '/minhas'} />
         <Aba href="/agenda" rotulo="Agenda" ativo={caminho === '/agenda'} />
         <Mais ativo={emMais} />
       </nav>

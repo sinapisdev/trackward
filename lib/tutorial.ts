@@ -112,7 +112,7 @@ const TOURS: Tour[] = [
         titulo: 'O que está com você',
         texto: 'A fila abre por prazo: o que venceu, o que é hoje, o que é desta semana. É a '
           + 'resposta para "o que eu faço agora", e é por isso que ela é a primeira coisa da tela.',
-        textoCel: 'Em Trabalho fica a sua fila, aberta por prazo: o que venceu, o que é hoje, o que '
+        textoCel: 'Em Tarefas fica a sua fila, aberta por prazo: o que venceu, o que é hoje, o que '
           + 'é desta semana. É a resposta para "o que eu faço agora".',
         alvo: 'fila',
         alvoCel: 'tab-trabalho',
@@ -130,7 +130,7 @@ const TOURS: Tour[] = [
         texto: 'O radar mostra o que atrasou, o que trava outra pessoa e o que está esperando '
           + 'alguém decidir. Ele existe para você não descobrir isso na reunião de sexta.',
         textoCel: 'A agenda mostra o que está marcado, e o radar, o que travou ou atrasou, no fim '
-          + 'da tela de Trabalho. Os dois existem para você não descobrir isso na reunião de sexta.',
+          + 'da tela de Tarefas. Os dois existem para você não descobrir isso na reunião de sexta.',
         alvo: 'radar',
         alvoCel: 'tab-agenda',
       },
@@ -285,7 +285,7 @@ const TOURS: Tour[] = [
 
   {
     id: 'minhas',
-    nome: 'Meu trabalho',
+    nome: 'Tarefas',
     rota: '/minhas',
     passos: [
       {

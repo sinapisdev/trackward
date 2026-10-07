@@ -130,7 +130,7 @@ export function Minhas() {
       <div className="hdr">
         <div>
           <div className="eyebrow">Sua fila</div>
-          <h1>Meu trabalho</h1>
+          <h1>Tarefas</h1>
           <p className="lede">
             {tudo.length
               ? <>{tudo.length} {tudo.length > 1 ? 'pendências' : 'pendência'}. Um próximo passo de cada vez.</>

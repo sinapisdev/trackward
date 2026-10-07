@@ -99,7 +99,7 @@ export function envolve(f: Fluxo, perfilId: string | null): boolean {
 }
 
 /**
- * O que eu pedi, e ainda não ficou pronto.
+ * O que eu pedi numa CONVERSA, e ainda não ficou pronto.
  *
  * Separado de `pendencias` de propósito, e não é zelo de arquitetura: aquela
  * função alimenta o contador da barra, o da TabBar e a fila do Forward, que
@@ -108,14 +108,24 @@ export function envolve(f: Fluxo, perfilId: string | null): boolean {
  * é exatamente o motivo de nenhum destes aparecer para o administrador só por
  * ele ser administrador.
  *
- * O que ela responde é outra pergunta, e só Meu trabalho faz: "a Ana já fez o
- * que combinei com ela?". Sem isso, a resposta é perguntar.
+ * **SÓ DE CANAL SEM TRACK**, e esta é a regra inteira. Tarefa que mora numa
+ * track de verdade já tem onde ser acompanhada: ela aparece na trilha, conta
+ * para o checkpoint, e todo mundo que vê aquela track a vê. Pô-la aqui também
+ * seria contá-la duas vezes e encher a fila de quem distribui trabalho com o
+ * que ele já enxerga em Tracks.
+ *
+ * O buraco que isto fecha é outro: o que foi combinado num canal que ainda não
+ * tem forma mora numa track escondida, que não aparece em lugar nenhum. Sem
+ * esta lista, quem pediu só descobre se foi feito perguntando, que é o que este
+ * app existe para evitar.
  */
 export function oQuePedi(fluxos: Fluxo[], perfilId: string | null): Pendencia[] {
   if (!perfilId) return []
   const out: Pendencia[] = []
   for (const f of fluxos) {
     if (f.concluido || f.travado_motivo) continue
+    // A track de verdade já acompanha o que é dela. Ver o comentário acima.
+    if (!f.implicita) continue
     const et = etapaAtual(f)
     if (!et) continue
     for (const item of et.itens) {
