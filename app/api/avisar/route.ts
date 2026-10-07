@@ -108,6 +108,30 @@ export async function POST(req: Request) {
   const avisos = (fila || []) as Aviso[]
   if (!avisos.length) return NextResponse.json({ gerados: novos ?? 0, enviados: 0 })
 
+  const temVapid = prepararVapid()
+
+  /**
+   * Sem o par VAPID não existe push, e a fila NÃO é queimada.
+   *
+   * Marcar como entregue quer dizer "nós tentamos", e não "nós olhamos". Com as
+   * chaves faltando no servidor, a primeira chamada marcava duzentos avisos e
+   * nenhum saía: a configuração errada consumia a fila inteira em silêncio, e
+   * nenhum deles voltava depois que ela fosse arrumada. Aconteceu em
+   * 07/10/2026, com seis avisos.
+   *
+   * O WhatsApp não depende de VAPID, então ele ainda segura a chamada de pé
+   * quando houver conector ligado.
+   */
+  const { count: comWhats } = await sb.from('avisos_contato')
+    .select('perfil_id', { count: 'exact', head: true }).eq('whats', true)
+  if (!temVapid && !comWhats) {
+    return NextResponse.json({
+      gerados: novos ?? 0, enviados: 0, naFila: avisos.length,
+      porque: 'Falta o par VAPID no servidor (VAPID_CHAVE_PUBLICA e '
+        + 'VAPID_CHAVE_PRIVADA). Os avisos continuam na fila.',
+    }, { status: 503 })
+  }
+
   // 3. Marca como entregue ANTES de mandar. Ver o comentário do topo: falha de
   //    entrega deixa o aviso no sino, que é onde ele não se perde. Repetir a
   //    tentativa é que seria ruim para quem recebe.
@@ -129,15 +153,28 @@ export async function POST(req: Request) {
     else pushDe.set(a.perfil_id, [a])
   }
 
-  const temVapid = prepararVapid()
   const endereco = base(req)
   let enviados = 0
   let porWhats = 0
   const mortos: string[] = []
+  /**
+   * Por que cada aviso não saiu.
+   *
+   * `enviados: 0` sem motivo é indepurável de fora, e foi exatamente o que
+   * aconteceu aqui: a rota devolvia zero e não havia como saber se faltava
+   * chave, contato, aparelho ou se o envio tinha sido recusado. Contar é
+   * barato e responde a pergunta na primeira tentativa.
+   */
+  const semSaida = { semContato: 0, calado: 0, semAparelho: 0 }
+  const falhas: Record<string, number> = {}
 
   for (const aviso of avisos) {
     const contato = porPerfil.get(aviso.perfil_id) || null
-    if (!podeSair(aviso, contato)) continue
+    if (!contato) { semSaida.semContato++; continue }
+    if (!podeSair(aviso, contato)) { semSaida.calado++; continue }
+    if (temVapid && contato.push && !(pushDe.get(aviso.perfil_id) || []).length) {
+      semSaida.semAparelho++
+    }
 
     // --- push ------------------------------------------------------------
     if (temVapid && contato?.push) {
@@ -166,6 +203,9 @@ export async function POST(req: Request) {
           // mais. Guardar assinatura morta é gastar uma chamada por aviso para
           // sempre, então ela sai.
           const st = (e as { statusCode?: number }).statusCode
+          // O código do navegador é a única pista de qual é o problema: 403 é
+          // chave trocada, 404 e 410 são aparelho que não existe mais.
+          falhas[`push ${st ?? 'sem código'}`] = (falhas[`push ${st ?? 'sem código'}`] || 0) + 1
           if (st === 404 || st === 410) mortos.push(assin.id)
         }
       }
@@ -222,6 +262,10 @@ export async function POST(req: Request) {
     enviados,
     whatsapp: porWhats,
     aparelhosRemovidos: mortos.length,
+    // Por que o resto não saiu. Sem isto, zero enviados é indepurável de fora.
+    temVapid,
+    naoSairam: semSaida,
+    falhas: Object.keys(falhas).length ? falhas : undefined,
   })
 }
 
