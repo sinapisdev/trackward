@@ -535,6 +535,17 @@ h1{font:var(--fw-bold) var(--fs-title)/var(--lh-title) var(--sans);letter-spacin
 .dlg-h h3{margin:0;font:var(--fw-semibold) var(--fs-h3)/var(--lh-h3) var(--sans);letter-spacing:var(--ls-h3)}
 .dlg-h p{margin:8px 0 0;color:var(--tx-2);font-size:var(--fs-ui)}
 .dlg-b{padding:18px 26px;display:flex;flex-direction:column;gap:16px}
+/* O corpo e o rodapé das caixas curtas, as que não têm formulário dentro: a
+   pergunta do nome, o convite de instalar e o pedido de aviso. Elas usavam
+   `.dlg-c` e `.dlg-p`, que NÃO EXISTEM: o navegador ignora a classe
+   desconhecida, e as três vinham sem recuo nenhum, com o texto colado nas duas
+   bordas e parecendo cortado pela tela. É o jeito mais silencioso de uma tela
+   quebrar: nada dá erro, e só se vê num print de celular. */
+.dlg-c{padding:6px 26px 18px;display:flex;flex-direction:column;gap:12px}
+.dlg-c>p{margin:0}
+.dlg-p{display:flex;justify-content:flex-end;gap:10px;padding:16px 26px;
+  border-top:1px solid var(--line);background:var(--alto);
+  border-radius:0 0 var(--r-lg) var(--r-lg)}
 .dlg-f{display:flex;justify-content:flex-end;gap:10px;padding:16px 26px;border-top:1px solid var(--line);
   background:var(--sunken);border-radius:0 0 var(--r-lg) var(--r-lg)}
 .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
@@ -792,8 +803,8 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns
   .cpr .tools{grid-row:1/span 4;grid-column:3}
   .ov{padding:0;place-items:end stretch}
   .dlg,.dlg.wide{max-width:none;border-radius:var(--r-lg) var(--r-lg) 0 0;max-height:94dvh;overflow:auto}
-  .dlg-f{position:sticky;bottom:0;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px))}
-  .dlg-f .btn{flex:1;justify-content:center;padding:11px 14px}
+  .dlg-f,.dlg-p{position:sticky;bottom:0;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px))}
+  .dlg-f .btn,.dlg-p .btn{flex:1;justify-content:center;padding:11px 14px}
 
   /* um dia por vez, com a semana escolhida na faixa de cima */
   .ag-semana.um-dia,.ag-semana.um-dia .ag-cab,.ag-semana.um-dia .ag-dia-inteiro,
