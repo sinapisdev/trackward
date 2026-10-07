@@ -58,7 +58,11 @@ export function TabBar() {
    * para a lista, que é como todo app de mensagem faz. Quem entra numa conversa
    * entrou para ler e responder, não para trocar de seção.
    */
-  if (caminho.startsWith('/chat/')) return null
+  /* O secretário é uma conversa, e sofre do mesmo aperto. A diferença é que
+     ele é a PRIMEIRA ABA do espaço pessoal, sem lista acima dele: tirar a
+     barra sem mais nada deixaria a pessoa sem Tarefas, Tracks nem Agenda. Por
+     isso ele ganhou a seta de voltar no cabeçalho, como toda conversa tem. */
+  if (caminho.startsWith('/chat/') || caminho === '/secretario') return null
 
   return (
     <>

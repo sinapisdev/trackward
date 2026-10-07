@@ -1482,7 +1482,7 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
    calcula a própria altura usa as barras medidas, e `--alt-janela` cobre o
    teclado aberto. */
 .secr{height:calc(var(--alt-janela,100dvh) - var(--alt-topo-real,93px)
-      - var(--alt-abas-real,0px) - 86px)}
+      - var(--alt-abas-real,0px) - var(--alt-rodape-real,54px) - 86px)}
 /* No celular o recuo do conteúdo sai (ver o bloco de 840px), então ele não
    entra na conta. */
 @media (max-width:840px){

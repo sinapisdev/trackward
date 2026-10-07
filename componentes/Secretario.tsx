@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useDados } from './Dados'
 import { useComandos } from './Comandos'
 import { Ic } from './Icones'
@@ -112,6 +113,11 @@ export function Secretario() {
   return (
     <section className="chat-conversa secr">
       <header className="chat-topo">
+        {/* No celular a barra de abas some aqui, como dentro de um canal: ela
+            come 56px justamente na tela onde a altura é o recurso escasso. Esta
+            seta é o que impede isso de prender a pessoa, e `/` no espaço
+            pessoal é o caderno, que é a inicial dela. */}
+        <Link className="iconbtn so-celular" href="/" aria-label="Voltar"><Ic.volta /></Link>
         <span className="mk"><Ic.faisca /></span>
         <div className="chat-titulo">
           <b>Secretário</b>

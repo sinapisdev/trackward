@@ -37,8 +37,25 @@ function useAlturaDasBarras() {
          altura dela MAIS a folga até o fim da janela, senão o campo de escrever
          nasce embaixo dela. Por isso mede-se o topo da barra até a base da
          janela, e não a altura da caixa. */
+      /* `display:none` devolve um retângulo de ZEROS, e não `null`. Então
+         `innerHeight - r.top` virava `innerHeight - 0`, ou seja, a janela
+         INTEIRA: no computador, onde a barra existe no DOM e some por CSS, a
+         variável valia 900px e quem a descontava ficava com altura zero. O
+         secretário foi o primeiro a cair porque é a primeira tela de altura
+         fixa que desconta a barra também no computador. A pergunta certa não é
+         se o elemento existe, é se ele OCUPA espaço. */
+      /* O rodapé da marca, que no computador fica embaixo de tudo e é fácil
+         esquecer que ocupa altura: tela de altura fixa que não o desconta faz
+         a PÁGINA rolar exatamente a altura dele, e aí a barra de abas sobe e
+         desce com a barra de endereço. No celular ele some, e mede zero. */
+      const pe = document.querySelector('.tw-rodape') as HTMLElement | null
+      const peR = pe?.getBoundingClientRect()
+      raiz.style.setProperty('--alt-rodape-real',
+        (peR && peR.height > 0 ? Math.round(peR.height) : 0) + 'px')
+
       const r = abas?.getBoundingClientRect()
-      const ocupa = r ? Math.max(0, Math.round(window.innerHeight - r.top)) : 0
+      const naTela = !!r && r.height > 0
+      const ocupa = naTela ? Math.max(0, Math.round(window.innerHeight - r.top)) : 0
       raiz.style.setProperty('--alt-abas-real', ocupa + 'px')
 
       /**
@@ -64,7 +81,7 @@ function useAlturaDasBarras() {
     }
     medir()
     const ro = new ResizeObserver(medir)
-    for (const s of ['.tw-topo', '.tabbar']) {
+    for (const s of ['.tw-topo', '.tabbar', '.tw-rodape']) {
       const el = document.querySelector(s)
       if (el) ro.observe(el)
     }
