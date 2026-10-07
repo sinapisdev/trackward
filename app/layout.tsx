@@ -60,6 +60,25 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   /**
+   * O teclado encolhe a PÁGINA, e não só a parte visível.
+   *
+   * O padrão do navegador é `resizes-visual`: o teclado sobe por cima e o
+   * tamanho da página não muda. Quem é `position:fixed` continua preso ao
+   * tamanho antigo, então a barra de abas fica embaixo do teclado e leva o
+   * campo de escrever junto. Foi o que aconteceu na conversa, e medir a janela
+   * com `visualViewport` resolvia a altura da conversa e NÃO resolvia a barra,
+   * porque ela não depende da conversa.
+   *
+   * `resizes-content` faz a página inteira encolher. Aí `100dvh` passa a dizer
+   * a verdade, o que é fixo gruda no lugar certo, e o campo de escrever fica
+   * logo acima do teclado sem ninguém calcular nada.
+   *
+   * O navegador que ignorar isto cai na medida de `--alt-janela`, que continua
+   * de pé em `Shell.tsx`. Não é redundância: é a mesma resposta por dois
+   * caminhos, e o segundo cobre quem não entende o primeiro.
+   */
+  interactiveWidget: 'resizes-content',
+  /**
    * `viewport-fit` fica no padrão, e isso é uma decisão, não um esquecimento.
    *
    * Com `cover` o app vai até a borda da tela e passa a depender de

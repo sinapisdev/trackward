@@ -824,11 +824,29 @@ function Conversa({ canal }: { canal: Canal }) {
 
   // Uma linha por autor, como em app de conversa: o cabeçalho só volta quando
   // muda quem fala ou passam alguns minutos.
-  const linhas: { m: Mensagem; junto: boolean; dia: string | null }[] = []
+  const linhas: { m: Mensagem; junto: boolean; dia: string | null; comEle?: Mensagem[] }[] = []
   let anterior: Mensagem | null = null
   for (const m of msgs) {
     const dia = isoDe(m.criado_em)
     const diaAntes = anterior ? isoDe(anterior.criado_em) : null
+    /**
+     * Linhas de sistema seguidas viram UMA.
+     *
+     * O canal precisa registrar o que aconteceu com o trabalho, senão o
+     * combinado some num canto que o outro não abre. Mas uma frase por evento
+     * transforma a conversa em mural de recibo: quatro linhas de máquina para
+     * uma de gente é a conversa deixando de ser conversa.
+     *
+     * Juntas, elas ocupam uma linha e abrem no toque. O registro continua
+     * inteiro e some de vista, que é a troca certa: ninguém abre o app para ler
+     * recibo, e quem procurar acha.
+     */
+    if (m.sistema && anterior?.sistema && dia === diaAntes) {
+      const ultima = linhas[linhas.length - 1]
+      ultima.comEle = [...(ultima.comEle || []), m]
+      anterior = m
+      continue
+    }
     const junto = !!anterior && !m.sistema && !anterior.sistema
       && anterior.autor_id === m.autor_id && dia === diaAntes
       && Date.parse(m.criado_em) - Date.parse(anterior.criado_em) < 6 * 60000
@@ -891,19 +909,37 @@ function Conversa({ canal }: { canal: Canal }) {
           </div>
         )}
 
-        {linhas.map(({ m, junto, dia }) => {
+        {linhas.map(({ m, junto, dia, comEle }) => {
           const citada = m.responde_a ? porId.get(m.responde_a) ?? null : undefined
           return (
           <div key={m.id}>
             {dia && <div className="chat-dia"><span>{diaDe(dia)}</span></div>}
             {m.sistema ? (
-              <div className={`chat-sis ${m.por_ia ? 'ia' : ''}`}>
-                <Ic.faisca />
-                <span>
-                  {m.por_ia ? <b>A leitura da conversa</b> : nomeDe(m.autor_id)} {m.texto}
-                </span>
-                <i>{hora(m.criado_em)}</i>
-              </div>
+              comEle?.length ? (
+                <details className="chat-sis-grupo">
+                  <summary>
+                    <Ic.faisca />
+                    <span>{comEle.length + 1} coisas aconteceram aqui</span>
+                    <i>{hora(m.criado_em)}</i>
+                  </summary>
+                  {[m, ...comEle].map((x) => (
+                    <div key={x.id} className={`chat-sis ${x.por_ia ? 'ia' : ''}`}>
+                      <span>
+                        {x.por_ia ? <b>A leitura da conversa</b> : nomeDe(x.autor_id)} {x.texto}
+                      </span>
+                      <i>{hora(x.criado_em)}</i>
+                    </div>
+                  ))}
+                </details>
+              ) : (
+                <div className={`chat-sis ${m.por_ia ? 'ia' : ''}`}>
+                  <Ic.faisca />
+                  <span>
+                    {m.por_ia ? <b>A leitura da conversa</b> : nomeDe(m.autor_id)} {m.texto}
+                  </span>
+                  <i>{hora(m.criado_em)}</i>
+                </div>
+              )
             ) : (
               <div id={`msg-${m.id}`}
                 className={`msg ${junto ? 'junto' : ''} ${chama(m.texto, eu.nome) ? 'chamou' : ''}`

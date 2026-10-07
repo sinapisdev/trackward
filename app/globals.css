@@ -1345,6 +1345,22 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
 .chat-sis span{min-width:0;overflow-wrap:anywhere}
 .chat-sis i{font-style:normal;font-size:10.5px;margin-left:auto;flex:none}
 
+/* O registro do trabalho, recolhido.
+   Ele precisa existir no canal, senão o combinado some num canto que o outro
+   não abre. Mas uma linha por evento vira mural de recibo, e quatro linhas de
+   máquina para uma de gente é a conversa deixando de ser conversa. */
+.chat-sis-grupo summary{display:flex;align-items:center;gap:8px;padding:7px 16px;
+  color:var(--tx-3);font-size:12px;cursor:pointer;list-style:none}
+.chat-sis-grupo summary::-webkit-details-marker{display:none}
+.chat-sis-grupo summary:hover{color:var(--tx-2)}
+.chat-sis-grupo summary>svg{color:var(--warn-forte);flex:none}
+.chat-sis-grupo summary>i{font-style:normal;font-size:10.5px;margin-left:auto;flex:none}
+.chat-sis-grupo[open] summary{color:var(--tx-2)}
+/* Aberto, as linhas ficam recuadas e com um fio: elas são o que o grupo
+   guardava, e não falas novas na conversa. */
+.chat-sis-grupo[open] .chat-sis{padding-left:40px;
+  box-shadow:inset 2px 0 0 var(--line-2)}
+
 .chat-vazio{margin:auto;padding:44px 24px;text-align:center;max-width:430px}
 .chat-vazio h3{margin:0 0 8px;font-size:17px;font-weight:700;letter-spacing:-.028em}
 .chat-vazio p{margin:0 0 16px;color:var(--tx-3);font-size:13px;line-height:1.6}

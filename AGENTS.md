@@ -1364,9 +1364,21 @@ A conversa calculava a altura com `100dvh`. No celular, abrir o teclado empurrav
 conversa inteira para baixo dele e o campo de escrever saía da tela, que é justamente onde
 a pessoa estava tentando digitar.
 
-**`dvh` não encolhe com o teclado.** Ele é a altura da janela do navegador, e o teclado não
-é janela: ele é pintado por cima. Quem sabe o tamanho de verdade é `visualViewport`, que é
-a parte da página que a pessoa está realmente vendo.
+**Quem resolve isso é uma chave de viewport, e ela vem desligada.** O padrão do navegador é
+`interactive-widget=resizes-visual`: o teclado sobe por cima e o tamanho da PÁGINA não muda.
+Quem é `position:fixed` continua preso ao tamanho antigo, então a barra de abas fica embaixo
+do teclado e leva o campo de escrever junto. Com **`resizes-content`**, em `app/layout.tsx`,
+a página inteira encolhe: `100dvh` passa a dizer a verdade, o que é fixo gruda no lugar
+certo, e o campo fica logo acima do teclado sem ninguém calcular nada.
+
+Medir com `visualViewport` sozinho **não resolve**, e isso custou uma tentativa: ele acerta
+a altura da CONVERSA e não mexe na barra de abas, que não depende dela. As duas coisas
+ficam, porque são a mesma resposta por dois caminhos e o segundo cobre o navegador que
+ignorar o primeiro.
+
+**`dvh` não encolhe com o teclado** quando a chave está no padrão. Ele é a altura da janela
+do navegador, e o teclado não é janela: ele é pintado por cima. Quem sabe o tamanho real é
+`visualViewport`, que é a parte da página que a pessoa está realmente vendo.
 
 `Shell.tsx` publica **`--alt-janela`** junto de `--alt-topo-real` e `--alt-abas-real`, e
 quem calcula a própria altura usa ela em vez de `100dvh`. `offsetTop` entra na conta porque
@@ -1376,10 +1388,12 @@ janela, e ignorar isso deixa a tela alta demais pelo tanto que ele rolou.
 **Medido:** em 393x800, a conversa tem 682px de altura e o campo termina em 729. Com o
 teclado ocupando 330px, ela passa a 352 e o campo termina em 399, dentro dos 470 visíveis.
 
-**A barra do sistema em cima do teclado não se tira.** Aquela com seta para cima, seta para
-baixo e um visto é do aparelho, não do app: nenhuma API da web a esconde, nem em PWA
-instalado. O que dá para fazer é a conta de altura considerá-la, e é o que `visualViewport`
-já faz, porque ele mede o que sobra DEPOIS dela.
+**A barra do sistema em cima do teclado não se tira, e o WhatsApp não a tem por não ser
+web.** Aquela com seta para cima, seta para baixo e um visto é o teclado navegando entre
+campos de formulário de uma PÁGINA. App nativo desenha o próprio campo e nunca pede essa
+barra; página não tem como recusá-la, nem em PWA instalado, e não existe API para isso. O
+que dá para fazer é a conta de altura considerá-la, e `visualViewport` já faz, porque ele
+mede o que sobra DEPOIS dela.
 
 ## A fala tem corpo, e o canal parou de ser mural de recibo
 
@@ -1399,6 +1413,12 @@ mesma tela é defeito, e o acento é da ação que faz o trabalho andar, não do
 **O balão veste só o TEXTO.** Anexo, recado de voz e cartão de nota ficam fora: eles já têm
 corpo próprio, e um dentro do outro vira caixa dentro de caixa. E o realce de linha inteira
 saiu junto, porque com a fala tendo corpo ele virava uma faixa atravessando o vazio ao lado.
+
+**E as linhas de sistema seguidas viram UMA**, que abre no toque. O canal precisa registrar
+o que aconteceu com o trabalho, senão o combinado some num canto que o outro não abre. Mas
+uma frase por evento vira mural de recibo, e quatro linhas de máquina para uma de gente é a
+conversa deixando de ser conversa. Recolhidas, o registro continua inteiro e some de vista:
+ninguém abre o app para ler recibo, e quem procurar acha.
 
 ## A proposta avisa quem vai fazer, e o aviso tem botão
 
