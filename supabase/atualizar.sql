@@ -6009,6 +6009,39 @@ create index if not exists notas_conversa_idx on public.notas (org_id)
   where conversa;
 
 -- ==========================================================================
+-- 66. O recado de voz do secretário
+--
+--     `posso_ver_anexo` conferia o áudio por `ve_canal(m.canal_id)`, e o recado
+--     ditado no secretário não tem canal: ele pertence a uma NOTA. Sem esta
+--     linha, o arquivo subia, a mensagem gravava, e tocar devolvia recusa do
+--     Storage: o áudio existiria e ninguém o ouviria, nem quem o gravou.
+--
+--     Quem vê é `minha_nota`, e não `ve_nota`: a conversa de dentro de uma nota
+--     é do dono e de mais ninguém, mesmo quando a nota é compartilhada. Quem
+--     compartilha está mostrando o que escreveu, não o que disse ao secretário
+--     enquanto pensava, e a segunda é a mais íntima das duas.
+-- ==========================================================================
+
+create or replace function public.posso_ver_anexo(p_caminho text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from anexos a where a.caminho = p_caminho and ve_anexo(a.id)
+  )
+  -- Recado de voz num canal: abre quando o canal abre.
+  or exists (
+    select 1 from mensagens m
+    where m.audio_caminho = p_caminho and minha(m.org_id)
+      and m.canal_id is not null and ve_canal(m.canal_id)
+  )
+  -- Recado de voz numa nota: só a dona, sem exceção nem para administrador.
+  or exists (
+    select 1 from mensagens m
+    where m.audio_caminho = p_caminho and minha(m.org_id)
+      and m.nota_id is not null and minha_nota(m.nota_id)
+  );
+$$;
+
+-- ==========================================================================
 
 alter table public.fluxos add column if not exists implicita boolean not null default false;
 
@@ -6454,4 +6487,10 @@ select
   (select count(*) from information_schema.columns
     where table_schema = 'public' and table_name = 'notas'
       and column_name = 'lido_pela_ia_em')
-    as "a conversa guarda ate onde foi lida (1)";
+    as "a conversa guarda ate onde foi lida (1)",
+  -- O recado ditado no secretário pertence a uma NOTA, e sem esta linha ele
+  -- subia, gravava, e não tocava para ninguém, nem para quem gravou.
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'posso_ver_anexo'
+      and pg_get_functiondef(p.oid) like '%minha_nota(m.nota_id)%')
+    as "a voz da nota abre para a dona (1)";

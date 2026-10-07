@@ -354,8 +354,14 @@ type Contexto = {
    * `ve_canal` não enxerga a linha que está sendo inserida na mesma instrução.
    */
   enviar: (canalId: string, texto: string, respondeA?: string | null) => Promise<string | null>
-  /** Manda um recado de voz. O texto é a transcrição, e vai no corpo da mensagem. */
-  enviarAudio: (canalId: string, g: {
+  /**
+   * Manda um recado de voz. O texto é a transcrição, e vai no corpo da mensagem.
+   *
+   * `onde` é um canal OU uma nota, nunca os dois, como a própria mensagem. O
+   * secretário é uma nota, e ditar é o jeito mais natural de despejar: quem
+   * está dirigindo não digita, e é justamente aí que a ideia aparece.
+   */
+  enviarAudio: (onde: { canal?: string; nota?: string }, g: {
     blob: Blob; mime: string; segundos: number; texto: string
   }, respondeA?: string | null) => Promise<boolean>
   /** URL temporária para tocar o áudio de uma mensagem. */
@@ -2099,20 +2105,24 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     return id
   }, [sb, eu.id, falhou, recarregar])
 
-  const enviarAudio: Contexto['enviarAudio'] = useCallback(async (canalId, g, respondeA = null) => {
+  const enviarAudio: Contexto['enviarAudio'] = useCallback(async (onde, g, respondeA = null) => {
     if (!org.id) { falhou(null, 'Organização ainda carregando. Tente de novo.'); return false }
+    const dono = onde.canal || onde.nota
+    if (!dono) { falhou(null, 'O recado precisa de uma conversa onde morar.'); return false }
     if (g.blob.size > LIMITE) {
       falhou(null, `O recado tem ${tamanhoLegivel(g.blob.size)}. O limite é ${tamanhoLegivel(LIMITE)}.`)
       return false
     }
     // Mesmo balde e mesma convenção de caminho dos anexos: começa pelo id da
     // organização, que é o que a política do Storage confere no envio.
-    const caminho = `${org.id}/voz/${canalId}/${Date.now()}-${eu.id}.${extensaoDe(g.mime)}`
+    const caminho = `${org.id}/voz/${dono}/${Date.now()}-${eu.id}.${extensaoDe(g.mime)}`
     const { error: erroArquivo } = await sb.storage.from('anexos').upload(caminho, g.blob)
     if (erroArquivo) { falhou(erroArquivo, 'Não foi possível enviar o recado.'); return false }
 
     const { error } = await sb.from('mensagens').insert({
-      canal_id: canalId, autor_id: eu.id, texto: g.texto.trim(), responde_a: respondeA,
+      id: novoId(),
+      canal_id: onde.canal ?? null, nota_id: onde.nota ?? null,
+      autor_id: eu.id, texto: g.texto.trim(), responde_a: respondeA,
       sistema: false, audio_caminho: caminho,
       audio_segundos: Math.round(g.segundos), transcrito: !!g.texto.trim(),
     })

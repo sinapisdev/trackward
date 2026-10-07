@@ -20,8 +20,10 @@ import {
  * Continua servindo para quem escuta; o que se perde é a IA entender.
  */
 
-export function BotaoVoz({ canalId, respondeA, aoEnviar }: {
-  canalId: string
+export function BotaoVoz({ canalId, notaId, respondeA, aoEnviar }: {
+  /** Um canal OU uma nota, nunca os dois: o recado mora onde a conversa está. */
+  canalId?: string
+  notaId?: string
   respondeA?: string | null
   aoEnviar?: () => void
 }) {
@@ -73,7 +75,7 @@ export function BotaoVoz({ canalId, respondeA, aoEnviar }: {
   const mandar = async () => {
     if (!pronta) return
     setIndo(true)
-    const ok = await enviarAudio(canalId, { ...pronta, texto }, respondeA)
+    const ok = await enviarAudio({ canal: canalId, nota: notaId }, { ...pronta, texto }, respondeA)
     setIndo(false)
     if (!ok) return
     setPronta(null)

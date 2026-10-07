@@ -1391,6 +1391,16 @@ conversa é o contrário: ela existe para ser lida.
 **O botão redondo some aqui**, como dentro de um canal: ele ficaria em cima do campo de
 escrever, e quem cria usa a barra.
 
+**E dá para DITAR.** Ditar é o jeito mais natural de despejar: quem está dirigindo não
+digita, e é justamente aí que a ideia aparece. O recado passa a poder morar numa NOTA e não
+só num canal, e `posso_ver_anexo` ganhou o caminho dela (seção 66). Sem essa linha o arquivo
+subia, a mensagem gravava, e tocar devolvia recusa: o áudio existiria e ninguém o ouviria,
+nem quem o gravou.
+
+Quem autoriza é `minha_nota`, e não `ve_nota`: a conversa de dentro de uma nota é do dono e
+de mais ninguém, mesmo quando a nota é compartilhada. Quem compartilha está mostrando o que
+escreveu, não o que disse ao secretário enquanto pensava.
+
 ## Dentro de uma conversa a tela é toda dela
 
 Duas coisas saem de cena no celular quando a pessoa entra num canal, e as duas pelo mesmo

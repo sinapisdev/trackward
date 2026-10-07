@@ -6,6 +6,7 @@ import { useComandos } from './Comandos'
 import { Ic } from './Icones'
 import { Av } from './atomos'
 import { AnexosDaMensagem } from './Anexos'
+import { BotaoVoz, Recado } from './Voz'
 import { CartaoSugestao } from './TelaChat'
 import { Carregando } from './Shell'
 import { useCelular } from './partes'
@@ -45,7 +46,7 @@ const hora = (ts: string) =>
 export function Secretario() {
   const {
     eu, org, carregando, conversaIA, abrirConversaIA, mensagensDaNota, sugestoesDaNota,
-    escreverNaNota, anexar, apagarMensagem, respondendo, lerNota, toast,
+    escreverNaNota, anexar, apagarMensagem, respondendo, lerNota, toast, abrirAudio,
   } = useDados()
   const [texto, setTexto] = useState('')
   const [arquivos, setArquivos] = useState<File[]>([])
@@ -149,10 +150,17 @@ export function Secretario() {
                 <b>{m.por_ia ? 'Secretário' : 'Você'}</b>
                 <i>{hora(m.criado_em)}</i>
               </div>
+              {m.audio_caminho && (
+                <Recado caminho={m.audio_caminho} segundos={m.audio_segundos}
+                  aoAbrir={() => abrirAudio(m)} />
+              )}
               {!!m.texto && (
                 <p className="msg-bolha">
                   {m.por_ia ? <ComLigacoes texto={m.texto} /> : m.texto}
                 </p>
+              )}
+              {m.audio_caminho && !m.texto && (
+                <p className="sem-texto">Recado sem transcrição, a leitura não ouve este.</p>
               )}
               <AnexosDaMensagem mensagemId={m.id} />
             </div>
@@ -214,6 +222,10 @@ export function Secretario() {
             <span className="chat-dentro">
               <button className="iconbtn" aria-label="Anexar arquivo" title="Anexar arquivo"
                 onClick={() => entrada.current?.click()}><Ic.clipe /></button>
+              {/* Ditar é o jeito mais natural de despejar: quem está dirigindo
+                  não digita, e é justamente aí que a ideia aparece. O navegador
+                  transcreve, e o que a leitura separa depois é a transcrição. */}
+              <BotaoVoz notaId={nota.id} />
             </span>
           </div>
           <button className="btn pri" aria-label="Enviar"
