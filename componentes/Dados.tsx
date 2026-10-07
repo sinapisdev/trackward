@@ -2269,7 +2269,22 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       // Guardamos o que nasceu daqui, senão não há como desfazer depois.
       dados.criou_id = id
       dados.fluxo_id = et.fluxo_id
-      contou = `criou a tarefa "${texto}"${onde ? ` em ${onde.nome}` : ''}`
+      /**
+       * Duas linhas para a mesma coisa, e o canal virava mural de recibo.
+       *
+       * `adicionarItem` já conta no canal quando a tarefa é PEDIDO ("Ariane
+       * pediu a Leonardo: Fazer o relatório, até 9 out"), que é a frase útil:
+       * ela diz quem, para quem e até quando. A daqui dizia "criou a tarefa X
+       * em Sócios", que repete o mesmo fato com menos informação, e as duas
+       * apareciam coladas na conversa.
+       *
+       * Então esta só sobra quando a outra não saiu: tarefa que a pessoa
+       * escreveu para si mesma, onde não houve combinado com ninguém e o canal
+       * continua merecendo saber que algo nasceu dali.
+       */
+      contou = dados.resp_id && dados.resp_id !== eu.id
+        ? ''
+        : `criou a tarefa "${texto}"${onde ? ` em ${onde.nome}` : ''}`
     } else if (tipo === 'concluir') {
       const achado = itemPorId(dados.item_id)
       if (!achado) return toast('A tarefa não existe mais.', true)

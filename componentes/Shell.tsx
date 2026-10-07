@@ -40,6 +40,27 @@ function useAlturaDasBarras() {
       const r = abas?.getBoundingClientRect()
       const ocupa = r ? Math.max(0, Math.round(window.innerHeight - r.top)) : 0
       raiz.style.setProperty('--alt-abas-real', ocupa + 'px')
+
+      /**
+       * A altura que SOBRA quando o teclado está aberto.
+       *
+       * `100dvh` não encolhe com o teclado: no celular ele é desenhado POR CIMA
+       * da página, e a página continua achando que tem a tela inteira. O
+       * resultado é a conversa inteira empurrada para baixo do teclado, com o
+       * campo de escrever fora da tela, que é justamente onde a pessoa estava
+       * tentando digitar.
+       *
+       * Quem sabe o tamanho de verdade é `visualViewport`, e só ele: ele é a
+       * parte da página que a pessoa está realmente vendo. Sem ele (navegador
+       * antigo), cai em `innerHeight`, que é o comportamento de hoje.
+       *
+       * `offsetTop` entra na conta porque, com o teclado aberto, o navegador
+       * às vezes rola a página por dentro em vez de encolher a janela: ignorar
+       * isso deixa a tela alta demais pelo tanto que ele rolou.
+       */
+      const vv = window.visualViewport
+      const janela = vv ? Math.round(vv.height + vv.offsetTop) : window.innerHeight
+      raiz.style.setProperty('--alt-janela', janela + 'px')
     }
     medir()
     const ro = new ResizeObserver(medir)
@@ -48,7 +69,15 @@ function useAlturaDasBarras() {
       if (el) ro.observe(el)
     }
     window.addEventListener('resize', medir)
-    return () => { ro.disconnect(); window.removeEventListener('resize', medir) }
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', medir)
+    vv?.addEventListener('scroll', medir)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', medir)
+      vv?.removeEventListener('resize', medir)
+      vv?.removeEventListener('scroll', medir)
+    }
   }, [])
 }
 

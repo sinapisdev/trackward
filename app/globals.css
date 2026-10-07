@@ -1267,6 +1267,30 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
 .msg-h i{font:var(--fw-regular) var(--fs-meta)/1.2 var(--sans);color:var(--tx-3);
   font-style:normal;font-variant-numeric:tabular-nums}
 
+/* ------------------------------------------------------------------ balões
+   A fala ganha corpo, como em app de mensagem.
+
+   Não é enfeite: numa lista de parágrafos soltos, onde uma fala acaba e a
+   outra começa é uma decisão do olho a cada linha. O contorno responde isso
+   sem ninguém ler nada, e é o que todo mundo já aprendeu a ler no WhatsApp.
+
+   O balão é vidro grafite, e a sua fala é a MESMA cor com um fio do acento, em
+   vez de ser lima cheia: dois limas na mesma tela é defeito, e o acento é da
+   ação que faz o trabalho andar, não do recipiente. Quem distingue é o lado em
+   que a bolha está, que é o sinal que o olho pega primeiro. */
+.msg-bolha{display:inline-block;max-width:min(78%,620px);padding:9px 13px;
+  border-radius:var(--r);background:var(--alto);box-shadow:0 0 0 1px var(--line);
+  color:var(--tx)}
+.msg.minha .msg-bolha{box-shadow:0 0 0 1px color-mix(in srgb,var(--ac) 40%,var(--line))}
+.msg.junto .msg-bolha{border-top-left-radius:var(--r-sm)}
+.msg.minha.junto .msg-bolha{border-top-left-radius:var(--r);border-top-right-radius:var(--r-sm)}
+/* Hover de linha inteira não faz sentido quando a fala tem corpo: o realce
+   vira uma faixa que atravessa o vazio ao lado do balão. */
+.msg:hover{background:transparent}
+.msg.chamou{background:transparent;box-shadow:none}
+.msg.chamou .msg-bolha{background:color-mix(in srgb,var(--ac) 10%,var(--alto));
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--ac) 50%,transparent)}
+
 /* Chamar pelo nome, citar e responder: o que impede a conversa de se perder. */
 .arroba{color:var(--ac-tinta);font-weight:600}
 .msg.chamou{background:color-mix(in srgb,var(--ac) 9%,transparent);box-shadow:inset 2px 0 0 var(--ac-tinta)}
@@ -1440,8 +1464,14 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
      celular, a tela passava do fim da janela e a barra de abas cobria o campo
      de escrever: o lugar mais usado do app ficava meio escondido atrás da
      navegação. */
+  /* `--alt-janela` é o que o `visualViewport` diz que a pessoa está vendo, e
+     é diferente de `100dvh` com o teclado aberto: o teclado é desenhado POR
+     CIMA da página, e `dvh` não encolhe. Sem isto, abrir o teclado empurrava a
+     conversa inteira para baixo dele e o campo de escrever saía da tela, que é
+     justamente onde a pessoa estava tentando digitar. Ver Shell.tsx. */
   .chat{grid-template-columns:1fr;min-height:0;
-    height:calc(100dvh - var(--alt-topo-real,93px) - var(--alt-abas-real,56px))}
+    height:calc(var(--alt-janela,100dvh) - var(--alt-topo-real,93px)
+                - var(--alt-abas-real,56px))}
   .chat[data-aberto="sim"] .chat-lista{display:none}
   .chat[data-aberto="nao"] .chat-conversa{display:none}
   .chat-lista{border-right:0}

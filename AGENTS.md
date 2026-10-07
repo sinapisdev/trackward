@@ -1358,6 +1358,48 @@ da outra.
 critério de saída, e o banco recusa também. **E o que foi dispensado não volta**: havendo
 uma proposta de trilha para aquele canal, aberta ou recusada, o pulso não propõe de novo.
 
+## O teclado é desenhado POR CIMA da página, e `dvh` não sabe disso
+
+A conversa calculava a altura com `100dvh`. No celular, abrir o teclado empurrava a
+conversa inteira para baixo dele e o campo de escrever saía da tela, que é justamente onde
+a pessoa estava tentando digitar.
+
+**`dvh` não encolhe com o teclado.** Ele é a altura da janela do navegador, e o teclado não
+é janela: ele é pintado por cima. Quem sabe o tamanho de verdade é `visualViewport`, que é
+a parte da página que a pessoa está realmente vendo.
+
+`Shell.tsx` publica **`--alt-janela`** junto de `--alt-topo-real` e `--alt-abas-real`, e
+quem calcula a própria altura usa ela em vez de `100dvh`. `offsetTop` entra na conta porque
+com o teclado aberto o navegador às vezes rola a página por dentro em vez de encolher a
+janela, e ignorar isso deixa a tela alta demais pelo tanto que ele rolou.
+
+**Medido:** em 393x800, a conversa tem 682px de altura e o campo termina em 729. Com o
+teclado ocupando 330px, ela passa a 352 e o campo termina em 399, dentro dos 470 visíveis.
+
+**A barra do sistema em cima do teclado não se tira.** Aquela com seta para cima, seta para
+baixo e um visto é do aparelho, não do app: nenhuma API da web a esconde, nem em PWA
+instalado. O que dá para fazer é a conta de altura considerá-la, e é o que `visualViewport`
+já faz, porque ele mede o que sobra DEPOIS dela.
+
+## A fala tem corpo, e o canal parou de ser mural de recibo
+
+**Cada tarefa aceita escrevia DUAS linhas de sistema na conversa.** `adicionarItem` conta o
+pedido ("Ariane pediu a Leonardo: Fazer o relatório, até 9 out") e o aceite contava de novo
+("criou a tarefa X em Sócios"), as duas coladas. A primeira é a frase útil, porque diz quem,
+para quem e até quando; a segunda repete o mesmo fato com menos informação. Agora a do
+aceite só sobra quando a outra não saiu, que é a tarefa escrita para si mesmo.
+
+**E a fala ganhou balão.** Não é enfeite: numa lista de parágrafos soltos, onde uma fala
+acaba e a outra começa é uma decisão do olho a cada linha. O contorno responde isso sem
+ninguém ler nada, e é o que todo mundo já aprendeu a ler no WhatsApp.
+
+**O balão da sua fala é a MESMA cor, com um fio do acento**, e não lima cheio: dois limas na
+mesma tela é defeito, e o acento é da ação que faz o trabalho andar, não do recipiente.
+
+**O balão veste só o TEXTO.** Anexo, recado de voz e cartão de nota ficam fora: eles já têm
+corpo próprio, e um dentro do outro vira caixa dentro de caixa. E o realce de linha inteira
+saiu junto, porque com a fala tendo corpo ele virava uma faixa atravessando o vazio ao lado.
+
 ## A proposta avisa quem vai fazer, e o aviso tem botão
 
 A leitura roda sozinha três vezes por dia e deixava a proposta no canal. Quem não abriu o

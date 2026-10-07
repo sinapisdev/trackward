@@ -906,7 +906,8 @@ function Conversa({ canal }: { canal: Canal }) {
               </div>
             ) : (
               <div id={`msg-${m.id}`}
-                className={`msg ${junto ? 'junto' : ''} ${chama(m.texto, eu.nome) ? 'chamou' : ''}`}>
+                className={`msg ${junto ? 'junto' : ''} ${chama(m.texto, eu.nome) ? 'chamou' : ''}`
+                  + `${m.autor_id === eu.id ? ' minha' : ''}`}>
                 <span className="msg-av">
                   {junto ? <i className="msg-hora">{hora(m.criado_em)}</i> : <Av p={perfilDe(m.autor_id)} tam="lg" />}
                 </span>
@@ -945,7 +946,10 @@ function Conversa({ canal }: { canal: Canal }) {
                       <em>Abrir a nota</em>
                     </button>
                   ) : !!m.texto && (
-                    <p className={m.transcrito ? 'transcrito' : ''}>
+                    /* O balão veste só a FALA. Anexo, recado de voz e cartão de
+                       nota ficam fora: eles já têm corpo próprio, e um dentro
+                       do outro vira caixa dentro de caixa. */
+                    <p className={`msg-bolha ${m.transcrito ? 'transcrito' : ''}`}>
                       {pedacos(m.texto, nomes).map((d, i) => (
                         d.chamada
                           ? <b key={i} className="arroba">{d.texto}</b>
