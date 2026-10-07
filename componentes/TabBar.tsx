@@ -46,6 +46,20 @@ export function TabBar() {
     </Link>
   )
 
+  /**
+   * Dentro de uma conversa a barra some inteira.
+   *
+   * O botão redondo já saía daqui, porque ele ficaria em cima do campo de
+   * escrever. A barra tem o mesmo problema por outro caminho: ela come 56px da
+   * altura justamente na tela onde a altura é o recurso escasso, e com o
+   * teclado aberto sobram quatro linhas de conversa.
+   *
+   * Sair não deixa ninguém preso: o cabeçalho da conversa tem a seta de voltar
+   * para a lista, que é como todo app de mensagem faz. Quem entra numa conversa
+   * entrou para ler e responder, não para trocar de seção.
+   */
+  if (caminho.startsWith('/chat/')) return null
+
   return (
     <>
       <nav className="tabbar" aria-label="Navegação">

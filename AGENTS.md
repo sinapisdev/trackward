@@ -1358,6 +1358,21 @@ da outra.
 critério de saída, e o banco recusa também. **E o que foi dispensado não volta**: havendo
 uma proposta de trilha para aquele canal, aberta ou recusada, o pulso não propõe de novo.
 
+## Dentro de uma conversa a tela é toda dela
+
+Duas coisas saem de cena no celular quando a pessoa entra num canal, e as duas pelo mesmo
+motivo: ali a altura é o recurso escasso, e com o teclado aberto sobram quatro linhas.
+
+**A TabBar some inteira.** O botão redondo já saía, porque ficaria em cima do campo de
+escrever; a barra tem o mesmo problema por outro caminho, e come 56px. Sair não prende
+ninguém: o cabeçalho tem a seta de voltar para a lista, como em todo app de mensagem. Quem
+entra numa conversa entrou para ler e responder, não para trocar de seção.
+
+**E a faixa de propostas some quando não há nada em aberto.** "Nada em aberto · Ver 5 já
+decididas" é chrome puro: não diz nada que a pessoa precise agora e come mais 48px. Havendo
+proposta aberta ela volta, porque aí ela é o trabalho. No computador fica sempre, porque lá
+o espaço não disputa com nada e o histórico continua a um clique.
+
 ## Campo com letra menor que 16px faz o celular dar ZOOM
 
 É regra do aparelho, não do app: tocando num campo com fonte abaixo de 16px, o navegador do

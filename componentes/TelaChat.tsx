@@ -751,6 +751,7 @@ function Conversa({ canal }: { canal: Canal }) {
   const params = useSearchParams()
   const [lendo, setLendo] = useState(false)
   const [verFechadas, setVerFechadas] = useState(false)
+  const celular = useCelular()
   const aceitouDaUrl = useRef<string | null>(null)
 
   /**
@@ -1061,7 +1062,16 @@ function Conversa({ canal }: { canal: Canal }) {
         </div>
       )}
 
-      {(!!abertas.length || !!fechadas.length) && (
+      {/*
+        * Com nada em aberto, a faixa some NO CELULAR.
+        *
+        * "Nada em aberto · Ver 5 já decididas" é chrome puro: ela não diz nada
+        * que a pessoa precise agora e come 48px de altura na tela onde a altura
+        * é o recurso escasso. No computador ela fica, porque lá o espaço não
+        * disputa com nada, e o histórico do que foi decidido continua a um
+        * clique.
+        */}
+      {(!!abertas.length || (!!fechadas.length && !celular)) && (
         <div className="chat-sugs">
           <div className="chat-sugs-h">
             <Ic.faisca />
