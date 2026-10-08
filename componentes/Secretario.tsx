@@ -52,6 +52,9 @@ export function Secretario() {
   const [texto, setTexto] = useState('')
   const [arquivos, setArquivos] = useState<File[]>([])
   const [organizando, setOrganizando] = useState(false)
+  /* Abertas por padrão: elas são o trabalho, e esconder o que espera decisão é
+     o jeito de nunca decidir. Quem quiser a conversa de volta fecha. */
+  const [abertas, setAbertas] = useState(true)
   const rolo = useRef<HTMLDivElement>(null)
   const area = useRef<HTMLTextAreaElement>(null)
   const entrada = useRef<HTMLInputElement>(null)
@@ -208,15 +211,21 @@ export function Secretario() {
       </div>
 
       {!!propostas.length && (
-        <div className="chat-sugs">
-          <div className="chat-sugs-h">
+        /* A faixa abre e fecha pelo cabeçalho.
+           Com nove propostas ela come metade da tela, e quem quer voltar a ler a
+           conversa não tinha como. Fechar é o controle; o chão de altura (ver
+           `.chat-sugs` no globals.css) é o conserto do defeito que a sumia. */
+        <div className={`chat-sugs ${abertas ? '' : 'fechada'}`}>
+          <button className="chat-sugs-h" aria-expanded={abertas}
+            onClick={() => setAbertas((v) => !v)}>
             <Ic.faisca />
             <b>{propostas.length} {propostas.length === 1 ? 'coisa separada' : 'coisas separadas'}</b>
-          </div>
+            <span className="chat-sugs-seta"><Ic.chev /></span>
+          </button>
           {/* `despejo` muda o que a ficha oferece: aqui o responsável é sempre
               você, e perguntar "de quem é" num espaço de uma pessoa só é
               perguntar o óbvio. */}
-          {propostas.map((s) => <CartaoSugestao key={s.id} s={s} despejo />)}
+          {abertas && propostas.map((s) => <CartaoSugestao key={s.id} s={s} despejo />)}
         </div>
       )}
 

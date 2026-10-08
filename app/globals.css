@@ -1374,10 +1374,31 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
 .chat-vazio p{margin:0 0 16px;color:var(--tx-3);font-size:13px;line-height:1.6}
 
 /* ------------------------------------------------------- propostas da leitura */
-.chat-sugs{flex:0 1 auto;min-height:0;border-top:1px solid var(--line);background:var(--panel);
-  max-height:46vh;overflow-y:auto;overscroll-behavior:contain;padding-bottom:7px}
+/* `min-height` com CHÃO, e isto era um defeito.
+   Ela era `min-height:0`, e numa janela baixa a conta do flex espremia
+   justamente esta faixa até ela sumir: a conversa acima tem `min-height:96px` e
+   para de encolher, esta não tinha nada e absorvia o aperto inteiro. O
+   resultado era o cabeçalho dizendo "9 coisas separadas" com uma tira de cartão
+   embaixo, ou seja, nove coisas para decidir e nenhuma alcançável.
+   O chão é o cabeçalho mais um cartão, e o `min()` existe para a janela curta,
+   onde 150px pode ser mais que a própria faixa pode ocupar. Fechada ela volta a
+   poder encolher, porque aí só o cabeçalho sobra e ele é o que ela deve mostrar. */
+.chat-sugs{flex:0 1 auto;min-height:0;border-top:1px solid var(--line);
+  background:var(--panel);max-height:46vh;overflow-y:auto;overscroll-behavior:contain;
+  padding-bottom:7px}
+/* O chão vale só quando há CARTÃO dentro. No chat a faixa também aparece
+   dizendo "Nada em aberto", e ali um chão de 150px seria um painel vazio
+   ocupando a tela para dizer que não há nada. */
+.chat-sugs:has(.sug){min-height:min(46vh,150px)}
+.chat-sugs.fechada,.chat-sugs.fechada:has(.sug){min-height:0;overflow:hidden}
 .chat-sugs-h{display:flex;align-items:center;gap:8px;padding:11px 16px 5px;font-size:12px;
   position:sticky;top:0;background:var(--panel);z-index:1}
+/* O cabeçalho que abre e fecha. Ele é botão inteiro, e a seta diz o estado. */
+button.chat-sugs-h{width:100%;text-align:left;cursor:pointer;padding-bottom:9px}
+button.chat-sugs-h:hover{color:var(--tx)}
+.chat-sugs-seta{margin-left:auto;display:grid;place-items:center;color:var(--tx-3);
+  transition:transform var(--t)}
+.chat-sugs.fechada .chat-sugs-seta{transform:rotate(-90deg)}
 .chat-sugs-h svg{color:var(--warn-forte);flex:none}
 .chat-sugs-h b{font-weight:600}
 .chat-sugs-h .btn{margin-left:auto;padding:3px 9px;font-size:11.5px}
