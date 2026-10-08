@@ -1,11 +1,13 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDados } from '@/componentes/Dados'
 import { useModais } from '@/componentes/Modais'
 import { Ic } from '@/componentes/Icones'
+import { Av } from '@/componentes/atomos'
 import { ehImagem, tamanhoLegivel } from '@/lib/anexos'
-import type { Anexo, Item, Nota } from '@/lib/tipos'
+import { veFluxo } from '@/lib/acesso'
+import type { Anexo, Item, Nota, Perfil } from '@/lib/tipos'
 
 /**
  * A prova de que a tarefa saiu.
@@ -15,10 +17,22 @@ import type { Anexo, Item, Nota } from '@/lib/tipos'
  * do que ele prova, e é isso que a tela de decisão vai mostrar ao aprovador.
  */
 
-function Ficha({ a, podeTirar }: { a: Anexo; podeTirar: boolean }) {
-  const { abrirAnexo, removerAnexo, nomeDe } = useDados()
+function Ficha({ a, podeTirar, candidatos = [] }: {
+  a: Anexo
+  podeTirar: boolean
+  /** Quem poderia abrir, para trocar a lista depois. Vazio esconde o controle. */
+  candidatos?: Perfil[]
+}) {
+  const { abrirAnexo, removerAnexo, nomeDe, eu, quemAbreAnexo, definirQuemAbre } = useDados()
   const { abrir } = useModais()
   const [ocupado, setOcupado] = useState(false)
+  const [mexendo, setMexendo] = useState(false)
+  const [escolha, setEscolha] = useState<string[]>([])
+
+  const fechadoPara = quemAbreAnexo(a.id)
+  /* Trocar quem abre é de quem mandou, como o banco diz: as políticas de
+     `anexo_pessoas` conferem `anexos.autor_id`. */
+  const meu = a.autor_id === eu.id
 
   const ver = async () => {
     setOcupado(true)
@@ -28,13 +42,26 @@ function Ficha({ a, podeTirar }: { a: Anexo; podeTirar: boolean }) {
   }
 
   return (
-    <span className={`anexo ${ocupado ? 'ocupado' : ''}`}>
+    <span className={`anexo ${ocupado ? 'ocupado' : ''} ${mexendo ? 'mexendo' : ''}`}>
       <button className="anexo-abrir" onClick={() => void ver()}
         title={`${a.nome}, ${tamanhoLegivel(a.tamanho)}, por ${nomeDe(a.autor_id)}`}>
         <span className="anexo-ic">{ehImagem(a.tipo) ? <Ic.foto /> : <Ic.clipe />}</span>
         <span className="anexo-nome">{a.nome}</span>
         <i>{tamanhoLegivel(a.tamanho)}</i>
       </button>
+      {/* O cadeado diz que ele é fechado, e para quem. Ele aparece para todo
+          mundo que enxerga o anexo, porque quem está na lista precisa saber que
+          aquilo não é de todos antes de comentar em voz alta. */}
+      {!!fechadoPara.length && (
+        <span className="anexo-fech"
+          title={`Só ${fechadoPara.map((id) => nomeDe(id)).join(', ')} e quem mandou abrem`}>
+          <Ic.lock />
+        </span>
+      )}
+      {meu && !!candidatos.length && (
+        <button className="anexo-quem" aria-label={`Quem abre ${a.nome}`} title="Quem abre"
+          onClick={() => { setEscolha(fechadoPara); setMexendo((v) => !v) }}><Ic.team /></button>
+      )}
       {podeTirar && (
         <button className="anexo-x" aria-label={`Remover ${a.nome}`}
           onClick={() => abrir({
@@ -43,6 +70,33 @@ function Ficha({ a, podeTirar }: { a: Anexo; podeTirar: boolean }) {
             texto: 'O arquivo sai de vez. Isto não volta.',
             acao: () => removerAnexo(a),
           })}><Ic.x /></button>
+      )}
+
+      {mexendo && (
+        <div className="anexo-quem-lista">
+          <p className="hint">
+            Quem ficar de fora não vê nem que o arquivo existe. <b>Fechar agora vale daqui
+            para a frente</b>: não desfaz quem já abriu.
+          </p>
+          {candidatos.map((p) => (
+            <label key={p.id} className="chk">
+              <input type="checkbox" checked={escolha.includes(p.id)}
+                onChange={(e) => setEscolha((v) =>
+                  e.target.checked ? [...v, p.id] : v.filter((x) => x !== p.id))} />
+              <Av p={p} tam="sm" />{p.nome}
+            </label>
+          ))}
+          <div className="row-inline">
+            {!!escolha.length && (
+              <button className="btn ghost sm" onClick={() => setEscolha([])}>Abrir para todos</button>
+            )}
+            <button className="btn sm"
+              onClick={async () => {
+                const deu = await definirQuemAbre(a.id, escolha)
+                if (deu) setMexendo(false)
+              }}>Salvar</button>
+          </div>
+        </div>
       )}
     </span>
   )
@@ -90,9 +144,20 @@ export function Anexos({ item, nota, podeAnexar, pedido = 0 }: {
    */
   pedido?: number
 }) {
-  const { anexosDe, anexar, eu } = useDados()
+  const { anexosDe, anexar, eu, perfis, todosFluxos } = useDados()
   const [enviando, setEnviando] = useState(false)
   const [sobre, setSobre] = useState(false)
+  /**
+   * Os arquivos escolhidos que ainda não subiram.
+   *
+   * Eles existem por causa da escolha de quem abre: ela tem que ser feita ANTES
+   * do envio, como no chat, porque quem manda já sabe para quem é no instante
+   * em que escolhe o arquivo. Perguntar depois é perguntar tarde, e pior:
+   * durante o intervalo o arquivo estaria aberto para quem não devia.
+   */
+  const [pendentes, setPendentes] = useState<File[]>([])
+  const [quemVe, setQuemVe] = useState<string[]>([])
+  const [escolhendo, setEscolhendo] = useState(false)
   const campo = useRef<HTMLInputElement>(null)
 
   /* O seletor de arquivo do navegador só abre a partir de um gesto da pessoa, e
@@ -102,12 +167,50 @@ export function Anexos({ item, nota, podeAnexar, pedido = 0 }: {
   const dono = item || nota
   const lista = dono ? anexosDe(dono.id) : []
 
-  const mandar = async (arquivos: FileList | File[] | null) => {
+  /**
+   * Quem poderia abrir este anexo se ninguém escolhesse nada.
+   *
+   * É quem enxerga a TRACK da tarefa, e quem responde isso é `veFluxo`, a mesma
+   * função da tela e o espelho de `ve_fluxo` no banco. Uma lista montada à mão
+   * aqui seria uma segunda regra de visibilidade, que é a pior coisa que este
+   * app poderia ganhar: no dia em que uma mudar, a tela oferece a quem o banco
+   * recusa, e ninguém percebe.
+   *
+   * Só para TAREFA. A nota é do dono e de mais ninguém, então não há a quem
+   * escolher, e o anexo dela segue a nota.
+   */
+  const candidatos = useMemo(() => {
+    if (!item) return []
+    const f = todosFluxos.find((x) => x.id === item.fluxo_id)
+    if (!f) return []
+    const todosItens = todosFluxos.flatMap((x) => x.etapas.flatMap((e) => e.itens))
+    return perfis.filter((p) => p.ativo && p.id !== eu.id && veFluxo(p, perfis, f, todosItens))
+  }, [item, todosFluxos, perfis, eu.id])
+
+  /* Sem segunda pessoa não há escolha a fazer, e perguntar seria o app
+     inventando plateia: o arquivo sobe no mesmo clique, como sempre subiu. */
+  const temEscolha = candidatos.length > 0
+
+  const subir = async (arquivos: FileList | File[] | null, lista: string[] = []) => {
     if (!arquivos || !arquivos.length || !dono) return
     setEnviando(true)
-    await anexar(dono, arquivos)
+    await anexar(dono, arquivos, lista)
     setEnviando(false)
+    setPendentes([])
+    setQuemVe([])
+    setEscolhendo(false)
     if (campo.current) campo.current.value = ''
+  }
+
+  const mandar = async (arquivos: FileList | File[] | null) => {
+    if (!arquivos || !arquivos.length) return
+    if (temEscolha) {
+      // Segura para a pessoa dizer quem abre. O envio sai no botão.
+      setPendentes(Array.from(arquivos))
+      if (campo.current) campo.current.value = ''
+      return
+    }
+    await subir(arquivos)
   }
 
   if (!lista.length && !podeAnexar) return null
@@ -124,8 +227,56 @@ export function Anexos({ item, nota, podeAnexar, pedido = 0 }: {
       } : undefined}
     >
       {lista.map((a) => (
-        <Ficha key={a.id} a={a} podeTirar={podeAnexar || a.autor_id === eu.id} />
+        <Ficha key={a.id} a={a} podeTirar={podeAnexar || a.autor_id === eu.id}
+          candidatos={candidatos} />
       ))}
+
+      {/* A escolha de quem abre, colada no arquivo e antes do envio.
+          É a mesma do chat, e precisa ser a mesma: o contrato do fornecedor não
+          é assunto dos cinco que veem a track, e antes disto a única saída era
+          não anexar. Quem fica de fora NÃO VÊ QUE O ARQUIVO EXISTE, que é a
+          decisão de 06/10/2026: anexo trancado à vista anuncia que existe um
+          documento sobre aquele assunto para quem não pode abri-lo, e a
+          pergunta cai em quem mandou. */}
+      {!!pendentes.length && (
+        <div className="anx-pend">
+          <div className="anx-pend-l">
+            <Ic.clipe />
+            <span>{pendentes.map((f) => f.name).join(', ')}</span>
+            <button className="iconbtn" aria-label="Desistir"
+              onClick={() => { setPendentes([]); setQuemVe([]); setEscolhendo(false) }}><Ic.x /></button>
+          </div>
+          <button className="anx-quemve" onClick={() => setEscolhendo((v) => !v)}>
+            {quemVe.length
+              ? `Só ${quemVe.map((id) => (perfis.find((p) => p.id === id)?.nome || '').split(' ')[0]).join(', ')} e você abrem`
+              : 'Todos que veem esta tarefa abrem'}
+          </button>
+          {escolhendo && (
+            <div className="anx-quemve-lista">
+              <p className="hint">
+                Escolhendo alguém, quem ficar de fora não vê nem que o arquivo existe.
+              </p>
+              {candidatos.map((p) => (
+                <label key={p.id} className="chk">
+                  <input type="checkbox" checked={quemVe.includes(p.id)}
+                    onChange={(e) => setQuemVe((v) =>
+                      e.target.checked ? [...v, p.id] : v.filter((x) => x !== p.id))} />
+                  <Av p={p} tam="sm" />{p.nome}
+                </label>
+              ))}
+              {!!quemVe.length && (
+                <button className="btn ghost sm" onClick={() => setQuemVe([])}>
+                  Deixar aberto para quem vê a tarefa
+                </button>
+              )}
+            </div>
+          )}
+          <button className="btn pri sm" disabled={enviando}
+            onClick={() => void subir(pendentes, quemVe)}>
+            {enviando ? <><span className="girando" />Enviando</> : <><Ic.clipe />Anexar</>}
+          </button>
+        </div>
+      )}
 
       {podeAnexar && (
         <>

@@ -1516,6 +1516,31 @@ coisa a que pertence. E pôr alguém na lista de um anexo de canal fechado não 
 canal para ela, o que é o que permite a escolha ser gesto de quem manda, sem passar por
 administrador.
 
+**E a escolha vale na TAREFA também, não só na conversa.** O mecanismo estava no banco
+desde a seção 61 e a tela existia num lugar só, o clipe do chat: anexo de tarefa seguia a
+tarefa e pronto. Na prática isso quer dizer que o contrato do cliente, pendurado numa
+tarefa de uma track de cinco pessoas, abria para as cinco, e a única saída era não anexar.
+Agora o bloco de anexos segura o arquivo antes de subir e pergunta, como o chat faz, e pelo
+mesmo motivo: **quem manda já sabe para quem é no instante em que escolhe o arquivo.**
+
+**Quem pode entrar na lista é quem enxerga a TRACK, e quem responde isso é `veFluxo`**, a
+mesma função da tela e o espelho de `ve_fluxo` no banco. Uma lista montada à mão ali seria
+uma segunda regra de visibilidade, que é a pior coisa que este app poderia ganhar: no dia em
+que uma mudar, a tela oferece a quem o banco recusa. Na NOTA não há escolha, porque ela é do
+dono e de mais ninguém, e num espaço de uma pessoa também não: perguntar seria o app
+inventando plateia.
+
+**Dá para fechar DEPOIS, e isso não contradiz o "perguntar depois é perguntar tarde".** O
+padrão continua sendo escolher no envio. Mas o arquivo que subiu aberto por engano só tinha
+uma saída, que era apagar e mandar de novo, e isso expõe exatamente o mesmo tanto com mais
+passos. O banco sempre deixou (as políticas de `anexo_pessoas` são do autor do anexo e não
+falam de tempo); faltava a tela. **O que a tela não pode fazer é mentir**: fechar depois vale
+daqui para a frente e não desfaz quem já abriu, e a frase diz isso.
+
+**O cadeado aparece para todo mundo que enxerga o anexo**, e não só para quem mandou: quem
+está na lista precisa saber que aquilo não é de todos antes de comentar em voz alta. Quem
+está de fora não vê o anexo nenhum, então não há o que esconder dele ali.
+
 Três cuidados que custaram caro em outros lugares e valem aqui:
 
 - **O Storage segue a mesma régua.** Sem isso a política esconderia a LINHA e o arquivo

@@ -194,6 +194,10 @@ type Contexto = {
    * Com gente dentro, só ela e quem mandou abrem, e mais ninguém vê que ele
    * existe.
    */
+  /** Quem abre este anexo. Vazio quer dizer que ele segue a coisa a que pertence. */
+  quemAbreAnexo: (anexoId: string) => string[]
+  /** Troca quem abre um anexo que já subiu. Não desfaz quem já viu. */
+  definirQuemAbre: (anexoId: string, perfis: string[]) => Promise<boolean>
   anexar: (dono: Item | Nota | Mensagem, arquivos: FileList | File[], quemVe?: string[])
     => Promise<void>
   removerAnexo: (a: Anexo) => Promise<void>
@@ -482,6 +486,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [ciclos, setCiclos] = useState<Ciclo[]>([])
   const [convites, setConvites] = useState<Convite[]>([])
   const [anexos, setAnexos] = useState<Anexo[]>([])
+  /** Quem abre cada anexo fechado. Vazio para um anexo quer dizer aberto. */
+  const [anexoPessoas, setAnexoPessoas] = useState<{ anexo_id: string; perfil_id: string }[]>([])
   const [decisoes, setDecisoes] = useState<Decisao[]>([])
   const [pedidosPrazo, setPedidosPrazo] = useState<PedidoPrazo[]>([])
   const [memoria, setMemoria] = useState<Lembranca[]>([])
@@ -530,7 +536,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   /** Recolhe tudo que a pessoa pode ver e monta a árvore de fluxos. */
   const carregar = useCallback(async () => {
-    const [p, s, f, e, i, h, cic, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns, ags, cnc, nts, notaPes, fbk, avs, ctt, psh, mag, mdia, ment, apl] = await Promise.all([
+    const [p, s, f, e, i, h, cic, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, anxPes, dec, pz, mem, cns, ags, cnc, nts, notaPes, fbk, avs, ctt, psh, mag, mdia, ment, apl] = await Promise.all([
       sb.from('perfis').select('*').order('nome'),
       sb.from('areas').select('*').order('ordem'),
       sb.from('fluxos').select('*').order('criado_em'),
@@ -558,6 +564,10 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       sb.from('sugestoes').select('*').order('criado_em', { ascending: false }),
       sb.rpc('meus_espacos'),
       sb.from('anexos').select('*').order('criado_em'),
+      /* Quem abre cada anexo fechado. Vem junto com os anexos porque é a mesma
+         pergunta por outro lado, e porque a política já filtra: só chega a
+         linha de anexo que esta pessoa enxerga. */
+      sb.from('anexo_pessoas').select('anexo_id,perfil_id'),
       sb.from('decisoes').select('*').order('criado_em', { ascending: false }),
       sb.from('pedidos_prazo').select('*').order('criado_em', { ascending: false }),
       sb.from('memoria').select('*').order('peso', { ascending: false }),
@@ -762,6 +772,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     )
     setConvites((cvt.data || []) as Convite[])
     setAnexos((anx.data || []) as Anexo[])
+    setAnexoPessoas((anxPes.data || []) as { anexo_id: string; perfil_id: string }[])
     setDecisoes((dec.data || []) as Decisao[])
     setPedidosPrazo((pz.data || []) as PedidoPrazo[])
     setMemoria((mem.data || []) as Lembranca[])
@@ -1352,6 +1363,45 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     if (subiram) toast(subiram === 1 ? 'Anexo guardado.' : `${subiram} anexos guardados.`)
     recarregar()
   }, [sb, eu.id, org.id, falhou, toast, recarregar])
+
+  /** Quem abre este anexo quando ele é fechado. Lista vazia quer dizer aberto. */
+  const quemAbreAnexo: Contexto['quemAbreAnexo'] = useCallback(
+    (anexoId) => anexoPessoas.filter((x) => x.anexo_id === anexoId).map((x) => x.perfil_id),
+    [anexoPessoas],
+  )
+
+  /**
+   * Trocar quem abre um anexo que JÁ ESTÁ no ar.
+   *
+   * A escolha certa é na hora de mandar, e continua sendo: quem manda já sabe
+   * para quem é no instante em que escolhe o arquivo. Mas o arquivo que subiu
+   * aberto por engano só tinha uma saída, que era apagar e mandar de novo, e
+   * isso expõe exatamente o mesmo tanto com mais passos. O banco sempre deixou
+   * (as políticas de `anexo_pessoas` são do autor do anexo e não falam de
+   * tempo); faltava a tela.
+   *
+   * **Isto não desfaz quem já viu.** Fechar depois fecha daqui para a frente, e
+   * a tela diz isso: um aviso que promete o contrário é pior que nenhum.
+   */
+  const definirQuemAbre: Contexto['definirQuemAbre'] = useCallback(async (anexoId, perfisIds) => {
+    const querem = perfisIds.filter((x) => x !== eu.id)
+    const tem = anexoPessoas.filter((x) => x.anexo_id === anexoId).map((x) => x.perfil_id)
+    const entrar = querem.filter((x) => !tem.includes(x))
+    const sair = tem.filter((x) => !querem.includes(x))
+    // Uma por vez, e não em lote: o cliente do modo local aceita uma linha por
+    // insert, e duas formas da mesma chamada é uma a mais para manter.
+    for (const quem of entrar) {
+      const r = await sb.from('anexo_pessoas').insert({ anexo_id: anexoId, perfil_id: quem })
+      if (r.error) { falhou(r.error, 'Não deu para mudar quem abre este anexo.'); return false }
+    }
+    for (const quem of sair) {
+      const r = await sb.from('anexo_pessoas').delete()
+        .eq('anexo_id', anexoId).eq('perfil_id', quem)
+      if (r.error) { falhou(r.error, 'Não deu para mudar quem abre este anexo.'); return false }
+    }
+    recarregar()
+    return true
+  }, [sb, eu.id, anexoPessoas, falhou, recarregar])
 
   const removerAnexo: Contexto['removerAnexo'] = useCallback(async (a) => {
     const { error } = await sb.from('anexos').delete().eq('id', a.id)
@@ -3625,7 +3675,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     salvarProcesso, excluirProcesso, duplicarProcesso, criarDoProcesso,
     criarConvite, excluirConvite,
     canais, mensagens, sugestoes, mensagensDe, sugestoesDe, naoLidas, meChamaram,
-    anexosDe, ciclosDe, anexar, removerAnexo, abrirAnexo, decisoesDe, decidir,
+    anexosDe, ciclosDe, anexar, removerAnexo, abrirAnexo, quemAbreAnexo, definirQuemAbre,
+    decisoesDe, decidir,
     desfazerSugestao, palpites, distribuirTarefa, cargas, cargaDe,
     memoria, esquecer, consumo, agentes, salvarAgente, excluirAgente,
     conectores, salvarConector, guardarChave, excluirConector, testarConector,

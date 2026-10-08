@@ -1422,6 +1422,22 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
 .chat-quemve:hover{color:var(--tx)}
 .chat-quemve-lista{display:flex;flex-direction:column;gap:6px;padding-top:4px;
   max-height:220px;overflow:auto}
+/* A escolha de quem abre, no bloco de anexos da tarefa. É a mesma peça do chat
+   com outros nomes, e são outros nomes de propósito: `.chat-anexando` mora
+   dentro do campo de escrever e carrega as medidas dele, e classe curta
+   repetida entre duas telas é o jeito mais silencioso de uma quebrar a outra. */
+.anx-pend{display:flex;flex-direction:column;align-items:flex-start;gap:7px;width:100%;
+  padding:9px 11px;margin-top:6px;border-radius:var(--r-sm);background:var(--sunken);
+  box-shadow:0 0 0 1px var(--line)}
+.anx-pend-l{display:flex;align-items:center;gap:8px;width:100%;min-width:0;
+  font-size:12.5px;color:var(--tx-2)}
+.anx-pend-l>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.anx-pend-l>svg{flex:none}
+.anx-quemve{font-size:11.5px;color:var(--tx-3);background:none;border:0;padding:0;
+  cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.anx-quemve:hover{color:var(--tx)}
+.anx-quemve-lista{display:flex;flex-direction:column;gap:6px;width:100%;padding-top:4px;
+  max-height:220px;overflow:auto}
 .msg-anexos{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 /* O checkpoint de que a proposta fala, no cartão de ajuste da trilha. Fio do
    acento e nada mais: o lima aqui é do botão que faz o trabalho andar. */
@@ -1928,6 +1944,25 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
 .anexo-x{flex:none;display:grid;place-items:center;width:22px;align-self:stretch;
   color:var(--tx-3);border-radius:0 8px 8px 0;transition:var(--t)}
 .anexo-x:hover{color:var(--late);background:var(--hover)}
+/* O cadeado do anexo fechado. Ele aparece para TODO MUNDO que enxerga o anexo,
+   e não só para quem mandou: quem está na lista precisa saber que aquilo não é
+   de todos antes de comentar em voz alta. Quem está de fora não vê o anexo
+   nenhum, então não há o que esconder dele aqui. */
+.anexo-fech{flex:none;display:grid;place-items:center;width:20px;align-self:stretch;
+  color:var(--tx-3)}
+.anexo-fech svg{width:12px;height:12px}
+.anexo-quem{flex:none;display:grid;place-items:center;width:22px;align-self:stretch;
+  color:var(--tx-3);transition:var(--t)}
+.anexo-quem:hover{color:var(--ac-tinta);background:var(--hover)}
+/* A lista sai do fluxo da ficha, que é uma pílula de 250px: dentro dela não
+   cabe, e esticá-la quebraria a fileira de anexos. `.anexo` ganha `position`
+   relativa só enquanto ela está aberta, pelo `.mexendo`. */
+.anexo.mexendo{position:relative}
+.anexo-quem-lista{position:absolute;top:calc(100% + 5px);left:0;z-index:40;width:250px;
+  display:flex;flex-direction:column;gap:7px;padding:10px;border-radius:var(--r);
+  background:var(--panel);text-align:left;white-space:normal;
+  box-shadow:var(--sombra),0 0 0 1px var(--line),0 12px 28px rgba(10,11,10,.14)}
+.anexo-quem-lista .row-inline{justify-content:flex-end;gap:7px}
 .anexo-mais{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:8px;
   font-size:11.5px;color:var(--tx-3);box-shadow:0 0 0 1px var(--line);border-style:dashed;
   transition:var(--t)}
