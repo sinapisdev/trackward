@@ -4258,8 +4258,26 @@ begin
 
   v_quem := coalesce(meu_perfil(), perfil_de_quem_age(), new.dono_id);
 
+  -- O token sai de `gen_random_uuid`, e NÃO de `gen_random_bytes`.
+  --
+  -- Aquela é do pgcrypto, que no Supabase mora no schema `extensions`; esta
+  -- função fixa `search_path = public`, então a chamada não achava nada e o
+  -- Postgres respondia "function gen_random_bytes(integer) does not exist".
+  -- Como ela é gatilho de `update fluxos`, **arquivar track falhava sempre, para
+  -- todo mundo**, com a tela dizendo que a pessoa não tinha permissão. Pôr
+  -- `extensions` no caminho consertaria hoje e voltaria a quebrar no banco em
+  -- que a extensão morar noutro lugar: `gen_random_uuid` é do servidor, e dois
+  -- deles dão os 32 bytes com a mesma fonte forte de aleatoriedade.
+  --
+  -- E em base64**url**, que é o que a coluna sempre disse e o que o navegador já
+  -- gerava: o token vai dentro de `/feedback/<token>`, e a `/` do base64 comum
+  -- parte a rota em duas. O `translate` troca `+` e `/` e come o `=` do fim.
   insert into feedbacks (fluxo_id, token, pediu_id, para, motivo)
-  values (new.id, encode(gen_random_bytes(32), 'base64'), v_quem, '', new.desfecho)
+  values (new.id,
+          translate(encode(decode(
+            replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''),
+            'hex'), 'base64'), '+/=', '-_'),
+          v_quem, '', new.desfecho)
   returning id into v_id;
 
   -- O aviso leva à track, e não carrega o token: a caixa é de uma pessoa só,

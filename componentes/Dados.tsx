@@ -897,8 +897,31 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    * ela aparece, trocamos por uma frase que diz o que de fato aconteceu e por
    * onde sair. O resto passa direto, porque a maioria já é legível.
    */
+  /**
+   * O que mostrar quando o banco recusa.
+   *
+   * **O `padrao` só aparece quando o app NÃO SABE por quê**, porque a recusa
+   * escrita no schema é português e passa direto. Então um padrão que nomeia um
+   * motivo ("só o autor pode arquivar") é um padrão que mente exatamente nas
+   * vezes em que ele é usado: dez deles acusavam permissão, e o que estava
+   * quebrado era outra coisa.
+   *
+   * Arquivar track falhou para TODO MUNDO durante dias dizendo isso, e a causa
+   * era `gen_random_bytes` não existir no `search_path`. Ninguém procurou um
+   * defeito, porque a tela dizia que a pessoa não podia.
+   *
+   * A regra: o padrão diz o que não deu, nunca por quê. Quem sabe o porquê é o
+   * banco, e quando ele fala de constraint e de função o lugar disso é o
+   * console, não a tela de quem só queria arquivar uma track.
+   */
   const falhou = useCallback((e: unknown, padrao: string) => {
     const msg = (e as { message?: string })?.message || ''
+    /* O erro CRU vai para o console, sempre, mesmo quando a tela mostra outra
+       frase. Sem isto, a fala de máquina que a peneira engole não existe em
+       lugar nenhum, e quem for depurar depende de a pessoa reproduzir o defeito
+       na frente dele. Foi assim que "function gen_random_bytes does not exist"
+       passou dias parecendo falta de permissão para arquivar. */
+    if (msg) console.warn('[trackward]', msg)
     if (/row-level security|violates row-level/i.test(msg)) {
       // O nome da tabela é a única pista de ONDE parou, e a primeira versão
       // desta tradução o jogava fora junto com o jargão. Sem ele, duas falhas
@@ -992,7 +1015,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       .insert({ ...corpo, id: novoId(), ordem: areas.length })
       .select()
       .maybeSingle()
-    if (error) { falhou(error, 'Só quem é administrador pode criar áreas.'); return null }
+    if (error) { falhou(error, 'Não deu para criar a área.'); return null }
     toast(`Área ${d.nome} pronta.`)
     recarregar()
     return data as Area
@@ -1046,7 +1069,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   const excluirFluxo: Contexto['excluirFluxo'] = useCallback(async (id) => {
     const { error } = await sb.from('fluxos').delete().eq('id', id)
-    if (error) return falhou(error, 'Só o autor, o dono ou um administrador pode excluir.')
+    if (error) return falhou(error, 'Não deu para excluir.')
     toast('Excluído.')
     recarregar()
   }, [sb, falhou, toast, recarregar])
@@ -1062,7 +1085,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     const { error } = await sb.rpc('arquivar_fluxo', {
       p_fluxo: id, p_motivo: motivo, p_detalhe: detalhe || null,
     })
-    if (error) { falhou(error, 'Só o autor, o dono ou um administrador pode arquivar.'); return false }
+    if (error) { falhou(error, 'Não deu para arquivar.'); return false }
     toast('Arquivada.')
     recarregar()
     return true
@@ -1091,14 +1114,14 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     const { error } = await sb.from('feedbacks').insert({
       id: novoId(), fluxo_id: fluxoId, token, pediu_id: eu.id, para: para.trim(),
     })
-    if (error) { falhou(error, 'Só quem responde pelo processo pode pedir feedback.'); return null }
+    if (error) { falhou(error, 'Não deu para preparar o link.'); return null }
     recarregar()
     return `${location.origin}/feedback/${token}`
   }, [sb, eu.id, falhou, recarregar])
 
   const reabrirFluxo: Contexto['reabrirFluxo'] = useCallback(async (id) => {
     const { error } = await sb.rpc('reabrir_fluxo', { p_fluxo: id })
-    if (error) return falhou(error, 'Só o autor, o dono ou um administrador pode reabrir.')
+    if (error) return falhou(error, 'Não deu para tirar do arquivo.')
     toast('De volta à lista.')
     recarregar()
   }, [sb, falhou, toast, recarregar])
@@ -1332,7 +1355,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   const removerAnexo: Contexto['removerAnexo'] = useCallback(async (a) => {
     const { error } = await sb.from('anexos').delete().eq('id', a.id)
-    if (error) return falhou(error, 'Só quem anexou, ou quem responde pela esteira, pode remover.')
+    if (error) return falhou(error, 'Não deu para remover o anexo.')
     await sb.storage.from('anexos').remove([a.caminho])
     recarregar()
   }, [sb, falhou, recarregar])
@@ -1985,7 +2008,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     let id = d.id
     if (id) {
       const { error } = await sb.from('compromissos').update(corpo).eq('id', id)
-      if (error) { falhou(error, 'Só quem organiza o compromisso pode alterá-lo.'); return null }
+      if (error) { falhou(error, 'Não deu para salvar o compromisso.'); return null }
       await sb.from('convidados').delete().eq('compromisso_id', id)
     } else {
       const { data, error } = await sb
@@ -2005,7 +2028,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   const excluirCompromisso: Contexto['excluirCompromisso'] = useCallback(async (id) => {
     const { error } = await sb.from('compromissos').delete().eq('id', id)
-    if (error) return falhou(error, 'Só quem organiza o compromisso pode excluí-lo.')
+    if (error) return falhou(error, 'Não deu para excluir o compromisso.')
     toast('Compromisso removido.')
     recarregar()
   }, [sb, falhou, toast, recarregar])
@@ -2267,7 +2290,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   const apagarMensagem: Contexto['apagarMensagem'] = useCallback(async (m) => {
     const { error } = await sb.from('mensagens').delete().eq('id', m.id)
-    if (error) return falhou(error, 'Só quem escreveu pode apagar.')
+    if (error) return falhou(error, 'Não deu para apagar.')
     // O áudio vai junto: mensagem apagada com arquivo de pé é lixo que ocupa.
     if (m.audio_caminho) await sb.storage.from('anexos').remove([m.audio_caminho])
     recarregar()
@@ -2311,7 +2334,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   const excluirCanal: Contexto['excluirCanal'] = useCallback(async (id) => {
     const { error } = await sb.from('canais').delete().eq('id', id)
-    if (error) return falhou(error, 'Só quem criou o canal pode excluí-lo.')
+    if (error) return falhou(error, 'Não deu para excluir o canal.')
     toast('Canal excluído.')
     recarregar()
   }, [sb, falhou, toast, recarregar])
