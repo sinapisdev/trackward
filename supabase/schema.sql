@@ -8798,3 +8798,204 @@ alter table public.convites add constraint convites_tem_quem check (
 -- o caminho que isto conserta é justamente o que nunca tinha sido exercido.
 revoke all on function public.entrar_com_convite(text) from public, anon;
 grant execute on function public.entrar_com_convite(text) to authenticated, service_role;
+
+
+-- ==========================================================================
+-- 68. A agenda é da pessoa, e o dia dela atravessa os espaços
+--
+--     Quem tem quatro empresas tinha quatro agendas e quatro filas de tarefa, e
+--     para saber o que fazer de manhã entrava em quatro lugares. Ninguém faz
+--     isso: abre um, esquece os outros, e a ferramenta deixa de responder a
+--     pergunta que ela existe para responder.
+--
+--     **Agenda é propriedade de um corpo, não de uma empresa.** O compromisso
+--     marcado no espaço pessoal tem que travar a agenda na Simonetto, e o
+--     marcado na Simonetto tem que travar no pessoal, porque a pessoa é uma só
+--     e não pode estar em dois lugares. O mesmo vale para a fila: o dia dela é
+--     um dia, e ele não se divide pelo número de contratos que ela tem.
+--
+--     **O que atravessa é a OCUPAÇÃO, nunca o título.** Um colega da Simonetto
+--     precisa saber que você está ocupado na terça às 15h para não marcar por
+--     cima; ele não pode ler "Reunião com o comprador da Silvereng". A peça que
+--     faz isso já existia e se chama `ocupacao()`: ela devolve intervalo e mais
+--     nada. O que muda aqui é de quem ela fala.
+--
+--     E AQUI ESTAVA UM FURO, encontrado medindo e não lendo. `ocupacao()` é
+--     `security definer` e **não tinha filtro de organização nenhum**: ela
+--     devolvia TODO compromisso que bloqueia do banco inteiro, de qualquer
+--     cliente, para qualquer pessoa logada. Pela tabela a parede funcionava
+--     (zero linhas); pela função, uma empresa recebia a agenda de outra, com
+--     id, perfil, dia e hora. Sem título, mas é dado de cliente atravessando a
+--     parede que o app promete, e é exatamente a família de erro da seção 52:
+--     definer aberta ao lado da política que ela contorna.
+--
+--     A diferença entre o furo e o que se quer é inteira, e é esta:
+--
+--       - **de propósito**: a ocupação de quem divide um espaço comigo, vinda
+--         de todos os espaços DAQUELA pessoa.
+--       - **furo**: a ocupação de quem não tem nada a ver comigo.
+--
+--     Então a pergunta certa passa a ser "esta pessoa divide alguma casa
+--     comigo?", e não "existe este compromisso?".
+-- --------------------------------------------------------------------------
+
+/**
+ * Os espaços de quem está perguntando.
+ *
+ * Um login tem um perfil por espaço (seção 20), e é esta lista que transforma
+ * "o que eu enxergo" em "o que eu enxergo em qualquer lugar meu". Ela responde
+ * sempre por `auth.uid()` e nunca aceita o id de outra pessoa: uma função que
+ * respondesse "quais são as casas do fulano" seria a porta dos fundos das
+ * regras de visibilidade com outro nome, como diz a seção 51.
+ */
+create or replace function public.minhas_casas()
+returns table (org_id uuid)
+language sql stable security definer set search_path = public as $$
+  select p.org_id from perfis p where p.user_id = auth.uid() and p.ativo;
+$$;
+
+revoke all on function public.minhas_casas() from public, anon;
+grant execute on function public.minhas_casas() to authenticated, service_role;
+
+/**
+ * Meus perfis, em todos os meus espaços.
+ *
+ * `perfis_sel` já devolve isto pela tabela, de propósito, porque é o que
+ * alimenta o seletor de espaço. Aqui ela existe como função para as de baixo
+ * poderem usá-la sem passar pela política, que filtra pelo espaço em uso.
+ */
+create or replace function public.meus_perfis()
+returns table (perfil_id uuid, org_id uuid)
+language sql stable security definer set search_path = public as $$
+  select p.id, p.org_id from perfis p where p.user_id = auth.uid() and p.ativo;
+$$;
+
+revoke all on function public.meus_perfis() from public, anon;
+grant execute on function public.meus_perfis() to authenticated, service_role;
+
+/**
+ * A ocupação de quem divide um espaço comigo, vinda de todos os espaços dela.
+ *
+ * Três coisas que o corpo da função decide, e nenhuma é detalhe:
+ *
+ * 1. **Quem eu posso perguntar**: só quem tem perfil numa casa minha. É o que
+ *    fecha o furo, e é a única trava que importa aqui.
+ * 2. **De onde vem a ocupação**: de TODOS os perfis daquela pessoa, em
+ *    qualquer espaço. É isto que faz o compromisso do pessoal travar a agenda
+ *    na empresa, que é o pedido.
+ * 3. **Com qual id ela volta**: o do perfil DELA NA MINHA CASA, e não o do
+ *    espaço de onde o compromisso veio. O segundo seria um id que a tela não
+ *    resolve, porque `perfis` só devolve a minha casa: a ocupação apareceria
+ *    sem dono, de ninguém.
+ *
+ * Uma pessoa que divide DOIS espaços comigo aparece duas vezes, uma por perfil,
+ * e isso é certo: cada tela conhece a pessoa pelo perfil de lá.
+ *
+ * **Continua sem título, sem local e sem observação**, como sempre foi. O que
+ * se revela a mais que antes é que a pessoa tem compromisso em outro lugar, e
+ * é o preço de saber que ela está ocupada: uma agenda que esconde a ocupação
+ * não serve para marcar nada, que é para o que ela existe.
+ */
+create or replace function public.ocupacao()
+returns table (id uuid, perfil_id uuid, quando date, inicio time, fim time)
+language sql stable security definer set search_path = public as $$
+  with colegas as (
+    -- A pessoa, e o perfil dela na minha casa. Sem `distinct` no login: dois
+    -- espaços comigo são duas linhas, e cada tela usa a sua.
+    select p.user_id, p.id as perfil_aqui
+    from perfis p
+    where p.org_id in (select org_id from minhas_casas()) and p.user_id is not null
+  ),
+  deles as (
+    -- Todo perfil daquelas pessoas, em qualquer espaço: é por aqui que a
+    -- ocupação atravessa.
+    select p.id as perfil_la, c.user_id, c.perfil_aqui
+    from perfis p join colegas c on c.user_id = p.user_id
+  )
+  select cp.id, d.perfil_aqui, cp.quando, cp.inicio, cp.fim
+  from compromissos cp
+  cross join lateral (
+    select cp.dono_id as perfil_id
+    union
+    select cv.perfil_id from convidados cv where cv.compromisso_id = cp.id
+  ) e
+  join deles d on d.perfil_la = e.perfil_id
+  where cp.bloqueia and e.perfil_id is not null and ativo();
+$$;
+
+revoke all on function public.ocupacao() from public, anon;
+grant execute on function public.ocupacao() to authenticated, service_role;
+
+/**
+ * A minha agenda inteira, de todos os meus espaços, com o conteúdo.
+ *
+ * Aqui o título vai junto, e pode: são todos meus. A tabela já devolve os do
+ * espaço em uso; esta devolve também os dos outros, para o dia aparecer
+ * inteiro sem a pessoa ter que trocar de lugar quatro vezes para montá-lo.
+ *
+ * `auth.uid()` e mais nada: ela não aceita parâmetro, então não há como
+ * perguntar pela agenda de outra pessoa. Quem quiser saber se alguém está
+ * livre pergunta a `ocupacao()`, que responde em intervalo.
+ */
+create or replace function public.minha_agenda()
+returns table (
+  id uuid, org_id uuid, espaco text, titulo text, quando date,
+  inicio time, fim time, local text, nota text, dono_id uuid,
+  bloqueia boolean, visivel boolean, fluxo_id uuid, criado_em timestamptz
+)
+language sql stable security definer set search_path = public as $$
+  select distinct on (cp.id)
+    cp.id, cp.org_id, o.nome, cp.titulo, cp.quando, cp.inicio, cp.fim,
+    cp.local, cp.nota, cp.dono_id, cp.bloqueia, cp.visivel, cp.fluxo_id, cp.criado_em
+  from compromissos cp
+  join organizacoes o on o.id = cp.org_id
+  where ativo() and (
+    cp.dono_id in (select perfil_id from meus_perfis())
+    or exists (
+      select 1 from convidados cv
+      where cv.compromisso_id = cp.id
+        and cv.perfil_id in (select perfil_id from meus_perfis())
+    )
+  );
+$$;
+
+revoke all on function public.minha_agenda() from public, anon;
+grant execute on function public.minha_agenda() to authenticated, service_role;
+
+/**
+ * O meu dia: o que depende de mim, em todos os meus espaços.
+ *
+ * "Acordei e preciso ver tudo que tenho para fazer" não tem resposta quando a
+ * fila se divide pelo número de contratos que a pessoa tem. Isto NÃO é uma
+ * empresa alcançando a outra: é a mesma pessoa vendo o trabalho dela, que
+ * nenhuma parede existiu para esconder dela mesma.
+ *
+ * Sem parâmetro, pelo mesmo motivo de `minha_agenda`. E só o que está em
+ * aberto: o dia é o que falta fazer, e o que já foi feito não é o dia.
+ */
+create or replace function public.meu_dia()
+returns table (
+  item_id uuid, texto text, prazo date, org_id uuid, espaco text,
+  espaco_tipo text, fluxo_id uuid, track text, implicita boolean,
+  etapa_id uuid, checkpoint text, priv boolean
+)
+language sql stable security definer set search_path = public as $$
+  select
+    i.id, i.texto, i.prazo, f.org_id, o.nome, o.tipo,
+    f.id, f.nome, f.implicita, e.id, e.nome, i.priv
+  from itens i
+  join etapas e on e.id = i.etapa_id
+  join fluxos f on f.id = i.fluxo_id
+  join organizacoes o on o.id = f.org_id
+  where ativo()
+    and not i.feito
+    and f.desfecho is null
+    and f.travado_motivo is null
+    -- Só o checkpoint corrente, como `pendencias()` faz na tela: tarefa de
+    -- etapa que ainda não chegou não é do dia de ninguém.
+    and e.ordem = f.atual
+    and i.resp_id in (select perfil_id from meus_perfis());
+$$;
+
+revoke all on function public.meu_dia() from public, anon;
+grant execute on function public.meu_dia() to authenticated, service_role;

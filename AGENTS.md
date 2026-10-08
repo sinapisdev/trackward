@@ -169,6 +169,32 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
   tarefa dele, mas prazo, checkpoints e critério de saída são de quem responde pelo
   processo (`manda_no_processo`). No banco isso é um trigger, não só uma policy, porque
   RLS não restringe coluna.
+- **A agenda é da pessoa, e o dia dela também.** Quem tem quatro empresas tinha quatro
+  agendas e quatro filas, e para saber o que fazer de manhã entrava em quatro lugares.
+  Ninguém faz isso: abre um, esquece os outros, e a ferramenta deixa de responder a pergunta
+  que ela existe para responder. Agenda é propriedade de um corpo: o compromisso marcado no
+  pessoal **trava** a agenda na Simonetto e vice-versa, porque a pessoa é uma só e não pode
+  estar em dois lugares. As peças são `minha_agenda()`, `meu_dia()`, `minhas_casas()` e
+  `meus_perfis()` (seção 68), **todas sem parâmetro**: elas respondem por `auth.uid()` e
+  nunca aceitam o id de outra pessoa, senão seriam a porta dos fundos da seção 51.
+- **O que atravessa é a OCUPAÇÃO, nunca o título.** O colega precisa saber que você está
+  ocupado na terça às 15h; ele não pode ler "Reunião com o comprador da Silvereng". Para
+  VOCÊ o título vai junto, porque todos são seus. E o `dono_id` do que vem de fora é
+  traduzido para o SEU perfil daqui, como `ocupacao()` faz com os colegas: o perfil do outro
+  espaço é um id que esta tela não resolve, e sem a tradução o compromisso existe e some no
+  primeiro filtro por pessoa, que é o "Minha agenda" que a tela abre selecionado.
+- **`ocupacao()` era um furo, e foi achado medindo.** Ela é `security definer` e não tinha
+  filtro de organização nenhum: devolvia todo compromisso que bloqueia do banco inteiro, de
+  qualquer cliente, para qualquer pessoa logada. Pela tabela a parede funcionava (zero
+  linhas); pela função, uma empresa recebia a agenda de outra, com id, perfil, dia e hora. A
+  pergunta certa passou a ser "esta pessoa divide alguma casa comigo?", e é ela que separa o
+  que é de propósito (a ocupação de quem divide um espaço comigo, vinda de todos os espaços
+  dela) do que era furo (a ocupação de quem não tem nada a ver comigo).
+- **O dia consolidado LEVA até a tarefa, e não a executa.** Concluir de lá exigiria escrever
+  num espaço que não é o da sessão, e ficariam de fora o rastro no canal e o aviso de quem
+  pediu, que são do lado do app. A lente responde "o que eu faço hoje"; a tarefa se faz onde
+  a equipe dela vê. E ela só aparece para quem tem mais de um espaço: para quem tem um, é um
+  controle que nunca muda nada.
 - **Agenda**: `bloqueia` e `visivel` são chaves independentes. Quem não pode ler um
   compromisso recebe apenas a ocupação (via função `ocupacao()`), com título trocado por
   "Ocupado" e `aberto: false`. Nunca vazar título, local ou observação de compromisso

@@ -111,6 +111,11 @@ export function TelaAgenda() {
         <b>{c.aberto ? c.titulo : 'Ocupado'}</b>
         <small>
           {faixa(c)}
+          {/* O espaço de onde ele veio, quando não é este. A agenda é da
+              pessoa, então o compromisso da Simonetto aparece no pessoal e
+              vice-versa; sem dizer de onde veio, ele vira um compromisso que
+              ela não reconhece e não acha em lugar nenhum. */}
+          {!!c.espaco && `, ${c.espaco}`}
           {lente === 'equipe' && c.dono_id !== eu.id && `, ${nomeDe(c.dono_id)}`}
           {c.externo && ', agenda externa'}
           {c.aberto && !!pessoas.length && lente === 'minha' && `, com ${pessoas.map((p) => nomeDe(p)).join(', ')}`}
@@ -198,7 +203,11 @@ export function TelaAgenda() {
             {dias.map((d) => (
               <div key={d}>
                 {doDia(d).filter((c) => !c.inicio).map((c) => (
-                  <button className="ev-chip" key={c.id} onClick={() => c.aberto && abrir({ tipo: 'compromisso', compromisso: c })}>
+                  <button className="ev-chip" key={c.id}
+                    /* A pílula do dia inteiro não tem largura para o nome do
+                       espaço, e o título é onde ele cabe sem empurrar nada. */
+                    title={c.espaco ? `${c.titulo}, em ${c.espaco}` : undefined}
+                    onClick={() => c.aberto && abrir({ tipo: 'compromisso', compromisso: c })}>
                     <i className="k" style={{ background: c.bloqueia ? 'var(--ac)' : 'var(--line-3)' }} />
                     <span>{c.aberto ? c.titulo : 'Ocupado'}</span>
                   </button>
@@ -257,7 +266,11 @@ export function TelaAgenda() {
                 onDoubleClick={() => novoEm(d, '09:00')}>
                 <div className="dn">{x.getDate()}</div>
                 {eventos.slice(0, 2).map((c) => (
-                  <button className="ev-chip" key={c.id} onClick={() => c.aberto && abrir({ tipo: 'compromisso', compromisso: c })}>
+                  <button className="ev-chip" key={c.id}
+                    /* A pílula do dia inteiro não tem largura para o nome do
+                       espaço, e o título é onde ele cabe sem empurrar nada. */
+                    title={c.espaco ? `${c.titulo}, em ${c.espaco}` : undefined}
+                    onClick={() => c.aberto && abrir({ tipo: 'compromisso', compromisso: c })}>
                     <i className="k" style={{ background: c.bloqueia ? 'var(--ac)' : 'var(--line-3)' }} />
                     <span>{c.inicio ? `${minutos(c.inicio)! / 60 | 0}h ` : ''}{c.aberto ? c.titulo : 'Ocupado'}</span>
                   </button>

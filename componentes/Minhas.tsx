@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { PedidosDePrazo } from './PedidosDePrazo'
 import { useDados } from './Dados'
 import { useModais } from './Modais'
@@ -28,11 +29,20 @@ const chave = (p: Pendencia) =>
  * próximo passo aberto ao lado. Um de cada vez, que é como o trabalho anda.
  */
 export function Minhas() {
-  const { eu, fluxos, fluxosComImplicitas, carregando, nomeDe, perfilDe, minhaLista,
-    alternarItem, aprovar: aprovarSaida } = useDados()
+  const { eu, org, fluxos, fluxosComImplicitas, carregando, nomeDe, perfilDe, minhaLista,
+    alternarItem, aprovar: aprovarSaida, meuDia, espacos, trocarEspaco } = useDados()
   const { abrir } = useModais()
   const celular = useCelular()
+  const router = useRouter()
   const [filtro, setFiltro] = useState<Filtro>('tudo')
+  /**
+   * A lente: este espaço, ou o dia inteiro.
+   *
+   * Ela só existe para quem tem mais de um espaço, porque para quem tem um a
+   * pergunta não existe e o botão seria um controle que nunca muda nada.
+   */
+  const [lente, setLente] = useState<'aqui' | 'tudo'>('aqui')
+  const [indo, setIndo] = useState('')
   const [termo, setTermo] = useState('')
   const [aberta, setAberta] = useState<string | null>(null)
 
@@ -54,6 +64,42 @@ export function Minhas() {
     }
     return m
   }, [fluxosComImplicitas])
+
+  /** Os outros espaços desta pessoa. Vazio quer dizer que a lente não existe. */
+  const outros = useMemo(
+    () => espacos.filter((e) => e.ativo && e.org_id !== org.id),
+    [espacos, org.id],
+  )
+
+  /**
+   * O dia inteiro, de todos os espaços, do mais vencido para o mais folgado.
+   *
+   * Sem prazo vai para o fim, e não para o começo: o que não tem data não
+   * disputa com o que vence hoje.
+   */
+  const doDia = useMemo(
+    () => [...meuDia].sort((a, b) => (a.prazo || '9999-12-31').localeCompare(b.prazo || '9999-12-31')),
+    [meuDia],
+  )
+
+  /**
+   * Levar a pessoa até a tarefa, trocando de espaço quando ela é de outro.
+   *
+   * Concluir daqui exigiria uma função de banco que escrevesse num espaço que
+   * não é o da sessão, e com ela ficariam de fora o rastro no canal e o aviso
+   * de quem pediu, que são do lado do app. A tarefa se faz onde a equipe dela
+   * vê: esta lista responde "o que eu faço hoje", e leva até lá.
+   */
+  const irPara = async (l: { org_id: string; fluxo_id: string; implicita: boolean }) => {
+    const destino = l.implicita ? '/minhas' : `/fluxo/${l.fluxo_id}`
+    if (l.org_id === org.id) { router.push(destino); return }
+    const espaco = espacos.find((e) => e.org_id === l.org_id)
+    if (!espaco) return
+    setIndo(l.org_id)
+    await trocarEspaco(espaco.perfil_id)
+    router.push(destino)
+    setIndo('')
+  }
 
   const travasDe = (p: Pendencia) =>
     p.tipo === 'item'
@@ -115,7 +161,8 @@ export function Minhas() {
    * da lista, e abrir sozinha esconderia justamente a lista que a pessoa veio
    * ver. Lá ela só abre no toque.
    */
-  const sel = naFila.find((p) => chave(p) === aberta) || (celular ? null : naFila[0]) || null
+  const sel = lente === 'tudo' ? null
+    : naFila.find((p) => chave(p) === aberta) || (celular ? null : naFila[0]) || null
 
   const Etiqueta = ({ p }: { p: Pendencia }) =>
     p.tipo === 'aprov' ? <span className="fila-tag">Aprovar</span>
@@ -146,6 +193,52 @@ export function Minhas() {
 
       <div className="fila">
         <div className="fila-lista" data-tut="minhas-lista">
+          {/* A lente só existe para quem tem mais de um espaço: para quem tem
+              um, ela é um controle que nunca muda nada. */}
+          {outros.length > 0 && (
+            <div className="seg fila-lente" role="group" aria-label="De onde">
+              <button className={lente === 'aqui' ? 'on' : ''}
+                onClick={() => setLente('aqui')}>
+                {org.nome}
+              </button>
+              <button className={lente === 'tudo' ? 'on' : ''}
+                onClick={() => setLente('tudo')}>
+                Meu dia<span className="num">{doDia.length}</span>
+              </button>
+            </div>
+          )}
+
+          {lente === 'tudo' ? (
+            <>
+              <p className="fila-ord"><Ic.chev />Tudo que depende de você, em todos os seus espaços</p>
+              {!doDia.length && <p className="vazio">Nada em aberto em espaço nenhum.</p>}
+              {doDia.map((l) => {
+                const daqui = l.org_id === org.id
+                return (
+                  <button key={l.item_id} className={`dia-l ${daqui ? 'aqui' : ''}`}
+                    disabled={!!indo}
+                    onClick={() => void irPara(l)}>
+                    <span className="dia-txt">
+                      <b>{l.texto}</b>
+                      <small>
+                        <span className="dia-esp">{l.espaco}</span>
+                        {!l.implicita && l.track ? ` · ${l.track}` : ''}
+                      </small>
+                    </span>
+                    <span className={`dia-prazo ${classePrazo(l.prazo)}`}>
+                      {l.prazo ? rel(l.prazo) : 'sem prazo'}
+                    </span>
+                    {!daqui && <Ic.seta />}
+                  </button>
+                )
+              })}
+              <p className="hint">
+                Tocando numa linha de outro espaço, o app troca para lá e abre a tarefa. Concluir,
+                aprovar e mexer no prazo acontecem no espaço da tarefa, que é onde a equipe dela vê.
+              </p>
+            </>
+          ) : (
+          <>
           <div className="filtros">
             <div className="seg" role="group" aria-label="Filtrar a fila">
               {abas.map((a) => (
@@ -228,6 +321,8 @@ export function Minhas() {
               Última atividade: <b>{ultima.por_ia ? 'A leitura da conversa' : nomeDe(ultima.quem_id)}</b>{' '}
               {ultima.texto} · {rel(isoDe(ultima.criado_em))}
             </p>
+          )}
+          </>
           )}
         </div>
 

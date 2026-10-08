@@ -8,7 +8,7 @@ import { curta, hojeIso, isoDe } from '@/lib/datas'
 import { esqueletoEmBranco, proxPeriodo } from '@/lib/modelos'
 import type { RascunhoEtapa } from '@/lib/modelos'
 import { etapaAtual } from '@/lib/regras'
-import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Feedback, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta, Anexo, Decisao, TipoDecisao, NaCascata, PedidoPrazo, Agente, Conector, Nota,
+import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Feedback, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta, Anexo, Decisao, TipoDecisao, NaCascata, PedidoPrazo, Agente, Conector, Nota, LinhaDoDia,
   Aviso, AvisoContato, PushAssinatura, Ciclo } from '@/lib/tipos'
 import { chama } from '@/lib/mencao'
 import { MODO_LOCAL } from '@/lib/modo'
@@ -120,6 +120,15 @@ type Contexto = {
   totalItens: (fluxoId: string) => number
   /** Agenda de todos. Os compromissos fechados chegam sem conteúdo, só como ocupação. */
   agenda: Compromisso[]
+  /**
+   * O que depende de mim em TODOS os meus espaços, inclusive os outros.
+   *
+   * Separado de `pendencias(fluxos)` de propósito: aquela responde "o que eu
+   * faço AQUI" e continua alimentando os contadores da barra, que falam do
+   * espaço em uso. Esta responde "o que eu faço HOJE", que é outra pergunta e
+   * não se divide pelo número de contratos que a pessoa tem.
+   */
+  meuDia: LinhaDoDia[]
   /** A ligação com o calendário de fora, quando você tem uma. */
   minhaAgendaExterna: AgendaExterna | null
   /** Os trilhos que a empresa desenhou, prontos para dar origem a esteiras. */
@@ -449,6 +458,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   /** Quantas tarefas cada esteira tem ao todo, para avisar o que ficou de fora. */
   const [totais, setTotais] = useState<Map<string, number>>(new Map())
   const [agenda, setAgenda] = useState<Compromisso[]>([])
+  /** O que depende de mim em TODOS os meus espaços. Ver `meu_dia()`, seção 68. */
+  const [meuDia, setMeuDia] = useState<LinhaDoDia[]>([])
   const [minhaAgendaExterna, setMinhaExterna] = useState<AgendaExterna | null>(null)
   const [processos, setProcessos] = useState<Processo[]>([])
   const [ciclos, setCiclos] = useState<Ciclo[]>([])
@@ -502,7 +513,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   /** Recolhe tudo que a pessoa pode ver e monta a árvore de fluxos. */
   const carregar = useCallback(async () => {
-    const [p, s, f, e, i, h, cic, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns, ags, cnc, nts, notaPes, fbk, avs, ctt, psh] = await Promise.all([
+    const [p, s, f, e, i, h, cic, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns, ags, cnc, nts, notaPes, fbk, avs, ctt, psh, mag, mdia] = await Promise.all([
       sb.from('perfis').select('*').order('nome'),
       sb.from('areas').select('*').order('ordem'),
       sb.from('fluxos').select('*').order('criado_em'),
@@ -545,6 +556,14 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       sb.from('avisos_contato').select('*').maybeSingle(),
       sb.from('push_assinaturas').select('id,perfil_id,endpoint,aparelho,criado_em,usado_em')
         .order('criado_em'),
+      /* A agenda é da pessoa: o compromisso marcado num espaço trava a agenda
+         dela nos outros, porque ela é uma só e não pode estar em dois lugares.
+         Ver a seção 68 do schema. */
+      sb.rpc('minha_agenda'),
+      /* E o dia dela também: "acordei e preciso ver tudo que tenho para fazer"
+         não tem resposta quando a fila se divide pelo número de contratos que
+         a pessoa tem. */
+      sb.rpc('meu_dia'),
     ])
 
     /**
@@ -662,7 +681,38 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       fluxo_id: null, convidados: [], criado_em: '', aberto: false, externo: true,
     }))
 
-    setAgenda([...abertos, ...fechados.values(), ...externos])
+    /**
+     * E os MEUS compromissos dos meus OUTROS espaços, com o conteúdo.
+     *
+     * Eles vêm por `minha_agenda()` porque a tabela só devolve o espaço em
+     * uso, e aqui o título pode vir junto: são todos meus. Quem é de outra
+     * pessoa continua chegando como ocupação, sem título, por `ocupacao()`.
+     *
+     * Os do espaço em uso já vieram pela tabela e são descartados aqui: a
+     * mesma linha duas vezes na agenda é a pessoa achando que tem dois
+     * compromissos no mesmo horário.
+     */
+    const meus = ((mag.data || []) as (Compromisso & { espaco: string; org_id: string })[])
+      .filter((c) => c.org_id !== meuPerfil.org_id && !conhecidos.has(c.id))
+      .map((c) => ({
+        ...c,
+        /**
+         * O dono passa a ser o MEU perfil daqui, e não o de lá.
+         *
+         * Mesma tradução que `ocupacao()` faz para os colegas, e pelo mesmo
+         * motivo: o perfil do outro espaço é um id que esta tela não resolve.
+         * Sem isto o compromisso existe e some no primeiro filtro por pessoa,
+         * que é justamente o "Minha agenda" que a tela abre selecionado.
+         */
+        dono_id: meuPerfil.id,
+        inicio: c.inicio ? String(c.inicio).slice(0, 5) : null,
+        fim: c.fim ? String(c.fim).slice(0, 5) : null,
+        convidados: [],
+        aberto: true,
+      }))
+
+    setAgenda([...abertos, ...meus, ...fechados.values(), ...externos])
+    setMeuDia(((mdia.data || []) as LinhaDoDia[]) || [])
     setMinhaExterna(((ax.data || []) as AgendaExterna[])[0] || null)
 
     const itensPorEtapa = new Map<string, ProcessoItem[]>()
@@ -3421,6 +3471,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     conectores, salvarConector, guardarChave, excluirConector, testarConector,
     notas, salvarNota, excluirNota, comQuem, compartilharNota, notaParaCanal,
     abrirNotaDoCanal, conversaIA, abrirConversaIA,
+    meuDia,
     mensagensDaNota, sugestoesDaNota, escreverNaNota, perguntarNaNota, respondendo,
     minhaLista, abrirMinhaLista, criarAvulsa,
     avisos, naoVistos: avisos.filter((a) => !a.lido_em).length,

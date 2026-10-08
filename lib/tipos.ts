@@ -575,6 +575,38 @@ export type Compromisso = {
   aberto: boolean
   /** Veio da agenda externa da pessoa (Google, Apple, Outlook). */
   externo?: boolean
+  /**
+   * O espaço de onde ele veio, quando não é o espaço em uso.
+   *
+   * A agenda é da pessoa: o compromisso marcado na Simonetto aparece no
+   * pessoal e vice-versa, porque ela é uma só e não pode estar em dois lugares.
+   * Sem dizer de onde veio, a linha vira um compromisso que ela não reconhece
+   * e não acha em lugar nenhum. Nulo é o do espaço em uso.
+   */
+  espaco?: string | null
+}
+
+/**
+ * Uma linha do dia da pessoa, vinda de qualquer espaço dela.
+ *
+ * É o que `meu_dia()` devolve (seção 68), e é deliberadamente achatado: a tela
+ * aqui não desenha trilha nem checkpoint, ela responde "o que eu faço agora",
+ * e a track inteira mora do outro lado, no espaço dela.
+ */
+export type LinhaDoDia = {
+  item_id: string
+  texto: string
+  prazo: string | null
+  org_id: string
+  espaco: string
+  espaco_tipo: string
+  fluxo_id: string
+  track: string
+  /** Track de canal sem forma: o endereço dela é a conversa, não a trilha. */
+  implicita: boolean
+  etapa_id: string
+  checkpoint: string
+  priv: boolean
 }
 
 /**

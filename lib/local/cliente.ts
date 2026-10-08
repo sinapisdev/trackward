@@ -1741,6 +1741,46 @@ function montarCliente() {
           gravar()
           return { data: true, error: null }
         }
+        /* A agenda é da pessoa: os MEUS compromissos de todos os meus
+           espaços, com o conteúdo. Espelha `minha_agenda()`, seção 68. */
+        if (nome === 'minha_agenda') {
+          const b = ler()
+          const u = usuarioLocal()
+          const meus = new Set(b.perfis.filter((p) => p.user_id === u).map((p) => p.id as string))
+          const saida: Linha[] = []
+          for (const c of b.compromissos) {
+            const convidado = b.convidados.some((v) =>
+              v.compromisso_id === c.id && meus.has(v.perfil_id as string))
+            if (!meus.has(c.dono_id as string) && !convidado) continue
+            const org = b.organizacoes.find((o) => o.id === c.org_id)
+            saida.push({ ...c, espaco: org?.nome || '' })
+          }
+          return { data: saida, error: null }
+        }
+
+        /* E o dia dela, de todos os espaços dela. Espelha `meu_dia()`. */
+        if (nome === 'meu_dia') {
+          const b = ler()
+          const u = usuarioLocal()
+          const meus = new Set(b.perfis.filter((p) => p.user_id === u).map((p) => p.id as string))
+          const saida: Linha[] = []
+          for (const i of b.itens) {
+            if (i.feito || !meus.has(i.resp_id as string)) continue
+            const e = b.etapas.find((x) => x.id === i.etapa_id)
+            const f = e && b.fluxos.find((x) => x.id === e.fluxo_id)
+            if (!e || !f || f.desfecho || f.travado_motivo) continue
+            if (e.ordem !== f.atual) continue
+            const org = b.organizacoes.find((o) => o.id === f.org_id)
+            saida.push({
+              item_id: i.id, texto: i.texto, prazo: i.prazo, org_id: f.org_id,
+              espaco: org?.nome || '', espaco_tipo: org?.tipo || 'equipe',
+              fluxo_id: f.id, track: f.nome, implicita: !!f.implicita,
+              etapa_id: e.id, checkpoint: e.nome, priv: !!i.priv,
+            })
+          }
+          return { data: saida, error: null }
+        }
+
         if (nome === 'ocupacao') {
           const b = ler()
           const saida: Linha[] = []

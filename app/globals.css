@@ -4915,3 +4915,32 @@ a.btn{text-decoration:none}
 .cvt-nao{display:block;width:100%;margin-top:14px;font-size:var(--fs-ui);
   color:var(--tx-3);text-decoration:underline;text-underline-offset:3px}
 .cvt-nao:hover{color:var(--tx-2)}
+
+/* ------------------------------------------- o dia da pessoa, de todo espaço */
+
+/* A lente fica acima dos filtros e não ao lado deles: ela responde "de onde",
+   e os de baixo respondem "o quê". Misturadas numa linha, a pessoa lê cinco
+   pílulas sem saber que as duas primeiras são de outra pergunta. */
+.fila-lente{margin-bottom:14px}
+.fila-lente .num{margin-left:7px}
+
+.dia-l{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;
+  width:100%;text-align:left;padding:13px 14px;border-radius:var(--r);
+  background:var(--panel);box-shadow:0 0 0 1px var(--line);margin-bottom:8px;
+  transition:var(--t)}
+.dia-l:hover{background:var(--hover);box-shadow:0 0 0 1px var(--line-2)}
+.dia-l:disabled{opacity:.5}
+.dia-l>svg{width:15px;height:15px;color:var(--tx-3)}
+.dia-txt{display:flex;flex-direction:column;gap:3px;min-width:0}
+.dia-txt b{font-weight:var(--fw-semibold);color:var(--tx);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.dia-txt small{font-size:var(--fs-meta);color:var(--tx-3);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+/* O espaço é etiqueta e não cor: cor nova só entra quando significa algo que a
+   pessoa precisa agir, e "de qual empresa" não é isso. */
+.dia-esp{font-weight:var(--fw-semibold);color:var(--tx-2)}
+.dia-prazo{font-size:var(--fs-meta);color:var(--tx-2);white-space:nowrap}
+.dia-prazo.late{color:var(--late);font-weight:500}
+.dia-prazo.soon{color:var(--warn);font-weight:500}
+/* A deste espaço não ganha seta: ela não troca de lugar, só abre. */
+.dia-l.aqui{background:var(--alto)}
