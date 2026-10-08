@@ -105,7 +105,7 @@ export function Secretario() {
     // Comando é ordem e acontece na hora, sem passar pela leitura. Com arquivo
     // junto, ele deixa de ser ordem e vira recado: o arquivo precisa de uma
     // fala onde morar.
-    if (!indo.length && await cmd.rodar(t)) return
+    if (!indo.length && await cmd.rodar(t, setTexto)) return
     /* Os arquivos vão JUNTO, e não depois.
        Subindo depois, o modelo era chamado sobre uma mensagem que ainda não
        tinha arquivo nenhum: a pessoa mandava o contrato e perguntava "o que diz

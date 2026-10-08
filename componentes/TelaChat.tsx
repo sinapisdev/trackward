@@ -628,7 +628,7 @@ function Campo({ canalId, respondendo, fecharResposta }: {
     if (area.current) area.current.style.height = 'auto'
     // A linha que começa por barra é ordem, não recado: ela vira a coisa feita
     // e não aparece como mensagem. O que aparece é o rastro do que aconteceu.
-    if (!anexando.length && await cmd.rodar(v)) { fecharResposta(); return }
+    if (!anexando.length && await cmd.rodar(v, escrever)) { fecharResposta(); return }
     const id = await enviar(canalId, v || anexando.map((f) => f.name).join(', '),
       respondendo?.id ?? null)
     // O anexo vai depois da mensagem porque ele pertence a ela. Sem o id, não

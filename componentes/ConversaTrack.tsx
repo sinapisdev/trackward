@@ -83,7 +83,7 @@ export function Conversa({ canal, titulo, quantas = 6, aoTrocar }: {
     if (!t) return
     setTexto('')
     // Linha com barra é comando: vira coisa feita, não vira mensagem.
-    if (await cmd.rodar(t)) return
+    if (await cmd.rodar(t, setTexto)) return
     await enviar(canal.id, t)
     // Quem acabou de escrever leu: deixar o contador aceso ali seria mentira.
     if (naoLidas(canal.id)) void marcarLido(canal.id)

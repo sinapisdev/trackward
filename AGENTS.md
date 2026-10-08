@@ -1419,6 +1419,19 @@ Nelson é a mesma notícia duas vezes. E **no WhatsApp ele recusa com motivo**, 
 na triagem: lá a pessoa já está num app de mensagem com o contato na mão, e o gesto é
 encaminhar.
 
+**`/contato` sozinho abre a agenda DO APARELHO, onde ela existe.** A Contact Picker API é do
+Chrome no Android; **o Safari não a tem, então no iPhone não existe caminho nenhum** para o
+app ler a agenda, nem instalado, nem pedindo permissão. Não é falta de permissão, é falta de
+API: só um app de loja alcançaria aquilo. Por isso o atalho **aparece onde funciona e some
+onde não funciona**, inclusive a linha que o anuncia no menu de comandos: prometer num
+aparelho que não tem o seletor é mandar a pessoa procurar um botão que nunca vai aparecer.
+
+**E ele PREENCHE a linha em vez de mandar.** O número que o aparelho guarda nem sempre é o
+que ela quer passar (o fixo da empresa, o contato duplicado), e ver antes de mandar resolve
+isso sem perguntar nada. Quem manda continua sendo a pessoa, no Enter. O app não lê a agenda
+e não a guarda: o navegador mostra a lista dele e devolve um nome e um número, que é
+exatamente o que ela teria digitado.
+
 **Barra só no começo da linha.** No meio dela é endereço de internet e é data:
 `10/03` abrindo menu seria o app atrapalhando quem está escrevendo.
 

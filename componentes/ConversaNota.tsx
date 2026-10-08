@@ -42,7 +42,7 @@ export function ConversaNota({ nota, ir }: {
     const t = texto.trim()
     if (!t || pensando) return
     setTexto('')
-    if (await cmd.rodar(t)) return
+    if (await cmd.rodar(t, setTexto)) return
     await escreverNaNota(nota.id, t)
   }
 

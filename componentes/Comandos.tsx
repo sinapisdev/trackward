@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useDados } from './Dados'
+import { escolherDaAgenda, temAgendaDoFone } from '@/lib/agendaDoFone'
 import { useModais } from './Modais'
 import { Ic } from './Icones'
 import { COMANDOS, comandoSendoEscrito, comandosQueCombinam, type Comando } from '@/lib/comandos'
@@ -26,6 +27,11 @@ export function useComandos(onde: { canalId?: string | null; notaId?: string | n
   const [ajuda, setAjuda] = useState(false)
   const [k, setK] = useState(0)
 
+  /* Só no primeiro render: a resposta não muda enquanto a página está aberta, e
+     chamá-la a cada pintura leria `navigator` no servidor. */
+  const [daAgenda, setDaAgenda] = useState(false)
+  useEffect(() => { setDaAgenda(temAgendaDoFone()) }, [])
+
   const lista = ajuda ? COMANDOS : pedaco === null ? [] : comandosQueCombinam(pedaco)
   const aberto = ajuda || (pedaco !== null && !!lista.length)
 
@@ -44,7 +50,27 @@ export function useComandos(onde: { canalId?: string | null; notaId?: string | n
    * não deve mandar a mensagem: o que a pessoa escreveu virou coisa feita, e
    * repetir a linha crua na conversa seria ruído.
    */
-  const rodar = async (texto: string): Promise<boolean> => {
+  const rodar = async (texto: string, escrever?: (v: string) => void): Promise<boolean> => {
+    /**
+     * `/contato` sozinho abre a agenda do aparelho, onde ela existe.
+     *
+     * É um atalho e não uma segunda forma do comando: o que ele faz é PREENCHER
+     * a linha com o nome e o número escolhidos, e quem manda continua sendo a
+     * pessoa, no Enter. Preencher em vez de mandar não é zelo: o número que o
+     * aparelho guarda nem sempre é o que ela quer passar (o fixo da empresa, o
+     * contato duplicado), e ver antes de mandar resolve isso sem perguntar nada.
+     *
+     * Onde o seletor não existe, e é o caso do iPhone inteiro, a linha segue
+     * para `executarComando` e volta o erro, que diz como escrever.
+     */
+    if (/^\/(contato|telefone|fone)\s*$/i.test(texto.trim()) && escrever && temAgendaDoFone()) {
+      const c = await escolherDaAgenda()
+      if (c) {
+        fechar()
+        escrever(`/contato ${c.nome} ${c.fone}`.replace(/\s{2,}/g, ' '))
+        return true
+      }
+    }
     const r = await executarComando(texto, onde)
     if (!r) return false
     fechar()
@@ -95,7 +121,12 @@ export function useComandos(onde: { canalId?: string | null; notaId?: string | n
           onClick={() => escolher(c, escrever)}>
           <b>/{c.chave}</b>
           <span>{c.resumo}</span>
-          <i>{c.exemplo}</i>
+          {/* O atalho da agenda só se anuncia onde ele existe. Prometer num
+              aparelho que não tem o seletor seria mandar a pessoa procurar um
+              botão que nunca vai aparecer. */}
+          <i>{c.nome === 'contato' && daAgenda
+            ? 'ou /contato sozinho, para escolher da agenda do celular'
+            : c.exemplo}</i>
         </button>
       ))}
       <p className="cmds-pe">
