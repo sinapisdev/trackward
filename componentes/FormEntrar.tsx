@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/browser'
 import { Ic } from './Icones'
 import { confere, normaliza, palpite, PORQUE, escrito, type Recusa } from '@/lib/apelido'
+import { paraE164, foneEscrito } from '@/lib/fone'
 
 type Modo = 'entrar' | 'escolher' | 'criar' | 'esqueci'
 /** Os três jeitos de a conta nascer. Ver novo_usuario() em supabase/schema.sql. */
@@ -85,6 +86,19 @@ function Formulario() {
   const [convite, setConvite] = useState(doLinkConvite)
   const [apelido, setApelido] = useState('')
   /**
+   * A entrada por telefone, que é a que a pessoa espera de um app de hoje.
+   *
+   * `porFone` decide se a tela pede número ou e-mail, e `codigo` só existe
+   * depois de o SMS sair: enquanto ele é vazio, a tela pede o número; com ele
+   * em aberto, pede os seis dígitos. Uma tela só com dois estados, em vez de
+   * duas rotas, porque é um gesto só do ponto de vista de quem usa.
+   */
+  const [porFone, setPorFone] = useState(true)
+  const [fone, setFone] = useState('')
+  const [codigo, setCodigo] = useState('')
+  const [esperandoCodigo, setEsperandoCodigo] = useState(false)
+  const [reenviarEm, setReenviarEm] = useState(0)
+  /**
    * O que o banco respondeu sobre o @, e se ele ainda está respondendo.
    *
    * A conferência é em DUAS camadas, e as duas são necessárias. `confere()` em
@@ -129,7 +143,78 @@ function Formulario() {
     if (/User already registered/i.test(m)) return 'Este e-mail já tem cadastro. Use "entrar".'
     if (/at least 6 characters|Password should be/i.test(m)) return 'A senha precisa de pelo menos 6 caracteres.'
     if (/rate limit|too many/i.test(m)) return 'Muitas tentativas seguidas. Espere um minuto e tente de novo.'
+    /* As do telefone. A Twilio e o Supabase falam inglês e falam de API: o que
+       chega aqui tem que dizer o que fazer, como as recusas do schema fazem. */
+    if (/Token has expired|expired/i.test(m)) return 'Esse código venceu. Peça outro.'
+    if (/Token.*invalid|invalid.*token|otp/i.test(m)) return 'Código errado. Confira os seis dígitos.'
+    if (/Signups not allowed|User not found|not found/i.test(m)) {
+      return 'Não achei conta com esse número. Crie uma conta, é rápido.'
+    }
+    if (/unverified|21608/i.test(m)) {
+      return 'Esse número ainda não está liberado para receber o código. Fale com quem cuida do app.'
+    }
+    if (/Invalid phone|phone/i.test(m) && /invalid/i.test(m)) return 'Esse número não parece um telefone.'
+    if (/already registered|already been registered/i.test(m)) {
+      return 'Este número já tem cadastro. Use "entrar".'
+    }
     return m
+  }
+
+  /**
+   * A conta de trás para a frente: o relógio do "reenviar".
+   *
+   * Sem ele, quem não recebe o SMS aperta de novo três vezes em dez segundos, e
+   * cada aperto é uma mensagem paga que também não vai chegar. Trinta segundos
+   * é o tempo em que a operadora costuma entregar.
+   */
+  useEffect(() => {
+    if (reenviarEm <= 0) return
+    const t = setTimeout(() => setReenviarEm((n) => n - 1), 1000)
+    return () => clearTimeout(t)
+  }, [reenviarEm])
+
+  /**
+   * Manda o código para o número.
+   *
+   * `shouldCreateUser` é a chave inteira: no CADASTRO ele cria a conta e leva
+   * junto nome, @ e a escolha do espaço, porque os metadados só valem no
+   * instante em que o login nasce; na ENTRADA ele é falso, senão digitar um
+   * número errado criaria uma conta vazia em silêncio em vez de dizer que não
+   * achou ninguém.
+   */
+  const mandarCodigo = async (criando: boolean) => {
+    const e164 = paraE164(fone)
+    if (!e164) { setErro('Esse número não parece um telefone. Ponha o DDD.'); return false }
+    const { error } = await supabase().auth.signInWithOtp({
+      phone: e164,
+      options: criando
+        ? {
+            shouldCreateUser: true,
+            data: {
+              nome: nome.trim(),
+              apelido: normaliza(apelido),
+              ...(jeito === 'convite' ? { convite: convite.trim().toUpperCase() } : {}),
+              ...(jeito === 'equipe' ? { organizacao: empresa.trim() } : {}),
+              ...(jeito === 'pessoal' ? { espaco: 'pessoal' } : {}),
+            },
+          }
+        : { shouldCreateUser: false },
+    })
+    if (error) { setErro(traduzir(error.message)); return false }
+    setEsperandoCodigo(true)
+    setReenviarEm(30)
+    setOk(`Mandei um código por SMS para ${foneEscrito(e164)}.`)
+    return true
+  }
+
+  /** Confere os seis dígitos e abre a sessão. */
+  const conferirCodigo = async () => {
+    const e164 = paraE164(fone)
+    const { error } = await supabase().auth.verifyOtp({
+      phone: e164, token: codigo.replace(/\D/g, ''), type: 'sms',
+    })
+    if (error) { setErro(traduzir(error.message)); return false }
+    return true
   }
 
   const enviar = async (e: React.FormEvent) => {
@@ -145,7 +230,23 @@ function Formulario() {
         setOk('Link enviado. Confira seu e-mail para escolher uma senha nova.')
         return
       }
-      if (modo === 'criar') {
+      /**
+       * O caminho do telefone, que é dois passos e não um.
+       *
+       * Primeiro manda o código, depois confere. A mesma tela faz os dois
+       * porque, para quem usa, é um gesto só: pôr o número e provar que é seu.
+       */
+      if (porFone) {
+        if (modo === 'criar') {
+          if (!nome.trim()) { setErro('Diga seu nome, é assim que as pessoas vão te reconhecer.'); return }
+          if (!apelidoOk) { setErro('Escolha um @ que esteja livre.'); return }
+          if (jeito === 'equipe' && !empresa.trim()) { setErro('Diga o nome da empresa.'); return }
+          if (jeito === 'convite' && !convite.trim()) { setErro('Cole o código que te mandaram.'); return }
+        }
+        if (!esperandoCodigo) { await mandarCodigo(modo === 'criar'); return }
+        if (!await conferirCodigo()) return
+        // Daqui para baixo é o mesmo destino dos outros caminhos.
+      } else if (modo === 'criar') {
         if (!nome.trim()) { setErro('Diga seu nome, é assim que as pessoas vão te reconhecer.'); return }
         if (!apelidoOk) { setErro('Escolha um @ que esteja livre.'); return }
         if (jeito === 'equipe' && !empresa.trim()) { setErro('Diga o nome da empresa.'); return }
@@ -186,7 +287,7 @@ function Formulario() {
           setModo('entrar')
           return
         }
-      } else {
+      } else if (!porFone) {
         const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password: senha })
         if (error) throw error
       }
@@ -294,30 +395,87 @@ function Formulario() {
             {erro && <div className="erro"><Ic.x />{erro}</div>}
             {ok && <div className="ok-box"><Ic.check />{ok}</div>}
 
-            <form onSubmit={enviar}>
-              <div className="fld">
-                <label htmlFor="a-email">E-mail</label>
-                <input className="inp" id="a-email" type="email" required value={email} autoComplete="email"
-                  autoFocus placeholder="voce@empresa.com" onChange={(e) => setEmail(e.target.value)} />
+            {/* Telefone primeiro, e-mail ao lado. É o que a pessoa espera de
+                um app de hoje, e é o único que ela não esquece. O e-mail fica
+                porque quem já tem conta tem senha. Recuperar senha é assunto
+                de e-mail, e ali a escolha não aparece. */}
+            {!recuperando && (
+              <div className="seg ent-como" role="group" aria-label="Como entrar">
+                <button type="button" className={porFone ? 'on' : ''}
+                  onClick={() => { setPorFone(true); setErro(''); setOk('') }}>Telefone</button>
+                <button type="button" className={!porFone ? 'on' : ''}
+                  onClick={() => { setPorFone(false); setErro(''); setOk(''); setEsperandoCodigo(false) }}>
+                  E-mail e senha
+                </button>
               </div>
-              {!recuperando && (
-                <div className="fld">
-                  <label htmlFor="a-senha">Senha</label>
-                  <div className="ent-senha">
-                    <input className="inp" id="a-senha" type={vendo ? 'text' : 'password'} required
-                      value={senha} minLength={6} autoComplete="current-password"
-                      onChange={(e) => setSenha(e.target.value)} />
-                    <button type="button" className="iconbtn" onClick={() => setVendo((v) => !v)}
-                      aria-label={vendo ? 'Esconder a senha' : 'Mostrar a senha'}>
-                      {vendo ? <Ic.olhoOff /> : <Ic.olho />}
-                    </button>
+            )}
+
+            <form onSubmit={enviar}>
+              {porFone && !recuperando ? (
+                <>
+                  <div className="fld">
+                    <label htmlFor="a-fone">Telefone</label>
+                    <input className="inp" id="a-fone" type="tel" required value={fone}
+                      autoComplete="tel" autoFocus={!esperandoCodigo}
+                      disabled={esperandoCodigo}
+                      placeholder="42 99978-3288"
+                      onChange={(e) => setFone(e.target.value)} />
+                    {!esperandoCodigo && (
+                      <p className="hint">Mandamos um código por SMS. Não precisa de senha.</p>
+                    )}
                   </div>
-                  <button type="button" className="ent-esqueci"
-                    onClick={() => { setModo('esqueci'); setErro(''); setOk('') }}>Esqueci minha senha</button>
-                </div>
+
+                  {/* O campo do código só nasce depois de o SMS sair: antes
+                      dele, ele seria uma caixa pedindo algo que não existe. */}
+                  {esperandoCodigo && (
+                    <div className="fld">
+                      <label htmlFor="a-codigo">Código de 6 dígitos</label>
+                      <input className="inp ent-codigo" id="a-codigo" value={codigo}
+                        inputMode="numeric" autoComplete="one-time-code" autoFocus
+                        maxLength={6} placeholder="000000"
+                        onChange={(e) => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+                      <div className="ent-reenviar">
+                        <button type="button" disabled={reenviarEm > 0 || indo}
+                          onClick={() => { setErro(''); void mandarCodigo(false) }}>
+                          {reenviarEm > 0 ? `Reenviar em ${reenviarEm}s` : 'Reenviar o código'}
+                        </button>
+                        <button type="button" onClick={() => {
+                          setEsperandoCodigo(false); setCodigo(''); setErro(''); setOk('')
+                        }}>Trocar o número</button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="fld">
+                    <label htmlFor="a-email">E-mail</label>
+                    <input className="inp" id="a-email" type="email" required value={email} autoComplete="email"
+                      autoFocus placeholder="voce@empresa.com" onChange={(e) => setEmail(e.target.value)} />
+                  </div>
+                  {!recuperando && (
+                    <div className="fld">
+                      <label htmlFor="a-senha">Senha</label>
+                      <div className="ent-senha">
+                        <input className="inp" id="a-senha" type={vendo ? 'text' : 'password'} required
+                          value={senha} minLength={6} autoComplete="current-password"
+                          onChange={(e) => setSenha(e.target.value)} />
+                        <button type="button" className="iconbtn" onClick={() => setVendo((v) => !v)}
+                          aria-label={vendo ? 'Esconder a senha' : 'Mostrar a senha'}>
+                          {vendo ? <Ic.olhoOff /> : <Ic.olho />}
+                        </button>
+                      </div>
+                      <button type="button" className="ent-esqueci"
+                        onClick={() => { setModo('esqueci'); setErro(''); setOk('') }}>Esqueci minha senha</button>
+                    </div>
+                  )}
+                </>
               )}
               <button className="btn pri larga" type="submit" disabled={indo}>
-                {indo ? 'Um instante...' : recuperando ? 'Enviar link de recuperação' : 'Entrar'}<Ic.seta />
+                {indo ? 'Um instante...'
+                  : recuperando ? 'Enviar link de recuperação'
+                    : porFone ? (esperandoCodigo ? 'Confirmar e entrar' : 'Mandar o código')
+                      : 'Entrar'}<Ic.seta />
               </button>
             </form>
 
@@ -452,6 +610,51 @@ function Formulario() {
                     onChange={(e) => setConvite(e.target.value.toUpperCase())} />
                 </div>
               ))}
+              {/* Telefone ou e-mail, e a escolha fica embaixo do @ porque é a
+                  última coisa que muda: nome e @ são iguais nos dois. */}
+              <div className="seg ent-como" role="group" aria-label="Como criar a conta">
+                <button type="button" className={porFone ? 'on' : ''}
+                  onClick={() => { setPorFone(true); setErro(''); setOk('') }}>Telefone</button>
+                <button type="button" className={!porFone ? 'on' : ''}
+                  onClick={() => { setPorFone(false); setErro(''); setOk(''); setEsperandoCodigo(false) }}>
+                  E-mail e senha
+                </button>
+              </div>
+
+              {porFone ? (
+                <>
+                  <div className="fld">
+                    <label htmlFor="a-fone2">Telefone</label>
+                    <input className="inp" id="a-fone2" type="tel" required value={fone}
+                      autoComplete="tel" disabled={esperandoCodigo}
+                      placeholder="42 99978-3288"
+                      onChange={(e) => setFone(e.target.value)} />
+                    {!esperandoCodigo && (
+                      <p className="hint">
+                        Mandamos um código por SMS. Sem senha para inventar e sem senha para esquecer.
+                      </p>
+                    )}
+                  </div>
+                  {esperandoCodigo && (
+                    <div className="fld">
+                      <label htmlFor="a-codigo2">Código de 6 dígitos</label>
+                      <input className="inp ent-codigo" id="a-codigo2" value={codigo}
+                        inputMode="numeric" autoComplete="one-time-code" autoFocus
+                        maxLength={6} placeholder="000000"
+                        onChange={(e) => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+                      <div className="ent-reenviar">
+                        <button type="button" disabled={reenviarEm > 0 || indo}
+                          onClick={() => { setErro(''); void mandarCodigo(true) }}>
+                          {reenviarEm > 0 ? `Reenviar em ${reenviarEm}s` : 'Reenviar o código'}
+                        </button>
+                        <button type="button" onClick={() => {
+                          setEsperandoCodigo(false); setCodigo(''); setErro(''); setOk('')
+                        }}>Trocar o número</button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
               <div className="ent-par">
                 <div className="fld">
                   <label htmlFor="a-email">E-mail</label>
@@ -475,13 +678,17 @@ function Formulario() {
                   </div>
                 </div>
               </div>
+              )}
               <div className="ent-acoes">
                 <button type="button" className="btn"
                   onClick={() => { setModo(doLinkConvite ? 'entrar' : 'escolher'); setErro(''); setOk('') }}>
                   {doLinkConvite ? 'Já tenho conta' : 'Voltar'}
                 </button>
                 <button className="btn pri" type="submit" disabled={indo}>
-                  {indo ? 'Um instante...' : escolha.acao}<Ic.seta />
+                  {indo ? 'Um instante...'
+                    : porFone && !esperandoCodigo ? 'Mandar o código'
+                      : porFone ? 'Confirmar e entrar'
+                        : escolha.acao}<Ic.seta />
                 </button>
               </div>
             </form>

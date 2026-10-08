@@ -4954,3 +4954,23 @@ a.btn{text-decoration:none}
 .ent-apelido>svg{position:absolute;right:13px;width:15px;height:15px;color:var(--ac-tinta)}
 .ent-apelido .inp[aria-invalid="true"]{box-shadow:inset 0 0 0 1px var(--late)}
 .hint.ruim{color:var(--late)}
+
+/* --------------------------------------------------- a entrada por telefone */
+
+/* Telefone ou e-mail, acima dos campos: a escolha muda o que vem embaixo, e
+   por isso ela vem antes, e não no fim como um "ou". */
+.ent-como{width:100%;margin-bottom:18px}
+.ent-como button{flex:1;justify-content:center}
+
+/* Os seis dígitos. Fonte grande e espaçada porque é um número que se confere
+   com o olho contra a tela do SMS, e não uma palavra que se lê. */
+.ent-codigo{text-align:center;font-size:26px;letter-spacing:.42em;text-indent:.42em;
+  font-weight:var(--fw-semibold);padding-block:14px}
+
+.ent-reenviar{display:flex;gap:16px;margin-top:10px}
+.ent-reenviar button{font-size:var(--fs-meta);color:var(--tx-3);
+  text-decoration:underline;text-underline-offset:3px}
+.ent-reenviar button:hover:not(:disabled){color:var(--tx-2)}
+/* Desligado durante a contagem: apertar de novo é outra mensagem paga que
+   também não vai chegar, e quem não recebeu aperta três vezes em dez segundos. */
+.ent-reenviar button:disabled{opacity:.5;text-decoration:none;cursor:default}

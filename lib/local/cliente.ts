@@ -1,6 +1,7 @@
 'use client'
 
 import { curta, dias, hojeIso, soma } from '@/lib/datas'
+import { paraE164 } from '@/lib/fone'
 import { confere as confereApelido, normaliza as normalizaApelido,
   palpite as palpiteApelido } from '@/lib/apelido'
 import { buscarOuInventar, guardar, jogarFora } from './arquivos'
@@ -211,6 +212,11 @@ export function reiniciarLocal() {
   try { localStorage.setItem(CHAVE_VERSAO, String(VERSAO)) } catch {}
   gravar()
 }
+
+/* O código da demonstração é fixo e aparece na tela. Não há SMS para mandar, e
+   um código sorteado que ninguém recebe seria uma porta trancada. */
+const CODIGO_DEMO = '000000'
+const CHAVE_OTP = 'track.local.otp'
 
 const uid = (p: string) => p + Math.random().toString(36).slice(2, 9)
 const agora = () => new Date().toISOString()
@@ -1329,15 +1335,28 @@ function emDias(n: number) {
   return new Date(Date.now() + n * 86400000).toISOString()
 }
 
-function cadastrarLocal(email: string, dados: Linha): { erro?: string } {
+/**
+ * O cadastro, por e-mail OU por telefone.
+ *
+ * Espelha `novo_usuario` (seções 70 a 72), e a parte do telefone é a mesma
+ * história do banco: sem e-mail, quem diz quem é a pessoa é o número, e o nome
+ * de quem não disse o nome sai dos quatro últimos dígitos, nunca do número
+ * inteiro.
+ */
+function cadastrarLocal(email: string, dados: Linha): { erro?: string; id?: string } {
   const b = ler()
   const e = email.trim().toLowerCase()
-  if (!e) return { erro: 'Informe um e-mail.' }
-  if (b.perfis.some((p) => String(p.email).toLowerCase() === e)) {
+  const f = String(dados.fone || '').trim()
+  if (!e && !f) return { erro: 'Informe um e-mail ou um telefone.' }
+  if (e && b.perfis.some((p) => String(p.email).toLowerCase() === e)) {
     return { erro: 'Este e-mail já tem cadastro. Use "entrar".' }
   }
+  if (f && b.perfis.some((p) => String(p.fone || '') === f)) {
+    return { erro: 'Este número já tem cadastro. Use "entrar".' }
+  }
 
-  const nome = String(dados.nome || '').trim() || e.split('@')[0]
+  const nome = String(dados.nome || '').trim()
+    || (e ? e.split('@')[0] : `Pessoa ${f.replace(/\D/g, '').slice(-4)}`)
   const codigo = String(dados.convite || '').trim().toUpperCase()
 
   let orgId: string
@@ -1389,16 +1408,23 @@ function cadastrarLocal(email: string, dados: Linha): { erro?: string } {
   const paleta = ['#8A8A8A','#B0B0B0','#C9884A','#6F6F6F','#A0704A','#9A9A9A','#7A6A5E','#B5A08C']
   const n = b.perfis.filter((x) => x.org_id === orgId).length
   b.perfis.push({
-    id, user_id: id, org_id: orgId, nome, email: e, cor: paleta[n % 8], papel,
+    id, user_id: id, org_id: orgId, nome, email: e, fone: f || null,
+    cor: paleta[n % 8], papel,
     area_id: area, gestor_id: gestor, ve_area: veArea,
     ativo, criado_em: agora(),
   })
+  // O @ nasce junto, como `dar_apelido` faz no banco.
+  b.apelidos = b.apelidos || []
+  const pedido = normalizaApelido(String(dados.apelido || '')) || palpiteApelido(nome)
+  if (pedido && !b.apelidos.some((x) => x.apelido === pedido)) {
+    b.apelidos.push({ user_id: id, apelido: pedido, criado_em: agora() })
+  }
   const org = b.organizacoes.find((o) => o.id === orgId)
   if (org && !org.dono_id && papel === 'admin') org.dono_id = id
 
   definirEuLocal(id)
   gravar()
-  return {}
+  return { id }
 }
 
 /** Espelha meus_espacos() no banco. */
@@ -1992,6 +2018,49 @@ function montarCliente() {
         ouvintes.forEach((f) => f())
         return { data: { user: { id: p.id } }, error: null }
       },
+      /**
+       * A entrada por telefone, no modo demonstração.
+       *
+       * Não há SMS para mandar, e inventar um seria mentir sobre o que
+       * aconteceu. O código é FIXO e a tela diz qual é: quem está vendo uma
+       * demonstração precisa conseguir atravessar a porta, e quem está testando
+       * precisa saber que aquilo não é o app de verdade mandando mensagem.
+       */
+      async signInWithOtp(dados?: {
+        phone?: string; options?: { shouldCreateUser?: boolean; data?: Linha }
+      }) {
+        const f = paraE164(String(dados?.phone || ''))
+        if (!f) return { data: null, error: { message: 'Número inválido.' } }
+        const b = ler()
+        const existe = b.perfis.find((p) => String(p.fone || '') === f)
+        if (!existe && dados?.options?.shouldCreateUser === false) {
+          return { data: null, error: { message: 'Não achei conta com esse número.' } }
+        }
+        // Guarda o que viria nos metadados, para o `verifyOtp` criar a conta
+        // com nome e @ como o `novo_usuario` faz do outro lado.
+        try {
+          localStorage.setItem(CHAVE_OTP, JSON.stringify({ fone: f, dados: dados?.options?.data || {} }))
+        } catch {}
+        return { data: { user: null, session: null }, error: null }
+      },
+      async verifyOtp(dados?: { phone?: string; token?: string; type?: string }) {
+        if (String(dados?.token || '').replace(/\D/g, '') !== CODIGO_DEMO) {
+          return { data: null, error: { message: 'Código errado. No modo demonstração ele é ' + CODIGO_DEMO + '.' } }
+        }
+        const f = paraE164(String(dados?.phone || ''))
+        const b = ler()
+        const existe = b.perfis.find((p) => String(p.fone || '') === f)
+        if (existe) {
+          definirEuLocal(existe.id as string)
+          ouvintes.forEach((fn) => fn())
+          return { data: { user: { id: existe.id }, session: { ok: true } }, error: null }
+        }
+        let meta: Linha = {}
+        try { meta = JSON.parse(localStorage.getItem(CHAVE_OTP) || '{}').dados || {} } catch {}
+        const r = cadastrarLocal('', { ...meta, fone: f })
+        if (r.erro) return { data: null, error: { message: r.erro } }
+        return { data: { user: { id: r.id }, session: { ok: true } }, error: null }
+      },
       async signUp(dados?: { email?: string; password?: string; options?: { data?: Linha } }) {
         const r = cadastrarLocal(String(dados?.email || ''), dados?.options?.data || {})
         // `user` vem junto porque o app olha `identities` para saber se o e-mail
@@ -2012,7 +2081,6 @@ function montarCliente() {
       // O link de e-mail não existe no modo demonstração, mas a assinatura
       // precisa existir: a tela que abre o link é a mesma nos dois modos.
       async setSession(_dados?: unknown) { return { data: null, error: { message: SO_REAL } } },
-      async verifyOtp(_dados?: unknown) { return { data: null, error: { message: SO_REAL } } },
       async exchangeCodeForSession(_codigo?: string) { return { data: null, error: { message: SO_REAL } } },
     },
     /**

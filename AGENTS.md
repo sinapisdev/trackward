@@ -220,6 +220,25 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
   resolver `org_de_quem_age()` ANTES de `minha_org()`: sem a troca, a linha escrita fora
   nasce com a organização da sessão e **ninguém a enxerga, nem quem a escreveu**, que é o
   defeito da seção 44 por outro caminho. `agir_como` recusa perfil que não seja seu.
+- **Entrar é por TELEFONE primeiro, e o e-mail fica ao lado.** É o que a pessoa espera de um
+  app de hoje e é o único identificador que ela não esquece; o e-mail continua porque quem já
+  tem conta tem senha. **Recuperar senha é assunto de e-mail**, e ali a escolha nem aparece.
+- **São dois passos na MESMA tela**, e não duas rotas: põe o número, prova que é seu. O campo
+  do código **só nasce depois de o SMS sair**, senão ele é uma caixa pedindo algo que não
+  existe. E **o reenviar tem contagem de trinta segundos**: sem ela, quem não recebe aperta
+  três vezes em dez segundos, e cada aperto é uma mensagem paga que também não chega.
+- **`shouldCreateUser` é a chave inteira.** No cadastro ele cria e leva junto nome, @ e a
+  escolha do espaço, porque os metadados só valem no instante em que o login nasce; na
+  entrada ele é FALSO, senão digitar um número errado criaria uma conta vazia em silêncio em
+  vez de dizer que não achou ninguém.
+- **A régua do telefone mora em `lib/fone.ts`**, e `paraE164` é a única: ela nasceu em
+  `lib/convite.ts` e mudou de casa quando a entrada precisou dela, porque duas cópias seria o
+  jeito de um dia o convite aceitar um número que o cadastro recusa. **O `+` manda**: ele é o
+  sinal de que o país já veio, e jogá-lo fora antes de olhar o tamanho fazia `+1 415 555
+  2671` virar `+5514155552671`, porque onze dígitos é a regra do celular brasileiro.
+- **No modo demonstração o código é FIXO e a tela diz qual é.** Não há SMS para mandar, e um
+  código sorteado que ninguém recebe seria uma porta trancada; um código secreto seria a
+  demonstração mentindo sobre o que aconteceu.
 - **O cadastro por telefone quebrava o banco, e isso foi achado antes de ligar** (seção 72).
   `auth.users.email` vem NULO num cadastro por OTP, e `novo_usuario` o usava em quatro
   lugares sem perguntar: o cadastro falhava inteiro com "null value in column nome of

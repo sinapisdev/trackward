@@ -1,3 +1,5 @@
+import { paraE164, soDigitos } from './fone'
+
 /**
  * O convite: o que a empresa digita, e o que a pessoa recebe.
  *
@@ -12,30 +14,6 @@
  * pessoa existir, que é o mesmo erro de montar a trilha inteira num formulário
  * só: ninguém conhece a hierarquia de alguém no dia em que o convida.
  */
-
-/** Dígitos puros, como a Meta quer o destinatário. */
-const digitos = (bruto: string) => (bruto || '').replace(/[^0-9]/g, '')
-
-/**
- * O telefone escrito de qualquer jeito, guardado de um jeito só.
- *
- * Quem convida digita "42 99978-3288", porque é assim que o número está na
- * agenda dele. Exigir o +55 é exigir que a pessoa saiba o que o app precisa, e
- * é o tipo de campo que recusa em silêncio e não diz por quê. Dez ou onze
- * dígitos sem país é Brasil, que é onde o app é vendido; com país, respeita o
- * que foi escrito.
- *
- * Guardado em `+<país><número>`, igual a `avisos_contato.telefone`, para o
- * mesmo número não existir em duas formas no banco.
- */
-export function foneDoConvite(bruto: string): string {
-  const d = digitos(bruto)
-  if (!d) return ''
-  // Fixo com DDD são dez; celular com o nono dígito, onze.
-  if (d.length === 10 || d.length === 11) return `+55${d}`
-  // Já veio com país. Menos que doze não é país mais DDD mais número.
-  return d.length >= 12 && d.length <= 15 ? `+${d}` : ''
-}
 
 /** Parece um endereço de e-mail? A conferência de verdade é do provedor. */
 export const pareceEndereco = (bruto: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((bruto || '').trim())
@@ -61,7 +39,7 @@ export function alvoDoConvite(bruto: string): AlvoDoConvite | null {
   const t = (bruto || '').trim()
   if (!t) return null
   if (pareceEndereco(t)) return { como: 'email', email: t.toLowerCase(), fone: null }
-  const f = foneDoConvite(t)
+  const f = paraE164(t)
   return f ? { como: 'fone', fone: f, email: null } : null
 }
 
@@ -112,4 +90,4 @@ export function textoDoConvite(d: { empresa: string; quem: string; link: string 
  * da conversa, e quem convida acha que o número está errado.
  */
 export const waDoConvite = (fone: string, texto: string) =>
-  `https://wa.me/${digitos(fone)}?text=${encodeURIComponent(texto)}`
+  `https://wa.me/${soDigitos(fone)}?text=${encodeURIComponent(texto)}`

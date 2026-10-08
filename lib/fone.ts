@@ -28,3 +28,49 @@ export function formasDoFone(bruto: string): string[] {
   if (resto.length === 8) return [d, `55${area}9${resto}`]
   return [d]
 }
+
+
+/** Dígitos puros, como a Meta e o `wa.me` querem o destinatário. */
+export const soDigitos = (bruto: string) => (bruto || '').replace(/[^0-9]/g, '')
+
+/**
+ * O telefone escrito de qualquer jeito, guardado de um jeito só.
+ *
+ * Quem digita escreve "42 99978-3288", porque é assim que o número está na
+ * agenda dele. Exigir o +55 é exigir que a pessoa saiba o que o app precisa, e
+ * é o tipo de campo que recusa em silêncio e não diz por quê. Dez ou onze
+ * dígitos sem país é Brasil, que é onde o app é vendido; com país, respeita o
+ * que foi escrito.
+ *
+ * Guardado em `+<país><número>`, que é o E.164: é o formato que a Twilio, a
+ * Meta e o Supabase esperam, e é o mesmo de `avisos_contato.telefone`, para o
+ * mesmo número não existir em duas formas no banco.
+ *
+ * Mora aqui e não em `lib/convite.ts`, onde nasceu, porque a entrada por
+ * telefone precisa da MESMA régua: duas cópias seria o jeito de um dia o
+ * convite aceitar um número que o cadastro recusa.
+ */
+export function paraE164(bruto: string): string {
+  const t = (bruto || '').trim()
+  const d = soDigitos(t)
+  if (!d) return ''
+  /* O MAIS é o sinal de que o país já veio, e jogá-lo fora antes de olhar o
+     tamanho era o defeito: +1 415 555 2671 tem onze dígitos, caía na regra do
+     celular brasileiro e virava +5514155552671. Quem escreveu o mais disse de
+     qual país é o número, e o app não tem por que discordar. */
+  if (t.startsWith('+')) return d.length >= 8 && d.length <= 15 ? `+${d}` : ''
+  // Sem o mais, é Brasil: fixo com DDD são dez, celular com o nono são onze.
+  if (d.length === 10 || d.length === 11) return `+55${d}`
+  // Doze ou mais sem o mais ainda é país junto, escrito sem ele.
+  return d.length >= 12 && d.length <= 15 ? `+${d}` : ''
+}
+
+/** Como ele aparece na tela: +55 (42) 99978-3288. */
+export function foneEscrito(e164: string): string {
+  const d = soDigitos(e164)
+  if (!d.startsWith('55') || d.length < 12) return e164 || ''
+  const ddd = d.slice(2, 4)
+  const r = d.slice(4)
+  const meio = r.length === 9 ? `${r.slice(0, 5)}-${r.slice(5)}` : `${r.slice(0, 4)}-${r.slice(4)}`
+  return `+55 (${ddd}) ${meio}`
+}
