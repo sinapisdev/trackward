@@ -131,6 +131,17 @@ type Contexto = {
   meuDia: LinhaDoDia[]
   /** Quantas eu entreguei nos últimos 30 dias, somando todos os meus espaços. */
   minhasEntregas: number
+  /**
+   * O @ de um perfil, ou vazio quando não dá para saber.
+   *
+   * Recebe PERFIL e não login porque é por perfil que a tela conhece gente, e
+   * a tradução de um para o outro é daqui: o @ é do login, e a mesma pessoa tem
+   * um perfil por espaço.
+   */
+  apelidoDe: (perfilId: string | null | undefined) => string
+  /** O seu. */
+  meuApelido: string
+  escolherApelido: (a: string) => Promise<boolean>
   /** A ligação com o calendário de fora, quando você tem uma. */
   minhaAgendaExterna: AgendaExterna | null
   /** Os trilhos que a empresa desenhou, prontos para dar origem a esteiras. */
@@ -464,6 +475,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [meuDia, setMeuDia] = useState<LinhaDoDia[]>([])
   /** Quantas eu entreguei nos últimos 30 dias, em todos eles. */
   const [minhasEntregas, setMinhasEntregas] = useState(0)
+  /** O @ de cada login que eu enxergo, pelo `user_id`. */
+  const [apelidos, setApelidos] = useState<Map<string, string>>(new Map())
   const [minhaAgendaExterna, setMinhaExterna] = useState<AgendaExterna | null>(null)
   const [processos, setProcessos] = useState<Processo[]>([])
   const [ciclos, setCiclos] = useState<Ciclo[]>([])
@@ -517,7 +530,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   /** Recolhe tudo que a pessoa pode ver e monta a árvore de fluxos. */
   const carregar = useCallback(async () => {
-    const [p, s, f, e, i, h, cic, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns, ags, cnc, nts, notaPes, fbk, avs, ctt, psh, mag, mdia, ment] = await Promise.all([
+    const [p, s, f, e, i, h, cic, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns, ags, cnc, nts, notaPes, fbk, avs, ctt, psh, mag, mdia, ment, apl] = await Promise.all([
       sb.from('perfis').select('*').order('nome'),
       sb.from('areas').select('*').order('ordem'),
       sb.from('fluxos').select('*').order('criado_em'),
@@ -571,6 +584,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       /* A outra metade da carga da pessoa: `meu_dia` diz a demanda, esta diz a
          capacidade demonstrada. Vinte tarefas não quer dizer nada sem ela. */
       sb.rpc('minhas_entregas', { p_dias: 30 }),
+      /* O @ é do LOGIN, não do perfil: a política devolve o seu e o de quem
+         divide um espaço com você, que é o que escreve "@ana" na tela. */
+      sb.from('apelidos').select('user_id,apelido'),
     ])
 
     /**
@@ -721,6 +737,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     setAgenda([...abertos, ...meus, ...fechados.values(), ...externos])
     setMeuDia(((mdia.data || []) as LinhaDoDia[]) || [])
     setMinhasEntregas(typeof ment.data === 'number' ? ment.data : 0)
+    setApelidos(new Map(((apl.data || []) as { user_id: string; apelido: string }[])
+      .map((a) => [a.user_id, a.apelido])))
     setMinhaExterna(((ax.data || []) as AgendaExterna[])[0] || null)
 
     const itensPorEtapa = new Map<string, ProcessoItem[]>()
@@ -1905,6 +1923,39 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   }, [sb, empresaAtiva, focarEmpresa, falhou, toast, recarregar])
 
   /** Trocar de espaço recarrega o app inteiro: é outro lugar, com outros dados. */
+  /**
+   * O @ daquele perfil.
+   *
+   * A ponte é o `user_id`: o @ é do login, e `perfis` é por espaço. Vazio
+   * quando a pessoa não divide espaço comigo, porque aí a política não devolve
+   * o @ dela, e inventar um seria pior que não mostrar.
+   */
+  const apelidoDe: Contexto['apelidoDe'] = useCallback((perfilId) => {
+    if (!perfilId) return ''
+    const p = perfis.find((x) => x.id === perfilId) || (perfilId === eu.id ? eu : null)
+    return (p?.user_id && apelidos.get(p.user_id)) || ''
+  }, [perfis, eu, apelidos])
+
+  const meuApelido = useMemo(
+    () => (eu.user_id && apelidos.get(eu.user_id)) || '',
+    [eu.user_id, apelidos],
+  )
+
+  /**
+   * Trocar o seu @.
+   *
+   * Quem confere é o banco, e a mensagem dele vem em português escrito para
+   * gente ler ("Esse @ já tem dono"), então ela passa inteira pela peneira de
+   * `falhou`. Ver `escolher_apelido`, seção 71.
+   */
+  const escolherApelido: Contexto['escolherApelido'] = useCallback(async (a) => {
+    const { error } = await sb.rpc('escolher_apelido', { p_apelido: a })
+    if (error) { falhou(error, 'Não deu para trocar o seu @.'); return false }
+    toast(`Agora você é @${a}.`)
+    recarregar()
+    return true
+  }, [sb, falhou, toast, recarregar])
+
   const trocarEspaco: Contexto['trocarEspaco'] = useCallback(async (perfilId) => {
     const { error } = await sb.rpc('trocar_espaco', { p_perfil: perfilId })
     if (error) return falhou(error, 'Não foi possível trocar de espaço.')
@@ -3479,7 +3530,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     conectores, salvarConector, guardarChave, excluirConector, testarConector,
     notas, salvarNota, excluirNota, comQuem, compartilharNota, notaParaCanal,
     abrirNotaDoCanal, conversaIA, abrirConversaIA,
-    meuDia, minhasEntregas,
+    meuDia, minhasEntregas, apelidoDe, meuApelido, escolherApelido,
     mensagensDaNota, sugestoesDaNota, escreverNaNota, perguntarNaNota, respondendo,
     minhaLista, abrirMinhaLista, criarAvulsa,
     avisos, naoVistos: avisos.filter((a) => !a.lido_em).length,

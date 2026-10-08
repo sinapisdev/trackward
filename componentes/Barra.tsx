@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { escrito } from '@/lib/apelido'
 import { usePathname, useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -198,7 +199,7 @@ function Busca() {
  */
 function Eu() {
   const { eu, pessoal, pode, areas, org, empresas, empresaAtiva, focarEmpresa,
-    canais, naoLidas } = useDados()
+    canais, naoLidas, meuApelido } = useDados()
   const router = useRouter()
   const celular = useCelular()
   const caminho = usePathname()
@@ -253,9 +254,13 @@ function Eu() {
                 o tipo de coisa que só se descobre errando. */}
             <div className="folha-eu">
               <Av p={eu} tam="lg" />
+              {/* O @ no lugar do e-mail: ele é o endereço que o app tem, e o
+                  e-mail é de outra empresa. Sem @ ainda (conta velha que não
+                  recarregou), o e-mail volta, porque um cartão de perfil sem
+                  nada embaixo do nome parece quebrado. */}
               <span>
                 <b>{eu.nome}</b>
-                <small>{eu.email}</small>
+                <small>{escrito(meuApelido) || eu.email}</small>
               </span>
             </div>
 
@@ -325,7 +330,7 @@ function Eu() {
         <div className="tw-menu dir">
           <div className="tw-menu-eu">
             <Av p={eu} tam="lg" />
-            <span><b>{eu.nome}</b><small>{eu.email}</small></span>
+            <span><b>{eu.nome}</b><small>{escrito(meuApelido) || eu.email}</small></span>
           </div>
           <div className="tw-menu-sep" />
           {!pessoal && (

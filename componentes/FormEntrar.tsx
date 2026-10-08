@@ -1,9 +1,10 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase/browser'
 import { Ic } from './Icones'
+import { confere, normaliza, palpite, PORQUE, escrito, type Recusa } from '@/lib/apelido'
 
 type Modo = 'entrar' | 'escolher' | 'criar' | 'esqueci'
 /** Os três jeitos de a conta nascer. Ver novo_usuario() em supabase/schema.sql. */
@@ -82,6 +83,19 @@ function Formulario() {
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [convite, setConvite] = useState(doLinkConvite)
+  const [apelido, setApelido] = useState('')
+  /**
+   * O que o banco respondeu sobre o @, e se ele ainda está respondendo.
+   *
+   * A conferência é em DUAS camadas, e as duas são necessárias. `confere()` em
+   * `lib/apelido.ts` responde na tecla, sem ida à rede, e cobre formato e
+   * tamanho; `apelido_livre` responde se está tomado e se é reservado, que são
+   * as duas coisas que só o banco sabe. A segunda é esperada meio segundo
+   * depois da última tecla: perguntar a cada letra é uma ida por caractere.
+   */
+  const [doBanco, setDoBanco] = useState<string | null>(null)
+  const [conferindo, setConferindo] = useState(false)
+  const [mexeuNoApelido, setMexeuNoApelido] = useState(false)
   const [jeito, setJeito] = useState<Jeito>(doLinkConvite ? 'convite' : 'equipe')
   const [empresa, setEmpresa] = useState('')
   const [erro, setErro] = useState('')
@@ -133,6 +147,7 @@ function Formulario() {
       }
       if (modo === 'criar') {
         if (!nome.trim()) { setErro('Diga seu nome, é assim que as pessoas vão te reconhecer.'); return }
+        if (!apelidoOk) { setErro('Escolha um @ que esteja livre.'); return }
         if (jeito === 'equipe' && !empresa.trim()) { setErro('Diga o nome da empresa.'); return }
         // O pessoal não pede mais nada: o espaço é a pessoa, e o nome dele é o
         // nome dela. Pedir "nome da organização" para quem escolheu "só para
@@ -144,6 +159,11 @@ function Formulario() {
           options: {
             data: {
               nome: nome.trim(),
+              /* O banco confere de novo e NÃO falha se tiver sido tomado entre
+                 o formulário e o clique: `dar_apelido` acrescenta um número. Um
+                 @ que virou de outro no meio do caminho não pode impedir
+                 alguém de se cadastrar. */
+              apelido: normaliza(apelido),
               // Um campo por jeito. O banco decide o resto, e o papel nunca vem daqui.
               ...(jeito === 'convite' ? { convite: convite.trim().toUpperCase() } : {}),
               ...(jeito === 'equipe' ? { organizacao: empresa.trim() } : {}),
@@ -193,6 +213,39 @@ function Formulario() {
       setIndo(false)
     }
   }
+
+  /**
+   * O @ nasce do nome, e é editável.
+   *
+   * Campo vazio num cadastro é um campo que a pessoa pula ou abandona, e este
+   * não dá para pular: o @ não se escolhe depois sem uma segunda conversa.
+   * Preenchido, ela vê a FORMA antes de inventar o dela, e quase sempre aceita.
+   * Depois que ela mexe, o app não escreve mais por cima: reescrever o que
+   * alguém acabou de digitar é o pior que um campo pode fazer.
+   */
+  useEffect(() => {
+    if (mexeuNoApelido) return
+    setApelido(palpite(nome))
+  }, [nome, mexeuNoApelido])
+
+  /* A segunda camada, meio segundo depois da última tecla. A primeira já
+     recusou o que é torto, então só chega aqui o que tem forma de @. */
+  useEffect(() => {
+    const a = normaliza(apelido)
+    setDoBanco(null)
+    if (!a || confere(a)) return
+    setConferindo(true)
+    const t = setTimeout(() => {
+      void supabase().rpc('apelido_livre', { p_apelido: a })
+        .then(({ data }) => setDoBanco(typeof data === 'string' ? data : null))
+        .catch(() => {})
+        .finally(() => setConferindo(false))
+    }, 500)
+    return () => { clearTimeout(t); setConferindo(false) }
+  }, [apelido])
+
+  const recusaDoApelido = confere(apelido) || (doBanco as Recusa | 'tomado' | null)
+  const apelidoOk = !!normaliza(apelido) && !recusaDoApelido && !conferindo
 
   /** O olho da senha: quem digita errado precisa poder conferir. */
   const [vendo, setVendo] = useState(false)
@@ -341,6 +394,27 @@ function Formulario() {
                 <label htmlFor="a-nome">Seu nome</label>
                 <input className="inp" id="a-nome" value={nome} autoFocus placeholder="Como podemos chamar você?"
                   onChange={(e) => setNome(e.target.value)} />
+              </div>
+              {/* O @ vem logo depois do nome porque nasce dele: a pessoa vê o
+                  palpite se formar enquanto digita, e quase sempre aceita. */}
+              <div className="fld">
+                <label htmlFor="a-apelido">Seu @</label>
+                <div className="ent-apelido">
+                  <span aria-hidden>@</span>
+                  <input className="inp" id="a-apelido" value={apelido}
+                    autoCapitalize="none" autoCorrect="off" spellCheck={false}
+                    placeholder="comoteachamam"
+                    aria-invalid={!!normaliza(apelido) && !!recusaDoApelido}
+                    onChange={(e) => { setMexeuNoApelido(true); setApelido(normaliza(e.target.value)) }} />
+                  {apelidoOk && <Ic.check />}
+                </div>
+                <p className={`hint ${normaliza(apelido) && recusaDoApelido ? 'ruim' : ''}`}>
+                  {conferindo ? 'Vendo se está livre...'
+                    : !normaliza(apelido) ? 'É assim que as pessoas vão te chamar e te convidar.'
+                      : recusaDoApelido === 'tomado' ? 'Esse já tem dono. Escolha outro.'
+                        : recusaDoApelido ? PORQUE[recusaDoApelido as Recusa]
+                          : `${escrito(normaliza(apelido))} é seu. Dá para trocar depois, em Ajustes.`}
+                </p>
               </div>
               {jeito === 'equipe' && (
                 <div className="fld">

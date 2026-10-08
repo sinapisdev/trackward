@@ -8,6 +8,7 @@ import { useModais } from './Modais'
 import { Carregando } from './Shell'
 import { Ic } from './Icones'
 import { AjustesAvisos } from './AjustesAvisos'
+import { confere, normaliza, PORQUE } from '@/lib/apelido'
 import { isoDe, rel } from '@/lib/datas'
 import { MODO_LOCAL } from '@/lib/modo'
 import { ComoNoIphone, useConviteDeInstalar } from './Instalar'
@@ -20,7 +21,8 @@ import { esquecerTutoriais } from './Tutorial'
 import { esquecerPedidoDePush } from './PedirPush'
 
 export function TelaAjustes() {
-  const { eu, org, empresas, todosFluxos, carregando, salvarOrg, salvarPerfil, excluirEmpresa,
+  const { meuApelido, escolherApelido,
+    eu, org, empresas, todosFluxos, carregando, salvarOrg, salvarPerfil, excluirEmpresa,
     minhaAgendaExterna, agenda, ligarAgendaExterna, desligarAgendaExterna, pode,
     plano, diasDeTeste, ativos, tetoLeituras } = useDados()
   const { abrir } = useModais()
@@ -29,6 +31,10 @@ export function TelaAjustes() {
   const tours = toursDe(pode)
   const vistos = (eu.tutoriais ?? []).filter((id) => tours.some((t) => t.id === id))
   const [nomeOrg, setNomeOrg] = useState(org.nome)
+  const [apelido, setApelido] = useState('')
+  /* O campo parte do @ que ela tem. Vazio, ele parece que ela não tem nenhum, e
+     ela tem: o banco dá um a todo mundo. */
+  useEffect(() => { setApelido(meuApelido) }, [meuApelido])
   const [rotulo, setRotulo] = useState(org.rotulo)
   const [rotuloP, setRotuloP] = useState(org.rotulo_plural)
   const [urlAgenda, setUrlAgenda] = useState('')
@@ -56,6 +62,7 @@ export function TelaAjustes() {
         {/* O índice não é navegação nova: é atalho para as seções desta mesma
             página, que é comprida por natureza. */}
         <nav className="aj-indice" aria-label="Seções dos ajustes">
+          <a href="#aj-eu">Você</a>
           {admin && <a href="#aj-org">Organização</a>}
           <a href="#aj-ia">Leitura da conversa</a>
           <a href="#aj-saida">O que sai daqui</a>
@@ -69,6 +76,37 @@ export function TelaAjustes() {
         </nav>
 
         <div className="aj-corpo">
+        <div className="blk" id="aj-eu">
+          <div className="bh">
+            <h2>Você</h2>
+            <span className="c">o seu @ vale em todos os seus espaços</span>
+          </div>
+          <div className="card" style={{ padding: 15 }}>
+            <div className="fld">
+              <label htmlFor="aj-apelido">Seu @</label>
+              <div className="row-inline">
+                <div className="ent-apelido">
+                  <span aria-hidden>@</span>
+                  <input className="inp" id="aj-apelido" value={apelido}
+                    autoCapitalize="none" autoCorrect="off" spellCheck={false}
+                    onChange={(e) => setApelido(normaliza(e.target.value))} />
+                </div>
+                <button className="btn"
+                  disabled={!normaliza(apelido) || !!confere(apelido) || normaliza(apelido) === meuApelido}
+                  onClick={() => void escolherApelido(normaliza(apelido))}>Salvar</button>
+              </div>
+              {/* O @ antigo NÃO fica reservado: segurar o que alguém largou é o
+                  jeito de a lista encher de nome que ninguém usa. Dito aqui
+                  porque é a hora em que a pessoa decide. */}
+              <p className={`hint ${normaliza(apelido) && confere(apelido) ? 'ruim' : ''}`}>
+                {normaliza(apelido) && confere(apelido)
+                  ? PORQUE[confere(apelido)!]
+                  : 'É por ele que te convidam e te encontram. Trocando, o antigo fica livre para outra pessoa.'}
+              </p>
+            </div>
+          </div>
+        </div>
+
         {admin && (
           <div className="blk" id="aj-org">
             <div className="bh"><h2>Organização</h2><span className="c">o nome que aparece no alto da lateral</span></div>

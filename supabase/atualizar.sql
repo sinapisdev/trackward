@@ -1806,7 +1806,8 @@ begin
     -- `raiox` faltava nas DUAS, e o raio-X cria aviso desse tipo: no primeiro
     -- dia em que ele tivesse o que dizer, o aviso falharia e ninguém saberia.
     'tarefa','aprovacao','prazo','travou','destravou','citacao','pedido_prazo',
-    'nota','feedback','mensagem','parada','carga','rotina','raiox','proposta'));
+    'nota','feedback','mensagem','parada','carga','rotina','raiox','proposta',
+    'convite'));
 end $$;
 
 -- `avisar()` ganha o destino de nota. Assinatura nova, então a antiga sai.
@@ -2841,7 +2842,8 @@ begin
     -- `raiox` faltava nas DUAS, e o raio-X cria aviso desse tipo: no primeiro
     -- dia em que ele tivesse o que dizer, o aviso falharia e ninguém saberia.
     'tarefa','aprovacao','prazo','travou','destravou','citacao','pedido_prazo',
-    'nota','feedback','mensagem','parada','carga','rotina','raiox','proposta'));
+    'nota','feedback','mensagem','parada','carga','rotina','raiox','proposta',
+    'convite'));
 end $$;
 
 /**
@@ -4029,7 +4031,8 @@ begin
   alter table public.avisos drop constraint if exists avisos_tipo_check;
   alter table public.avisos add constraint avisos_tipo_check check (tipo in (
     'tarefa','aprovacao','prazo','travou','destravou','citacao','pedido_prazo',
-    'nota','feedback','mensagem','parada','carga','rotina','raiox','proposta'));
+    'nota','feedback','mensagem','parada','carga','rotina','raiox','proposta',
+    'convite'));
 end $$;
 
 /**
@@ -6772,6 +6775,346 @@ begin
   end loop;
 end $$;
 
+-- ==========================================================================
+-- 71. O @ da pessoa, que é o primeiro endereço que o app tem de verdade
+--
+--     Para alguém ser chamado, ele precisa de um endereço. Hoje o convite vai
+--     para um telefone ou um e-mail, e os dois são de outra pessoa: o telefone
+--     é da operadora, o e-mail é do Google. O @ é do TrackWard, e é o que
+--     torna possível um dia escrever para alguém sem saber o e-mail dele.
+--
+--     **Ele é do LOGIN, e não do perfil.** A mesma pessoa tem um perfil por
+--     espaço, e quatro empresas não lhe dão quatro nomes: o @ é dela, e
+--     atravessa junto com a agenda e com o dia. Por isso tabela própria, com o
+--     `user_id` como chave, e não uma coluna em `perfis`.
+--
+--     **E ele se pede no cadastro, não depois.** Nome bom acaba: quem chegar em
+--     seis meses não acha o que quer, e quem se cadastrou antes de o campo
+--     existir fica sem nenhum e precisa ser perguntado numa segunda conversa,
+--     que é a mesma que `PedeNome` existe para ter e que ninguém quer ter duas
+--     vezes. Quem já existe ganha o seu nesta passada, derivado do nome.
+-- --------------------------------------------------------------------------
+
+create table if not exists public.apelidos (
+  user_id   uuid primary key references auth.users on delete cascade,
+  apelido   text not null unique,
+  criado_em timestamptz not null default now()
+);
+
+/**
+ * O que o app não deixa ninguém tomar, e as duas famílias doem diferente.
+ *
+ * Em TABELA e não numa lista dentro da função, porque ela cresce: cada rota
+ * nova do app é um nome a mais aqui, e acrescentar vira um insert em vez de
+ * uma edição de função. `lib/apelido.ts` tem uma cópia para responder enquanto
+ * a pessoa digita, mas **a autoridade é esta**: as duas podem divergir, e a
+ * direção segura é o banco recusar o que a tela deixou passar, nunca o
+ * contrário.
+ */
+create table if not exists public.apelidos_reservados (
+  apelido text primary key,
+  porque  text not null default ''
+);
+
+insert into public.apelidos_reservados (apelido, porque) values
+  -- 1. os endereços do app. Um `@entrar` tornaria impossível abrir
+  --    trackward.app/@fulano sem escolher entre a pessoa e a rota.
+  ('api','rota'), ('auth','rota'), ('entrar','rota'), ('sair','rota'),
+  ('convite','rota'), ('feedback','rota'), ('avisos','rota'), ('agenda','rota'),
+  ('chat','rota'), ('notas','rota'), ('tracks','rota'), ('track','rota'),
+  ('fluxo','rota'), ('minhas','rota'), ('tarefas','rota'), ('equipe','rota'),
+  ('ajustes','rota'), ('processos','rota'), ('relatorios','rota'),
+  ('desempenho','rota'), ('agentes','rota'), ('conectores','rota'),
+  ('secretario','rota'), ('design-system','rota'), ('nova-senha','rota'),
+  ('projetos','rota'), ('areas','rota'), ('area','rota'), ('app','rota'),
+  ('www','rota'), ('admin','rota'), ('root','rota'), ('static','rota'),
+  ('public','rota'), ('assets','rota'), ('novo','rota'), ('me','rota'),
+  -- 2. o que se faria passar pela casa. `@suporte` escrevendo para um cliente
+  --    é golpe com o nome certo no remetente.
+  ('trackward','casa'), ('suporte','casa'), ('ajuda','casa'), ('contato','casa'),
+  ('seguranca','casa'), ('oficial','casa'), ('cobranca','casa'),
+  ('financeiro','casa'), ('noreply','casa'), ('sistema','casa'),
+  ('bot','casa'), ('ia','casa')
+on conflict (apelido) do nothing;
+
+alter table public.apelidos            enable row level security;
+alter table public.apelidos_reservados enable row level security;
+
+/**
+ * Quem lê o @ de quem.
+ *
+ * O seu, sempre, e o de quem divide um espaço com você, que é o que deixa a
+ * tela escrever "@ana" ao lado do nome dela. O de um estranho não se lê pela
+ * tabela: para saber se um @ existe há `apelido_livre`, que responde sim ou
+ * não e nada mais.
+ */
+drop policy if exists apelidos_sel on public.apelidos;
+create policy apelidos_sel on public.apelidos for select using (
+  user_id = auth.uid()
+  or exists (
+    select 1 from perfis p
+    where p.user_id = apelidos.user_id
+      and p.org_id in (select org_id from minhas_casas())
+  )
+);
+
+-- Ninguém escreve aqui pela tabela: escolher passa por `escolher_apelido`, que
+-- é quem confere formato, reservado e repetido. Política de escrita nenhuma.
+
+drop policy if exists reservados_sel on public.apelidos_reservados;
+create policy reservados_sel on public.apelidos_reservados for select using (true);
+
+/**
+ * O @ está livre? E, se não está, por quê.
+ *
+ * Aberta para `anon` de propósito: a pergunta é feita no cadastro, antes de
+ * existir sessão. Ela revela quais @ estão tomados, e isso é o preço de ter @:
+ * todo sistema de apelido revela isso, porque é a única forma de alguém
+ * escolher um. O que ela NÃO revela é de quem é.
+ */
+create or replace function public.apelido_livre(p_apelido text)
+returns text language plpgsql stable security definer set search_path = public as $$
+declare a text := lower(btrim(regexp_replace(coalesce(p_apelido, ''), '^@+', '')));
+begin
+  if length(a) < 3  then return 'curto'; end if;
+  if length(a) > 20 then return 'longo'; end if;
+  if a !~ '^[a-z0-9._]+$'  then return 'formato'; end if;
+  if a ~ '^[._]|[._]$'     then return 'ponta'; end if;
+  if a ~ '[._]{2}'         then return 'repetido'; end if;
+  if exists (select 1 from apelidos_reservados where apelido = a) then return 'reservado'; end if;
+  if exists (select 1 from apelidos where apelido = a) then return 'tomado'; end if;
+  return null;
+end $$;
+
+revoke all on function public.apelido_livre(text) from public;
+grant execute on function public.apelido_livre(text) to anon, authenticated, service_role;
+
+/**
+ * Tomar um @, ou trocar o seu.
+ *
+ * Quem decide é esta função e não a política, porque o que ela confere não é
+ * "de quem é a linha", é a FORMA do que vai entrar, e isso uma policy não sabe
+ * fazer sem repetir o regex em três lugares.
+ *
+ * Trocar é permitido, e o @ antigo **não fica reservado**: segurar o que
+ * alguém largou é o jeito de a lista encher de nome que ninguém usa. Quem
+ * trocou e se arrependeu corre o risco de o antigo já ter dono, e isso é o
+ * mesmo em qualquer lugar que tenha @.
+ */
+create or replace function public.escolher_apelido(p_apelido text)
+returns text language plpgsql volatile security definer set search_path = public as $$
+declare
+  a    text := lower(btrim(regexp_replace(coalesce(p_apelido, ''), '^@+', '')));
+  nao  text := apelido_livre(a);
+  u    uuid := auth.uid();
+begin
+  if u is null then raise exception 'Entre na sua conta primeiro.'; end if;
+  -- Repetir o que já é seu não é erro: a tela pode mandar o mesmo valor ao
+  -- salvar um formulário que a pessoa não mexeu.
+  if exists (select 1 from apelidos where user_id = u and apelido = a) then return a; end if;
+  if nao is not null then
+    raise exception '%', case nao
+      when 'curto'     then 'O @ precisa de pelo menos 3 letras.'
+      when 'longo'     then 'O @ pode ter no máximo 20 caracteres.'
+      when 'formato'   then 'O @ aceita só letras, números, ponto e traço baixo.'
+      when 'ponta'     then 'O @ não pode começar nem terminar com ponto ou traço baixo.'
+      when 'repetido'  then 'O @ não pode ter dois pontos ou dois traços seguidos.'
+      when 'reservado' then 'Esse @ está reservado pelo app. Escolha outro.'
+      else 'Esse @ já tem dono. Escolha outro.' end;
+  end if;
+  insert into apelidos (user_id, apelido) values (u, a)
+  on conflict (user_id) do update set apelido = excluded.apelido;
+  return a;
+end $$;
+
+revoke all on function public.escolher_apelido(text) from public, anon;
+grant execute on function public.escolher_apelido(text) to authenticated, service_role;
+
+/**
+ * Tirar o acento sem a extensão `unaccent`.
+ *
+ * O Supabase gerenciado não traz `unaccent` ligada, e pedir ao cliente que
+ * ligue uma extensão para o cadastro funcionar é uma peça a mais para dar
+ * errado no dia em que alguém criar o projeto. A tabela cobre o português, que
+ * é onde o app é vendido.
+ */
+create or replace function public.unaccent_simples(p text)
+returns text language sql immutable set search_path = public as $$
+  select translate(coalesce(p, ''),
+    'áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ',
+    'aaaaaeeeeiiiiooooouuuucnAAAAAEEEEIIIIOOOOOUUUUCN');
+$$;
+
+/**
+ * O @ de quem está nascendo, vindo do cadastro.
+ *
+ * Separada de `escolher_apelido` porque lá quem manda é `auth.uid()`, e aqui
+ * quem escreve é o gatilho de `auth.users`, numa transação em que a sessão
+ * ainda não existe. E ela **não falha**: um @ tomado entre o preenchimento do
+ * formulário e o clique não pode impedir alguém de se cadastrar. Nesse caso ele
+ * ganha um número no fim, como qualquer lugar que tem @ faz.
+ */
+create or replace function public.dar_apelido(p_user uuid, p_pedido text, p_nome text, p_email text)
+returns text language plpgsql security definer set search_path = public as $$
+declare a text; base text; tentativa text; k int := 0;
+begin
+  if p_user is null then return null; end if;
+  if exists (select 1 from apelidos where user_id = p_user) then
+    return (select apelido from apelidos where user_id = p_user);
+  end if;
+
+  a := lower(btrim(regexp_replace(coalesce(p_pedido, ''), '^@+', '')));
+  if apelido_livre(a) is null then
+    insert into apelidos (user_id, apelido) values (p_user, a);
+    return a;
+  end if;
+
+  -- Sem pedido, ou com um que não serve: vale o nome, sem acento, e o endereço
+  -- como última saída. Quem nunca disse nada precisa sair daqui com um @.
+  base := lower(unaccent_simples(coalesce(nullif(btrim(p_nome), ''),
+                                          split_part(coalesce(p_email, ''), '@', 1),
+                                          'pessoa')));
+  base := regexp_replace(base, '[^a-z0-9]+', '.', 'g');
+  base := regexp_replace(base, '^[._]+|[._]+$', '', 'g');
+  base := left(regexp_replace(base, '[._]{2,}', '.', 'g'), 16);
+  base := regexp_replace(base, '[._]+$', '', 'g');
+  if length(base) < 3 then base := 'pessoa'; end if;
+
+  tentativa := base;
+  while apelido_livre(tentativa) is not null and k < 60 loop
+    k := k + 1;
+    tentativa := left(base, 16) || k::text;
+  end loop;
+  -- Sessenta tentativas e nada: o acaso resolve, e o @ continua trocável.
+  if apelido_livre(tentativa) is not null then
+    tentativa := left(base, 10) || floor(random() * 900000 + 100000)::text;
+  end if;
+
+  insert into apelidos (user_id, apelido) values (p_user, tentativa)
+  on conflict (user_id) do nothing;
+  return tentativa;
+end $$;
+
+revoke all on function public.dar_apelido(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function public.dar_apelido(uuid, text, text, text) to service_role;
+
+/**
+ * O cadastro passa a carimbar o @ junto com o resto.
+ *
+ * Ele entra ANTES do convite e antes da empresa, pelo mesmo motivo do espaço
+ * pessoal: é da pessoa, e vale nos três caminhos. Quem chega por convite também
+ * ganha o seu, e é quem mais precisa, porque não escolheu nada.
+ */
+create or replace function public.novo_usuario()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  cv        convites%rowtype;
+  v_org     uuid;
+  v_nome    text := nullif(btrim(new.raw_user_meta_data->>'organizacao'), '');
+  v_codigo  text := upper(btrim(coalesce(new.raw_user_meta_data->>'convite', '')));
+  v_espaco  text := lower(btrim(coalesce(new.raw_user_meta_data->>'espaco', '')));
+  v_eu      text := nullif(btrim(new.raw_user_meta_data->>'nome'), '');
+  v_apelido text := nullif(btrim(new.raw_user_meta_data->>'apelido'), '');
+  v_papel   text := 'colaborador';
+  v_ativo   boolean := false;
+  v_dono    boolean := false;
+  v_perfil  uuid;
+  v_ve_area boolean := false;
+  v_area    uuid;
+  v_gestor  uuid;
+  n int;
+  paleta text[] := array['#8A8A8A','#B0B0B0','#C9884A','#6F6F6F','#A0704A','#9A9A9A','#7A6E8F','#B5A08C'];
+begin
+  -- 0. O que é da PESSOA, e vale nos três caminhos: o @ e o espaço pessoal.
+  --    Quem entra por convite ganha os dois, e é quem mais precisa deles.
+  perform dar_apelido(new.id, v_apelido, v_eu, new.email);
+  v_org := abrir_pessoal(new.id, v_eu, new.email);
+
+  select * into cv from convites
+  where usado_em is null
+    and (vence_em is null or vence_em > now())
+    and (
+      (v_codigo <> '' and codigo = v_codigo)
+      or lower(email) = lower(new.email)
+    )
+  order by (v_codigo <> '' and codigo = v_codigo) desc
+  limit 1;
+
+  if cv.id is not null then
+    v_org := cv.org_id;
+    v_papel := coalesce(cv.papel, 'colaborador');
+    v_area := cv.area_id;
+    v_gestor := cv.gestor_id;
+    v_ve_area := coalesce(cv.ve_area, false);
+    v_ativo := true;
+  elsif v_espaco <> 'pessoal' then
+    insert into organizacoes (nome, tipo)
+    values (coalesce(v_nome, initcap(split_part(new.email, '@', 1))), 'equipe')
+    returning id into v_org;
+    v_papel := 'admin';
+    v_ativo := true;
+    v_dono := true;
+    v_ve_area := true;
+  else
+    select id into v_perfil from perfis where user_id = new.id and org_id = v_org;
+    if v_perfil is not null then
+      insert into sessoes (user_id, perfil_id) values (new.id, v_perfil)
+      on conflict (user_id) do update set perfil_id = excluded.perfil_id;
+    end if;
+    return new;
+  end if;
+
+  select count(*) into n from perfis where org_id = v_org;
+
+  insert into perfis (user_id, org_id, nome, email, cor, papel, area_id, gestor_id, ve_area, ativo)
+  values (
+    new.id, v_org,
+    coalesce(v_eu, nullif(btrim(cv.nome), ''), split_part(new.email, '@', 1)),
+    new.email,
+    paleta[(n % 8) + 1],
+    v_papel, v_area, v_gestor, v_ve_area, v_ativo
+  )
+  on conflict (user_id, org_id) do nothing
+  returning id into v_perfil;
+
+  if v_dono and v_perfil is not null then
+    update organizacoes set dono_id = v_perfil where id = v_org;
+  end if;
+  if v_perfil is not null then
+    insert into sessoes (user_id, perfil_id) values (new.id, v_perfil)
+    on conflict (user_id) do update set perfil_id = excluded.perfil_id;
+  end if;
+  if cv.id is not null then
+    update convites set usado_em = now(), usado_por = v_perfil where id = cv.id;
+  end if;
+  return new;
+end $$;
+
+/**
+ * E quem já existe ganha o dele, derivado do nome.
+ *
+ * Sem esta passada o @ valeria só para quem se cadastrar de amanhã em diante, e
+ * a conversa de "escolha o seu agora" teria que acontecer com todo mundo que já
+ * usa o app, que é exatamente a conversa que pedir no cadastro existe para
+ * evitar. Deriva do nome, e quem não gostar troca em Ajustes.
+ *
+ * `dar_apelido` devolve o que já existe em vez de criar outro, então rodar isto
+ * de novo não faz nada na segunda vez.
+ */
+do $$
+declare u record;
+begin
+  for u in
+    select distinct on (p.user_id) p.user_id, p.nome, p.email
+      from perfis p
+     where p.user_id is not null
+       and not exists (select 1 from apelidos a where a.user_id = p.user_id)
+     order by p.user_id, p.criado_em
+  loop
+    perform dar_apelido(u.user_id, null, u.nome, u.email);
+  end loop;
+end $$;
+
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
     as "carimbo de organizacao (40)",
@@ -7243,4 +7586,23 @@ select
   -- demonstrada. Vinte tarefas não quer dizer nada sem ela.
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'minhas_entregas')
-    as "a vazao da pessoa (1)";
+    as "a vazao da pessoa (1)",
+  -- O @ da pessoa: do LOGIN e não do perfil, porque quatro empresas não lhe
+  -- dão quatro nomes.
+  (select count(*) from information_schema.tables
+    where table_schema = 'public' and table_name in ('apelidos','apelidos_reservados'))
+    as "as tabelas do @ (2)",
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname in ('apelido_livre','escolher_apelido','dar_apelido','unaccent_simples'))
+    as "as funcoes do @ (4)",
+  -- Ninguém escreve em `apelidos` pela tabela: escolher passa pela função, que
+  -- é quem confere formato, reservado e repetido.
+  (select count(*) from pg_policies
+    where schemaname = 'public' and tablename = 'apelidos')
+    as "so leitura no @ (1)",
+  -- E todo login tem o seu, inclusive quem já existia.
+  (select count(*) from perfis p
+    where p.user_id is not null
+      and not exists (select 1 from apelidos a where a.user_id = p.user_id))
+    as "logins AINDA sem @ (0)";

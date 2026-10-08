@@ -220,6 +220,34 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
   resolver `org_de_quem_age()` ANTES de `minha_org()`: sem a troca, a linha escrita fora
   nasce com a organização da sessão e **ninguém a enxerga, nem quem a escreveu**, que é o
   defeito da seção 44 por outro caminho. `agir_como` recusa perfil que não seja seu.
+- **Todo login tem um @, e ele é o primeiro endereço que o app tem de verdade** (seção 71).
+  Para alguém ser chamado, ele precisa de um endereço, e hoje o convite vai para um telefone
+  ou um e-mail: os dois são de outra pessoa, um da operadora e o outro do Google. O @ é do
+  TrackWard.
+- **Ele é do LOGIN, não do perfil**, por isso tabela própria com `user_id` como chave:
+  quatro empresas não dão quatro nomes a ninguém, e ele atravessa junto com a agenda e com o
+  dia. **E se pede no cadastro, não depois**: nome bom acaba, e perguntar depois é a segunda
+  conversa que `PedeNome` já existe para ter e que ninguém quer ter duas vezes. Quem já
+  existia ganhou o seu numa passada, derivado do nome.
+- **A conferência é em duas camadas e as duas são necessárias.** `confere()` em
+  `lib/apelido.ts` responde na tecla, sem ida à rede, e cobre formato e tamanho;
+  `apelido_livre` responde o que só o banco sabe, tomado e reservado, meio segundo depois da
+  última tecla. Perguntar a cada letra é uma ida por caractere.
+- **A lista de reservados mora no BANCO**, em tabela, porque ela cresce: cada rota nova do
+  app é um nome a mais, e acrescentar vira um insert. A cópia em `lib/apelido.ts` é para a
+  tecla, e **a autoridade é a tabela**: elas podem divergir, e a direção segura é o banco
+  recusar o que a tela deixou passar, nunca o contrário. São duas famílias, e doem
+  diferente: `@entrar` tornaria impossível abrir `trackward.app/@fulano` um dia, e `@suporte`
+  escrevendo para um cliente é golpe com o nome certo no remetente.
+- **Ninguém escreve em `apelidos` pela tabela**: `escolher_apelido` é o caminho, porque o
+  que ela confere não é de quem é a linha, é a FORMA do que vai entrar, e isso uma policy
+  não sabe fazer sem repetir o regex em três lugares. Quem lê é você e quem divide um espaço
+  com você; de um estranho só dá para perguntar se o @ está livre, que responde sim ou não e
+  nunca de quem é.
+- **`dar_apelido` não falha, nunca.** Um @ tomado entre o formulário e o clique não pode
+  impedir alguém de se cadastrar: ele acrescenta um número, como qualquer lugar que tem @.
+  E **o @ antigo não fica reservado** ao trocar: segurar o que alguém largou é o jeito de a
+  lista encher de nome que ninguém usa.
 - **Todo login tem espaço pessoal, e ele é a porta de entrada** (seção 70). O cadastro
   criava UM espaço, o pessoal ou a empresa, e o convite não criava nenhum: quem entrou por
   convite, que é quase todo mundo numa empresa, **não tinha pessoal nenhum**. Isso derruba a

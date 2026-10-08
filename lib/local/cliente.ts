@@ -1,6 +1,8 @@
 'use client'
 
 import { curta, dias, hojeIso, soma } from '@/lib/datas'
+import { confere as confereApelido, normaliza as normalizaApelido,
+  palpite as palpiteApelido } from '@/lib/apelido'
 import { buscarOuInventar, guardar, jogarFora } from './arquivos'
 import { semente, type Base, type Linha } from './semente'
 
@@ -18,6 +20,7 @@ const VERSAO = 25
 const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], fluxos: [], etapas: [], itens: [],
   dependencias: [], processos: [], processo_etapas: [], processo_itens: [], fluxo_pessoas: [],
   convites: [],
+  apelidos: [],
   canais: [], canal_membros: [], mensagens: [], sugestoes: [], nota_pessoas: [], feedbacks: [],
   compromissos: [], convidados: [], agendas_externas: [], ocupacao_externa: [],
   historico: [], atividades: [], ciclos: [], raiox_achados: [],
@@ -332,6 +335,7 @@ function visiveis(tabela: string, todas: Linha[]): Linha[] {
     return linhas.filter((x) => ok.has(x.canal_id))
   }
   if (tabela === 'organizacoes' || tabela === 'convites') return linhas
+  if (tabela === 'apelidos' || tabela === 'apelidos_reservados') return linhas
   if (tabela === 'processos' || tabela === 'processo_etapas' || tabela === 'processo_itens') return linhas
   if (tabela === 'agendas_externas') return linhas.filter((a) => a.perfil_id === eu)
   if (tabela === 'ocupacao_externa') return linhas
@@ -1808,6 +1812,37 @@ function montarCliente() {
             })
           }
           return { data: saida, error: null }
+        }
+
+        /* O @ está livre? Espelha `apelido_livre()`, seção 71. A lista de
+           reservados é a de `lib/apelido.ts`: no modo demonstração não há
+           tabela, e ela é a mesma régua. */
+        if (nome === 'apelido_livre') {
+          const a = normalizaApelido(String(args.p_apelido || ''))
+          const r = confereApelido(a)
+          if (r) return { data: r, error: null }
+          const b = ler()
+          const tomado = (b.apelidos || []).some((x) => x.apelido === a)
+          return { data: tomado ? 'tomado' : null, error: null }
+        }
+
+        if (nome === 'escolher_apelido') {
+          const a = normalizaApelido(String(args.p_apelido || ''))
+          const u = usuarioLocal()
+          if (!u) throw new Error('Entre na sua conta primeiro.')
+          const b = ler()
+          b.apelidos = b.apelidos || []
+          const meu = b.apelidos.find((x) => x.user_id === u)
+          if (meu && meu.apelido === a) return { data: a, error: null }
+          const r = confereApelido(a)
+          if (r) throw new Error('Esse @ não serve. Escolha outro.')
+          if (b.apelidos.some((x) => x.apelido === a)) {
+            throw new Error('Esse @ já tem dono. Escolha outro.')
+          }
+          if (meu) meu.apelido = a
+          else b.apelidos.push({ user_id: u, apelido: a, criado_em: agora() })
+          gravar()
+          return { data: a, error: null }
         }
 
         /* Quantas eu entreguei na janela, em todos os meus espaços.
