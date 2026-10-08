@@ -644,6 +644,15 @@ a recusar qualquer criação lá com "new row violates row-level security policy
 a mensagem fala da política, não do carimbo que falta. Foi assim que criar tarefa
 e criar canal pararam, e foi difícil de achar exatamente por isso.
 
+**E a chave de serviço pelo PostgREST cai no mesmo buraco, por um terceiro caminho.**
+Escrevendo direto na API com a `service_role`, `auth.uid()` é nulo e `trackward.org` não foi
+posto por ninguém, então o carimbo cai em `new.org_id`: o que o corpo do insert mandou. Quem
+escreve ali precisa **mandar `org_id` em TODA tabela etiquetada**, e esquecer uma é a linha
+nascer invisível. Aconteceu em 08/10/2026 montando uma track pela API: os `itens` levaram a
+etiqueta, as `etapas` não, e a tela disse "esta track está sem checkpoints" com sete deles no
+banco. É o modo de falha mais caro do app aparecendo de novo, porque **o erro de leitura vira
+lista vazia bem-comportada** e lista vazia parece ausência.
+
 **E ele pergunta pela SESSÃO, que é o que não existe quando quem grava é o servidor.**
 `minha_org()` volta nula no WhatsApp e no pulso, e aí a linha nasce com `org_id` vazio.
 Como toda política pergunta `minha(org_id)`, essa linha existe e **ninguém a enxerga, nem

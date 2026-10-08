@@ -67,13 +67,35 @@ export function TelaFluxo({ id }: { id: string }) {
   const s = areaDe(f.area_id)
   const idx = Math.max(0, Math.min(sel ?? f.atual, f.etapas.length - 1))
   const etapa = f.etapas[idx]
+  /**
+   * Track sem checkpoint, que era um beco sem saída.
+   *
+   * A frase mandava para Ajustes, onde não existe nada disso, e o botão "Montar
+   * a trilha" só nasce no ramo de baixo, que exige um checkpoint existir. Ou
+   * seja: a tela dizia para montar e não dava por onde. O botão sobe para cá,
+   * que é onde a pessoa está quando precisa dele.
+   *
+   * E vale lembrar por que uma track pode chegar aqui: `salvar_fluxo` aceita
+   * trilha vazia de propósito, porque a trilha se monta depois, um checkpoint
+   * de cada vez. Então este estado é previsto, não é defeito de dado.
+   */
   if (!etapa)
     return (
       <div className="hdr">
         <div>
           <h1>{f.nome}</h1>
-          <p className="lede">Esta track está sem checkpoints. Use Ajustes para montá-los.</p>
+          <p className="lede">
+            Esta track ainda não tem checkpoints. Monte a trilha um de cada vez: ninguém
+            conhece as sete etapas de uma obra no dia em que ela começa.
+          </p>
         </div>
+        {mandaNoProcesso(eu, f, perfis) && (
+          <div className="hdr-actions">
+            <button className="btn pri" onClick={() => abrir({ tipo: 'trilha', fluxo: f })}>
+              <Ic.plus />Montar a trilha
+            </button>
+          </div>
+        )}
       </div>
     )
 
