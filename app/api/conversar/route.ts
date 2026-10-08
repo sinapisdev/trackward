@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { instrucoes, semChave, type ContextoConversa } from '@/lib/conversa'
+import { instrucoes, regras, semChave, type ContextoConversa } from '@/lib/conversa'
 import { doNomeDaFerramenta, ferramentas, validaTodas, type Acao } from '@/lib/secretario'
 import { clienteServidor } from '@/lib/supabase/servidor'
 import { custoMicro } from '@/lib/precos'
@@ -66,8 +66,115 @@ function comArquivos(ctx: ContextoConversa) {
   return falas
 }
 
+type Resposta = {
+  content?: { type: string; text?: string; name?: string; input?: unknown }[]
+  usage?: {
+    input_tokens?: number; output_tokens?: number
+    cache_read_input_tokens?: number; cache_creation_input_tokens?: number
+  }
+  stop_reason?: string
+  parouPor?: string
+}
+
+/**
+ * Lê o fluxo da API e remonta a resposta inteira enquanto ela chega.
+ *
+ * Dois tipos de pedaço importam. O `text_delta` é texto, e vai direto para a
+ * tela: é o que faz a resposta aparecer sendo escrita. O `input_json_delta` é a
+ * ferramenta, e vem em FATIAS DE JSON que não são JSON nenhum até a última:
+ * juntar primeiro e só então fazer o parse é obrigatório, e é por isso que a
+ * ação só existe no fim.
+ *
+ * A medida vem em dois lugares: a entrada e o cache no `message_start`, a saída
+ * no `message_delta`. Perder qualquer um dos dois é cobrar errado.
+ */
+async function lerFluxo(
+  r: Response, modelo: string, medida: { valor: Medida | null }, aoTexto: (t: string) => void,
+): Promise<Resposta> {
+  const blocos: { type: string; text?: string; name?: string; input?: unknown }[] = []
+  const cruas = new Map<number, string>()
+  const med = { entrada: 0, saida: 0, cacheLeitura: 0, cacheEscrita: 0 }
+  /* Por que a resposta parou. `max_tokens` é a que importa: ali o JSON da
+     ferramenta fica pela metade, a ação não passa na conferência, e o app
+     ficaria em silêncio tendo o modelo tentado fazer a coisa. */
+  let parouPor = ''
+
+  const leitor = r.body?.getReader()
+  if (!leitor) return { content: [] }
+  const decodificador = new TextDecoder()
+  let sobra = ''
+
+  for (;;) {
+    const { done, value } = await leitor.read()
+    if (done) break
+    sobra += decodificador.decode(value, { stream: true })
+    const linhas = sobra.split('\n')
+    // A última pode estar pela metade: ela espera o pedaço seguinte.
+    sobra = linhas.pop() || ''
+    for (const linha of linhas) {
+      if (!linha.startsWith('data:')) continue
+      const cru = linha.slice(5).trim()
+      if (!cru || cru === '[DONE]') continue
+      let e: Record<string, unknown>
+      try { e = JSON.parse(cru) } catch { continue }
+
+      if (e.type === 'message_start') {
+        const u = (e.message as { usage?: Record<string, number> })?.usage
+        med.entrada = u?.input_tokens ?? 0
+        med.cacheLeitura = u?.cache_read_input_tokens ?? 0
+        med.cacheEscrita = u?.cache_creation_input_tokens ?? 0
+      } else if (e.type === 'content_block_start') {
+        const i = e.index as number
+        const b = e.content_block as { type: string; name?: string }
+        blocos[i] = { type: b.type, name: b.name, text: '' }
+        if (b.type === 'tool_use') cruas.set(i, '')
+      } else if (e.type === 'content_block_delta') {
+        const i = e.index as number
+        const d = e.delta as { type: string; text?: string; partial_json?: string }
+        if (d.type === 'text_delta' && d.text) {
+          blocos[i] = blocos[i] || { type: 'text', text: '' }
+          blocos[i].text = (blocos[i].text || '') + d.text
+          aoTexto(d.text)
+        } else if (d.type === 'input_json_delta') {
+          cruas.set(i, (cruas.get(i) || '') + (d.partial_json || ''))
+        }
+      } else if (e.type === 'content_block_stop') {
+        const i = e.index as number
+        const cru2 = cruas.get(i)
+        if (cru2 !== undefined && blocos[i]) {
+          try { blocos[i].input = JSON.parse(cru2 || '{}') } catch { blocos[i].input = {} }
+        }
+      } else if (e.type === 'message_delta') {
+        const u = e.usage as { output_tokens?: number } | undefined
+        med.saida = u?.output_tokens ?? med.saida
+        const d = e.delta as { stop_reason?: string } | undefined
+        if (d?.stop_reason) parouPor = d.stop_reason
+      }
+    }
+  }
+
+  medida.valor = { modelo, ...med }
+  return { content: blocos.filter(Boolean), parouPor }
+}
+
+/**
+ * Fala com o modelo, e em TEMPO REAL quando alguém está ouvindo.
+ *
+ * `aoTexto` é o que muda tudo na sensação. Sem ele, a pessoa escreve e olha
+ * "Lendo o seu caderno..." por vinte, trinta segundos, porque o app espera a
+ * resposta inteira ficar pronta antes de mostrar uma letra. Uma trilha com sete
+ * checkpoints é a resposta mais longa que este app pede, e é justamente a que
+ * mais parece travada. Com ele, o texto aparece enquanto é escrito, que é o que
+ * qualquer um já aprendeu a esperar de uma conversa com IA.
+ *
+ * O que NÃO dá para mostrar em tempo real é a ferramenta: o que ela cria só
+ * existe depois de o JSON fechar e passar pela conferência. Então o texto
+ * escorre e as ações saem no fim, de uma vez, que é a ordem certa de qualquer
+ * jeito: primeiro ele diz o que vai fazer, depois faz.
+ */
 async function porModelo(
   ctx: ContextoConversa, chave: string, modelo: string, medida: { valor: Medida | null },
+  aoTexto?: (t: string) => void,
 ): Promise<Volta | null> {
   const pode = { equipe: !!ctx.pode?.equipe }
   const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -79,8 +186,27 @@ async function porModelo(
     },
     body: JSON.stringify({
       model: modelo,
-      max_tokens: ctx.secretario ? 5000 : 1600,
-      system: instrucoes(ctx),
+      ...(aoTexto ? { stream: true } : {}),
+      /* 8000 no secretário. Uma trilha de sete checkpoints com critério,
+         descrição e prazo em cada linha passa fácil de 5000, e bater o teto
+         deixa o JSON da ferramenta pela metade: a ação não acontece e o app
+         fica em silêncio, que de fora é igual a ter sido ignorado. Agora ele
+         também DIZ quando cortou, mas o melhor é não cortar. */
+      max_tokens: ctx.secretario ? 8000 : 1600,
+      /**
+       * O prompt em DOIS blocos, e o de cima cacheado.
+       *
+       * As regras são as mesmas mensagem após mensagem e são a maior parte do
+       * prompt; o que muda é a lista de tarefas, a agenda e o caderno. Cacheando
+       * só o estável, a segunda mensagem de uma conversa relê quase nada, e o
+       * tempo até a primeira letra cai junto. Cache é de PREFIXO, então as
+       * regras vêm primeiro: um bloco estável depois de um volátil não cacheia
+       * nada.
+       */
+      system: [
+        { type: 'text', text: regras(ctx), cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: instrucoes(ctx) },
+      ],
       // As ferramentas só existem para o secretário. Dentro de uma nota a
       // conversa não cria nada, e oferecer a ferramenta ali seria convidar o
       // modelo a usá-la contra a regra escrita na instrução.
@@ -96,21 +222,19 @@ async function porModelo(
     return null
   }
 
-  const corpo = await r.json() as {
-    content?: { type: string; text?: string; name?: string; input?: unknown }[]
-    usage?: {
-      input_tokens?: number; output_tokens?: number
-      cache_read_input_tokens?: number; cache_creation_input_tokens?: number
-    }
-  }
-
-  medida.valor = {
-    modelo,
-    entrada: corpo.usage?.input_tokens ?? 0,
-    saida: corpo.usage?.output_tokens ?? 0,
-    cacheLeitura: corpo.usage?.cache_read_input_tokens ?? 0,
-    cacheEscrita: corpo.usage?.cache_creation_input_tokens ?? 0,
-  }
+  const corpo = aoTexto
+    ? await lerFluxo(r, modelo, medida, aoTexto)
+    : await (async () => {
+        const j = await r.json() as Resposta
+        medida.valor = {
+          modelo,
+          entrada: j.usage?.input_tokens ?? 0,
+          saida: j.usage?.output_tokens ?? 0,
+          cacheLeitura: j.usage?.cache_read_input_tokens ?? 0,
+          cacheEscrita: j.usage?.cache_creation_input_tokens ?? 0,
+        }
+        return j
+      })()
 
   const texto = (corpo.content || [])
     .filter((b) => b.type === 'text')
@@ -130,6 +254,24 @@ async function porModelo(
         { equipe: !!ctx.pode?.equipe },
       )
     : []
+
+  /**
+   * Cortado no meio: diz, em vez de ficar quieto.
+   *
+   * Batendo o teto de saída, o JSON da ferramenta fica pela metade, a ação não
+   * passa na conferência e o app não faz nada. Do lado de quem pediu isso é
+   * indistinguível de "ele ignorou", que é a pior leitura possível: a pessoa
+   * repete o pedido e acontece de novo.
+   */
+  const cortou = (corpo.parouPor || corpo.stop_reason) === 'max_tokens'
+  if (cortou && !acoes.length) {
+    return {
+      texto: (texto ? texto + '\n\n' : '')
+        + 'A resposta ficou longa demais e foi cortada antes de eu terminar. '
+        + 'Peça em pedaços, ou me diga para montar só a primeira parte.',
+      acoes: [],
+    }
+  }
 
   // Fez alguma coisa e não disse nada: o recibo que o app escreve embaixo conta
   // o que foi criado, mas uma tela que responde com silêncio parece travada.
@@ -184,6 +326,62 @@ export async function POST(req: Request) {
   }
 
   const medida: { valor: Medida | null } = { valor: null }
+
+  /** Grava o gasto. Vale para os dois caminhos, e o token foi cobrado nos dois. */
+  const cobrar = async () => {
+    if (!medida.valor || !sb) return
+    const m = medida.valor
+    await sb.rpc('registrar_consumo', {
+      p_onde: 'conversa', p_modelo: m.modelo, p_entrada: m.entrada, p_saida: m.saida,
+      p_cache_leitura: m.cacheLeitura, p_cache_escrita: m.cacheEscrita,
+      p_custo_micro: custoMicro(m.modelo, {
+        entrada: m.entrada, saida: m.saida,
+        cacheLeitura: m.cacheLeitura, cacheEscrita: m.cacheEscrita,
+      }),
+      p_canal: null,
+    })
+  }
+
+  /**
+   * O caminho em tempo real, que é o do secretário.
+   *
+   * Sai como linhas de `data:`, porque é o formato que o navegador já sabe ler
+   * sem biblioteca nenhuma: `{"t":"..."}` é um pedaço de texto e `{"fim":...}` é
+   * o fecho, com as ações conferidas. A tela pinta o texto conforme ele chega e
+   * executa as ações no fim.
+   *
+   * A segunda tentativa sem os arquivos não existe aqui, e é de propósito: ela
+   * depende de a primeira ter falhado INTEIRA, e aqui metade do texto já foi
+   * para a tela. Falhando no meio, o fecho vem com o que deu, e o que a pessoa
+   * perde é o fim da frase, não a conversa.
+   */
+  if (ctx.transmitir) {
+    const fluxo = new ReadableStream({
+      async start(fila) {
+        const manda = (o: unknown) => fila.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(o)}\n\n`))
+        try {
+          const resposta = await porModelo(ctx, chave, modelo, medida, (t) => manda({ t }))
+          await cobrar()
+          manda({ fim: { acoes: resposta?.acoes || [], texto: resposta?.texto || '' } })
+        } catch {
+          // Modelo fora do ar não pode derrubar a tela: o que ela escreveu já
+          // está guardado, e o fecho vazio deixa a tela sair do "pensando".
+          manda({ fim: { acoes: [], texto: '', erro: true } })
+        }
+        fila.close()
+      },
+    })
+    return new Response(fluxo, {
+      headers: {
+        'content-type': 'text/event-stream; charset=utf-8',
+        'cache-control': 'no-cache, no-transform',
+        // Sem isto, um proxy no caminho junta tudo e entrega no fim, que é
+        // exatamente o que esta rota existe para não fazer.
+        'x-accel-buffering': 'no',
+      },
+    })
+  }
+
   try {
     let resposta = await porModelo(ctx, chave, modelo, medida)
     /**
@@ -206,22 +404,7 @@ export async function POST(req: Request) {
           + 'planilha e documento do Word ainda não.'
       }
     }
-    if (medida.valor) {
-      const m = medida.valor
-      await sb.rpc('registrar_consumo', {
-        p_onde: 'conversa',
-        p_modelo: m.modelo,
-        p_entrada: m.entrada,
-        p_saida: m.saida,
-        p_cache_leitura: m.cacheLeitura,
-        p_cache_escrita: m.cacheEscrita,
-        p_custo_micro: custoMicro(m.modelo, {
-          entrada: m.entrada, saida: m.saida,
-          cacheLeitura: m.cacheLeitura, cacheEscrita: m.cacheEscrita,
-        }),
-        p_canal: null,
-      })
-    }
+    await cobrar()
     if (resposta) {
       return NextResponse.json({
         resposta: resposta.texto, acoes: resposta.acoes, motor: 'ia', modelo,

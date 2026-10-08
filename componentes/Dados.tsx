@@ -314,6 +314,8 @@ type Contexto = {
   ) => Promise<boolean>
   /** Verdadeiro enquanto a leitura está escrevendo a resposta desta nota. */
   respondendo: string | null
+  /** O texto da resposta enquanto ela chega, para a tela pintar sendo escrita. */
+  saindo: { notaId: string; texto: string } | null
   /**
    * A esteira onde cai a tarefa que não é de projeto nenhum.
    *
@@ -498,6 +500,16 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [notaPessoas, setNotaPessoas] = useState<{ nota_id: string; perfil_id: string }[]>([])
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([])
   const [respondendo, setRespondendo] = useState<string | null>(null)
+  /**
+   * A resposta que está sendo escrita AGORA, antes de virar linha no banco.
+   *
+   * Ela existe para a tela poder pintar o texto enquanto ele chega. Sem isto a
+   * pessoa escrevia e olhava "Lendo o seu caderno..." por vinte ou trinta
+   * segundos, porque o app esperava a resposta inteira ficar pronta: a resposta
+   * mais longa que este app pede, que é uma trilha com sete checkpoints, era
+   * justamente a que mais parecia travada.
+   */
+  const [saindo, setSaindo] = useState<{ notaId: string; texto: string } | null>(null)
   const [avisos, setAvisos] = useState<Aviso[]>([])
   const [contato, setContato] = useState<AvisoContato | null>(null)
   const [aparelhos, setAparelhos] = useState<PushAssinatura[]>([])
@@ -2985,6 +2997,58 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   }, [notas, areaDe, todosFluxos, memoria, oQueACasaTem, pode.canais, agenda,
       fluxosComImplicitas, minhaLista?.id, eu.id])
 
+  /**
+   * Fala com a leitura e vai PINTANDO a resposta enquanto ela chega.
+   *
+   * O formato é `data: {...}` por linha, que é o que o navegador lê sem
+   * biblioteca nenhuma: `{"t":"..."}` é um pedaço de texto, `{"fim":...}` é o
+   * fecho com as ações conferidas.
+   *
+   * Falhando no meio, o que já chegou vale: a pessoa fica com meia resposta em
+   * vez de com nenhuma, e meia resposta ela lê e decide se pergunta de novo.
+   */
+  const pedirTransmitido = useCallback(async (
+    corpo: ContextoConversa, aoTexto: (t: string) => void,
+  ) => {
+    try {
+      const r = await fetch('/api/conversar', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ...corpo, transmitir: true }),
+      })
+      if (!r.ok || !r.body) { toast('Não consegui responder agora.', true); return null }
+      const leitor = r.body.getReader()
+      const dec = new TextDecoder()
+      let sobra = ''
+      let texto = ''
+      let acoes: Acao[] = []
+      for (;;) {
+        const { done, value } = await leitor.read()
+        if (done) break
+        sobra += dec.decode(value, { stream: true })
+        const linhas = sobra.split('\n')
+        // A última pode estar pela metade: ela espera o pedaço seguinte.
+        sobra = linhas.pop() || ''
+        for (const l of linhas) {
+          if (!l.startsWith('data:')) continue
+          const cru = l.slice(5).trim()
+          if (!cru) continue
+          let e: { t?: string; fim?: { acoes?: Acao[]; texto?: string; erro?: boolean } }
+          try { e = JSON.parse(cru) } catch { continue }
+          if (e.t) { texto += e.t; aoTexto(texto) }
+          if (e.fim) {
+            acoes = e.fim.acoes || []
+            if (e.fim.texto) texto = e.fim.texto
+            if (e.fim.erro && !texto) { toast('Não consegui responder agora.', true); return null }
+          }
+        }
+      }
+      return { texto, acoes }
+    } catch {
+      toast('Não consegui responder agora.', true)
+      return null
+    }
+  }, [toast])
+
   /** Fala com a leitura e devolve o texto da resposta e o que ela mandou fazer. */
   const pedirResposta = useCallback(async (corpo: ContextoConversa) => {
     try {
@@ -3168,6 +3232,21 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     if (error) { falhou(error, 'Não deu para escrever na nota.'); return null }
 
     /**
+     * A fala entra na tela AGORA, e não quando o banco voltar.
+     *
+     * `recarregar()` relê 44 consultas e é debounced em 220ms, então a linha que
+     * a pessoa acabou de escrever levava meio segundo para aparecer: ela via o
+     * campo esvaziar e nada acontecer, e concluía, com razão, que o chat não
+     * estava respondendo. O insert já passou quando chegamos aqui, então pôr a
+     * linha na tela não é apostar, é mostrar o que já é verdade.
+     */
+    setMensagens((atual) => atual.some((m) => m.id === id) ? atual : [...atual, {
+      id, canal_id: null, nota_id: notaId, autor_id: eu.id, texto: limpo,
+      sistema: false, por_ia: false, responde_a: null, nota_ref: null, contato: null,
+      criado_em: new Date().toISOString(),
+    } as unknown as Mensagem])
+
+    /**
      * O anexo entra ANTES de perguntar, e essa ordem é a parte que importa.
      *
      * Ele subia depois, lá na tela, e por isso o modelo era chamado sobre uma
@@ -3190,19 +3269,37 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     ]
 
     setRespondendo(notaId)
+    setSaindo({ notaId, texto: '' })
     try {
       const paraLer = await arquivosParaOModelo(notaId, id)
-      const resposta = await pedirResposta({ ...contextoDaNota(nota, falas), arquivos: paraLer })
+      /* Na conversa solta (o secretário) a resposta vem escorrendo, porque é
+         ali que a pessoa está olhando a tela esperando. Dentro de uma nota ela
+         entra no documento, e documento que cresce sozinho enquanto alguém lê é
+         pior que esperar. */
+      const ctx = { ...contextoDaNota(nota, falas), arquivos: paraLer }
+      const resposta = ctx.secretario
+        ? await pedirTransmitido(ctx, (t) => setSaindo({ notaId, texto: t }))
+        : await pedirResposta(ctx)
       // Sem resposta a fala da pessoa já está gravada, e é ela que importa: o
       // id volta do mesmo jeito para o anexo ter onde morar.
       if (!resposta) return id
       // A resposta sai assinada por quem escreveu, que é a leitura: `por_ia` é o
       // que a tela usa para não fazer ela parecer com você.
       if (resposta.texto) {
+        const idIa = novoId()
         await sb.from('mensagens').insert({
-          id: novoId(), nota_id: notaId, autor_id: eu.id, texto: resposta.texto,
+          id: idIa, nota_id: notaId, autor_id: eu.id, texto: resposta.texto,
           sistema: false, por_ia: true,
         })
+        /* Pelo mesmo motivo da fala dela: entre o insert e a recarga há meio
+           segundo em que o texto que acabou de ser escrito na tela sumiria,
+           porque o `saindo` é limpo no fim e a linha de verdade ainda não
+           chegou. Piscar assim é pior do que demorar. */
+        setMensagens((atual) => atual.some((m) => m.id === idIa) ? atual : [...atual, {
+          id: idIa, canal_id: null, nota_id: notaId, autor_id: eu.id, texto: resposta.texto,
+          sistema: false, por_ia: true, responde_a: null, nota_ref: null, contato: null,
+          criado_em: new Date().toISOString(),
+        } as unknown as Mensagem])
       }
 
       /* O que o secretário fez fica escrito na conversa, com o que foi criado.
@@ -3223,10 +3320,11 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       recarregar()
     } finally {
       setRespondendo(null)
+      setSaindo(null)
     }
     return id
   }, [sb, eu.id, org.ia_ativa, todasNotas, mensagens, contextoDaNota, pedirResposta,
-      executarAcoes, arquivosParaOModelo, anexar, falhou, recarregar])
+      pedirTransmitido, executarAcoes, arquivosParaOModelo, anexar, falhou, recarregar])
 
   /**
    * Perguntar dentro da nota, com a resposta entrando no próprio texto.
@@ -3769,7 +3867,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     conectores, salvarConector, guardarChave, excluirConector, testarConector,
     notas, salvarNota, excluirNota, comQuem, compartilharNota, notaParaCanal,
     abrirNotaDoCanal, conversaIA, abrirConversaIA,
-    meuDia, minhasEntregas, apelidoDe, meuApelido, escolherApelido,
+    meuDia, minhasEntregas, apelidoDe, meuApelido, escolherApelido, saindo,
     mensagensDaNota, sugestoesDaNota, escreverNaNota, perguntarNaNota, respondendo,
     minhaLista, abrirMinhaLista, criarAvulsa,
     avisos, naoVistos: avisos.filter((a) => !a.lido_em).length,

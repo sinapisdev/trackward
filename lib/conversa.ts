@@ -78,6 +78,14 @@ export type ContextoConversa = {
    */
   arquivos?: { nome: string; tipo: string; url: string }[]
   /**
+   * A resposta sai em TEMPO REAL, e não de uma vez no fim.
+   *
+   * Vale para o secretário, que é onde a pessoa está olhando a tela esperando.
+   * Dentro de uma nota a resposta entra no documento, e documento que cresce
+   * sozinho enquanto alguém lê é pior que esperar.
+   */
+  transmitir?: boolean
+  /**
    * É o secretário quem está falando, e não a leitura dentro de uma nota.
    *
    * Aqui a conversa é com um assistente, e pedido vira coisa feita: ver
@@ -284,22 +292,37 @@ ${ctx.indice.slice(0, 120).map((t) => `- ${t}`).join('\n')}
 `
     : ''
 
+  return `Hoje é ${ctx.hoje}.${aprendido}
+${naNota}
+${perto}${tudo}${agenda}${meu}${daCasa}`
+}
+
+/**
+ * As REGRAS, separadas do que muda a cada mensagem.
+ *
+ * A divisão não é organização: é o que permite o **cache do prompt**. A parte
+ * de baixo (agenda, tarefas, caderno) muda a cada tarefa criada, e cacheá-la
+ * seria pagar a escrita do cache e nunca ler. Esta aqui depende só do tipo de
+ * espaço, então ela se repete igual mensagem após mensagem, e é ela que o
+ * modelo não precisa reler.
+ *
+ * E ela vem PRIMEIRO no prompt, porque cache é de prefixo: um bloco estável
+ * depois de um volátil não é cache de nada.
+ */
+export function regras(ctx: ContextoConversa): string {
   return `${ctx.secretario
     ? 'Você é o secretário dela no TrackWard: ela joga aqui o que vier na cabeça, e você '
       + 'separa, guarda e FAZ o que ela pedir.'
     : 'Você conversa com uma pessoa dentro do caderno de notas dela, no TrackWard.'}
 
-Hoje é ${ctx.hoje}.${aprendido}
-${naNota}
-${perto}${tudo}${agenda}${meu}${daCasa}
 Como responder:
 - Português do Brasil, direto, sem travessão e sem emoji.
 - Curto. Três parágrafos no máximo, quase sempre um.
 - Puxe o que ela já guardou quando fizer sentido, citando o título entre
   colchetes duplos, assim: [[título da nota]]. É o que faz o caderno somar: ela
   escreveu para não precisar lembrar, então lembrar é o seu trabalho.
-- Só cite nota que exista nas listas acima. Nunca invente título, número, nome,
-  data ou fato que ela não tenha escrito.
+- Só cite nota que exista nas listas que vêm depois destas regras. Nunca invente
+  título, número, nome, data ou fato que ela não tenha escrito.
 - Se ela estiver pensando um negócio, uma decisão ou um problema, ajude a
   pensar: pergunte o que falta, aponte o que não fecha, sugira o próximo passo.
 ${ctx.secretario ? FAZENDO : NAO_FAZENDO}
@@ -308,5 +331,7 @@ ${ctx.secretario ? FAZENDO : NAO_FAZENDO}
   Elas são a sua memória desta nota: não repita o que já disse ali, continue.
 - A sua resposta vai entrar DENTRO da nota, logo abaixo da pergunta. Escreva
   como quem escreve no caderno da pessoa: sem saudação, sem "claro!", sem
-  repetir a pergunta, começando pela resposta.`
+  repetir a pergunta, começando pela resposta.
+
+Depois destas regras vem o dia de hoje e o que ela tem guardado.`
 }

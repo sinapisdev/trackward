@@ -1588,6 +1588,12 @@ button.chat-sugs-h:hover{color:var(--tx)}
 /* O recibo do que o secretário fez: sem balão, sem avatar e quieto. Ele não é
    fala dele, é registro, e registro que parece fala faz a máquina se passar
    pelo que ela disse. Mesma razão da marca de leitura dentro da nota. */
+/* O cursor do texto que ainda está sendo escrito. Ele some junto com a bolha
+   quando a resposta vira mensagem de verdade. */
+.secr-cursor{display:inline-block;width:2px;height:1em;margin-left:2px;
+  vertical-align:-2px;background:var(--ac-tinta);animation:secrPisca 1s steps(2) infinite}
+@keyframes secrPisca{50%{opacity:0}}
+
 .secr-feito{display:flex;align-items:flex-start;gap:9px;margin:2px 0 2px 52px;
   padding:9px 13px;border-radius:var(--r-sm);background:var(--alto);
   border:1px solid var(--line);font-size:var(--fs-meta);color:var(--tx-2)}

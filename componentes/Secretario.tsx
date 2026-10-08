@@ -46,7 +46,7 @@ const hora = (ts: string) =>
 export function Secretario() {
   const {
     eu, org, carregando, conversaIA, abrirConversaIA, mensagensDaNota, sugestoesDaNota,
-    escreverNaNota, apagarMensagem, respondendo, lerNota, toast, abrirAudio, pode,
+    escreverNaNota, apagarMensagem, respondendo, lerNota, toast, abrirAudio, pode, saindo,
   } = useDados()
   const [texto, setTexto] = useState('')
   const [arquivos, setArquivos] = useState<File[]>([])
@@ -84,7 +84,9 @@ export function Secretario() {
   useEffect(() => {
     const el = rolo.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [nota?.id, falas.length, pensando, propostas.length])
+  // `saindo?.texto` entra na conta porque a resposta cresce linha a linha: sem
+  // ele, o texto passava do fim da janela e a pessoa lia de costas.
+  }, [nota?.id, falas.length, pensando, propostas.length, saindo?.texto])
 
   if (carregando || !nota) return <Carregando />
 
@@ -212,10 +214,24 @@ export function Secretario() {
           )
         ))}
 
+        {/* A resposta aparece sendo escrita, e não de uma vez no fim.
+            Antes era uma frase parada ("Lendo o seu caderno...") por vinte ou
+            trinta segundos, e a resposta mais longa que este app pede, que é
+            uma trilha com sete checkpoints, era justamente a que mais parecia
+            travada. O ponto piscando só vale até a primeira letra chegar. */}
         {pensando && (
           <div className="msg">
             <span className="msg-av"><span className="secr-av"><Ic.faisca /></span></span>
-            <div className="msg-corpo"><p className="msg-bolha cnv-pensando">Lendo o seu caderno...</p></div>
+            <div className="msg-corpo">
+              {saindo?.notaId === nota.id && saindo.texto
+                ? (
+                  <p className="msg-bolha">
+                    <ComLigacoes texto={saindo.texto} />
+                    <i className="secr-cursor" aria-hidden />
+                  </p>
+                )
+                : <p className="msg-bolha cnv-pensando">Lendo o seu caderno...</p>}
+            </div>
           </div>
         )}
       </div>
