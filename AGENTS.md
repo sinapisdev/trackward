@@ -15,6 +15,14 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 App de acompanhamento de projetos, rotinas e areas da SILVERENG.
 Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
 
+**Três documentos, e cada um responde outra coisa.** Este diz as REGRAS, que é o que não
+pode ser violado. O `PLANO-OAAS.md` diz para onde o produto ia em 26/09. O `IDEIAS.md` diz
+o que foi conversado depois e onde cada ideia parou, inclusive o que ainda não foi
+decidido. **Ideia que muda a direção do produto entra no `IDEIAS.md` no dia em que é
+discutida**, mesmo sem decisão: ele existe porque uma conversa inteira de estratégia se
+perdeu quando o contexto foi comprimido, e descobrir isso custou mais caro do que escrever
+teria custado.
+
 ## Regras de escrita
 
 - **Nunca usar travessão (—)** em texto de interface, comentário ou documentação.
