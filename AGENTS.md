@@ -343,6 +343,25 @@ teria custado.
   impedir alguém de se cadastrar: ele acrescenta um número, como qualquer lugar que tem @.
   E **o @ antigo não fica reservado** ao trocar: segurar o que alguém largou é o jeito de a
   lista encher de nome que ninguém usa.
+- **O perfil EM USO precisa ser um que esteja de pé** (seção 73). `meu_perfil()` devolvia o
+  da sessão, vivo ou morto, e caía no mais antigo quando não havia sessão escolhida. Com
+  isso, quem sai de uma empresa e tinha aquele espaço selecionado abre o app e lê **"Acesso
+  suspenso", tendo o espaço pessoal dele funcionando do lado**, o que contradiz a promessa
+  que é a razão de o pessoal ser da pessoa: "o perfil de lá é desligado e aquele espaço
+  fecha inteiro, enquanto o pessoal segue como estava, com tudo dentro". A ordem agora é a
+  sessão **se ela ainda vale**, depois o mais antigo ATIVO, e só então o mais antigo
+  qualquer, que é o que faz a tela de acesso encerrado ter o que dizer a quem não tem
+  nenhum espaço de pé. **Isto não esconde o desligamento**: o espaço fechado continua
+  listado no seletor dizendo "acesso encerrado", que é onde essa notícia pertence. Uma tela
+  cheia dizendo que você está suspenso, quando você não está, não é aviso, é bloqueio.
+- **E a tela de suspenso tem saída pelo convite.** Achado em 08/10/2026: alguém foi
+  convidado para uma segunda empresa tendo um perfil desligado numa primeira, abriu o app e
+  leu que estava suspenso. As duas saídas eram esperar um administrador de uma empresa que
+  **não é a que o chamou**, ou sair, e o convite ficou aberto. Um convite aceito é
+  exatamente o que destrava aquela tela, então o campo de código mora nela; mandar a pessoa
+  para `/convite/<codigo>` sem ela saber que esse endereço existe é o mesmo que não ter
+  saída. Os dois consertos são necessários e respondem a coisas diferentes: o de cima tira
+  dali quem tem para onde ir, e este serve a quem não tem.
 - **Todo login tem espaço pessoal, e ele é a porta de entrada** (seção 70). O cadastro
   criava UM espaço, o pessoal ou a empresa, e o convite não criava nenhum: quem entrou por
   convite, que é quase todo mundo numa empresa, **não tinha pessoal nenhum**. Isso derruba a

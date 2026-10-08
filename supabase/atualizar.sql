@@ -7348,6 +7348,57 @@ begin
   return new;
 end $$;
 
+-- --------------------------------------------------------------------------
+-- 73. O perfil em uso precisa ser um que esteja DE PÉ
+--
+--     `meu_perfil()` devolvia o perfil da sessão, vivo ou morto, e caía no mais
+--     antigo quando não havia sessão escolhida. Com isso, quem sai de uma
+--     empresa e tinha aquele espaço selecionado abre o app e encontra "Acesso
+--     suspenso", MESMO TENDO o espaço pessoal dele funcionando do lado. Isso
+--     contradiz a promessa escrita do produto, que é a razão de o pessoal ser
+--     da pessoa.
+--
+--     Achado em 08/10/2026 por um convite: a pessoa foi chamada para uma
+--     segunda empresa, abriu o app, a tela disse que ela estava suspensa, e o
+--     convite ficou aberto, porque daquela tela não há como aceitar nada.
+-- --------------------------------------------------------------------------
+
+/**
+ * Qual dos meus perfis está em uso, e ele PRECISA preferir um que esteja de pé.
+ *
+ * A versão anterior devolvia o perfil da sessão, vivo ou morto, e caía no mais
+ * antigo quando não havia sessão escolhida. Com isso, quem sai de uma empresa e
+ * tinha aquele espaço selecionado abria o app e encontrava "Acesso suspenso",
+ * **mesmo tendo o espaço pessoal dele funcionando do lado**. Isso contradiz a
+ * promessa escrita do produto, que é a razão de o pessoal ser da pessoa: "o
+ * perfil de lá é desligado e aquele espaço fecha inteiro, enquanto o pessoal
+ * segue como estava, com tudo dentro".
+ *
+ * Aconteceu em 08/10/2026 com um convite: a pessoa foi chamada para uma segunda
+ * empresa, abriu o app, e a tela disse que ela estava suspensa. O convite ficou
+ * aberto, porque dali não há como aceitar nada.
+ *
+ * A ordem agora é: a sessão escolhida **se ela ainda vale**, depois o mais
+ * antigo ATIVO, e só então o mais antigo qualquer, que é o que faz a tela de
+ * acesso encerrado ter o que dizer para quem não tem nenhum espaço de pé.
+ *
+ * **Isto não esconde o desligamento.** O espaço fechado continua listado no
+ * seletor dizendo "acesso encerrado", que é onde essa notícia pertence: uma
+ * tela cheia dizendo que você está suspenso, quando você não está, não é aviso,
+ * é bloqueio.
+ */
+create or replace function public.meu_perfil()
+returns uuid language sql stable security definer set search_path = public as $$
+  select coalesce(
+    (select s.perfil_id from sessoes s
+      join perfis p on p.id = s.perfil_id and p.user_id = auth.uid() and p.ativo
+     where s.user_id = auth.uid()),
+    (select p.id from perfis p where p.user_id = auth.uid() and p.ativo
+      order by p.criado_em, p.id limit 1),
+    (select p.id from perfis p where p.user_id = auth.uid() order by p.criado_em, p.id limit 1)
+  );
+$$;
+
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
     as "carimbo de organizacao (40)",
@@ -7861,4 +7912,10 @@ select
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'novo_usuario'
       and pg_get_functiondef(p.oid) like '%v_espaco = ''equipe'' or v_nome is not null%')
-    as "a empresa so nasce se pedirem (1)";
+    as "a empresa so nasce se pedirem (1)",
+  -- O perfil em uso prefere um que esteja ATIVO. Sem isto, quem sai de uma
+  -- empresa encontra "Acesso suspenso" com o espaço pessoal dele de pé ao lado.
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'meu_perfil'
+      and pg_get_functiondef(p.oid) like '%and p.ativo%')
+    as "o perfil em uso esta de pe (1)";
