@@ -1760,6 +1760,34 @@ virando uma tira de 104px. Ela não some de todo de propósito: foi dela que as 
 saíram, e o que está escrito ali é o que explica cada uma. **Elas nunca ficam escondidas**,
 em nenhum dos dois estados: esconder o que espera decisão é o jeito de nunca decidir.
 
+**A resposta aparece SENDO ESCRITA, e isto é o que mais muda a sensação.** O app esperava o
+texto inteiro ficar pronto e mostrava "Lendo o seu caderno..." por vinte ou trinta segundos:
+a resposta mais longa que ele pede, que é uma trilha de sete checkpoints, era justamente a
+que mais parecia travada. A rota devolve `text/event-stream` (`{"t":"..."}` por pedaço,
+`{"fim":...}` no fecho) e a tela pinta linha a linha. **A ferramenta não dá para mostrar em
+tempo real**, porque o JSON dela só existe depois de fechar: o texto escorre e as ações saem
+no fim, que é a ordem certa de qualquer jeito. Dentro de uma NOTA não escorre, porque ali a
+resposta entra no documento, e documento que cresce sozinho enquanto alguém lê é pior que
+esperar.
+
+**A fala entra na tela na hora, sem esperar o banco.** Toda escrita chama `recarregar()`,
+que relê 44 consultas com 220ms de espera, então a linha recém-escrita levava meio segundo
+para aparecer: a pessoa via o campo esvaziar e nada acontecer, e concluía que o chat não
+estava respondendo. Pôr a linha na tela ali não é apostar, o insert já passou: é mostrar o
+que já é verdade. **A resposta também**, senão o texto que acabou de ser escrito pisca e
+some entre o fim do fluxo e a recarga, que é pior do que demorar.
+
+**O prompt é DOIS blocos, e o estável é cacheado.** As regras são as mesmas mensagem após
+mensagem e são a maior parte dele; o que muda é a agenda, as tarefas e o caderno. Cachear o
+volátil seria pagar a escrita do cache e nunca ler. **Cache é de prefixo**, então `regras()`
+vem antes de `instrucoes()`: um bloco estável depois de um volátil não cacheia nada.
+
+**E quando ele bate o teto de saída, ele DIZ.** O JSON da ferramenta fica pela metade, a
+ação não passa na conferência, e o app não faz nada: de fora isso é indistinguível de "ele
+ignorou", que é a pior leitura possível, porque a pessoa repete o pedido e acontece de novo.
+O teto do secretário é 8000, que é o que uma trilha de sete checkpoints com descrição e
+prazo em cada linha custa.
+
 **Ele LÊ o que você manda**, e é isso que o separa de um campo de texto com botões. Imagem e
 PDF vão para o modelo como bloco de conteúdo, por URL assinada do balde: o arquivo não passa
 pelo servidor do app e a assinatura vence em cinco minutos, que é o mesmo endereço e o mesmo
