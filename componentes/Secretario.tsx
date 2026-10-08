@@ -52,9 +52,16 @@ export function Secretario() {
   const [texto, setTexto] = useState('')
   const [arquivos, setArquivos] = useState<File[]>([])
   const [organizando, setOrganizando] = useState(false)
-  /* Abertas por padrão: elas são o trabalho, e esconder o que espera decisão é
-     o jeito de nunca decidir. Quem quiser a conversa de volta fecha. */
-  const [abertas, setAbertas] = useState(true)
+  /**
+   * A faixa de propostas, em tamanho normal ou tomando a coluna.
+   *
+   * Ela nunca some: esconder o que espera decisão é o jeito de nunca decidir.
+   * O que o toque faz é dar a COLUNA INTEIRA a elas, porque nove cartões não
+   * cabem numa faixa e não é para caberem. A faixa serve para você reparar que
+   * há coisa separada; decidir nove coisas é outra atividade, e ela merece a
+   * tela. Fechando, a conversa volta ao que era.
+   */
+  const [sugsMax, setSugsMax] = useState(false)
   const rolo = useRef<HTMLDivElement>(null)
   const area = useRef<HTMLTextAreaElement>(null)
   const entrada = useRef<HTMLInputElement>(null)
@@ -114,7 +121,7 @@ export function Secretario() {
   }
 
   return (
-    <section className="chat-conversa secr">
+    <section className={`chat-conversa secr ${sugsMax ? 'sugs-max' : ''}`}>
       <header className="chat-topo">
         {/* No celular a barra de abas some aqui, como dentro de um canal: ela
             come 56px justamente na tela onde a altura é o recurso escasso. Esta
@@ -211,21 +218,18 @@ export function Secretario() {
       </div>
 
       {!!propostas.length && (
-        /* A faixa abre e fecha pelo cabeçalho.
-           Com nove propostas ela come metade da tela, e quem quer voltar a ler a
-           conversa não tinha como. Fechar é o controle; o chão de altura (ver
-           `.chat-sugs` no globals.css) é o conserto do defeito que a sumia. */
-        <div className={`chat-sugs ${abertas ? '' : 'fechada'}`}>
-          <button className="chat-sugs-h" aria-expanded={abertas}
-            onClick={() => setAbertas((v) => !v)}>
+        <div className="chat-sugs">
+          <button className="chat-sugs-h" aria-expanded={sugsMax}
+            onClick={() => setSugsMax((v) => !v)}>
             <Ic.faisca />
             <b>{propostas.length} {propostas.length === 1 ? 'coisa separada' : 'coisas separadas'}</b>
+            <i className="chat-sugs-dica">{sugsMax ? 'voltar à conversa' : 'ver todas'}</i>
             <span className="chat-sugs-seta"><Ic.chev /></span>
           </button>
           {/* `despejo` muda o que a ficha oferece: aqui o responsável é sempre
               você, e perguntar "de quem é" num espaço de uma pessoa só é
               perguntar o óbvio. */}
-          {abertas && propostas.map((s) => <CartaoSugestao key={s.id} s={s} despejo />)}
+          {propostas.map((s) => <CartaoSugestao key={s.id} s={s} despejo />)}
         </div>
       )}
 

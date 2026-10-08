@@ -1390,7 +1390,15 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
    dizendo "Nada em aberto", e ali um chão de 150px seria um painel vazio
    ocupando a tela para dizer que não há nada. */
 .chat-sugs:has(.sug){min-height:min(46vh,150px)}
-.chat-sugs.fechada,.chat-sugs.fechada:has(.sug){min-height:0;overflow:hidden}
+/* Aberta no máximo, ela toma a coluna e a conversa vira uma tira.
+   Nove cartões não cabem numa faixa e não é para caberem: a faixa diz que há
+   coisa separada, e decidir nove coisas é outra atividade, que merece a tela.
+   A conversa não some inteira de propósito, porque é dela que as propostas
+   saíram e o que está escrito ali é o que explica cada uma. */
+.secr.sugs-max .chat-rolo{flex:0 1 auto;min-height:0;max-height:104px}
+.secr.sugs-max .chat-sugs,.secr.sugs-max .chat-sugs:has(.sug){flex:1 1 auto;max-height:none}
+.chat-sugs-dica{margin-left:auto;font-style:normal;font-size:11px;color:var(--tx-3)}
+.chat-sugs-dica + .chat-sugs-seta{margin-left:5px}
 .chat-sugs-h{display:flex;align-items:center;gap:8px;padding:11px 16px 5px;font-size:12px;
   position:sticky;top:0;background:var(--panel);z-index:1}
 /* O cabeçalho que abre e fecha. Ele é botão inteiro, e a seta diz o estado. */
@@ -1398,7 +1406,7 @@ button.chat-sugs-h{width:100%;text-align:left;cursor:pointer;padding-bottom:9px}
 button.chat-sugs-h:hover{color:var(--tx)}
 .chat-sugs-seta{margin-left:auto;display:grid;place-items:center;color:var(--tx-3);
   transition:transform var(--t)}
-.chat-sugs.fechada .chat-sugs-seta{transform:rotate(-90deg)}
+.secr.sugs-max .chat-sugs-seta{transform:rotate(180deg)}
 .chat-sugs-h svg{color:var(--warn-forte);flex:none}
 .chat-sugs-h b{font-weight:600}
 .chat-sugs-h .btn{margin-left:auto;padding:3px 9px;font-size:11.5px}

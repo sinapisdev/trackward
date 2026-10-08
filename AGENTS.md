@@ -1685,9 +1685,15 @@ inteiro. O resultado era o cabeçalho dizendo "9 coisas separadas" com uma tira 
 embaixo, ou seja, **nove coisas esperando decisão e nenhuma alcançável**. O chão é o
 cabeçalho mais um cartão, e vale só quando há cartão (`:has(.sug)`), porque no chat a faixa
 também aparece dizendo "Nada em aberto" e ali um chão seria um painel vazio ocupando a tela
-para dizer que não há nada. Fechar é o controle para o caso contrário, de nove cartões
-comendo metade da tela, e elas nascem ABERTAS: esconder o que espera decisão é o jeito de
-nunca decidir.
+para dizer que não há nada.
+
+**E o chão não bastava, porque o recipiente é que estava errado.** Nove cartões não cabem
+numa faixa e não é para caberem: a faixa serve para você REPARAR que há coisa separada, e
+decidir nove coisas é outra atividade, que merece a tela. Por isso o cabeçalho é botão e o
+que ele faz é dar a **coluna inteira** às propostas (`.secr.sugs-max`), com a conversa
+virando uma tira de 104px. Ela não some de todo de propósito: foi dela que as propostas
+saíram, e o que está escrito ali é o que explica cada uma. **Elas nunca ficam escondidas**,
+em nenhum dos dois estados: esconder o que espera decisão é o jeito de nunca decidir.
 
 **O botão redondo some aqui**, como dentro de um canal: ele ficaria em cima do campo de
 escrever, e quem cria usa a barra. **E a barra de abas some junto**, pelo mesmo motivo do
