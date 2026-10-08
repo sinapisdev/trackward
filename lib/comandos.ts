@@ -26,7 +26,7 @@ import { separaQuando, horaEh, quandoEh } from './quando'
  * para o mesmo sinal é o jeito mais rápido de a pessoa parar de confiar nos dois.
  */
 
-export type NomeComando = 'tarefa' | 'objetivo' | 'rotina' | 'nota' | 'agenda' | 'ajuda'
+export type NomeComando = 'tarefa' | 'objetivo' | 'rotina' | 'nota' | 'agenda' | 'contato' | 'ajuda'
 
 export type Comando = {
   nome: NomeComando
@@ -72,6 +72,12 @@ export const COMANDOS: Comando[] = [
     resumo: 'Marca um compromisso',
     exemplo: '/agenda Reunião com o Renato terça às 15h',
     outros: ['compromisso', 'reuniao', 'reunião'],
+  },
+  {
+    nome: 'contato', chave: 'contato',
+    resumo: 'Passa um telefone para a conversa, com botão de ligar e de WhatsApp',
+    exemplo: '/contato Nelson da esquadria 42 99988-7766',
+    outros: ['telefone', 'fone'],
   },
   {
     nome: 'ajuda', chave: 'ajuda',
@@ -122,6 +128,33 @@ export function separaOnde(entrada: string): { texto: string; onde: string | nul
   const texto = (entrada.slice(0, m.index) + entrada.slice(m.index + m[0].length))
     .replace(/\s{2,}/g, ' ').trim()
   return { texto, onde: m[1] }
+}
+
+/**
+ * O telefone no meio da frase, e o nome que sobra.
+ *
+ * O contato que se passa numa conversa de trabalho é quase sempre de FORA (o
+ * fornecedor da esquadria, o cliente, o despachante), e o que a pessoa tem na
+ * mão é um nome e um número escritos de qualquer jeito: "Nelson da esquadria 42
+ * 99988-7766", "(42) 99988 7766 Nelson". Por isso o número é que é procurado, e
+ * o nome é o que sobra: pedir "primeiro o nome, depois o telefone" seria um
+ * formulário com outra cara.
+ *
+ * Oito dígitos é o chão, que é o telefone fixo sem DDD; dentro disso cabe
+ * também o número de outro país escrito com `+`. Menos que isso é número de
+ * contrato, de nota fiscal e de casa, e casar com eles poria o endereço de
+ * alguém num cartão de telefone.
+ */
+export function separaFone(entrada: string): { nome: string; fone: string | null } {
+  // O `(` entra no casamento, senão ele fica para trás e o nome nasce "(Nelson":
+  // "(42) 99988 7766" é como metade das pessoas escreve um número.
+  const m = /(\+?\(?\d[\d\s().-]{7,})/.exec(entrada)
+  if (!m) return { nome: entrada.trim(), fone: null }
+  const digitos = m[1].replace(/[^\d+]/g, '')
+  if (digitos.replace(/\D/g, '').length < 8) return { nome: entrada.trim(), fone: null }
+  const nome = (entrada.slice(0, m.index) + entrada.slice(m.index + m[1].length))
+    .replace(/\s{2,}/g, ' ').replace(/^[\s,;:()./-]+|[\s,;:()./-]+$/g, '').trim()
+  return { nome, fone: digitos }
 }
 
 export type Lido = {

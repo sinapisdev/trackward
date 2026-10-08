@@ -30,7 +30,8 @@ import {
   type Aprendizado, type Lembranca,
 } from '@/lib/memoria'
 import type { Contexto as ContextoLeitura, Proposta } from '@/lib/leitor'
-import { lerComando, ondeEh, quemEh } from '@/lib/comandos'
+import { lerComando, ondeEh, quemEh, separaFone } from '@/lib/comandos'
+import { paraE164 } from '@/lib/fone'
 import type { ContextoConversa, Fala } from '@/lib/conversa'
 import type { Alvo } from '@/lib/tipos'
 import { iso } from '@/lib/datas'
@@ -3548,9 +3549,46 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       return { tipo: 'feito', conta, href: '/agenda' }
     }
 
+    /**
+     * O contato, que é a única coisa aqui que NÃO cria uma linha de trabalho.
+     *
+     * Ele é a própria mensagem, e por isso não tem rastro de sistema: um recibo
+     * dizendo "passou o contato do Nelson" ao lado do cartão do Nelson é a
+     * mesma notícia duas vezes. Os outros comandos precisam do rastro porque o
+     * que eles criam nasce em outra tela.
+     *
+     * E ele exige um canal ou uma nota, porque o cartão só existe dentro de uma
+     * conversa: fora dela não há onde pôr, e guardar um contato solto seria uma
+     * agenda de contatos, que é outro produto e ninguém pediu.
+     */
+    if (lido.comando.nome === 'contato') {
+      const { nome, fone } = separaFone(texto)
+      if (!fone) {
+        return { tipo: 'erro', motivo: `Faltou o telefone. Exemplo: ${lido.comando.exemplo}` }
+      }
+      if (!nome) {
+        return { tipo: 'erro', motivo: `Faltou de quem é. Exemplo: ${lido.comando.exemplo}` }
+      }
+      if (!onde.canalId && !onde.notaId) {
+        return { tipo: 'erro', motivo: 'O contato vai dentro de uma conversa. Abra uma e escreva lá.' }
+      }
+      /* Guarda em E.164 quando dá, porque é esse formato que o `wa.me` exige e
+         é o único que diz de que país é o número. Um fixo sem DDD não vira
+         E.164 e fica como foi escrito: ele serve para ligar, que é o que
+         alguém faz com um fixo, e o botão do WhatsApp some sozinho. */
+      const { error } = await sb.from('mensagens').insert({
+        id: novoId(), canal_id: onde.canalId || null, nota_id: onde.canalId ? null : onde.notaId,
+        autor_id: eu.id, texto: '', sistema: false, responde_a: null,
+        contato: { nome, fone: paraE164(fone) || fone },
+      })
+      if (error) { falhou(error, 'Não deu para passar o contato.'); return { tipo: 'erro', motivo: '' } }
+      recarregar()
+      return { tipo: 'feito', conta: `passou o contato de ${nome}` }
+    }
+
     return null
   }, [sb, eu.id, perfis, canais, todosFluxos, todasNotas, adicionarItem, criarAvulsa,
-      salvarFluxo, salvarNota, salvarCompromisso, empresaAtiva, recarregar])
+      salvarFluxo, salvarNota, salvarCompromisso, empresaAtiva, falhou, recarregar])
 
   const lerConversa: Contexto['lerConversa'] = useCallback(async (canalId) => {
     const canal = canais.find((c) => c.id === canalId)

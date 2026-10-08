@@ -218,6 +218,24 @@ export function comandar(entrada: string, m: Mundo): Intencao | null {
     }
   }
 
+  /**
+   * `/contato` existe no app e NÃO existe no telefone, e a recusa é melhor que
+   * o silêncio.
+   *
+   * O cartão de contato é uma mensagem dentro de uma conversa, e no WhatsApp não
+   * há conversa do TrackWard onde pôr: a pessoa já está num app de mensagem, com
+   * o contato dela na mão, e o gesto de lá é encaminhar. Devolver nulo faria o
+   * comando cair na triagem de texto solto e virar uma pergunta sobre onde
+   * guardar "Nelson 42 99988-7766", que não é o que ninguém pediu.
+   */
+  if (lido.comando.nome === 'contato') {
+    return {
+      tipo: 'recusa',
+      motivo: 'Contato é cartão de conversa, e aqui você já tem o do seu telefone. '
+        + 'No app, /contato dentro de um canal.',
+    }
+  }
+
   return null
 }
 

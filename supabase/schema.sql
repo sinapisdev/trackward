@@ -930,6 +930,23 @@ returns boolean language sql stable security definer set search_path = public as
       where d.depende_de = p_id and meu.resp_id in (select meu_alcance())
     )
     or exists (select 1 from itens i where i.id = p_id and ve_area_de(i.fluxo_id))
+    /* Convidado para uma track `escolhidas` vê as tarefas DELA, todas.
+       Aquela visibilidade existe para escolher a dedo quem acompanha AQUELE
+       trabalho, e filtrar de novo por tarefa esvaziava o convite: a pessoa
+       entrava na lista, abria a track e via uma tarefa de quatro. E qual
+       aparecia dependia de haver DEPENDÊNCIA com a dela, detalhe que ninguém
+       enxerga: duas tarefas idênticas, do mesmo responsável, uma aparecia e a
+       outra não. Em `equipe` nada muda, porque lá a empresa inteira abre a
+       track e o filtro por tarefa é o que separa o que é seu do resto.
+       Tarefa privada continua fora: a condição é outra, e mora em itens_sel. */
+    or exists (
+      select 1 from itens i join fluxos f on f.id = i.fluxo_id
+      where i.id = p_id and f.visib = 'escolhidas'
+        and exists (
+          select 1 from fluxo_pessoas fp
+          where fp.fluxo_id = f.id and fp.perfil_id in (select meu_alcance())
+        )
+    )
     -- Quem aprova o checkpoint lê as tarefas dele. Não é exceção à regra, é a
     -- definição de aprovar: ninguém dá aceite no que não pode ler. Tarefa
     -- privada continua fora, porque isso é outra condição, em itens_sel.
@@ -10021,4 +10038,40 @@ begin
     update convites set usado_em = now(), usado_por = v_perfil where id = cv.id;
   end if;
   return new;
+end $$;
+
+-- --------------------------------------------------------------------------
+-- 74. O contato que se passa na conversa
+--
+--     "Me passa o telefone do fornecedor da esquadria" é a frase que mais tira
+--     gente deste app e põe no WhatsApp, porque lá o contato é um cartão e aqui
+--     ele virava um número solto no meio de uma frase, que ninguém acha depois
+--     e que não dá para tocar e ligar.
+--
+--     É UMA COLUNA e não uma tabela, e a escolha é o desenho: o contato que se
+--     passa numa conversa é de FORA (o fornecedor, o cliente, o despachante) e
+--     pertence àquela mensagem, não à casa. Uma agenda de contatos da empresa é
+--     outro produto, com dono, duplicata, atualização e quem pode ver: nada
+--     disso foi pedido, e inventá-lo agora seria construir o que ninguém usa
+--     para resolver o que cabe num cartão.
+--
+--     Quem vê o contato vê a mensagem, e mais nada: a política de `mensagens`
+--     já responde isso, e uma segunda regra aqui seria uma segunda regra para
+--     manter.
+-- --------------------------------------------------------------------------
+
+alter table public.mensagens add column if not exists contato jsonb;
+
+/* O cartão tem nome e tem número, e um sem o outro não é contato: nome sozinho
+   é texto, número sozinho é o que ele já era antes desta coluna existir. */
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'mensagens_contato_inteiro') then
+    alter table public.mensagens add constraint mensagens_contato_inteiro
+      check (
+        contato is null
+        or (coalesce(btrim(contato->>'nome'), '') <> ''
+            and coalesce(btrim(contato->>'fone'), '') <> '')
+      );
+  end if;
 end $$;

@@ -700,6 +700,15 @@ export type Mensagem = {
    * abrir. Ver a seção 25 do schema.
    */
   nota_ref: string | null
+  /**
+   * O cartão de contato, quando a mensagem é um (`/contato`).
+   *
+   * De alguém de FORA: o fornecedor, o cliente, o despachante. É o que mais
+   * tirava gente daqui e punha no WhatsApp, porque lá o contato é um cartão e
+   * aqui ele era um número solto no meio de uma frase, que ninguém acha depois
+   * e que não dá para tocar e ligar.
+   */
+  contato: { nome: string; fone: string } | null
   autor_id: string | null
   texto: string
   /** Resposta a outra mensagem, para a conversa não se perder. */

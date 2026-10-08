@@ -59,8 +59,27 @@ export function itensVisiveis(
     fluxo.etapas.filter((e) => e.aprovador_id === eu.id).flatMap((e) => e.itens.map((i) => i.id)),
   )
 
+  /**
+   * Convidado para uma track `escolhidas` vê as tarefas DELA, todas.
+   *
+   * Aquela visibilidade existe para escolher a dedo quem acompanha AQUELE
+   * trabalho, e filtrar de novo por tarefa esvaziava o convite: a pessoa era
+   * posta na lista, abria a track e encontrava uma tarefa de quatro, com um
+   * aviso de que as outras eram de outras pessoas. Pior, qual aparecia dependia
+   * de ter DEPENDÊNCIA com a dela, que é um detalhe que ninguém enxerga: duas
+   * tarefas idênticas, do mesmo responsável, uma aparecia e a outra não.
+   *
+   * Em `equipe` nada muda, e a diferença é o argumento: lá a empresa inteira
+   * pode abrir a track, e aí filtrar por tarefa continua sendo o que separa ler
+   * o que é seu de ler a lista de todo mundo.
+   *
+   * Tarefa privada continua fora, e não por esta função: a condição é outra e
+   * mora em `itens_sel`, no banco, e no filtro da fonte do modo local.
+   */
+  const convidadoAqui = fluxo.visib === 'escolhidas' && fluxo.pessoas.some((x) => ids.has(x))
+
   return daEsteira.filter(
-    (i) => meuItem(i, ids) || travas.has(i.id) || paraAprovar.has(i.id)
+    (i) => convidadoAqui || meuItem(i, ids) || travas.has(i.id) || paraAprovar.has(i.id)
       || (i.autor_id ? ids.has(i.autor_id) && i.priv : false),
   )
 }

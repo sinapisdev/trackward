@@ -13,6 +13,7 @@ import { Av, IconeStatus } from './atomos'
 import { curta, hojeIso, isoDe } from '@/lib/datas'
 import type { Canal, Mensagem, Sugestao, TipoProposta } from '@/lib/tipos'
 import { chama, pedacos } from '@/lib/mencao'
+import { foneEscrito, paraE164 } from '@/lib/fone'
 import { progresso, status } from '@/lib/regras'
 import { mandaNoProcesso } from '@/lib/acesso'
 import { BotaoVoz, Recado } from './Voz'
@@ -1008,7 +1009,29 @@ function Conversa({ canal }: { canal: Canal }) {
                       que está aqui é o título e o começo; o resto está na
                       nota, e abrir é o que dá acesso a ela. Ver a seção 25 do
                       schema e `notaParaCanal`, em Dados. */}
-                  {m.nota_ref ? (
+                  {/* O contato de fora, como cartão. Era um número solto no
+                      meio de uma frase, que ninguém acha depois e que não dá
+                      para tocar e ligar: é o que mais tirava gente daqui e
+                      punha no WhatsApp. `tel:` e `wa.me` são links de verdade,
+                      então eles fazem no celular o que a pessoa espera. */}
+                  {m.contato ? (
+                    <div className="msg-contato">
+                      <span className="msg-contato-av"><Ic.team /></span>
+                      <span className="msg-contato-q">
+                        <b>{m.contato.nome}</b>
+                        <i>{foneEscrito(m.contato.fone)}</i>
+                      </span>
+                      <a className="msg-contato-b" href={`tel:${m.contato.fone}`}
+                        title={`Ligar para ${m.contato.nome}`}>Ligar</a>
+                      {/* Fixo não tem WhatsApp, e um botão que leva a uma
+                          conversa que não existe é pior que a falta dele. */}
+                      {!!paraE164(m.contato.fone) && (
+                        <a className="msg-contato-b" target="_blank" rel="noopener"
+                          href={`https://wa.me/${paraE164(m.contato.fone).replace('+', '')}`}
+                          title={`WhatsApp de ${m.contato.nome}`}>WhatsApp</a>
+                      )}
+                    </div>
+                  ) : m.nota_ref ? (
                     <button className="msg-nota" onClick={() => void abrirNota(m.nota_ref!)}>
                       <Ic.edit />
                       <span>

@@ -7399,6 +7399,42 @@ returns uuid language sql stable security definer set search_path = public as $$
   );
 $$;
 
+-- --------------------------------------------------------------------------
+-- 74. O contato que se passa na conversa
+--
+--     "Me passa o telefone do fornecedor da esquadria" é a frase que mais tira
+--     gente deste app e põe no WhatsApp, porque lá o contato é um cartão e aqui
+--     ele virava um número solto no meio de uma frase, que ninguém acha depois
+--     e que não dá para tocar e ligar.
+--
+--     É UMA COLUNA e não uma tabela, e a escolha é o desenho: o contato que se
+--     passa numa conversa é de FORA (o fornecedor, o cliente, o despachante) e
+--     pertence àquela mensagem, não à casa. Uma agenda de contatos da empresa é
+--     outro produto, com dono, duplicata, atualização e quem pode ver: nada
+--     disso foi pedido, e inventá-lo agora seria construir o que ninguém usa
+--     para resolver o que cabe num cartão.
+--
+--     Quem vê o contato vê a mensagem, e mais nada: a política de `mensagens`
+--     já responde isso, e uma segunda regra aqui seria uma segunda regra para
+--     manter.
+-- --------------------------------------------------------------------------
+
+alter table public.mensagens add column if not exists contato jsonb;
+
+/* O cartão tem nome e tem número, e um sem o outro não é contato: nome sozinho
+   é texto, número sozinho é o que ele já era antes desta coluna existir. */
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'mensagens_contato_inteiro') then
+    alter table public.mensagens add constraint mensagens_contato_inteiro
+      check (
+        contato is null
+        or (coalesce(btrim(contato->>'nome'), '') <> ''
+            and coalesce(btrim(contato->>'fone'), '') <> '')
+      );
+  end if;
+end $$;
+
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
     as "carimbo de organizacao (40)",
@@ -7918,4 +7954,8 @@ select
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'meu_perfil'
       and pg_get_functiondef(p.oid) like '%and p.ativo%')
-    as "o perfil em uso esta de pe (1)";
+    as "o perfil em uso esta de pe (1)",
+  -- O cartão de contato na conversa.
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'mensagens' and column_name = 'contato')
+    as "o contato na mensagem (1)";

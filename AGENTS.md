@@ -126,6 +126,16 @@ teria custado.
   `ve_item` e `meu_alcance` do schema. Mexeu em um, mexa no outro.
   Colaborador vê o que é dele e o que trava o que é dele. Gestor vê também tudo de quem
   está abaixo, em qualquer profundidade. Admin vê tudo.
+- **Mas convidado para uma track `escolhidas` vê as tarefas DELA, todas.** Aquela
+  visibilidade existe para escolher a dedo quem acompanha AQUELE trabalho, e filtrar de
+  novo por tarefa esvaziava o convite: a pessoa era posta na lista, abria a track e
+  encontrava uma tarefa de quatro, com um aviso de que as outras eram de outras pessoas.
+  Pior, **qual aparecia dependia de haver DEPENDÊNCIA com a dela**, que é um detalhe que
+  ninguém enxerga: duas tarefas idênticas, do mesmo responsável, no mesmo checkpoint, uma
+  aparecia e a outra não, e não havia como adivinhar por quê. Em `equipe` nada muda, e a
+  diferença é o argumento: lá a empresa inteira pode abrir a track, e aí filtrar por tarefa
+  continua sendo o que separa ler o que é seu de ler a lista de todo mundo. **Tarefa
+  privada continua fora**, porque a condição é outra e mora em `itens_sel`.
 - **Ninguém é chamado pelo e-mail.** Um perfil pode nascer sem nome, por convite antigo ou
   por cadastro anterior ao formulário atual, e aí o banco guarda o endereço no lugar. O app
   não conserta o dado sozinho: ele **pergunta** (`componentes/PedeNome.tsx`), porque o nome
@@ -1385,6 +1395,29 @@ título por `separaOnde`, então ignorá-lo faria a tarefa nascer com o nome cer
 errado, calada. E ele entrou no exemplo do catálogo (`/tarefa Conferir o contrato @Ana
 #Reforma até sexta`) porque é o sinal mais fácil de nunca ser descoberto: `@` e prazo a
 pessoa tenta sozinha, "em qual track isto vive" não ocorre a ninguém.
+
+**`/contato` passa um telefone de FORA para a conversa**, como cartão: nome, número, e os
+botões de ligar e de abrir o WhatsApp. "Me passa o telefone do fornecedor da esquadria" é a
+frase que mais tirava gente deste app e punha no WhatsApp, porque lá o contato é um cartão
+e aqui ele virava um número solto no meio de uma frase, que ninguém acha depois e que não
+dá para tocar e ligar.
+
+**O número é que é procurado, e o nome é o que sobra** (`separaFone`). O que a pessoa tem
+na mão é um nome e um número escritos de qualquer jeito, e pedir "primeiro o nome, depois o
+telefone" seria um formulário com outra cara. Oito dígitos é o chão, que é o fixo sem DDD:
+menos que isso é número de contrato e de nota fiscal.
+
+**É uma COLUNA em `mensagens` (seção 74), e não uma tabela.** O contato que se passa numa
+conversa pertence àquela mensagem, não à casa. Uma agenda de contatos da empresa é outro
+produto, com dono, duplicata, atualização e quem pode ver, e inventá-la agora seria
+construir o que ninguém usa para resolver o que cabe num cartão. Quem vê o contato vê a
+mensagem, e a política de `mensagens` já responde isso.
+
+**Ele não deixa rastro de sistema**, ao contrário de todos os outros comandos: o cartão é a
+própria mensagem, e um recibo dizendo "passou o contato do Nelson" ao lado do cartão do
+Nelson é a mesma notícia duas vezes. E **no WhatsApp ele recusa com motivo**, em vez de cair
+na triagem: lá a pessoa já está num app de mensagem com o contato na mão, e o gesto é
+encaminhar.
 
 **Barra só no começo da linha.** No meio dela é endereço de internet e é data:
 `10/03` abrindo menu seria o app atrapalhando quem está escrevendo.
