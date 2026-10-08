@@ -28,9 +28,12 @@ const ESCOLHAS: {
     resumo: 'Crie o espaço da sua organização.',
     forma: 'Crie seu espaço', lado: 'Comece e avance juntos', acao: 'Criar espaço',
     passos: [
-      ['Crie seu espaço', 'Configure sua organização em poucos passos.'],
       ['Organize projetos e rotinas', 'Estruture o trabalho da sua equipe.'],
       ['Convide sua equipe', 'Traga as pessoas e comece a colaborar.'],
+      /* Desde a seção 70 o pessoal nasce nos TRÊS caminhos, e não só em "só
+         para mim". É ganho real e passou a ser verdade: a agenda, a fila e a
+         carga da pessoa precisam de um lugar que seja dela. */
+      ['Seu espaço pessoal vem junto', 'Suas notas e a sua agenda, ao lado da empresa.'],
     ],
   },
   {
@@ -48,10 +51,13 @@ const ESCOLHAS: {
   {
     id: 'convite',
     titulo: 'Tenho um convite',
-    resumo: 'Entre com um código de 6 letras.',
+    resumo: 'Recebeu um link ou um código de 6 letras.',
     forma: 'Entre com o convite', lado: 'O convite já traz tudo', acao: 'Entrar na empresa',
     passos: [
-      ['Seu lugar já está reservado', 'Quem te chamou já escolheu o seu papel.'],
+      /* O caminho normal é o link, que pula estes cartões e já traz o código
+         dentro. Quem chega aqui recebeu o código por fora: lido no telefone,
+         num recado repassado. Por isso o passo 1 fala das duas formas. */
+      ['Pelo link, é um toque', 'Pelo código, são seis letras. Os dois levam ao mesmo lugar.'],
       ['Entre já liberado', 'Sem esperar aprovação de ninguém.'],
       ['Seu espaço pessoal vem junto', 'Fica ao lado da empresa, com o mesmo login.'],
     ],
@@ -341,6 +347,20 @@ function Formulario() {
                   <label htmlFor="a-empresa">Nome da organização</label>
                   <input className="inp" id="a-empresa" value={empresa} placeholder="Nome da sua equipe"
                     onChange={(e) => setEmpresa(e.target.value)} />
+                  {/* O convite vence a escolha, e isso é regra escrita: ele foi
+                      combinado com alguém, a escolha não. O que estava errado
+                      era o SILÊNCIO: quem já tinha convite aberto no e-mail
+                      pedia "Construtora da Erika", clicava em criar, e caía
+                      como colaboradora dentro de outra empresa, sem a dela
+                      existir em lugar nenhum. Dito antes, deixa de ser susto.
+                      E é dito aqui, e não conferido: perguntar ao banco se um
+                      e-mail tem convite aberto deixaria qualquer um sondar
+                      quem foi convidado para onde. */}
+                  <p className="hint">
+                    Se alguém já te convidou com este e-mail, você entra na empresa de quem
+                    convidou em vez de abrir uma nova. A sua você abre depois, pelo seletor
+                    de espaços.
+                  </p>
                 </div>
               )}
               {/* Pelo link, o código é um recibo e não um campo: oferecer uma
