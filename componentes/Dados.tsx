@@ -129,6 +129,8 @@ type Contexto = {
    * não se divide pelo número de contratos que a pessoa tem.
    */
   meuDia: LinhaDoDia[]
+  /** Quantas eu entreguei nos últimos 30 dias, somando todos os meus espaços. */
+  minhasEntregas: number
   /** A ligação com o calendário de fora, quando você tem uma. */
   minhaAgendaExterna: AgendaExterna | null
   /** Os trilhos que a empresa desenhou, prontos para dar origem a esteiras. */
@@ -460,6 +462,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [agenda, setAgenda] = useState<Compromisso[]>([])
   /** O que depende de mim em TODOS os meus espaços. Ver `meu_dia()`, seção 68. */
   const [meuDia, setMeuDia] = useState<LinhaDoDia[]>([])
+  /** Quantas eu entreguei nos últimos 30 dias, em todos eles. */
+  const [minhasEntregas, setMinhasEntregas] = useState(0)
   const [minhaAgendaExterna, setMinhaExterna] = useState<AgendaExterna | null>(null)
   const [processos, setProcessos] = useState<Processo[]>([])
   const [ciclos, setCiclos] = useState<Ciclo[]>([])
@@ -513,7 +517,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   /** Recolhe tudo que a pessoa pode ver e monta a árvore de fluxos. */
   const carregar = useCallback(async () => {
-    const [p, s, f, e, i, h, cic, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns, ags, cnc, nts, notaPes, fbk, avs, ctt, psh, mag, mdia] = await Promise.all([
+    const [p, s, f, e, i, h, cic, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, dec, pz, mem, cns, ags, cnc, nts, notaPes, fbk, avs, ctt, psh, mag, mdia, ment] = await Promise.all([
       sb.from('perfis').select('*').order('nome'),
       sb.from('areas').select('*').order('ordem'),
       sb.from('fluxos').select('*').order('criado_em'),
@@ -564,6 +568,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
          não tem resposta quando a fila se divide pelo número de contratos que
          a pessoa tem. */
       sb.rpc('meu_dia'),
+      /* A outra metade da carga da pessoa: `meu_dia` diz a demanda, esta diz a
+         capacidade demonstrada. Vinte tarefas não quer dizer nada sem ela. */
+      sb.rpc('minhas_entregas', { p_dias: 30 }),
     ])
 
     /**
@@ -713,6 +720,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
     setAgenda([...abertos, ...meus, ...fechados.values(), ...externos])
     setMeuDia(((mdia.data || []) as LinhaDoDia[]) || [])
+    setMinhasEntregas(typeof ment.data === 'number' ? ment.data : 0)
     setMinhaExterna(((ax.data || []) as AgendaExterna[])[0] || null)
 
     const itensPorEtapa = new Map<string, ProcessoItem[]>()
@@ -1185,26 +1193,26 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
         },
       ),
     )
-    const { error } = await sb.from('itens').update({ feito }).eq('id', item.id)
+    /**
+     * Quem conclui é o BANCO, e sempre, não só quando a tarefa é de outro
+     * espaço.
+     *
+     * A conclusão faz três coisas (vira a tarefa, escreve na atividade, conta
+     * no canal) e as três precisam acontecer venha o clique de onde vier: da
+     * track, da fila ou da fila consolidada de outro espaço. Duas
+     * implementações da mesma regra é a garantia de que um dia a de cá avisa o
+     * canal e a de lá esquece, e ninguém percebe.
+     *
+     * Ver `concluir_meu_item`, seção 69. O otimismo da tela continua aqui, que
+     * é onde ele tem que estar: a linha vira antes de a rede responder.
+     */
+    const { error } = await sb.rpc('concluir_meu_item', {
+      p_item: item.id, p_feito: feito, p_rastro: !semRastro, p_por_ia: porIa,
+    })
     if (error) { falhou(error, 'Não foi possível salvar.'); recarregar(); return }
-    if (feito) {
-      if (!item.priv) {
-        await logar(item.fluxo_id, `concluiu ${item.texto}`, porIa)
-        /**
-         * E o canal fica sabendo, que é onde as pessoas estão.
-         *
-         * `semRastro` existe para um caso só: quando quem concluiu foi o aceite
-         * de uma proposta, ele já escreve a própria notícia no canal de origem,
-         * e sem isto a mesma conclusão apareceria duas vezes na conversa.
-         */
-        if (!semRastro) {
-          await contarNoCanal(item.fluxo_id, `concluiu: ${item.texto}`, porIa)
-        }
-      }
-      if (!porIa) toast(`Concluído: ${item.texto}`)
-    }
+    if (feito && !porIa) toast(`Concluído: ${item.texto}`)
     recarregar()
-  }, [sb, falhou, toast, recarregar, logar, contarNoCanal])
+  }, [sb, falhou, toast, recarregar])
 
   // ------------------------------------------------------------- anexos
 
@@ -3471,7 +3479,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     conectores, salvarConector, guardarChave, excluirConector, testarConector,
     notas, salvarNota, excluirNota, comQuem, compartilharNota, notaParaCanal,
     abrirNotaDoCanal, conversaIA, abrirConversaIA,
-    meuDia,
+    meuDia, minhasEntregas,
     mensagensDaNota, sugestoesDaNota, escreverNaNota, perguntarNaNota, respondendo,
     minhaLista, abrirMinhaLista, criarAvulsa,
     avisos, naoVistos: avisos.filter((a) => !a.lido_em).length,

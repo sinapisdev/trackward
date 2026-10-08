@@ -595,6 +595,8 @@ export type Compromisso = {
  */
 export type LinhaDoDia = {
   item_id: string
+  /** 'item' (executo), 'aprov' (aprovo) ou 'pedi' (pedi a alguém). */
+  tipo: 'item' | 'aprov' | 'pedi'
   texto: string
   prazo: string | null
   org_id: string
@@ -607,6 +609,10 @@ export type LinhaDoDia = {
   etapa_id: string
   checkpoint: string
   priv: boolean
+  /** Presa numa tarefa que não ficou pronta. Calculado no banco: as
+      dependências não atravessam os espaços. */
+  travado: boolean
+  resp_id: string | null
 }
 
 /**
@@ -621,9 +627,25 @@ export type AgendaExterna = {
 }
 
 /** Item pendente de alguém: executar um item ou aprovar a saída de um checkpoint. */
+/**
+ * De onde a pendência veio, quando não é do espaço em uso.
+ *
+ * A fila é da PESSOA e não do workspace: quem tem quatro empresas não dá conta
+ * de vinte tarefas porque elas estão divididas em quatro listas. Então a mesma
+ * lista carrega as de fora, e `fora` é o que a distingue: ela mostra o nome do
+ * espaço, e abrir leva para lá. Concluir funciona daqui, por
+ * `concluir_meu_item` (seção 69), com o rastro e o aviso inteiros.
+ *
+ * `travado` vem junto porque as dependências não atravessam: de fora o app sabe
+ * que a tarefa está presa, mas não por quem.
+ */
+export type DeFora = { fora: string; org_id: string; travado: boolean }
+
 export type Pendencia =
-  | { tipo: 'item'; fluxo: Fluxo; etapa: Etapa; item: Item; prazo: string | null }
-  | { tipo: 'aprov'; fluxo: Fluxo; etapa: Etapa; item: null; prazo: string | null }
+  | ({ tipo: 'item'; fluxo: Fluxo; etapa: Etapa; item: Item; prazo: string | null }
+      & Partial<DeFora>)
+  | ({ tipo: 'aprov'; fluxo: Fluxo; etapa: Etapa; item: null; prazo: string | null }
+      & Partial<DeFora>)
   /**
    * O que eu pedi a outra pessoa e ainda não ficou pronto.
    *
@@ -632,7 +654,8 @@ export type Pendencia =
    * ensina a ignorar selo. Mas quem pediu precisa saber se foi feito, senão a
    * única saída é perguntar, que é o que este app existe para evitar.
    */
-  | { tipo: 'pedi'; fluxo: Fluxo; etapa: Etapa; item: Item; prazo: string | null }
+  | ({ tipo: 'pedi'; fluxo: Fluxo; etapa: Etapa; item: Item; prazo: string | null }
+      & Partial<DeFora>)
 
 // --------------------------------------------------------------- conversa
 

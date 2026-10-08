@@ -190,11 +190,45 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
   pergunta certa passou a ser "esta pessoa divide alguma casa comigo?", e é ela que separa o
   que é de propósito (a ocupação de quem divide um espaço comigo, vinda de todos os espaços
   dela) do que era furo (a ocupação de quem não tem nada a ver comigo).
-- **O dia consolidado LEVA até a tarefa, e não a executa.** Concluir de lá exigiria escrever
-  num espaço que não é o da sessão, e ficariam de fora o rastro no canal e o aviso de quem
-  pediu, que são do lado do app. A lente responde "o que eu faço hoje"; a tarefa se faz onde
-  a equipe dela vê. E ela só aparece para quem tem mais de um espaço: para quem tem um, é um
-  controle que nunca muda nada.
+- **A fila de Tarefas é da PESSOA, e já vem inteira.** Não há lente de "este espaço": "Tudo"
+  quer dizer tudo, de todos os espaços dela, e os filtros (Executar, Aprovar, Aguardando,
+  Pedi) valem sobre isso, porque trocar de recorte não pode custar a tela que ela conhece.
+  Ao lado deles fica **Só pessoal**, que estreita. O que some é o nome do espaço em uso como
+  rótulo: ela já sabe onde está.
+- **E a CARGA é da pessoa também.** Quem tem quatro empresas não dá conta de vinte tarefas
+  porque elas estão divididas em quatro listas: a conta de "o que eu dou conta hoje" é uma
+  só. `minhaCarga()` em `lib/sobrecarga.ts` responde isso, e é **separada de `sobrecarga()`
+  por uma razão que não é técnica**: aquela compara pessoas de um mesmo espaço para quem
+  distribui trabalho decidir, e pôr uma contando quatro empresas ao lado de outra contando
+  uma faria a tabela mentir onde ela é usada para decidir. Por isso o radar da operação
+  continua por espaço, e a carga inteira aparece na fila da própria pessoa. **O quanto
+  alguém trabalha fora da sua empresa não é assunto da sua empresa.**
+- **A frase fala de fila e de prazo, nunca de esforço**, como no aviso de carga: "no seu
+  ritmo, isto leva 50 dias e o prazo mais distante é em 2" é sobre distribuição; "você está
+  devagar" é sobre a pessoa. E sem base não há número, que é a mesma régua do Desempenho.
+- **Concluir funciona de qualquer espaço, pela própria linha**, e o rastro sai inteiro: a
+  atividade da track, a mensagem no canal e o aviso de quem pediu. Sem isso, fechar dez
+  coisas no fim do dia custava dez trocas de espaço e dez voltas, e uma lista que não deixa
+  fechar o que foi feito é uma lista que só cresce. Quem conclui é o BANCO
+  (`concluir_meu_item`, seção 69) e **sempre**, não só quando a tarefa é de fora: duas
+  implementações da mesma regra é a garantia de que um dia a de cá avisa o canal e a de lá
+  esquece, e ninguém percebe.
+- **A gaveta é só do que é daqui.** Ela mostra trilha, critério e as outras tarefas do
+  checkpoint, e nada disso atravessa: para o que é de fora ela abriria pela metade. Lá a
+  linha leva ao espaço da tarefa. O que atravessa é concluir, e isso é o visto da linha.
+- **`agir_como` é o que deixa escrever noutro espaço meu**, e `carimbar_org` passou a
+  resolver `org_de_quem_age()` ANTES de `minha_org()`: sem a troca, a linha escrita fora
+  nasce com a organização da sessão e **ninguém a enxerga, nem quem a escreveu**, que é o
+  defeito da seção 44 por outro caminho. `agir_como` recusa perfil que não seja seu.
+- **Todo login tem espaço pessoal, e ele é a porta de entrada** (seção 70). O cadastro
+  criava UM espaço, o pessoal ou a empresa, e o convite não criava nenhum: quem entrou por
+  convite, que é quase todo mundo numa empresa, **não tinha pessoal nenhum**. Isso derruba a
+  promessa inteira, porque a agenda, o dia e a carga são da pessoa, e sem um lugar que seja
+  dela o "dela" não existe. Agora ele nasce nos três caminhos, e o que varia é só onde a
+  sessão pousa: no convite e na empresa nova ela abre NA EMPRESA, porque é para lá que a
+  pessoa foi chamada, e abrir o pessoal vazio para quem acabou de aceitar um convite é
+  mostrar um app sem nada dentro no momento em que ela veio ver o trabalho de alguém. Quem
+  já existia ganha o dele numa passada de migração, que é idempotente.
 - **Agenda**: `bloqueia` e `visivel` são chaves independentes. Quem não pode ler um
   compromisso recebe apenas a ocupação (via função `ocupacao()`), com título trocado por
   "Ocupado" e `aberto: false`. Nunca vazar título, local ou observação de compromisso

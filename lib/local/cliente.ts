@@ -1758,27 +1758,102 @@ function montarCliente() {
           return { data: saida, error: null }
         }
 
-        /* E o dia dela, de todos os espaços dela. Espelha `meu_dia()`. */
+        /* E o dia dela, de todos os espaços dela, com os QUATRO tipos.
+           Espelha `meu_dia()`, seção 69. */
         if (nome === 'meu_dia') {
           const b = ler()
           const u = usuarioLocal()
           const meus = new Set(b.perfis.filter((p) => p.user_id === u).map((p) => p.id as string))
           const saida: Linha[] = []
+          const onde = (e: Linha, f: Linha) => {
+            const org = b.organizacoes.find((o) => o.id === f.org_id)
+            return {
+              org_id: f.org_id, espaco: org?.nome || '', espaco_tipo: org?.tipo || 'equipe',
+              fluxo_id: f.id, track: f.nome, implicita: !!f.implicita,
+              etapa_id: e.id, checkpoint: e.nome,
+            }
+          }
+          const viva = (e: Linha | undefined, f: Linha | undefined) =>
+            !!e && !!f && !f.desfecho && !f.travado_motivo && e.ordem === f.atual
+
           for (const i of b.itens) {
-            if (i.feito || !meus.has(i.resp_id as string)) continue
             const e = b.etapas.find((x) => x.id === i.etapa_id)
             const f = e && b.fluxos.find((x) => x.id === e.fluxo_id)
-            if (!e || !f || f.desfecho || f.travado_motivo) continue
-            if (e.ordem !== f.atual) continue
-            const org = b.organizacoes.find((o) => o.id === f.org_id)
+            if (i.feito || !viva(e, f) || !e || !f) continue
+            // 1. o que eu executo
+            if (meus.has(i.resp_id as string)) {
+              saida.push({
+                item_id: i.id, tipo: 'item', texto: i.texto, prazo: i.prazo,
+                ...onde(e, f), priv: !!i.priv, resp_id: i.resp_id,
+                travado: (b.dependencias || []).some((d) =>
+                  d.item_id === i.id && !b.itens.find((x) => x.id === d.depende_de)?.feito),
+              })
+            // 3. o que eu pedi, e SÓ em canal sem track
+            } else if (f.implicita && meus.has(i.autor_id as string) && i.resp_id) {
+              saida.push({
+                item_id: i.id, tipo: 'pedi', texto: i.texto, prazo: i.prazo,
+                ...onde(e, f), priv: !!i.priv, resp_id: i.resp_id, travado: false,
+              })
+            }
+          }
+          // 2. o que eu aprovo, e só quando não falta mais nada
+          for (const e of b.etapas) {
+            const f = b.fluxos.find((x) => x.id === e.fluxo_id)
+            if (!viva(e, f) || !f) continue
+            if (!meus.has(e.aprovador_id as string)) continue
+            if (b.itens.some((x) => x.etapa_id === e.id && !x.feito)) continue
             saida.push({
-              item_id: i.id, texto: i.texto, prazo: i.prazo, org_id: f.org_id,
-              espaco: org?.nome || '', espaco_tipo: org?.tipo || 'equipe',
-              fluxo_id: f.id, track: f.nome, implicita: !!f.implicita,
-              etapa_id: e.id, checkpoint: e.nome, priv: !!i.priv,
+              item_id: e.id, tipo: 'aprov', texto: e.nome, prazo: e.prazo,
+              ...onde(e, f), priv: false, resp_id: e.aprovador_id, travado: false,
             })
           }
           return { data: saida, error: null }
+        }
+
+        /* Quantas eu entreguei na janela, em todos os meus espaços.
+           Espelha `minhas_entregas()`, seção 69. */
+        if (nome === 'minhas_entregas') {
+          const b = ler()
+          const u = usuarioLocal()
+          const meus = new Set(b.perfis.filter((p) => p.user_id === u).map((p) => p.id as string))
+          const dias = Math.max(1, Math.min(365, Number(args.p_dias) || 30))
+          const corte = Date.now() - dias * 86400000
+          const n = b.itens.filter((i) => i.feito && meus.has(i.resp_id as string)
+            && i.feito_em && new Date(i.feito_em as string).getTime() >= corte).length
+          return { data: n, error: null }
+        }
+
+        /* Concluir de qualquer espaço meu, com o rastro inteiro.
+           Espelha `concluir_meu_item()`, seção 69. */
+        if (nome === 'concluir_meu_item') {
+          const b = ler()
+          const u = usuarioLocal()
+          const it = b.itens.find((x) => x.id === args.p_item)
+          if (!it) throw new Error('Tarefa não encontrada.')
+          const dono = b.perfis.find((p) => p.id === it.resp_id && p.user_id === u && p.ativo)
+          if (!dono) throw new Error('Essa tarefa não é sua.')
+          it.feito = !!args.p_feito
+          if (it.feito && !it.priv) {
+            const f = b.fluxos.find((x) => x.id === it.fluxo_id)
+            b.atividades.unshift({
+              id: uid('atv'), fluxo_id: it.fluxo_id, quem_id: args.p_por_ia ? null : dono.id,
+              texto: `concluiu ${it.texto}`, por_ia: !!args.p_por_ia,
+              org_id: f?.org_id, criado_em: agora(),
+            })
+            if (args.p_rastro !== false) {
+              const canal = b.canais.find((c) => c.fluxo_id === it.fluxo_id)
+              if (canal) {
+                b.mensagens.push({
+                  id: uid('msg'), canal_id: canal.id, nota_id: null,
+                  autor_id: args.p_por_ia ? null : dono.id, texto: `concluiu: ${it.texto}`,
+                  sistema: true, por_ia: !!args.p_por_ia, org_id: canal.org_id,
+                  responde_a: null, criado_em: agora(),
+                })
+              }
+            }
+          }
+          gravar()
+          return { data: null, error: null }
         }
 
         if (nome === 'ocupacao') {

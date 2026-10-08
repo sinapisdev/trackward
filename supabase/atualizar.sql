@@ -6323,35 +6323,454 @@ grant execute on function public.minha_agenda() to authenticated, service_role;
  * empresa alcançando a outra: é a mesma pessoa vendo o trabalho dela, que
  * nenhuma parede existiu para esconder dela mesma.
  *
- * Sem parâmetro, pelo mesmo motivo de `minha_agenda`. E só o que está em
- * aberto: o dia é o que falta fazer, e o que já foi feito não é o dia.
+ * A DEFINIÇÃO MORA NA SEÇÃO 69, e não aqui. Ela nasceu nesta seção trazendo só
+ * o que eu executo, e ganhou os outros três tipos depois. Deixar as duas no
+ * arquivo faria a segunda passada tentar trocar o tipo de retorno de uma função
+ * que já existe, e o Postgres responde "cannot change return type of existing
+ * function" e derruba o arquivo no meio. Uma definição por função, sempre.
+ */
+
+-- 69. Concluir de onde se olha, e a carga que é de uma pessoa só
+--
+--     A lente do dia LEVAVA até a tarefa e não deixava concluí-la, porque
+--     concluir escreve num espaço que não é o da sessão. Na prática isso quer
+--     dizer: abrir a lista do dia no fim da tarde, ver dez coisas feitas, e ter
+--     que trocar de espaço dez vezes para marcar dez caixas, voltando ao
+--     pessoal entre cada uma. Ninguém faz isso, e uma lista que não deixa
+--     fechar o que foi feito vira uma lista que cresce para sempre.
+--
+--     **E o rastro tem que continuar inteiro.** Concluir pela lista do dia
+--     precisa escrever na atividade da track e avisar o canal, exatamente como
+--     concluir lá dentro: o combinado some quando fica guardado num canto que a
+--     outra pessoa não abre, e isso vale igual venha o clique de onde vier.
+--
+--     Por isso a conclusão inteira desce para o banco, e o app passa a chamá-la
+--     SEMPRE, e não só quando a tarefa é de outro espaço. Duas implementações
+--     da mesma regra é a garantia de que um dia a de cá avisa o canal e a de lá
+--     esquece, e ninguém percebe. A regra mora uma vez, aqui.
+--
+--     **O carimbo precisava de uma porta.** `carimbar_org` resolvia
+--     `minha_org()` ANTES de `org_de_quem_age()`, então com sessão aberta a
+--     linha nascia sempre com a organização do espaço em uso. Escrevendo num
+--     espaço que não é o da sessão, a mensagem nasceria carimbada com a casa
+--     errada e **ninguém a enxergaria, nem quem a escreveu**, que é o defeito
+--     da seção 44 por outro caminho. A ordem inverte: quem DIZ de quem é a casa
+--     manda sobre o padrão da sessão. É seguro porque `trackward.org` só é
+--     escrito por quem tem o direito de escrevê-lo, e `agir_como` recusa perfil
+--     que não seja seu.
+-- --------------------------------------------------------------------------
+
+/**
+ * Quem diz de quem é a casa manda sobre o padrão da sessão.
+ *
+ * Antes era o contrário, e funcionava porque `trackward.org` só era escrito
+ * sem sessão. Com `agir_como` ele passa a ser escrito com sessão também, e aí
+ * a ordem importa: sem a troca, a linha escrita noutro espaço nasce com a
+ * organização do espaço em uso e some da vista de todo mundo.
+ */
+create or replace function public.carimbar_org()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  new.org_id := coalesce(org_de_quem_age(), minha_org(), new.org_id);
+  return new;
+end $$;
+
+create or replace function public.carimbar_autor()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_eu uuid := coalesce(perfil_de_quem_age(), meu_perfil());
+begin
+  if v_eu is null then return new; end if;
+  if tg_table_name = 'itens'  then new.autor_id   := v_eu; end if;
+  if tg_table_name = 'canais' then new.criado_por := v_eu; end if;
+  if tg_table_name = 'notas'  then new.dono_id    := v_eu; end if;
+  new.org_id := coalesce(org_de_quem_age(), new.org_id, minha_org());
+  return new;
+end $$;
+
+/**
+ * Agir dentro de OUTRO espaço meu, por uma transação.
+ *
+ * Só aceita perfil que seja meu e esteja ativo. Não é um "virar outra pessoa":
+ * é dizer qual dos MEUS perfis está escrevendo, que é o que o carimbo precisa
+ * saber para a linha nascer na casa certa. Vale até o fim da transação, como o
+ * `quem_age` da seção 44, e pelo mesmo motivo: o conserto não é acrescentar
+ * `org_id` a trinta inserts espalhados, porque seria esquecer um.
+ */
+create or replace function public.agir_como(p_perfil uuid)
+returns uuid language plpgsql volatile security definer set search_path = public as $$
+declare v_org uuid;
+begin
+  select org_id into v_org from perfis
+   where id = p_perfil and ativo and user_id = auth.uid();
+  if v_org is null then raise exception 'Esse perfil não é seu.'; end if;
+  perform set_config('trackward.org', v_org::text, true);
+  perform set_config('trackward.perfil', p_perfil::text, true);
+  return p_perfil;
+end $$;
+
+revoke all on function public.agir_como(uuid) from public, anon;
+grant execute on function public.agir_como(uuid) to authenticated, service_role;
+
+/**
+ * Concluir (ou desfazer) uma tarefa minha, esteja ela no espaço que estiver.
+ *
+ * Faz as três coisas que a conclusão sempre fez, e é por isso que ela desce
+ * para cá inteira em vez de o app fazer duas delas e o banco a terceira:
+ *
+ *   1. vira a tarefa
+ *   2. escreve na ATIVIDADE da track, que é o histórico dela
+ *   3. conta no CANAL, que é onde as pessoas estão
+ *
+ * O terceiro é o que importa e é o que se perderia: a atividade ninguém abre.
+ *
+ * `p_rastro` existe para um caso só, o mesmo `semRastro` de antes: o aceite de
+ * uma proposta de "ficou pronto" já escreve a notícia no canal de origem, e
+ * sem isto a mesma conclusão apareceria duas vezes na conversa.
+ *
+ * **Tarefa privada não conta nada em lugar nenhum**, como sempre: ela é
+ * lembrete, e lembrete dos outros não é assunto da casa.
+ */
+create or replace function public.concluir_meu_item(
+  p_item uuid, p_feito boolean,
+  p_rastro boolean default true, p_por_ia boolean default false
+) returns void language plpgsql volatile security definer set search_path = public as $$
+declare
+  it      itens%rowtype;
+  v_eu    uuid;
+  v_canal uuid;
+begin
+  select * into it from itens where id = p_item;
+  if it.id is null then raise exception 'Tarefa não encontrada.'; end if;
+
+  -- Só a minha, e em qualquer espaço meu. Quem não é responsável continua
+  -- mexendo pela tela daquele espaço, onde as regras de quem pode o quê valem
+  -- inteiras: esta função é o atalho de quem vai FAZER, não um segundo caminho
+  -- para mexer no trabalho dos outros.
+  select p.id into v_eu from perfis p
+   where p.id = it.resp_id and p.user_id = auth.uid() and p.ativo;
+  if v_eu is null then raise exception 'Essa tarefa não é sua.'; end if;
+
+  perform agir_como(v_eu);
+  update itens set feito = p_feito where id = p_item;
+
+  if not p_feito or it.priv then return; end if;
+
+  insert into atividades (fluxo_id, quem_id, texto, por_ia, org_id)
+  values (it.fluxo_id, case when p_por_ia then null else v_eu end,
+          'concluiu ' || it.texto, p_por_ia, (select org_id from fluxos where id = it.fluxo_id));
+
+  if p_rastro then
+    select c.id into v_canal from canais c where c.fluxo_id = it.fluxo_id limit 1;
+    if v_canal is not null then
+      insert into mensagens (id, canal_id, nota_id, autor_id, texto, sistema, por_ia)
+      values (gen_random_uuid(), v_canal, null,
+              case when p_por_ia then null else v_eu end,
+              'concluiu: ' || it.texto, true, p_por_ia);
+    end if;
+  end if;
+end $$;
+
+revoke all on function public.concluir_meu_item(uuid, boolean, boolean, boolean)
+  from public, anon;
+grant execute on function public.concluir_meu_item(uuid, boolean, boolean, boolean)
+  to authenticated, service_role;
+
+-- `create or replace` NÃO troca o tipo de retorno de uma função, e esta ganhou
+-- colunas: numa segunda passada o Postgres responde "cannot change return type
+-- of existing function" e derruba o arquivo no meio. É o mesmo cuidado que a
+-- seção de assinaturas pede, e vale para o retorno também.
+drop function if exists public.meu_dia();
+
+/**
+ * O meu dia, agora com as QUATRO coisas que dependem de mim.
+ *
+ * A primeira versão trazia só o que eu executo, e com ela os filtros de
+ * Tarefas (executar, aprovar, aguardando, pedi) deixavam de valer assim que a
+ * lista virava a do dia inteiro: a pessoa trocava de lente e perdia os
+ * filtros, que é perder a tela.
+ *
+ * `travado` vem junto porque "aguardando" não é um tipo, é uma condição: a
+ * tarefa é minha e está presa numa que não ficou pronta. Calcular isso na tela
+ * exigiria carregar as dependências de todos os espaços, e elas não atravessam.
  */
 create or replace function public.meu_dia()
 returns table (
-  item_id uuid, texto text, prazo date, org_id uuid, espaco text,
+  item_id uuid, tipo text, texto text, prazo date, org_id uuid, espaco text,
   espaco_tipo text, fluxo_id uuid, track text, implicita boolean,
-  etapa_id uuid, checkpoint text, priv boolean
+  etapa_id uuid, checkpoint text, priv boolean, travado boolean, resp_id uuid
 )
 language sql stable security definer set search_path = public as $$
+  -- 1. O que eu executo.
   select
-    i.id, i.texto, i.prazo, f.org_id, o.nome, o.tipo,
-    f.id, f.nome, f.implicita, e.id, e.nome, i.priv
+    i.id, 'item', i.texto, i.prazo, f.org_id, o.nome, o.tipo,
+    f.id, f.nome, f.implicita, e.id, e.nome, i.priv,
+    exists (
+      select 1 from dependencias d join itens x on x.id = d.depende_de
+       where d.item_id = i.id and not x.feito
+    ),
+    i.resp_id
   from itens i
   join etapas e on e.id = i.etapa_id
   join fluxos f on f.id = i.fluxo_id
   join organizacoes o on o.id = f.org_id
-  where ativo()
-    and not i.feito
-    and f.desfecho is null
-    and f.travado_motivo is null
-    -- Só o checkpoint corrente, como `pendencias()` faz na tela: tarefa de
-    -- etapa que ainda não chegou não é do dia de ninguém.
+  where ativo() and not i.feito and f.desfecho is null and f.travado_motivo is null
     and e.ordem = f.atual
-    and i.resp_id in (select perfil_id from meus_perfis());
+    and i.resp_id in (select perfil_id from meus_perfis())
+
+  union all
+
+  -- 2. O que eu aprovo, e só quando não falta mais nada para aprovar.
+  select
+    e.id, 'aprov', e.nome, e.prazo, f.org_id, o.nome, o.tipo,
+    f.id, f.nome, f.implicita, e.id, e.nome, false, false, e.aprovador_id
+  from etapas e
+  join fluxos f on f.id = e.fluxo_id
+  join organizacoes o on o.id = f.org_id
+  where ativo() and f.desfecho is null and f.travado_motivo is null
+    and e.ordem = f.atual
+    and e.aprovador_id in (select perfil_id from meus_perfis())
+    and not exists (select 1 from itens x where x.etapa_id = e.id and not x.feito)
+
+  union all
+
+  -- 3. O que eu pedi a outra pessoa, e SÓ EM CANAL SEM TRACK: o que mora numa
+  --    track de verdade já aparece na trilha dela, e contá-lo aqui seria
+  --    contá-lo duas vezes. Mesma regra de `oQuePedi` em lib/regras.ts.
+  select
+    i.id, 'pedi', i.texto, i.prazo, f.org_id, o.nome, o.tipo,
+    f.id, f.nome, f.implicita, e.id, e.nome, i.priv, false, i.resp_id
+  from itens i
+  join etapas e on e.id = i.etapa_id
+  join fluxos f on f.id = i.fluxo_id
+  join organizacoes o on o.id = f.org_id
+  where ativo() and not i.feito and f.desfecho is null and f.travado_motivo is null
+    and e.ordem = f.atual and f.implicita
+    and i.autor_id in (select perfil_id from meus_perfis())
+    and i.resp_id is not null
+    and i.resp_id not in (select perfil_id from meus_perfis());
 $$;
 
 revoke all on function public.meu_dia() from public, anon;
 grant execute on function public.meu_dia() to authenticated, service_role;
+
+/**
+ * Quantas eu entreguei nos últimos dias, em todos os meus espaços.
+ *
+ * É a outra metade da carga da pessoa: `meu_dia()` diz a demanda, esta diz a
+ * capacidade demonstrada. Sem ela, "vinte tarefas" não quer dizer nada, porque
+ * quem entrega vinte por semana não está sobrecarregado e quem entrega uma por
+ * mês está, e a diferença entre os dois é tudo.
+ *
+ * Devolve um NÚMERO, e não as tarefas: para a conta basta quantas, e uma lista
+ * do que foi feito em outra empresa é conteúdo atravessando sem precisar.
+ */
+create or replace function public.minhas_entregas(p_dias int default 30)
+returns integer language sql stable security definer set search_path = public as $$
+  select count(*)::int from itens i
+  where ativo()
+    and i.feito
+    and i.feito_em >= now() - make_interval(days => greatest(1, least(365, p_dias)))
+    and i.resp_id in (select perfil_id from meus_perfis());
+$$;
+
+revoke all on function public.minhas_entregas(int) from public, anon;
+grant execute on function public.minhas_entregas(int) to authenticated, service_role;
+
+
+-- ==========================================================================
+-- 70. O espaço pessoal é a porta de entrada, e todo login tem um
+--
+--     O cadastro criava UM espaço: o pessoal, ou a empresa, nunca os dois. E o
+--     convite criava nenhum dos dois, só o perfil dentro da empresa que
+--     convidou. Resultado: quem entrou por convite, que é quase todo mundo numa
+--     empresa, **não tinha espaço pessoal nenhum**.
+--
+--     Isso derruba a promessa inteira. A agenda é da pessoa, o dia é da pessoa,
+--     e a carga é da pessoa; se ela não tem um lugar que seja dela, o "dela"
+--     não existe, e o que sobra é o trabalho de uma empresa com cara de pessoal.
+--     Pior: era exatamente a quem mais importa, porque é quem não escolheu nada
+--     e simplesmente aceitou um convite.
+--
+--     Agora o pessoal nasce SEMPRE, nos três caminhos, e o que varia é só onde
+--     a sessão pousa:
+--
+--       convite   → pessoal + perfil na empresa, e a sessão abre NA EMPRESA
+--       equipe    → pessoal + empresa nova, e a sessão abre NA EMPRESA
+--       pessoal   → pessoal, e a sessão abre nele
+--
+--     A empresa ganha a sessão nos dois primeiros porque é para lá que a pessoa
+--     foi chamada: abrir no pessoal vazio quem acabou de aceitar um convite é
+--     mostrar um app sem nada dentro no exato momento em que ela veio ver o
+--     trabalho de alguém.
+--
+--     **O nome do espaço pessoal é o nome da pessoa**, e não se pergunta, como
+--     já valia: quem disse "só para mim" já respondeu de quem é, e quem entrou
+--     por convite não precisa responder nada.
+--
+--     As quatro recusas da seção 20 continuam de pé e ficam mais importantes:
+--     um pessoal por login, convite não aponta para pessoal, convite não é
+--     aceito lá, e canal não entra.
+-- --------------------------------------------------------------------------
+
+/**
+ * Abre o espaço pessoal de um login, se ele ainda não tiver um.
+ *
+ * Separada de `novo_usuario` porque ela é chamada de DOIS lugares: do cadastro,
+ * para quem está nascendo, e da passada de migração, para quem já existe. Duas
+ * cópias da mesma criação é a garantia de que um dia a de cá ganha uma coluna e
+ * a de lá não, e aí metade dos espaços pessoais nasce diferente da outra.
+ */
+create or replace function public.abrir_pessoal(p_user uuid, p_nome text, p_email text)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare v_org uuid; v_perfil uuid;
+  paleta text[] := array['#8A8A8A','#B0B0B0','#C9884A','#6F6F6F','#A0704A','#9A9A9A','#7A6E8F','#B5A08C'];
+begin
+  if p_user is null then return null; end if;
+
+  -- Um pessoal por login. A recusa de verdade é o gatilho da seção 20; isto
+  -- aqui é só não tentar, para a migração poder rodar quantas vezes quiser.
+  select p.org_id into v_org
+    from perfis p join organizacoes o on o.id = p.org_id
+   where p.user_id = p_user and o.tipo = 'pessoal' limit 1;
+  if v_org is not null then return v_org; end if;
+
+  insert into organizacoes (nome, tipo)
+  values (coalesce(nullif(btrim(p_nome), ''), initcap(split_part(coalesce(p_email,''), '@', 1)), 'Pessoal'),
+          'pessoal')
+  returning id into v_org;
+
+  insert into perfis (user_id, org_id, nome, email, cor, papel, ve_area, ativo)
+  values (p_user, v_org,
+          coalesce(nullif(btrim(p_nome), ''), split_part(coalesce(p_email,''), '@', 1)),
+          coalesce(p_email, ''),
+          paleta[(floor(random() * 8))::int + 1], 'admin', true, true)
+  returning id into v_perfil;
+
+  update organizacoes set dono_id = v_perfil where id = v_org;
+  return v_org;
+end $$;
+
+revoke all on function public.abrir_pessoal(uuid, text, text) from public, anon, authenticated;
+grant execute on function public.abrir_pessoal(uuid, text, text) to service_role;
+
+create or replace function public.novo_usuario()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  cv        convites%rowtype;
+  v_org     uuid;
+  v_nome    text := nullif(btrim(new.raw_user_meta_data->>'organizacao'), '');
+  v_codigo  text := upper(btrim(coalesce(new.raw_user_meta_data->>'convite', '')));
+  v_espaco  text := lower(btrim(coalesce(new.raw_user_meta_data->>'espaco', '')));
+  v_eu      text := nullif(btrim(new.raw_user_meta_data->>'nome'), '');
+  v_papel   text := 'colaborador';
+  v_ativo   boolean := false;
+  v_dono    boolean := false;
+  v_perfil  uuid;
+  v_ve_area boolean := false;
+  v_area    uuid;
+  v_gestor  uuid;
+  n int;
+  paleta text[] := array['#8A8A8A','#B0B0B0','#C9884A','#6F6F6F','#A0704A','#9A9A9A','#7A6E8F','#B5A08C'];
+begin
+  -- 0. O espaço pessoal, SEMPRE, e antes de tudo: ele é a porta de entrada, e
+  --    a agenda, o dia e a carga da pessoa precisam de um lugar que seja dela.
+  --    Quem entrou por convite é quem mais precisa, porque não escolheu nada.
+  v_org := abrir_pessoal(new.id, v_eu, new.email);
+
+  select * into cv from convites
+  where usado_em is null
+    and (vence_em is null or vence_em > now())
+    and (
+      (v_codigo <> '' and codigo = v_codigo)
+      or lower(email) = lower(new.email)
+    )
+  order by (v_codigo <> '' and codigo = v_codigo) desc
+  limit 1;
+
+  if cv.id is not null then
+    -- 1. Convite manda em tudo. A conta nasce pronta e liberada, e o convite
+    --    nunca aponta para espaço pessoal (gatilho convites_so_equipe).
+    v_org := cv.org_id;
+    v_papel := coalesce(cv.papel, 'colaborador');
+    v_area := cv.area_id;
+    v_gestor := cv.gestor_id;
+    v_ve_area := coalesce(cv.ve_area, false);
+    v_ativo := true;
+  elsif v_espaco <> 'pessoal' then
+    -- 2. Empresa nova, e quem abre é a administradora dela. Quem pediu "só
+    --    para mim" fica com o pessoal que já nasceu no passo 0.
+    insert into organizacoes (nome, tipo)
+    values (coalesce(v_nome, initcap(split_part(new.email, '@', 1))), 'equipe')
+    returning id into v_org;
+    v_papel := 'admin';
+    v_ativo := true;
+    v_dono := true;
+    v_ve_area := true;
+  else
+    -- 3. Só o pessoal, e ele já existe. A sessão pousa nele.
+    select id into v_perfil from perfis where user_id = new.id and org_id = v_org;
+    if v_perfil is not null then
+      insert into sessoes (user_id, perfil_id) values (new.id, v_perfil)
+      on conflict (user_id) do update set perfil_id = excluded.perfil_id;
+    end if;
+    return new;
+  end if;
+
+  select count(*) into n from perfis where org_id = v_org;
+
+  insert into perfis (user_id, org_id, nome, email, cor, papel, area_id, gestor_id, ve_area, ativo)
+  values (
+    new.id, v_org,
+    coalesce(v_eu, nullif(btrim(cv.nome), ''), split_part(new.email, '@', 1)),
+    new.email,
+    paleta[(n % 8) + 1],
+    v_papel, v_area, v_gestor, v_ve_area, v_ativo
+  )
+  on conflict (user_id, org_id) do nothing
+  returning id into v_perfil;
+
+  if v_dono and v_perfil is not null then
+    update organizacoes set dono_id = v_perfil where id = v_org;
+  end if;
+  -- A sessão abre NA EMPRESA: abrir o pessoal vazio para quem acabou de aceitar
+  -- um convite é mostrar um app sem nada dentro no momento em que ela veio ver
+  -- o trabalho de alguém.
+  if v_perfil is not null then
+    insert into sessoes (user_id, perfil_id) values (new.id, v_perfil)
+    on conflict (user_id) do update set perfil_id = excluded.perfil_id;
+  end if;
+  if cv.id is not null then
+    update convites set usado_em = now(), usado_por = v_perfil where id = cv.id;
+  end if;
+  return new;
+end $$;
+
+/**
+ * E quem já existe ganha o dele.
+ *
+ * Sem esta passada, a agenda e o dia consolidados só valeriam para quem se
+ * cadastrar de amanhã em diante, e quem já usa o app continuaria sem um lugar
+ * que seja dele, que é justamente quem pediu isso.
+ *
+ * `abrir_pessoal` devolve o que já existe em vez de criar outro, então rodar
+ * isto duas vezes não faz nada na segunda.
+ */
+do $$
+declare u record;
+begin
+  for u in
+    select distinct on (p.user_id) p.user_id, p.nome, p.email
+      from perfis p
+     where p.user_id is not null
+       and not exists (
+         select 1 from perfis p2 join organizacoes o2 on o2.id = p2.org_id
+          where p2.user_id = p.user_id and o2.tipo = 'pessoal'
+       )
+     order by p.user_id, p.criado_em
+  loop
+    perform abrir_pessoal(u.user_id, u.nome, u.email);
+  end loop;
+end $$;
 
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
@@ -6790,4 +7209,38 @@ select
     where n.nspname = 'public'
       and p.proname in ('minhas_casas','meus_perfis','minha_agenda','meu_dia','ocupacao')
       and p.pronargs = 0)
-    as "nenhuma pergunta pelos olhos de outro (5)";
+    as "nenhuma pergunta pelos olhos de outro (5)",
+  -- Concluir de onde se olha, com o rastro inteiro: a conclusão desceu para o
+  -- banco porque duas implementações da mesma regra é a garantia de que um dia
+  -- a de cá avisa o canal e a de lá esquece.
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname in ('concluir_meu_item','agir_como'))
+    as "concluir de qualquer espaco (2)",
+  -- E o carimbo passou a deixar quem DIZ de quem é a casa mandar sobre o
+  -- padrão da sessão. Sem isto, a linha escrita noutro espaço nasce carimbada
+  -- com a casa errada e ninguém a enxerga, nem quem a escreveu.
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'carimbar_org'
+      and pg_get_functiondef(p.oid) like '%coalesce(org_de_quem_age(), minha_org()%')
+    as "o carimbo tem porta (1)",
+  -- O dia carrega os quatro tipos, senão trocar de lente perdia os filtros.
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'meu_dia'
+      and pg_get_functiondef(p.oid) like '%''aprov''%')
+    as "o dia tem os quatro tipos (1)",
+  -- Todo login tem espaço pessoal, inclusive quem entrou por convite e quem já
+  -- existia antes desta passada.
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'abrir_pessoal')
+    as "a porta de entrada existe (1)",
+  (select count(*) from perfis p
+    where p.user_id is not null
+      and not exists (
+        select 1 from perfis p2 join organizacoes o2 on o2.id = p2.org_id
+         where p2.user_id = p.user_id and o2.tipo = 'pessoal'))
+    as "logins AINDA sem espaco pessoal (0)",
+  -- A carga é da PESSOA: `meu_dia` diz a demanda, esta diz a capacidade
+  -- demonstrada. Vinte tarefas não quer dizer nada sem ela.
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'minhas_entregas')
+    as "a vazao da pessoa (1)";

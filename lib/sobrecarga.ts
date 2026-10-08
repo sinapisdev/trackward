@@ -218,3 +218,62 @@ export function porque(c: Carga): string {
   if (c.semRitmoProprio) partes.push('sem entrega no período, usei o ritmo do time')
   return partes.join(', ')
 }
+
+/**
+ * A carga da PESSOA, e não a do espaço em que ela está agora.
+ *
+ * Quem tem quatro empresas não dá conta de vinte tarefas porque elas estão
+ * divididas em quatro listas: a conta de "o que eu dou conta hoje" é uma só, e
+ * ela não se divide pelo número de contratos. Medir só o espaço em uso é medir
+ * um quarto do problema e dizer que está tudo bem.
+ *
+ * **Ela é separada de `sobrecarga()` de propósito, e a razão não é técnica.**
+ * Aquela compara pessoas de um MESMO espaço para quem distribui trabalho
+ * decidir, e a comparação só vale se todas forem medidas do mesmo jeito: pôr
+ * uma pessoa contando quatro empresas ao lado de outra contando uma faria a
+ * tabela mentir justamente onde ela é usada para decidir. Esta responde a outra
+ * pergunta, feita por uma pessoa sobre si mesma, e por isso não tem comparação
+ * nenhuma dentro.
+ *
+ * **E ela não atravessa para ninguém.** O quanto alguém trabalha fora da sua
+ * empresa não é assunto da sua empresa: a carga de outra pessoa continua sendo
+ * a daquele espaço, como sempre foi.
+ *
+ * Mesma régua de `sobrecarga`: o MAIOR entre atraso e aperto, porque cada um
+ * basta sozinho, e sem base não há número. O que não entra é o "excesso", que
+ * é comparação com colegas, e aqui não há com quem comparar.
+ */
+export function minhaCarga(
+  abertas: { prazo: string | null }[], entregues: number, janela: number,
+): { faixa: Faixa; indice: number | null; razao: number; atrasadas: number
+     abertas: number; diasDeFila: number; horizonte: number } {
+  const atrasadas = abertas.filter((i) => i.prazo && dias(i.prazo) < 0).length
+  const futuros = abertas.map((i) => (i.prazo ? dias(i.prazo) : null))
+    .filter((d): d is number => d !== null && d >= 0)
+  const horizonte = Math.max(1, futuros.length ? Math.max(...futuros) : 14)
+
+  const vazao = entregues / janela
+  const diasDeFila = vazao > 0 ? abertas.length / vazao : Infinity
+  const vazio = {
+    faixa: 'sem-base' as Faixa, indice: null, razao: 0,
+    atrasadas, abertas: abertas.length, diasDeFila, horizonte,
+  }
+
+  // Pouco para medir: sem fila e sem entrega, qualquer número seria invenção.
+  // Mesmo corte do Desempenho e da carga do time.
+  if (abertas.length < 2 && entregues < 2) return vazio
+  /* Sem nada entregue não há ritmo próprio, e aqui não existe o ritmo do time
+     para emprestar: a pessoa é a única no recorte. Dizer "sem base" é mais
+     honesto do que inventar uma vazão. */
+  if (!Number.isFinite(diasDeFila)) return vazio
+
+  const atraso = Math.min(1, atrasadas / Math.max(1, abertas.length))
+  const razao = diasDeFila / horizonte
+  const motivo = Math.max(atraso, suave(razao))
+
+  return {
+    faixa: faixaDe(razao, atraso),
+    indice: Math.round(100 * Math.min(1, motivo)),
+    razao, atrasadas, abertas: abertas.length, diasDeFila, horizonte,
+  }
+}

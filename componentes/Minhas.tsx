@@ -15,8 +15,9 @@ import { TrilhaH } from './Trilha'
 import { classePrazo } from './partes'
 import { dias, isoDe, rel } from '@/lib/datas'
 import { etapaAtual, oQuePedi, pendencias } from '@/lib/regras'
-import { AVULSA } from '@/lib/rotulos'
-import type { Pendencia } from '@/lib/tipos'
+import { AVULSA, NOME_DA_LISTA } from '@/lib/rotulos'
+import { minhaCarga } from '@/lib/sobrecarga'
+import type { Etapa, Fluxo, Item, Pendencia } from '@/lib/tipos'
 
 type Filtro = 'tudo' | 'executar' | 'aprovar' | 'aguardando' | 'pedi'
 
@@ -30,18 +31,22 @@ const chave = (p: Pendencia) =>
  */
 export function Minhas() {
   const { eu, org, fluxos, fluxosComImplicitas, carregando, nomeDe, perfilDe, minhaLista,
-    alternarItem, aprovar: aprovarSaida, meuDia, espacos, trocarEspaco } = useDados()
+    alternarItem, aprovar: aprovarSaida, meuDia, minhasEntregas, espacos,
+    trocarEspaco } = useDados()
   const { abrir } = useModais()
   const celular = useCelular()
   const router = useRouter()
   const [filtro, setFiltro] = useState<Filtro>('tudo')
   /**
-   * A lente: este espaço, ou o dia inteiro.
+   * A fila é da PESSOA, e por isso ela já vem inteira.
    *
-   * Ela só existe para quem tem mais de um espaço, porque para quem tem um a
-   * pergunta não existe e o botão seria um controle que nunca muda nada.
+   * Quem tem quatro empresas não dá conta de vinte tarefas porque elas estão
+   * divididas em quatro listas: a conta de "o que eu dou conta hoje" é uma só,
+   * e ela não se divide pelo número de contratos. Então "Tudo" quer dizer tudo
+   * mesmo, de todos os espaços, e a lente estreita para o pessoal quando a
+   * pessoa quer olhar só o que é dela.
    */
-  const [lente, setLente] = useState<'aqui' | 'tudo'>('aqui')
+  const [soPessoal, setSoPessoal] = useState(false)
   const [indo, setIndo] = useState('')
   const [termo, setTermo] = useState('')
   const [aberta, setAberta] = useState<string | null>(null)
@@ -51,10 +56,53 @@ export function Minhas() {
    * canal sem track mora numa track escondida, e lendo a outra lista a tarefa
    * não aparecia nem para quem ia executá-la.
    */
-  const tudo = useMemo(
+  const daqui = useMemo(
     () => [...pendencias(fluxosComImplicitas, eu.id), ...oQuePedi(fluxosComImplicitas, eu.id)],
     [fluxosComImplicitas, eu.id],
   )
+
+  /**
+   * As de FORA, vestidas de pendência.
+   *
+   * Vestir em vez de desenhar uma segunda lista é o que faz os filtros, os
+   * blocos por prazo, a busca e a ordenação valerem para elas sem nenhuma linha
+   * a mais: trocar de lente não pode custar a tela que a pessoa já conhece.
+   *
+   * O que falta de verdade são as peças que não atravessam, e elas ficam
+   * vazias de propósito: a trilha do outro espaço, as outras tarefas do
+   * checkpoint e o nome de quem está travando. A linha diz `fora`, e o que
+   * precisa daquelas peças acontece lá, num toque.
+   */
+  const deFora = useMemo<Pendencia[]>(() => {
+    const locais = new Set(daqui.map((p) => (p.tipo === 'aprov' ? p.etapa.id : p.item.id)))
+    return meuDia
+      .filter((l) => l.org_id !== org.id && !locais.has(l.item_id))
+      .map((l) => {
+        const fluxo = {
+          id: l.fluxo_id, nome: l.track, implicita: l.implicita, etapas: [], log: [],
+        } as unknown as Fluxo
+        const etapa = {
+          id: l.etapa_id, nome: l.checkpoint, itens: [], aprovador_id: l.resp_id, prazo: l.prazo,
+        } as unknown as Etapa
+        const item = {
+          id: l.item_id, texto: l.texto, resp_id: l.resp_id, prazo: l.prazo,
+          feito: false, priv: l.priv, depende_de: [], fluxo_id: l.fluxo_id, etapa_id: l.etapa_id,
+        } as unknown as Item
+        const comum = { fluxo, etapa, prazo: l.prazo, fora: l.espaco, org_id: l.org_id, travado: l.travado }
+        return (l.tipo === 'aprov'
+          ? { tipo: 'aprov' as const, item: null, ...comum }
+          : { tipo: l.tipo, item, ...comum }) as Pendencia
+      })
+  }, [meuDia, org.id, daqui])
+
+  /** A fila inteira, ou só o que é do espaço pessoal. */
+  const tudo = useMemo(() => {
+    const todas = [...daqui, ...deFora]
+    if (!soPessoal) return todas
+    const pes = espacos.find((e) => e.tipo === 'pessoal')
+    if (!pes) return todas
+    return todas.filter((p) => (p.org_id || org.id) === pes.org_id)
+  }, [daqui, deFora, soPessoal, espacos, org.id])
 
   /** Índice de tarefas, para saber o que está travado por quem. */
   const porId = useMemo(() => {
@@ -71,16 +119,36 @@ export function Minhas() {
     [espacos, org.id],
   )
 
+  const temPessoal = useMemo(() => espacos.some((e) => e.ativo && e.tipo === 'pessoal'), [espacos])
+
   /**
-   * O dia inteiro, de todos os espaços, do mais vencido para o mais folgado.
+   * A carga da PESSOA, somando os espaços dela.
    *
-   * Sem prazo vai para o fim, e não para o começo: o que não tem data não
-   * disputa com o que vence hoje.
+   * Ela mora aqui e não no radar da operação de propósito: o radar compara
+   * pessoas de um mesmo espaço para quem distribui trabalho decidir, e pôr uma
+   * contando quatro empresas ao lado de outra contando uma faria a tabela
+   * mentir onde ela é usada para decidir. Esta é a pergunta que a pessoa faz
+   * sobre si mesma, e por isso ela aparece na fila dela.
    */
-  const doDia = useMemo(
-    () => [...meuDia].sort((a, b) => (a.prazo || '9999-12-31').localeCompare(b.prazo || '9999-12-31')),
-    [meuDia],
-  )
+  const carga = useMemo(() => {
+    const abertas = [...daqui, ...deFora]
+      .filter((p) => p.tipo === 'item')
+      .map((p) => ({ prazo: p.prazo }))
+    return minhaCarga(abertas, minhasEntregas, 30)
+  }, [daqui, deFora, minhasEntregas])
+
+  /**
+   * O que acontece ao tocar na linha.
+   *
+   * Daqui, abre a gaveta, como sempre. De fora, leva ao espaço da tarefa: a
+   * gaveta precisa da trilha, do critério e das outras tarefas do checkpoint,
+   * e nada disso atravessa. O que atravessa é concluir, e isso acontece no
+   * visto da própria linha, sem sair do lugar.
+   */
+  const abrirLinha = async (p: Pendencia, k: string) => {
+    if (!p.fora) { setAberta(k); return }
+    await irPara({ org_id: p.org_id!, fluxo_id: p.fluxo.id, implicita: !!p.fluxo.implicita })
+  }
 
   /**
    * Levar a pessoa até a tarefa, trocando de espaço quando ela é de outro.
@@ -120,8 +188,11 @@ export function Minhas() {
 
   const aprovacoes = busca.filter((p) => p.tipo === 'aprov')
   const pedidas = busca.filter((p) => p.tipo === 'pedi')
-  const travadas = busca.filter((p) => travasDe(p).length > 0)
-  const executar = busca.filter((p) => p.tipo === 'item' && !travasDe(p).length)
+  /* "Presa" é a mesma condição vista de dois jeitos: daqui, pelas dependências
+     carregadas; de fora, pelo que o banco calculou, porque elas não atravessam. */
+  const presa = (p: Pendencia) => travasDe(p).length > 0 || !!p.travado
+  const travadas = busca.filter(presa)
+  const executar = busca.filter((p) => p.tipo === 'item' && !presa(p))
 
   /**
    * "Pedi" é segmento próprio, e não entra em Aguardando.
@@ -144,9 +215,9 @@ export function Minhas() {
     ? [
         // Em "Tudo", o que eu pedi fica no fim, depois do que é meu: a fila
         // responde primeiro "o que eu faço", e só depois "o que estou esperando".
-        { titulo: 'Vencida', itens: busca.filter((p) => p.tipo !== 'pedi' && p.prazo && dias(p.prazo) < 0 && !travasDe(p).length) },
-        { titulo: 'Hoje', itens: busca.filter((p) => p.tipo !== 'pedi' && p.prazo && dias(p.prazo) === 0 && !travasDe(p).length) },
-        { titulo: 'A seguir', itens: busca.filter((p) => p.tipo !== 'pedi' && (!p.prazo || dias(p.prazo) > 0) && !travasDe(p).length) },
+        { titulo: 'Vencida', itens: busca.filter((p) => p.tipo !== 'pedi' && p.prazo && dias(p.prazo) < 0 && !presa(p)) },
+        { titulo: 'Hoje', itens: busca.filter((p) => p.tipo !== 'pedi' && p.prazo && dias(p.prazo) === 0 && !presa(p)) },
+        { titulo: 'A seguir', itens: busca.filter((p) => p.tipo !== 'pedi' && (!p.prazo || dias(p.prazo) > 0) && !presa(p)) },
         { titulo: 'Aguardando', itens: travadas },
         { titulo: 'Pedi', itens: pedidas },
       ].filter((b) => b.itens.length)
@@ -161,8 +232,12 @@ export function Minhas() {
    * da lista, e abrir sozinha esconderia justamente a lista que a pessoa veio
    * ver. Lá ela só abre no toque.
    */
-  const sel = lente === 'tudo' ? null
-    : naFila.find((p) => chave(p) === aberta) || (celular ? null : naFila[0]) || null
+  /* A gaveta mostra trilha, critério e as outras tarefas do checkpoint, e nada
+     disso atravessa: para o que é de fora ela abriria pela metade. Lá a linha
+     leva ao espaço da tarefa, onde a gaveta está inteira. */
+  const daquiNaFila = naFila.filter((p) => !p.fora)
+  const sel = naFila.find((p) => chave(p) === aberta && !p.fora)
+    || (celular ? null : daquiNaFila[0]) || null
 
   const Etiqueta = ({ p }: { p: Pendencia }) =>
     p.tipo === 'aprov' ? <span className="fila-tag">Aprovar</span>
@@ -180,7 +255,22 @@ export function Minhas() {
           <h1>Tarefas</h1>
           <p className="lede">
             {tudo.length
-              ? <>{tudo.length} {tudo.length > 1 ? 'pendências' : 'pendência'}. Um próximo passo de cada vez.</>
+              ? <>
+                  {tudo.length} {tudo.length > 1 ? 'pendências' : 'pendência'}
+                  {outros.length > 0 && ', somando os seus espaços'}.{' '}
+                  {/* A frase fala de FILA e de prazo, nunca de esforço: "a sua
+                      fila não cabe no tempo que tem" é sobre distribuição, "você
+                      está devagar" é sobre a pessoa, e a segunda é o tipo de
+                      frase que faz alguém desligar o app. Só aparece quando há o
+                      que dizer: sem base, e no tranquilo, ela seria ruído. */}
+                  {carga.faixa === 'sobrecarregado' || carga.faixa === 'apertado'
+                    ? <b className={carga.faixa === 'sobrecarregado' ? 'fila-aperto' : ''}>
+                        No seu ritmo dos últimos 30 dias, isto leva{' '}
+                        {Math.round(carga.diasDeFila)} dias, e o prazo mais
+                        distante é em {carga.horizonte}.
+                      </b>
+                    : 'Um próximo passo de cada vez.'}
+                </>
               : 'Nada pendente com você.'}
           </p>
         </div>
@@ -193,52 +283,6 @@ export function Minhas() {
 
       <div className="fila">
         <div className="fila-lista" data-tut="minhas-lista">
-          {/* A lente só existe para quem tem mais de um espaço: para quem tem
-              um, ela é um controle que nunca muda nada. */}
-          {outros.length > 0 && (
-            <div className="seg fila-lente" role="group" aria-label="De onde">
-              <button className={lente === 'aqui' ? 'on' : ''}
-                onClick={() => setLente('aqui')}>
-                {org.nome}
-              </button>
-              <button className={lente === 'tudo' ? 'on' : ''}
-                onClick={() => setLente('tudo')}>
-                Meu dia<span className="num">{doDia.length}</span>
-              </button>
-            </div>
-          )}
-
-          {lente === 'tudo' ? (
-            <>
-              <p className="fila-ord"><Ic.chev />Tudo que depende de você, em todos os seus espaços</p>
-              {!doDia.length && <p className="vazio">Nada em aberto em espaço nenhum.</p>}
-              {doDia.map((l) => {
-                const daqui = l.org_id === org.id
-                return (
-                  <button key={l.item_id} className={`dia-l ${daqui ? 'aqui' : ''}`}
-                    disabled={!!indo}
-                    onClick={() => void irPara(l)}>
-                    <span className="dia-txt">
-                      <b>{l.texto}</b>
-                      <small>
-                        <span className="dia-esp">{l.espaco}</span>
-                        {!l.implicita && l.track ? ` · ${l.track}` : ''}
-                      </small>
-                    </span>
-                    <span className={`dia-prazo ${classePrazo(l.prazo)}`}>
-                      {l.prazo ? rel(l.prazo) : 'sem prazo'}
-                    </span>
-                    {!daqui && <Ic.seta />}
-                  </button>
-                )
-              })}
-              <p className="hint">
-                Tocando numa linha de outro espaço, o app troca para lá e abre a tarefa. Concluir,
-                aprovar e mexer no prazo acontecem no espaço da tarefa, que é onde a equipe dela vê.
-              </p>
-            </>
-          ) : (
-          <>
           <div className="filtros">
             <div className="seg" role="group" aria-label="Filtrar a fila">
               {abas.map((a) => (
@@ -249,6 +293,17 @@ export function Minhas() {
                 </button>
               ))}
             </div>
+            {/* O estreitamento para o pessoal, e não um seletor de espaço: a
+                pergunta que se faz aqui é "e se eu olhar só o que é meu",
+                não "em qual empresa estou". Só aparece para quem tem um
+                pessoal E alguma outra coisa, senão não estreita nada. */}
+            {temPessoal && outros.length > 0 && (
+              <button className={`btn fila-so ${soPessoal ? 'on' : ''}`}
+                aria-pressed={soPessoal}
+                onClick={() => { setSoPessoal((v) => !v); setAberta(null) }}>
+                <Ic.eu />Só pessoal
+              </button>
+            )}
             <label className="campo-busca">
               <Ic.lupa />
               <input value={termo} onChange={(e) => setTermo(e.target.value)}
@@ -269,29 +324,61 @@ export function Minhas() {
                 const travas = travasDe(p)
                 const k = chave(p)
                 const feitos = p.tipo === 'aprov' ? p.etapa.itens.filter((x) => x.feito).length : 0
+                /* Concluir pela própria linha, e de qualquer espaço.
+                   Sem isto, fechar dez coisas no fim do dia custava dez trocas
+                   de espaço e dez voltas, e uma lista que não deixa fechar o
+                   que foi feito é uma lista que só cresce. O rastro no canal e
+                   o aviso de quem pediu saem iguais, porque quem conclui é o
+                   banco (`concluir_meu_item`, seção 69). */
+                const podeConcluir = p.tipo === 'item' && !travas.length && !p.travado
                 return (
-                  <button key={k} className={`fila-l ${sel && chave(sel) === k ? 'on' : ''}`}
-                    onClick={() => setAberta(k)}>
-                    <span className={`ck ${p.tipo === 'aprov' ? 'on' : ''}`} aria-hidden>
-                      {travas.length ? <Ic.lock /> : <Ic.check />}
+                  <div key={k} className={`fila-l ${sel && chave(sel) === k ? 'on' : ''}
+                    ${p.fora ? 'fora' : ''}`}
+                    role="button" tabIndex={0}
+                    onClick={() => void abrirLinha(p, k)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') void abrirLinha(p, k) }}>
+                    <span className={`ck ${p.tipo === 'aprov' ? 'on' : ''} ${podeConcluir ? 'pode' : ''}`}
+                      role={podeConcluir ? 'checkbox' : undefined}
+                      aria-checked={podeConcluir ? false : undefined}
+                      aria-label={podeConcluir ? `Concluir ${texto(p)}` : undefined}
+                      onClick={(e) => {
+                        if (!podeConcluir || p.item === null) return
+                        e.stopPropagation()
+                        void alternarItem(p.item)
+                      }}>
+                      {travas.length || p.travado ? <Ic.lock /> : <Ic.check />}
                     </span>
                     <span className="fila-txt">
                       <b>{texto(p)}</b>
                       <small>
+                        {/* De qual espaço ela é, quando não é deste. Sem isto a
+                            linha vira uma tarefa que a pessoa não reconhece e
+                            não acha em lugar nenhum. */}
+                        {!!p.fora && <span className="fila-esp">{p.fora}</span>}
                         {/* A tarefa avulsa não tem endereço: dizer "Minha lista"
                             seria expor o andaime em que ela se apoia. */}
                         {p.fluxo.id === minhaLista?.id
+                          || (p.fora && p.tipo === 'item' && p.fluxo.nome === NOME_DA_LISTA)
                           ? AVULSA
                           /* Na track escondida o checkpoint se chama "Em andamento",
                              que não diz nada. O endereço de verdade é a conversa. */
                           : p.fluxo.implicita
                             ? `#${p.fluxo.nome}`
-                            : `${p.fluxo.nome}${p.tipo === 'aprov' ? '' : ` / ${etapaAtual(p.fluxo)?.nome || ''}`}`}
+                            /* De fora não há trilha para perguntar qual é o
+                               checkpoint corrente, e o nome dele veio pronto. */
+                            : p.fora
+                              ? `${p.fluxo.nome}${p.tipo === 'aprov' ? '' : ` / ${p.etapa.nome}`}`
+                              : `${p.fluxo.nome}${p.tipo === 'aprov' ? '' : ` / ${etapaAtual(p.fluxo)?.nome || ''}`}`}
                       </small>
                       {!!travas.length && (
                         <small className="fila-trava">
                           Aguardando {travas[0]!.resp ? nomeDe(travas[0]!.resp) : 'outra tarefa'} concluir a revisão.
                         </small>
+                      )}
+                      {/* De fora, as dependências não atravessam: o banco diz
+                          que ela está presa, e não por quem. */}
+                      {!travas.length && !!p.travado && (
+                        <small className="fila-trava">Presa numa tarefa que ainda não ficou pronta.</small>
                       )}
                     </span>
                     <Etiqueta p={p} />
@@ -299,11 +386,11 @@ export function Minhas() {
                     <span className={`due ${classePrazo(p.prazo)}`}>
                       {p.tipo === 'aprov'
                         ? `${feitos} de ${p.etapa.itens.length} prontas`
-                        : travas.length ? (travas[0]!.resp ? nomeDe(travas[0]!.resp) : 'Travada')
+                        : travas.length || p.travado ? (travas[0]?.resp ? nomeDe(travas[0]!.resp) : 'Travada')
                           : p.prazo ? rel(p.prazo) : 'Sem prazo'}
                     </span>
                     <span className="fila-chev"><Ic.seta /></span>
-                  </button>
+                  </div>
                 )
               })}
             </section>
@@ -321,8 +408,6 @@ export function Minhas() {
               Última atividade: <b>{ultima.por_ia ? 'A leitura da conversa' : nomeDe(ultima.quem_id)}</b>{' '}
               {ultima.texto} · {rel(isoDe(ultima.criado_em))}
             </p>
-          )}
-          </>
           )}
         </div>
 
