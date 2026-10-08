@@ -10,6 +10,7 @@ import { Ic } from './Icones'
 import { Av, IconeStatus } from './atomos'
 import { classePrazo } from './partes'
 import { Anexos } from './Anexos'
+import { MenuTarefa } from './MenuTarefa'
 import { Decisao } from './Decisao'
 import { Trilha, TrilhaH } from './Trilha'
 import { useCelular } from './partes'
@@ -31,16 +32,48 @@ import { mandaNoProcesso, podeConcluir, podeMexerNoItem } from '@/lib/acesso'
 export function TelaFluxo({ id }: { id: string }) {
   const { eu, perfis, fluxos, carregando, areaDe, perfilDe, nomeDe, totalItens,
     alternarItem, excluirItem, destravar, decisoesDe, pode, reabrirFluxo,
-    feedbacksDe, ciclosDe } = useDados()
+    feedbacksDe, ciclosDe, notas, salvarNota } = useDados()
   const { abrir } = useModais()
   const router = useRouter()
   const [sel, setSel] = useState<number | null>(null)
+  /* O pedido de anexar vem do menu, e o campo de arquivo mora no bloco de
+     anexos, embaixo da linha. O carimbo de hora é o que faz pedir duas vezes
+     seguidas abrir duas vezes: um booleano ficaria ligado e só valeria uma. */
+  const [pedindoArquivo, setPedindoArquivo] = useState<{ id: string; n: number } | null>(null)
   const [decidindo, setDecidindo] = useState(false)
   const [aba, setAba] = useState<'trilha' | 'conversa' | 'atividade'>('trilha')
   const arquivos = ciclosDe(id)
   // Antes de qualquer saída antecipada: gancho dentro de ramo condicional muda
   // a ordem entre uma pintura e outra, e o React derruba a tela inteira.
   const celular = useCelular()
+
+  /**
+   * A nota desta tarefa, quando existe.
+   *
+   * `notas.item_id` já existia e dizia "a tarefa que SAIU desta nota", para a
+   * ideia que virou trabalho. Nada no app escrevia nem lia aquela coluna, e a
+   * ligação é a mesma nos dois sentidos: esta nota e esta tarefa são sobre a
+   * mesma coisa. Criar uma segunda coluna para dizer isso ao contrário seria
+   * guardar o mesmo fato duas vezes e um dia elas discordarem.
+   */
+  const notaDaTarefa = (itemId: string) => notas.find((n) => n.item_id === itemId && !n.arquivada)
+
+  /**
+   * Escrever sobre a tarefa, ou voltar ao que já se escreveu.
+   *
+   * A nota nasce com o título da tarefa e já endereçada à track, porque o
+   * caderno agrupa por endereço: sem isso ela viraria "Conferir os documentos"
+   * solto no meio de trezentas notas, sem dizer de quê. E ela é do dono, como
+   * toda nota: o que você anota enquanto executa não é relatório para a casa.
+   */
+  const abrirNotaDaTarefa = async (x: { id: string; texto: string; fluxo_id: string }) => {
+    const existente = notaDaTarefa(x.id)
+    if (existente) { router.push(`/notas?nota=${existente.id}`); return }
+    const id = await salvarNota({
+      texto: `${x.texto}\n\n`, item_id: x.id, fluxo_id: x.fluxo_id,
+    })
+    if (id) router.push(`/notas?nota=${id}`)
+  }
 
   /** Índice de todas as tarefas que enxergo, para resolver quem trava quem. */
   const porId = useMemo(() => {
@@ -118,6 +151,12 @@ export function TelaFluxo({ id }: { id: string }) {
   const fecharTudo = f.tipo === 'esteira' && idx === f.etapas.length - 1
   const respostas = feedbacksDe(f.id).filter((x) => x.respondido_em)
   const travado = !!f.travado_motivo
+  /* Anexar segue quem pode concluir: o documento é prova do trabalho, e quem
+     não faz o trabalho não tem o que provar. Era escrito na linha do anexo;
+     subiu porque o menu também o pergunta, e duas cópias da mesma condição é a
+     garantia de que um dia o menu oferece o que o bloco recusa. */
+  const podeAnexar = (x: Parameters<typeof podeConcluir>[2]) =>
+    !passado && !travado && podeConcluir(eu, f, x, perfis)
   const mandaAqui = mandaNoProcesso(eu, f, perfis)
   const ocultos = Math.max(0, totalItens(f.id) - f.etapas.reduce((n, et) => n + et.itens.length, 0))
   const pct = Math.round(progresso(f) * 100)
@@ -328,6 +367,16 @@ export function TelaFluxo({ id }: { id: string }) {
                               <span className="lk" title="Tarefa privada: só você vê"><Ic.lock /></span>
                             )}
                             {x.texto}
+                            {/* O sinal de que existe nota, e ele leva até ela.
+                                Sem um sinal, o que você escreveu enquanto fazia
+                                a tarefa só se acha procurando no caderno, que é
+                                o mesmo que não ter escrito. */}
+                            {notaDaTarefa(x.id) && (
+                              <Link className="tf-nota" href={`/notas?nota=${notaDaTarefa(x.id)!.id}`}
+                                title="Esta tarefa tem uma nota sua" aria-label="Abrir a nota desta tarefa">
+                                <Ic.edit />
+                              </Link>
+                            )}
                           </span>
                           {x.ressalva && !x.feito && (
                             <small className="tf-rsv">
@@ -356,21 +405,41 @@ export function TelaFluxo({ id }: { id: string }) {
                           {posso && !x.feito && x.id === primeiraLivre?.id && (
                             <button className="btn pri" onClick={() => void alternarItem(x)}>Concluir tarefa</button>
                           )}
-                          {meu && (
-                            <button className="iconbtn" title="Editar tarefa" aria-label={`Editar ${x.texto}`}
-                              onClick={() => abrir({ tipo: 'item', etapa, item: x })}><Ic.mais /></button>
-                          )}
-                          {/* Ressalva em aberto não tem botão de remover, e o
-                              banco recusa do mesmo jeito: ela é a dívida que
-                              ficou do checkpoint anterior, e apagar a dívida
-                              era a saída mais fácil para não pagá-la. */}
-                          {meu && !(x.ressalva && !x.feito) && (
-                            <button className="iconbtn" title="Remover" aria-label={`Remover ${x.texto}`}
-                              onClick={() => void excluirItem(x)}><Ic.x /></button>
-                          )}
+                          {/* Uma seta no lugar de dois ícones soltos. Eram lápis
+                              e X lado a lado, e apagar ficava a um toque de
+                              editar, do mesmo tamanho: a ação que não tem volta
+                              não pode ter a mesma cara da que tem. E não cabia
+                              mais, com nota e anexo entrando. */}
+                          <MenuTarefa titulo={x.texto} itens={[
+                            ...(meu ? [{
+                              rotulo: 'Editar tarefa', icone: <Ic.reguas />,
+                              aoEscolher: () => abrir({ tipo: 'item', etapa, item: x }),
+                            }] : []),
+                            {
+                              /* A nota da tarefa é de quem escreve, e por isso
+                                 não depende de mandar no processo: ela é o
+                                 caderno de quem está fazendo aquilo. */
+                              rotulo: notaDaTarefa(x.id) ? 'Abrir a nota' : 'Escrever uma nota',
+                              icone: <Ic.edit />,
+                              aoEscolher: () => void abrirNotaDaTarefa(x),
+                            },
+                            ...(podeAnexar(x) ? [{
+                              rotulo: 'Anexar arquivo', icone: <Ic.clipe />,
+                              aoEscolher: () => setPedindoArquivo({ id: x.id, n: Date.now() }),
+                            }] : []),
+                            /* Ressalva em aberto não tem remover, e o banco
+                               recusa do mesmo jeito: ela é a dívida que ficou
+                               do checkpoint anterior, e apagar a dívida era a
+                               saída mais fácil para não pagá-la. */
+                            ...(meu && !(x.ressalva && !x.feito) ? [{
+                              rotulo: 'Remover tarefa', icone: <Ic.x />, perigo: true,
+                              aoEscolher: () => void excluirItem(x),
+                            }] : []),
+                          ]} />
                         </span>
                       </div>
-                      <Anexos item={x} podeAnexar={!passado && !travado && podeConcluir(eu, f, x, perfis)} />
+                      <Anexos item={x} podeAnexar={podeAnexar(x)}
+                        pedido={pedindoArquivo?.id === x.id ? pedindoArquivo.n : 0} />
                     </div>
                   )
                 })}

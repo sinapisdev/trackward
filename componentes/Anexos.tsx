@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDados } from '@/componentes/Dados'
 import { useModais } from '@/componentes/Modais'
 import { Ic } from '@/componentes/Icones'
@@ -77,15 +77,28 @@ export function AnexosDaMensagem({ mensagemId }: { mensagemId: string }) {
  * nem sempre nasce preso a uma tarefa: a proposta que chegou por e-mail, o PDF
  * que alguém mandou e que você ainda não sabe em que vai dar.
  */
-export function Anexos({ item, nota, podeAnexar }: {
+export function Anexos({ item, nota, podeAnexar, pedido = 0 }: {
   item?: Item
   nota?: Nota
   podeAnexar: boolean
+  /**
+   * Um pedido de fora para abrir o seletor de arquivo, vindo do menu da tarefa.
+   *
+   * É um carimbo de hora, e não um booleano: pedir duas vezes seguidas precisa
+   * abrir duas vezes, e um booleano ficaria ligado depois da primeira. Zero é
+   * ninguém pediu, que é o caso de todo lugar que não passa a prop.
+   */
+  pedido?: number
 }) {
   const { anexosDe, anexar, eu } = useDados()
   const [enviando, setEnviando] = useState(false)
   const [sobre, setSobre] = useState(false)
   const campo = useRef<HTMLInputElement>(null)
+
+  /* O seletor de arquivo do navegador só abre a partir de um gesto da pessoa, e
+     o clique no menu É esse gesto: ele sobrevive ao efeito porque a cadeia não
+     passa por rede nenhuma. */
+  useEffect(() => { if (pedido) campo.current?.click() }, [pedido])
   const dono = item || nota
   const lista = dono ? anexosDe(dono.id) : []
 

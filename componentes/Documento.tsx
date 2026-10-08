@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useDados } from './Dados'
 import { Ic } from './Icones'
 import { documento, emPedacos, linhaDoCursor, LIGACAO, porTitulo, tituloDe } from '@/lib/notas'
@@ -31,7 +32,27 @@ export function Documento({ nota, ir, acoes }: {
   /** Outros botões da barra de baixo, como Organizar. */
   acoes?: React.ReactNode
 }) {
-  const { notas, salvarNota, perguntarNaNota, respondendo, org, eu } = useDados()
+  const { notas, salvarNota, perguntarNaNota, respondendo, org, eu, todosFluxos } = useDados()
+
+  /**
+   * A tarefa de onde esta nota veio, quando ela veio de uma.
+   *
+   * Sem este fio, a nota escrita de dentro de uma tarefa complexa é um texto
+   * solto no caderno que diz "Conferir os documentos" e nada mais: dali não se
+   * volta para o trabalho, e é justamente para voltar que a pessoa a escreveu.
+   * A volta é para a TRACK, e não para um endereço de tarefa: tarefa não tem
+   * tela própria, ela mora no checkpoint, e a track é onde ela aparece.
+   */
+  const daTarefa = useMemo(() => {
+    if (!nota.item_id) return null
+    for (const f of todosFluxos) {
+      for (const et of f.etapas) {
+        const i = et.itens.find((x) => x.id === nota.item_id)
+        if (i) return { fluxo: f, etapa: et, item: i }
+      }
+    }
+    return null
+  }, [nota.item_id, todosFluxos])
   /**
    * Nota compartilhada comigo é só leitura.
    *
@@ -103,6 +124,19 @@ export function Documento({ nota, ir, acoes }: {
 
   return (
     <div className="doc">
+      {/* De onde ela veio, e o caminho de volta. Fica em cima do texto, antes
+          de qualquer coisa: quem abre esta nota no meio do caderno precisa
+          saber do que ela fala antes de ler a primeira linha. */}
+      {daTarefa && (
+        <Link className="doc-daonde" href={`/fluxo/${daTarefa.fluxo.id}`}>
+          <Ic.inbox />
+          <span>
+            Sobre a tarefa <b>{daTarefa.item.texto}</b>, em {daTarefa.fluxo.nome}
+            {' / '}{daTarefa.etapa.nome}
+          </span>
+          <Ic.seta />
+        </Link>
+      )}
       {editando ? (
         <textarea
           ref={area}

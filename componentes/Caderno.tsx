@@ -157,8 +157,11 @@ export function Caderno({ abas }: { abas?: ReactNode }) {
         <button className="nt-l" key={n.id} onClick={() => setAbertaId(n.id)}>
           <span className={`nt-l-mk ${de || quantos ? 'comp' : ''}`}
             title={de ? `Compartilhada por ${de}`
-              : quantos ? `Compartilhada com ${quantos} pessoa${quantos === 1 ? '' : 's'}` : undefined}>
-            {de || quantos ? <Ic.team /> : n.fixada ? <Ic.flag /> : <Ic.edit />}
+              : quantos ? `Compartilhada com ${quantos} pessoa${quantos === 1 ? '' : 's'}`
+              : n.item_id ? 'Escrita de dentro de uma tarefa' : undefined}>
+            {de || quantos ? <Ic.team />
+              : n.item_id ? <Ic.inbox />
+              : n.fixada ? <Ic.flag /> : <Ic.edit />}
           </span>
           <b className="nt-l-nm">{n.titulo}</b>
           <span className="nt-l-previa">{resumo(n) || 'Sem texto'}</span>

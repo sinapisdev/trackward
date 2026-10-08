@@ -1669,6 +1669,110 @@ Quem autoriza é `minha_nota`, e não `ve_nota`: a conversa de dentro de uma not
 de mais ninguém, mesmo quando a nota é compartilhada. Quem compartilha está mostrando o que
 escreveu, não o que disse ao secretário enquanto pensava.
 
+## O secretário é de toda empresa, e ele monta em vez de esboçar
+
+Ele nasceu no espaço pessoal, onde não há canal, e ficou preso lá por um argumento que
+parecia bom: track num espaço de equipe é da casa, e ele só cria o que é do dono. O
+argumento estava errado pelo lado prático. **Montar track é o que mais se quer pedir
+falando** e o que mais dá trabalho na tela, então esconder a ferramenta só empurrava o
+trabalho para onde ele custa caro. E uma empresa recém-aberta abre a Conversa **sem nenhum
+canal**, ou seja, a primeira tela do app é um vazio com um botão de criar: não há com quem
+começar.
+
+**Ele é a primeira linha da lista de conversas, em todo espaço** (`.secr-linha`, em
+`TelaChat`), antes dos grupos e com um fio separando, porque ele não é canal e não pode
+parecer mais um. Isso NÃO vale para a coluna `.cnx` do Forward, onde a regra continua
+sendo "só canal entra ali": lá ele seria a nota listada ao lado de `#Financeiro` outra vez.
+
+**A track continua sendo da casa, e a resposta a isso é o RECIBO.** "Track: Reforma, 5
+checkpoints e 14 tarefas (a equipe vê)". O que protege não é esconder a ferramenta, é
+dizer o que foi feito, na hora, para a pessoa poder consertar. Num espaço de uma pessoa a
+pergunta "quem vê" não se faz, e por isso `pode.tracks` virou **`pode.equipe`**: a pergunta
+deixou de ser "pode montar track" e passou a ser "existe quem vê".
+
+**A trilha sai montada, e era a FERRAMENTA que a deixava meia boca, não o modelo.** Ela
+levava `checkpoints: [{ nome, tarefas: string[] }]`, ou seja, uma lista de títulos: não
+havia onde pôr critério de saída, prazo nem descrição, então não havia como a track sair
+boa. Agora o checkpoint tem critério e prazo, e a tarefa tem descrição e prazo.
+
+**O prazo da trilha é em DIAS a partir de hoje**, como `processo_itens`, e não em data.
+Ninguém dita sete datas absolutas sem errar uma, e o modelo erra mais, porque ele faz a
+conta de calendário sete vezes. Fora da trilha continua sendo data, porque lá a pessoa diz
+"sexta" e sexta é um dia.
+
+**E a instrução manda PERGUNTAR antes de montar mal.** "Planejamento, Execução, Entrega"
+não ajuda ninguém e ainda dá trabalho de apagar. Uma pergunta curta com as duas ou três
+coisas que mais mudam o desenho (prazo final, o que já está pronto, quem participa), e
+monta na resposta seguinte. Uma pergunta é melhor que um esqueleto, e muito melhor que um
+interrogatório de seis.
+
+**Ele mexe no que já existe** (`mudar_tarefa`: texto, prazo, descrição), porque "adia
+aquilo para sexta" é a frase mais comum que existe e mandar abrir outra tela para ela é o
+app pedindo que trabalhem por ele. O limite ficou onde importa, e são dois:
+
+- **Não conclui.** Marcar como feito o que não foi é a única mentira que este app não pode
+  contar, e ela não se descobre olhando.
+- **Não apaga**, nada. Desfazer um engano de criação é apagar uma linha; desfazer um engano
+  de apagar não existe.
+
+Quem recusa o resto é o **banco**, com as mesmas regras da tela (`manda_no_processo`, RLS),
+e não uma lista no TypeScript que um dia discorda daquelas.
+
+**Para isso ele precisa enxergar o que ELA enxerga, e aí entra o lado seguro da regra de
+mão única.** `casa` existe para a leitura de um canal e só traz o que a empresa inteira já
+podia ler, porque o que sai de lá aparece para todo mundo com o trecho que o originou. A
+conversa do secretário é dela e fica com ela, então o campo **`meu`** leva a track
+`escolhidas` em que ela está e a tarefa privada dela, com os ids. Sem isso, "cria uma
+tarefa na Reforma" não achava a Reforma quando a Reforma não era da equipe inteira, e
+"adia aquela tarefa" não tinha o que adiar. É o que separa um assistente de um formulário
+falado.
+
+**Por dentro ele continua sendo `notas.conversa`**, e o índice único é por `dono_id`, que é
+o perfil: a conversa do secretário na Simonetto é outra da do pessoal, e tem que ser. O que
+você pede a ele numa empresa não é assunto da outra.
+
+## A nota da tarefa, e o menu que coube
+
+Numa tarefa complexa, o que a pessoa vai descobrindo enquanto executa não tinha onde morar:
+a descrição é o enunciado, o anexo é documento, e a conversa do canal rola. Ia para o bloco
+de notas do telefone, que é onde o TrackWard perde.
+
+**A ligação é `notas.item_id`, que já existia.** Ela dizia "a tarefa que SAIU desta nota",
+para a ideia que virou trabalho, e **nada no app escrevia nem lia aquela coluna**. A ligação
+é a mesma nos dois sentidos: esta nota e esta tarefa são sobre a mesma coisa. Criar uma
+segunda coluna para dizer isso ao contrário seria guardar o mesmo fato duas vezes, e um dia
+elas discordarem.
+
+- **A nota nasce com o título da tarefa e endereçada à track**, porque o caderno agrupa por
+  endereço: solta, ela seria "Conferir os documentos" no meio de trezentas, sem dizer de quê.
+- **Ela é do dono, como toda nota.** O que você anota enquanto executa não é relatório para
+  a casa, e por isso criar a nota não pede `manda_no_processo`.
+- **A tarefa ganha um sinal** (`.tf-nota`) que leva até ela, e a nota ganha o caminho de
+  volta em cima do texto (`.doc-daonde`), que leva à TRACK: tarefa não tem tela própria, ela
+  mora no checkpoint. Sem o segundo, a nota escrita de dentro do trabalho vira texto solto e
+  não se volta para ele, que é justamente para o que ela foi escrita.
+- **E ela se anuncia nas duas listas**, com o ícone de tarefa onde a lista põe a marca de
+  compartilhada. No meio das outras ela pareceria uma ideia solta, e é o caderno de um
+  trabalho que está em pé.
+
+**O menu da tarefa veio junto, e por necessidade.** Eram dois ícones soltos na ponta da
+linha, lápis e X, e o arranjo tinha dois defeitos. **Apagar ficava a um toque de editar**,
+do lado, do mesmo tamanho e com o mesmo peso: a ação que não tem volta não pode ter a mesma
+cara da que tem. E não cabia mais, com nota e anexo entrando: quatro ícones numa linha é
+quatro coisas que ninguém sabe o que são.
+
+Atrás de uma seta (`MenuTarefa`, classe `.mnu`, e não `.mn`, que é o cartão de conector),
+as ações ganham **nome**, que é o que um lápis nunca teve. A seta continua aparecendo só no
+passar do mouse, herdando o `opacity:0` de `.tf-acao .iconbtn`; aberta, ela fica, senão o
+menu flutua ligado a nada. **Remover desce para o fim, ganha fio e é a única com cor**: a
+distância é o que impede o toque errado numa lista onde as outras três são inofensivas.
+
+**Anexar pelo menu abre o campo que já existe**, no bloco de anexos embaixo da linha, por um
+`pedido` que é CARIMBO DE HORA e não booleano: pedir duas vezes seguidas precisa abrir duas
+vezes, e um booleano ficaria ligado depois da primeira. E `podeAnexar` subiu para uma função
+só, porque agora o menu e o bloco perguntam a mesma coisa: duas cópias da condição é a
+garantia de que um dia o menu oferece o que o bloco recusa.
+
 ## Dentro de uma conversa a tela é toda dela
 
 Duas coisas saem de cena no celular quando a pessoa entra num canal, e as duas pelo mesmo

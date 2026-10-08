@@ -3101,6 +3101,34 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
 .tf-acao .iconbtn{opacity:0}
 .tf-bloco:hover .tf-acao .iconbtn,.tf-acao .iconbtn:focus-visible{opacity:1}
 
+/* O sinal de que a tarefa tem nota. Discreto e do lado do texto, porque ele
+   responde "existe" e não "abra isto": quem escreveu já sabe que escreveu, e
+   quem lê a lista está procurando trabalho, não caderno. */
+.tf-nota{display:inline-grid;place-items:center;margin-left:7px;color:var(--tx-3);
+  vertical-align:-2px;transition:var(--t)}
+.tf-nota:hover{color:var(--ac-tinta)}
+.tf-nota svg{width:13px;height:13px}
+
+/* O menu da tarefa, atrás da seta. A seta herda o `opacity:0` de `.tf-acao
+   .iconbtn`, então ela aparece no passar do mouse como os dois ícones
+   apareciam; aberta, ela fica, senão o menu flutua ligado a nada. */
+.mnu{position:relative;display:flex}
+.mnu.on .iconbtn{opacity:1}
+.mnu-caixa{position:absolute;top:calc(100% + 4px);right:0;z-index:40;min-width:186px;
+  padding:5px;border-radius:var(--r);background:var(--panel);
+  box-shadow:var(--sombra),0 0 0 1px var(--line),0 12px 28px rgba(10,11,10,.14)}
+.mnu-op{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;
+  border-radius:var(--r-sm);font-size:var(--fs-ui);color:var(--tx-2);
+  text-align:left;white-space:nowrap;transition:var(--t)}
+.mnu-op:hover{background:var(--hover);color:var(--tx)}
+.mnu-op svg{width:14px;height:14px;flex:none;color:var(--tx-3)}
+.mnu-op:hover svg{color:inherit}
+/* A que não tem volta desce para o fim, ganha fio e ganha cor. A distância é o
+   que impede o toque errado numa lista onde as outras são inofensivas. */
+.mnu-op.corte{margin-top:5px;padding-top:11px;box-shadow:inset 0 1px 0 var(--line)}
+.mnu-op.perigo,.mnu-op.perigo svg{color:var(--late)}
+.mnu-op.perigo:hover{background:color-mix(in srgb,var(--late) 10%,transparent);color:var(--late)}
+
 .cp-f{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-top:24px}
 .cp-nota{font-size:var(--fs-ui);color:var(--tx-2)}
 .volta{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;
@@ -4290,6 +4318,16 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
    ========================================================================== */
 
 .doc{margin-top:14px}
+/* De onde a nota veio, em cima do texto. Ela é o caminho de volta, então ela é
+   link e tem a seta: sem ela, a nota escrita de dentro de uma tarefa vira um
+   texto solto no caderno e não se volta para o trabalho. */
+.doc-daonde{display:flex;align-items:center;gap:9px;margin-bottom:12px;padding:8px 11px;
+  border-radius:var(--r-sm);background:var(--hover);font-size:12.5px;color:var(--tx-2);
+  transition:var(--t)}
+.doc-daonde:hover{color:var(--tx)}
+.doc-daonde span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc-daonde b{font-weight:600;color:var(--tx)}
+.doc-daonde svg{width:13px;height:13px;flex:none;color:var(--tx-3)}
 .doc-campo{width:100%;min-height:180px;line-height:1.6;font-size:var(--fs-body)}
 .doc-lido{min-height:120px;cursor:text;font-size:var(--fs-body);line-height:1.6;color:var(--tx)}
 .doc-p{margin:0 0 12px;white-space:pre-wrap;word-break:break-word}

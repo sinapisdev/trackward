@@ -278,6 +278,14 @@ export function TelaNotas() {
                           não grudada no título: ali ela empurrava o nome da
                           nota, que é a única coisa que se lê de relance. */}
                       {!!(de || quantos) && <em className="nt-comp-mk"><Ic.team /></em>}
+                      {/* E a que foi escrita de dentro de uma tarefa se anuncia
+                          também: no meio das outras ela parece uma ideia solta,
+                          e ela é o caderno de um trabalho que está em pé. */}
+                      {!de && !quantos && !!n.item_id && (
+                        <em className="nt-comp-mk" title="Escrita de dentro de uma tarefa">
+                          <Ic.inbox />
+                        </em>
+                      )}
                     </button>
                     )
                   })}
