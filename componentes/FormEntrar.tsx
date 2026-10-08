@@ -143,17 +143,9 @@ function Formulario() {
     if (/User already registered/i.test(m)) return 'Este e-mail já tem cadastro. Use "entrar".'
     if (/at least 6 characters|Password should be/i.test(m)) return 'A senha precisa de pelo menos 6 caracteres.'
     if (/rate limit|too many/i.test(m)) return 'Muitas tentativas seguidas. Espere um minuto e tente de novo.'
-    /* As do telefone. A Twilio e o Supabase falam inglês e falam de API: o que
-       chega aqui tem que dizer o que fazer, como as recusas do schema fazem. */
-    if (/Token has expired|expired/i.test(m)) return 'Esse código venceu. Peça outro.'
-    if (/Token.*invalid|invalid.*token|otp/i.test(m)) return 'Código errado. Confira os seis dígitos.'
     if (/Signups not allowed|User not found|not found/i.test(m)) {
       return 'Não achei conta com esse número. Crie uma conta, é rápido.'
     }
-    if (/unverified|21608/i.test(m)) {
-      return 'Esse número ainda não está liberado para receber o código. Fale com quem cuida do app.'
-    }
-    if (/Invalid phone|phone/i.test(m) && /invalid/i.test(m)) return 'Esse número não parece um telefone.'
     if (/already registered|already been registered/i.test(m)) {
       return 'Este número já tem cadastro. Use "entrar".'
     }
@@ -200,7 +192,13 @@ function Formulario() {
           }
         : { shouldCreateUser: false },
     })
-    if (error) { setErro(traduzir(error.message)); return false }
+    if (error) {
+      setErro(porqueNaoMandou(error.message))
+      // O que o provedor disse de verdade fica no console: a frase da tela é
+      // para quem usa, e esta é para quem conserta.
+      console.warn('[trackward] o provedor recusou o envio:', error.message)
+      return false
+    }
     setEsperandoCodigo(true)
     setReenviarEm(30)
     setOk(`Mandei um código por SMS para ${foneEscrito(e164)}.`)
@@ -213,8 +211,46 @@ function Formulario() {
     const { error } = await supabase().auth.verifyOtp({
       phone: e164, token: codigo.replace(/\D/g, ''), type: 'sms',
     })
-    if (error) { setErro(traduzir(error.message)); return false }
+    if (error) { setErro(porqueNaoConferiu(error.message)); return false }
     return true
+  }
+
+  /**
+   * As recusas de MANDAR o código, que nunca falam do código.
+   *
+   * Isto foi um defeito de verdade: a peneira tinha um `/otp/i` solto, e
+   * `Error sending confirmation OTP to provider` casava com ele. O app dizia
+   * "código errado" a quem nunca chegou a receber um código, e a tela voltava
+   * ao primeiro passo sem explicar nada. **Falha de envio e código errado são
+   * perguntas diferentes, e misturá-las manda quem depura para o lado errado**,
+   * que é o mesmo defeito que `falaDeMaquina` existe para evitar.
+   */
+  const porqueNaoMandou = (m: string) => {
+    if (/unverified|21608/i.test(m)) {
+      return 'Esse número ainda não está liberado para receber o código. '
+        + 'Na conta de teste da Twilio, só chega em número verificado.'
+    }
+    if (/Invalid.*phone|phone.*invalid|21211/i.test(m)) return 'Esse número não parece um telefone.'
+    if (/Signups not allowed|User not found|not found/i.test(m)) {
+      return 'Não achei conta com esse número. Crie uma conta, é rápido.'
+    }
+    if (/already registered/i.test(m)) return 'Este número já tem cadastro. Use "entrar".'
+    if (/rate limit|too many|security purposes/i.test(m)) {
+      return 'Muitas tentativas seguidas. Espere um minuto e tente de novo.'
+    }
+    /* O resto é configuração do app, e dizer isso é o que manda quem lê para o
+       lugar certo: a pessoa não tem nada a consertar no número dela. */
+    return 'Não consegui mandar o código. Isso costuma ser configuração do app, '
+      + 'e não o seu número.'
+  }
+
+  /** E as de CONFERIR, que falam só do código. */
+  const porqueNaoConferiu = (m: string) => {
+    if (/expired/i.test(m)) return 'Esse código venceu. Peça outro.'
+    if (/rate limit|too many|max.*attempt/i.test(m)) {
+      return 'Muitas tentativas seguidas. Peça um código novo.'
+    }
+    return 'Código errado. Confira os seis dígitos.'
   }
 
   const enviar = async (e: React.FormEvent) => {
