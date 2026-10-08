@@ -9762,3 +9762,219 @@ begin
     perform dar_apelido(u.user_id, null, u.nome, u.email);
   end loop;
 end $$;
+
+
+-- ==========================================================================
+-- 72. O cadastro por telefone, e o banco que assumia um e-mail
+--
+--     Ligar a entrada por telefone no Supabase é configuração de dez minutos.
+--     O que ela quebra não é: `auth.users.email` vem NULO num cadastro por
+--     telefone, e `novo_usuario` o usava em quatro lugares sem perguntar. O
+--     cadastro falhava inteiro, com "null value in column nome of relation
+--     organizacoes", que é uma frase que não diz nada a quem só queria entrar.
+--
+--     Isso foi encontrado ANTES de ligar, plantando um usuário sem e-mail no
+--     ensaio, e é a lição da Meta aplicada: a configuração dizer "enabled" não
+--     quer dizer que o caminho existe do outro lado.
+--
+--     **O telefone passa a ser o que o e-mail era**, onde ele não está: nome de
+--     quem não disse o nome, nome do espaço pessoal, casamento com o convite.
+--     E `convites.fone` já existia desde a seção 67, então convidar por número
+--     e entrar por número fecham o ciclo sem nada novo.
+--
+--     **O que NÃO muda é quem a pessoa é.** `perfis.email` continua existindo e
+--     passa a aceitar vazio, em vez de virar nulo: nove lugares no app leem
+--     essa coluna esperando texto, e trocar `not null` por nulo os obrigaria a
+--     todos a saber disso. Vazio é a mesma informação sem a mudança de contrato.
+-- --------------------------------------------------------------------------
+
+alter table public.perfis alter column email set default '';
+update public.perfis set email = '' where email is null;
+
+/**
+ * Como chamar quem entrou só com um número.
+ *
+ * Não é o número: "Boa tarde, +5542999783288" é a mesma cara de relatório que
+ * "Boa tarde, fulano@gmail.com", e é a primeira coisa que alguém de fora vê.
+ * É o fim do número, que é o que a própria pessoa usa para se identificar ao
+ * telefone, e serve até ela dizer o nome dela em `PedeNome`.
+ */
+create or replace function public.nome_do_fone(p_fone text)
+returns text language sql immutable set search_path = public as $$
+  select case
+    when coalesce(p_fone, '') = '' then null
+    else 'Pessoa ' || right(regexp_replace(p_fone, '[^0-9]', '', 'g'), 4)
+  end;
+$$;
+
+/**
+ * O espaço pessoal passa a saber nascer sem e-mail.
+ *
+ * Ele já aceitava `p_email` nulo, e caía em `initcap(split_part('', '@', 1))`,
+ * que é string VAZIA e não nulo: o `coalesce` não pegava, e a organização
+ * nascia chamada "". Um espaço sem nome no seletor é o app parecendo quebrado
+ * no primeiro segundo de uso.
+ */
+/* `p_fone` SEM default, e isto não é estilo. Com default, uma chamada de três
+   argumentos casaria com esta E com a forma de três da seção 70, e numa segunda
+   passada do arquivo as duas existem ao mesmo tempo entre uma seção e a outra:
+   o Postgres responde "a função não é única" e derruba tudo no meio. Isso
+   passou no primeiro ensaio por ACIDENTE, porque o laço da seção 70 não itera
+   quando todo mundo já tem espaço pessoal, e comando que não roda não resolve
+   função. É o mesmo erro do `avisar` com dez e onze argumentos. */
+create or replace function public.abrir_pessoal(
+  p_user uuid, p_nome text, p_email text, p_fone text
+)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare v_org uuid; v_perfil uuid; v_nome text;
+  paleta text[] := array['#8A8A8A','#B0B0B0','#C9884A','#6F6F6F','#A0704A','#9A9A9A','#7A6E8F','#B5A08C'];
+begin
+  if p_user is null then return null; end if;
+
+  select p.org_id into v_org
+    from perfis p join organizacoes o on o.id = p.org_id
+   where p.user_id = p_user and o.tipo = 'pessoal' limit 1;
+  if v_org is not null then return v_org; end if;
+
+  -- `nullif` em cada degrau, porque o que falha aqui volta VAZIO e não nulo.
+  v_nome := coalesce(
+    nullif(btrim(coalesce(p_nome, '')), ''),
+    nullif(initcap(split_part(coalesce(p_email, ''), '@', 1)), ''),
+    nome_do_fone(p_fone),
+    'Pessoal');
+
+  insert into organizacoes (nome, tipo) values (v_nome, 'pessoal') returning id into v_org;
+
+  insert into perfis (user_id, org_id, nome, email, cor, papel, ve_area, ativo)
+  values (p_user, v_org, v_nome, coalesce(p_email, ''),
+          paleta[(floor(random() * 8))::int + 1], 'admin', true, true)
+  returning id into v_perfil;
+
+  update organizacoes set dono_id = v_perfil where id = v_org;
+  return v_org;
+end $$;
+
+revoke all on function public.abrir_pessoal(uuid, text, text, text) from public, anon, authenticated;
+grant execute on function public.abrir_pessoal(uuid, text, text, text) to service_role;
+-- A forma de três argumentos sai, senão a chamada fica ambígua e o Postgres
+-- responde "não é única", que não diz o que fazer. Mesmo cuidado da seção 43.
+drop function if exists public.abrir_pessoal(uuid, text, text);
+
+/**
+ * E o cadastro inteiro passa a atravessar sem e-mail.
+ *
+ * Três coisas mudam, e a terceira é a que fecha o ciclo:
+ *
+ *   1. o nome de quem não disse o nome vem do telefone, e não de um nulo
+ *   2. `perfis.email` recebe vazio em vez de nulo
+ *   3. o CONVITE casa por telefone, e não só por código e e-mail
+ *
+ * A terceira é o que faz convidar por número valer alguma coisa: `convites.fone`
+ * existe desde a seção 67, e até aqui ele só dizia para onde mandar o link.
+ * Agora quem se cadastra com aquele número entra na empresa que o chamou, como
+ * já acontecia com o e-mail. `formas_do_fone` compara as duas formas do número
+ * brasileiro, porque o WhatsApp entrega as linhas antigas sem o nono dígito e
+ * comparar dígito a dígito não reconheceria a própria pessoa.
+ */
+create or replace function public.novo_usuario()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  cv        convites%rowtype;
+  v_org     uuid;
+  v_nome    text := nullif(btrim(new.raw_user_meta_data->>'organizacao'), '');
+  v_codigo  text := upper(btrim(coalesce(new.raw_user_meta_data->>'convite', '')));
+  v_espaco  text := lower(btrim(coalesce(new.raw_user_meta_data->>'espaco', '')));
+  v_eu      text := nullif(btrim(new.raw_user_meta_data->>'nome'), '');
+  v_apelido text := nullif(btrim(new.raw_user_meta_data->>'apelido'), '');
+  v_email   text := coalesce(new.email, '');
+  v_fone    text := coalesce(new.phone, '');
+  v_papel   text := 'colaborador';
+  v_ativo   boolean := false;
+  v_dono    boolean := false;
+  v_perfil  uuid;
+  v_ve_area boolean := false;
+  v_area    uuid;
+  v_gestor  uuid;
+  n int;
+  paleta text[] := array['#8A8A8A','#B0B0B0','#C9884A','#6F6F6F','#A0704A','#9A9A9A','#7A6E8F','#B5A08C'];
+begin
+  -- 0. O que é da PESSOA, e vale nos três caminhos.
+  perform dar_apelido(new.id, v_apelido, coalesce(v_eu, nome_do_fone(v_fone)), v_email);
+  v_org := abrir_pessoal(new.id, v_eu, v_email, v_fone);
+
+  select * into cv from convites
+  where usado_em is null
+    and (vence_em is null or vence_em > now())
+    and (
+      (v_codigo <> '' and codigo = v_codigo)
+      or (v_email <> '' and lower(email) = lower(v_email))
+      -- O número, nas duas formas: a linha antiga chega sem o nono dígito.
+      or (v_fone <> '' and fone is not null
+          and exists (select 1 from unnest(formas_do_fone(v_fone)) f
+                       where f = regexp_replace(fone, '[^0-9]', '', 'g')))
+    )
+  order by (v_codigo <> '' and codigo = v_codigo) desc
+  limit 1;
+
+  if cv.id is not null then
+    v_org := cv.org_id;
+    v_papel := coalesce(cv.papel, 'colaborador');
+    v_area := cv.area_id;
+    v_gestor := cv.gestor_id;
+    v_ve_area := coalesce(cv.ve_area, false);
+    v_ativo := true;
+  /* A empresa nasce só quando a pessoa PEDIU uma, e não por padrão.
+     Era `v_espaco <> 'pessoal'`, ou seja, qualquer cadastro sem metadado ganhava
+     uma. Com e-mail e senha isso nunca acontecia, porque o formulário sempre
+     manda alguma coisa; com OTP por telefone acontece sempre, porque entrar com
+     um número é uma chamada sem metadado nenhum. O resultado era uma empresa
+     chamada "Pessoa 3288" para quem só queria entrar. */
+  elsif v_espaco = 'equipe' or v_nome is not null then
+    insert into organizacoes (nome, tipo)
+    values (coalesce(v_nome,
+                     nullif(initcap(split_part(v_email, '@', 1)), ''),
+                     nome_do_fone(v_fone),
+                     'Minha equipe'), 'equipe')
+    returning id into v_org;
+    v_papel := 'admin';
+    v_ativo := true;
+    v_dono := true;
+    v_ve_area := true;
+  else
+    select id into v_perfil from perfis where user_id = new.id and org_id = v_org;
+    if v_perfil is not null then
+      insert into sessoes (user_id, perfil_id) values (new.id, v_perfil)
+      on conflict (user_id) do update set perfil_id = excluded.perfil_id;
+    end if;
+    return new;
+  end if;
+
+  select count(*) into n from perfis where org_id = v_org;
+
+  insert into perfis (user_id, org_id, nome, email, cor, papel, area_id, gestor_id, ve_area, ativo)
+  values (
+    new.id, v_org,
+    coalesce(v_eu,
+             nullif(btrim(cv.nome), ''),
+             nullif(split_part(v_email, '@', 1), ''),
+             nome_do_fone(v_fone),
+             'Pessoa'),
+    v_email,
+    paleta[(n % 8) + 1],
+    v_papel, v_area, v_gestor, v_ve_area, v_ativo
+  )
+  on conflict (user_id, org_id) do nothing
+  returning id into v_perfil;
+
+  if v_dono and v_perfil is not null then
+    update organizacoes set dono_id = v_perfil where id = v_org;
+  end if;
+  if v_perfil is not null then
+    insert into sessoes (user_id, perfil_id) values (new.id, v_perfil)
+    on conflict (user_id) do update set perfil_id = excluded.perfil_id;
+  end if;
+  if cv.id is not null then
+    update convites set usado_em = now(), usado_por = v_perfil where id = cv.id;
+  end if;
+  return new;
+end $$;

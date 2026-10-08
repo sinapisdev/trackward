@@ -220,6 +220,31 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
   resolver `org_de_quem_age()` ANTES de `minha_org()`: sem a troca, a linha escrita fora
   nasce com a organização da sessão e **ninguém a enxerga, nem quem a escreveu**, que é o
   defeito da seção 44 por outro caminho. `agir_como` recusa perfil que não seja seu.
+- **O cadastro por telefone quebrava o banco, e isso foi achado antes de ligar** (seção 72).
+  `auth.users.email` vem NULO num cadastro por OTP, e `novo_usuario` o usava em quatro
+  lugares sem perguntar: o cadastro falhava inteiro com "null value in column nome of
+  relation organizacoes", que não diz nada a quem só queria entrar. É a lição da Meta
+  aplicada: a configuração dizer "enabled" não quer dizer que o caminho existe do outro lado.
+- **O telefone passa a ser o que o e-mail era, onde ele não está**: nome de quem não disse o
+  nome (`nome_do_fone`, que devolve "Pessoa 3288" e não o número, porque "Boa tarde,
+  +5542999783288" é a mesma cara de relatório que o e-mail), nome do espaço pessoal, e
+  casamento com o convite. **`perfis.email` aceita VAZIO, não nulo**: nove lugares leem
+  aquela coluna esperando texto, e trocar o contrato obrigaria todos a saber disso.
+- **O convite casa por NÚMERO**, nas duas formas (`formas_do_fone`), e é isso que faz
+  convidar por número valer alguma coisa: `convites.fone` existia desde a seção 67 e só
+  dizia para onde mandar o link. Agora quem entra com aquele número cai na empresa que o
+  chamou, como já acontecia com o e-mail.
+- **Ninguém ganha uma empresa que não pediu.** Era `v_espaco <> 'pessoal'`, ou seja, cadastro
+  sem metadado ganhava uma. Com e-mail isso nunca acontecia, porque o formulário sempre manda
+  algo; entrar com um número é uma chamada sem metadado nenhum, e o resultado era uma empresa
+  chamada "Pessoa 3288" para quem só queria entrar.
+- **`abrir_pessoal` tem UMA assinatura, e o quarto argumento não tem default.** Com default,
+  a chamada de três argumentos casaria com ela e com a forma de três da seção 70, e numa
+  segunda passada do arquivo as duas existem ao mesmo tempo entre uma seção e a outra. Isso
+  passou no primeiro ensaio por ACIDENTE, porque o laço da seção 70 não itera quando todo
+  mundo já tem espaço pessoal, e comando que não roda não resolve função: só apareceu
+  plantando um login sem espaço pessoal antes da segunda passada. É o mesmo erro do `avisar`
+  com dez e onze argumentos.
 - **Todo login tem um @, e ele é o primeiro endereço que o app tem de verdade** (seção 71).
   Para alguém ser chamado, ele precisa de um endereço, e hoje o convite vai para um telefone
   ou um e-mail: os dois são de outra pessoa, um da operadora e o outro do Google. O @ é do
