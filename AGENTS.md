@@ -220,6 +220,21 @@ Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
   resolver `org_de_quem_age()` ANTES de `minha_org()`: sem a troca, a linha escrita fora
   nasce com a organização da sessão e **ninguém a enxerga, nem quem a escreveu**, que é o
   defeito da seção 44 por outro caminho. `agir_como` recusa perfil que não seja seu.
+- **O telefone se verifica DENTRO da conta que já existe**, em Ajustes (`MeuTelefone`). Sem
+  isso, entrar por telefone era uma segunda porta para uma SEGUNDA PESSOA: o Supabase trata
+  telefone e e-mail como logins diferentes, então quem já tinha conta e entrava pelo número
+  ganhava outra, com outro espaço pessoal e outro @, e o trabalho de uma não aparecia na
+  outra. **Não é caso de borda: no lançamento, todo mundo que já usa o app está assim.**
+- **`phone_change` e não `sms`.** Ali a conta já existe e o que se confirma é a troca do
+  número dela; com o tipo errado o Supabase recusa um código que está certo, e a frase não
+  diz por quê.
+- **Três estados, e não dois**, ao ler o telefone de quem está logado: `undefined` é "ainda
+  não perguntei", `null` é "perguntei e ela não tem", e a string é o número. Com dois, "não
+  carregou" e "não tem" viram a mesma coisa, e o campo de pôr o telefone nunca aparece para
+  quem não tem nenhum, que é justamente quem precisa dele.
+- **O número de ENTRAR e o de ser AVISADO são dois.** O primeiro é identidade e vive em
+  `auth.users`; o segundo é opt-in e vive em `avisos_contato`, porque receber aviso é escolha
+  e entrar não é. A tela diz isso onde a pessoa poderia confundir.
 - **Entrar é por TELEFONE primeiro, e o e-mail fica ao lado.** É o que a pessoa espera de um
   app de hoje e é o único identificador que ela não esquece; o e-mail continua porque quem já
   tem conta tem senha. **Recuperar senha é assunto de e-mail**, e ali a escolha nem aparece.

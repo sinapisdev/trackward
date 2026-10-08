@@ -4974,3 +4974,11 @@ a.btn{text-decoration:none}
 /* Desligado durante a contagem: apertar de novo é outra mensagem paga que
    também não vai chegar, e quem não recebeu aperta três vezes em dez segundos. */
 .ent-reenviar button:disabled{opacity:.5;text-decoration:none;cursor:default}
+
+/* O telefone já verificado, em Ajustes. Visto e número, sem campo: o que está
+   pronto não é formulário, e um campo preenchido que não se mexe convida a
+   mexer no que está certo. */
+.aj-fone-ok{display:flex;align-items:center;gap:9px;margin:0;flex:1;
+  padding:11px 14px;border-radius:var(--r-sm);background:var(--alto);
+  border:1px solid var(--line);font-size:var(--fs-ui);color:var(--tx)}
+.aj-fone-ok svg{width:15px;height:15px;flex:none;color:var(--ac-tinta)}

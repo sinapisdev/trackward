@@ -2004,7 +2004,13 @@ function montarCliente() {
     auth: {
       async getUser() {
         const id = euLocal()
-        return { data: { user: id ? { id } : null }, error: null }
+        // O telefone vai junto: a tela de Ajustes pergunta por ele para saber
+        // se a pessoa já verificou um.
+        const meu = id ? ler().perfis.find((p) => p.id === id) : null
+        return {
+          data: { user: id ? { id, phone: (meu?.fone as string) || '' } : null },
+          error: null,
+        }
       },
       async signOut() {
         try { localStorage.removeItem(CHAVE_EU) } catch {}
@@ -2047,6 +2053,18 @@ function montarCliente() {
         if (String(dados?.token || '').replace(/\D/g, '') !== CODIGO_DEMO) {
           return { data: null, error: { message: 'Código errado. No modo demonstração ele é ' + CODIGO_DEMO + '.' } }
         }
+        /* `phone_change` é a TROCA do número de quem já está dentro, e não uma
+           entrada: ninguém nasce aqui, o número é carimbado em todos os perfis
+           daquele login, porque o telefone é do login e não do perfil. */
+        if (dados?.type === 'phone_change') {
+          const u = usuarioLocal()
+          const f = paraE164(String(dados?.phone || ''))
+          if (!u || !f) return { data: null, error: { message: SO_REAL } }
+          const b = ler()
+          for (const p of b.perfis) if (p.user_id === u) p.fone = f
+          gravar()
+          return { data: { user: { id: euLocal(), phone: f } }, error: null }
+        }
         const f = paraE164(String(dados?.phone || ''))
         const b = ler()
         const existe = b.perfis.find((p) => String(p.fone || '') === f)
@@ -2076,7 +2094,16 @@ function montarCliente() {
           error: null,
         }
       },
-      async updateUser(_dados?: unknown) { return { data: null, error: { message: SO_REAL } } },
+      async updateUser(dados?: { phone?: string; password?: string }) {
+        const f = paraE164(String(dados?.phone || ''))
+        if (!f) return { data: null, error: { message: SO_REAL } }
+        const b = ler()
+        if (b.perfis.some((p) => String(p.fone || '') === f && p.user_id !== usuarioLocal())) {
+          return { data: null, error: { message: 'Esse número já está em outra conta.' } }
+        }
+        try { localStorage.setItem(CHAVE_OTP, JSON.stringify({ fone: f, troca: true })) } catch {}
+        return { data: { user: null }, error: null }
+      },
       async resetPasswordForEmail(_email?: string, _opcoes?: unknown) { return { data: null, error: { message: SO_REAL } } },
       // O link de e-mail não existe no modo demonstração, mas a assinatura
       // precisa existir: a tela que abre o link é a mesma nos dois modos.

@@ -9,6 +9,7 @@ import { Carregando } from './Shell'
 import { Ic } from './Icones'
 import { AjustesAvisos } from './AjustesAvisos'
 import { confere, normaliza, PORQUE } from '@/lib/apelido'
+import { MeuTelefone } from './MeuTelefone'
 import { isoDe, rel } from '@/lib/datas'
 import { MODO_LOCAL } from '@/lib/modo'
 import { ComoNoIphone, useConviteDeInstalar } from './Instalar'
@@ -79,7 +80,7 @@ export function TelaAjustes() {
         <div className="blk" id="aj-eu">
           <div className="bh">
             <h2>Você</h2>
-            <span className="c">o seu @ vale em todos os seus espaços</span>
+            <span className="c">o seu @ e o seu telefone valem em todos os seus espaços</span>
           </div>
           <div className="card" style={{ padding: 15 }}>
             <div className="fld">
@@ -104,6 +105,9 @@ export function TelaAjustes() {
                   : 'É por ele que te convidam e te encontram. Trocando, o antigo fica livre para outra pessoa.'}
               </p>
             </div>
+            {/* O telefone vem logo abaixo do @ porque os dois são a mesma
+                coisa vista de dois jeitos: como as pessoas te acham. */}
+            <MeuTelefone />
           </div>
         </div>
 
