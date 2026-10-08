@@ -201,11 +201,19 @@ teria custado.
   pergunta certa passou a ser "esta pessoa divide alguma casa comigo?", e é ela que separa o
   que é de propósito (a ocupação de quem divide um espaço comigo, vinda de todos os espaços
   dela) do que era furo (a ocupação de quem não tem nada a ver comigo).
-- **A fila de Tarefas é da PESSOA, e já vem inteira.** Não há lente de "este espaço": "Tudo"
-  quer dizer tudo, de todos os espaços dela, e os filtros (Executar, Aprovar, Aguardando,
-  Pedi) valem sobre isso, porque trocar de recorte não pode custar a tela que ela conhece.
-  Ao lado deles fica **Só pessoal**, que estreita. O que some é o nome do espaço em uso como
-  rótulo: ela já sabe onde está.
+- **A fila soma onde a soma é a pergunta, e não onde ela é ruído.** Ela já veio inteira em
+  todo espaço, e estava errada: quem entra na Simonetto veio trabalhar nela, e tarefa da
+  Silvereng ali é contexto de uma coisa que a pessoa não vai fazer agora, no lugar em que
+  ela abriu para fazer uma só. **Dentro de uma empresa, só as daquela empresa**, incluindo
+  as da equipe que são dela; **no pessoal, tudo**, porque é a única tela onde a conta da
+  pessoa inteira existe, e a pergunta "o que eu dou conta hoje" não se divide pelo número de
+  contratos que ela tem. Os filtros (Executar, Aprovar, Aguardando, Pedi) valem sobre a
+  lista que estiver na tela, e **Só pessoal** só aparece no pessoal, porque numa empresa não
+  há o que estreitar.
+- **A AGENDA não segue esta regra, e a diferença não é incoerência.** Um compromisso ocupa o
+  corpo, e o corpo não está em dois lugares: o que foi marcado no pessoal trava a terça às
+  15h em toda empresa, e tem que travar. Uma tarefa da Silvereng não impede nada na
+  Simonetto, e por isso ela pode esperar o lugar dela.
 - **E a CARGA é da pessoa também.** Quem tem quatro empresas não dá conta de vinte tarefas
   porque elas estão divididas em quatro listas: a conta de "o que eu dou conta hoje" é uma
   só. `minhaCarga()` em `lib/sobrecarga.ts` responde isso, e é **separada de `sobrecarga()`
@@ -213,7 +221,9 @@ teria custado.
   distribui trabalho decidir, e pôr uma contando quatro empresas ao lado de outra contando
   uma faria a tabela mentir onde ela é usada para decidir. Por isso o radar da operação
   continua por espaço, e a carga inteira aparece na fila da própria pessoa. **O quanto
-  alguém trabalha fora da sua empresa não é assunto da sua empresa.**
+  alguém trabalha fora da sua empresa não é assunto da sua empresa.** E ela conta **o que
+  está na tela**: dizer "no seu ritmo isto leva 50 dias" somando quatro espaços, numa lista
+  que mostra um, é falar de uma lista que a pessoa não está vendo.
 - **A frase fala de fila e de prazo, nunca de esforço**, como no aviso de carga: "no seu
   ritmo, isto leva 50 dias e o prazo mais distante é em 2" é sobre distribuição; "você está
   devagar" é sobre a pessoa. E sem base não há número, que é a mesma régua do Desempenho.
@@ -224,6 +234,21 @@ teria custado.
   (`concluir_meu_item`, seção 69) e **sempre**, não só quando a tarefa é de fora: duas
   implementações da mesma regra é a garantia de que um dia a de cá avisa o canal e a de lá
   esquece, e ninguém percebe.
+- **Apagar a tarefa mora na gaveta, e é dois toques.** Não existia em lugar nenhum fora da
+  track, então a tarefa escrita errada pela barra ou aceita por engano só se resolvia
+  caçando a track dela. É de quem escreveu ou de quem executa, nunca a `aprov`, que não é
+  tarefa, e **nunca a de outro espaço**: `excluirItem` escreve com a sessão em uso, e o
+  banco recusaria a linha de uma casa que não é a dela falando de política em vez de
+  permissão. Some na tarefa com **ressalva** em aberto, porque ressalva é dívida e apagá-la
+  era a saída fácil para não pagá-la; `proteger_ressalva` recusa de qualquer jeito, e
+  esconder é para a pessoa não tentar.
+- **E desmarcar o que foi concluído por engano fica em Desempenho**, na lista "O que saiu".
+  Os números do topo dizem QUANTO saiu; faltava dizer O QUÊ, que é justamente o que alguém
+  procura ao marcar errado. Na fila a tarefa já saiu, e procurar a track dela para desfazer
+  um toque é mais trabalho do que o engano custou. **Só a sua**, porque `concluir_meu_item`
+  recusa a dos outros, e desmarcar a de alguém é dizer que não foi feito o que foi. O botão
+  é quieto: desfazer não é a ação que faz o trabalho andar.
+
 - **A gaveta é só do que é daqui.** Ela mostra trilha, critério e as outras tarefas do
   checkpoint, e nada disso atravessa: para o que é de fora ela abriria pela metade. Lá a
   linha leva ao espaço da tarefa. O que atravessa é concluir, e isso é o visto da linha.

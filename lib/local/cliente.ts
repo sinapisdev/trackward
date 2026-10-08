@@ -1893,7 +1893,13 @@ function montarCliente() {
           if (!it) throw new Error('Tarefa não encontrada.')
           const dono = b.perfis.find((p) => p.id === it.resp_id && p.user_id === u && p.ativo)
           if (!dono) throw new Error('Essa tarefa não é sua.')
+          /* O gatilho `marcar_feito_em` é quem preenche isto no banco, e sem
+             ele a tarefa concluída não aparece em "O que saiu", porque
+             `entregas` pede a hora. Desmarcar limpa, na mesma regra. */
+          const estava = !!it.feito
           it.feito = !!args.p_feito
+          if (it.feito && !estava) it.feito_em = agora()
+          else if (!it.feito && estava) it.feito_em = null
           if (it.feito && !it.priv) {
             const f = b.fluxos.find((x) => x.id === it.fluxo_id)
             b.atividades.unshift({

@@ -30,7 +30,7 @@ const chave = (p: Pendencia) =>
  * próximo passo aberto ao lado. Um de cada vez, que é como o trabalho anda.
  */
 export function Minhas() {
-  const { eu, org, fluxos, fluxosComImplicitas, carregando, nomeDe, perfilDe, minhaLista,
+  const { eu, org, pessoal, fluxos, fluxosComImplicitas, carregando, nomeDe, perfilDe, minhaLista,
     alternarItem, aprovar: aprovarSaida, meuDia, minhasEntregas, espacos,
     trocarEspaco } = useDados()
   const { abrir } = useModais()
@@ -38,13 +38,15 @@ export function Minhas() {
   const router = useRouter()
   const [filtro, setFiltro] = useState<Filtro>('tudo')
   /**
-   * A fila é da PESSOA, e por isso ela já vem inteira.
+   * A lente do pessoal, e ela só existe NO pessoal.
    *
-   * Quem tem quatro empresas não dá conta de vinte tarefas porque elas estão
-   * divididas em quatro listas: a conta de "o que eu dou conta hoje" é uma só,
-   * e ela não se divide pelo número de contratos. Então "Tudo" quer dizer tudo
-   * mesmo, de todos os espaços, e a lente estreita para o pessoal quando a
-   * pessoa quer olhar só o que é dela.
+   * Dentro de uma empresa não há o que estreitar: a lista já é só daquela
+   * empresa, porque quem entrou na Simonetto veio trabalhar nela e tarefa da
+   * Silvereng ali é ruído sobre o que ela não vai fazer agora. No pessoal é o
+   * contrário: é a única tela onde a conta da pessoa inteira existe, e a
+   * pergunta "o que eu dou conta hoje" não se divide pelo número de contratos
+   * que ela tem. Então lá a lista soma tudo, e a lente estreita para o que é
+   * dela mesma.
    */
   const [soPessoal, setSoPessoal] = useState(false)
   const [indo, setIndo] = useState('')
@@ -95,14 +97,28 @@ export function Minhas() {
       })
   }, [meuDia, org.id, daqui])
 
-  /** A fila inteira, ou só o que é do espaço pessoal. */
+  /**
+   * A fila, e de onde ela vem depende de ONDE você está.
+   *
+   * **Numa empresa, só o daquela empresa.** Entrar na Simonetto e ver tarefa da
+   * Silvereng é misturar contexto no lugar em que a pessoa veio trabalhar numa
+   * coisa só, e é ruído: ali ela não vai fazer nada a respeito da outra.
+   *
+   * **No pessoal, tudo.** É lá que a pergunta "o que eu dou conta hoje" se faz,
+   * e é a única tela onde a conta da pessoa inteira existe, porque a conta não
+   * se divide pelo número de contratos que ela tem.
+   *
+   * A agenda NÃO segue esta regra, e a diferença não é incoerência: um
+   * compromisso ocupa o corpo, e o corpo não está em dois lugares. Uma tarefa
+   * da Silvereng não impede nada na Simonetto, e por isso ela pode esperar o
+   * lugar dela.
+   */
   const tudo = useMemo(() => {
-    const todas = [...daqui, ...deFora]
-    if (!soPessoal) return todas
-    const pes = espacos.find((e) => e.tipo === 'pessoal')
-    if (!pes) return todas
-    return todas.filter((p) => (p.org_id || org.id) === pes.org_id)
-  }, [daqui, deFora, soPessoal, espacos, org.id])
+    if (!pessoal) return daqui
+    if (!soPessoal) return [...daqui, ...deFora]
+    // No pessoal, "só pessoal" estreita para o que é daqui mesmo.
+    return daqui
+  }, [daqui, deFora, soPessoal, pessoal])
 
   /** Índice de tarefas, para saber o que está travado por quem. */
   const porId = useMemo(() => {
@@ -119,8 +135,6 @@ export function Minhas() {
     [espacos, org.id],
   )
 
-  const temPessoal = useMemo(() => espacos.some((e) => e.ativo && e.tipo === 'pessoal'), [espacos])
-
   /**
    * A carga da PESSOA, somando os espaços dela.
    *
@@ -131,11 +145,12 @@ export function Minhas() {
    * sobre si mesma, e por isso ela aparece na fila dela.
    */
   const carga = useMemo(() => {
-    const abertas = [...daqui, ...deFora]
-      .filter((p) => p.tipo === 'item')
-      .map((p) => ({ prazo: p.prazo }))
+    /* A carga é a do que está NA TELA. Dizer "no seu ritmo isto leva 50 dias"
+       contando quatro espaços, numa lista que mostra um, é falar de uma lista
+       que a pessoa não está vendo. */
+    const abertas = tudo.filter((p) => p.tipo === 'item').map((p) => ({ prazo: p.prazo }))
     return minhaCarga(abertas, minhasEntregas, 30)
-  }, [daqui, deFora, minhasEntregas])
+  }, [tudo, minhasEntregas])
 
   /**
    * O que acontece ao tocar na linha.
@@ -257,7 +272,7 @@ export function Minhas() {
             {tudo.length
               ? <>
                   {tudo.length} {tudo.length > 1 ? 'pendências' : 'pendência'}
-                  {outros.length > 0 && ', somando os seus espaços'}.{' '}
+                  {pessoal && !soPessoal && outros.length > 0 && ', somando os seus espaços'}.{' '}
                   {/* A frase fala de FILA e de prazo, nunca de esforço: "a sua
                       fila não cabe no tempo que tem" é sobre distribuição, "você
                       está devagar" é sobre a pessoa, e a segunda é o tipo de
@@ -297,7 +312,7 @@ export function Minhas() {
                 pergunta que se faz aqui é "e se eu olhar só o que é meu",
                 não "em qual empresa estou". Só aparece para quem tem um
                 pessoal E alguma outra coisa, senão não estreita nada. */}
-            {temPessoal && outros.length > 0 && (
+            {pessoal && outros.length > 0 && (
               <button className={`btn fila-so ${soPessoal ? 'on' : ''}`}
                 aria-pressed={soPessoal}
                 onClick={() => { setSoPessoal((v) => !v); setAberta(null) }}>
@@ -451,8 +466,9 @@ function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoA
   aoConcluir: () => void
   aoAprovar: () => void
 }) {
-  const { devolverItem, eu, canais } = useDados()
+  const { devolverItem, excluirItem, eu, canais } = useDados()
   const [devolvendo, setDevolvendo] = useState(false)
+  const [apagando, setApagando] = useState(false)
   const [motivo, setMotivo] = useState('')
   const [indo, setIndo] = useState(false)
 
@@ -468,6 +484,20 @@ function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoA
   const podeDevolver = p.tipo === 'item' && !feito
     && p.item.resp_id === eu.id
     && !!p.item.autor_id && p.item.autor_id !== eu.id
+
+  /**
+   * Quem pode apagar: quem escreveu a tarefa, ou quem a executa.
+   *
+   * Não a de outro espaço, porque `excluirItem` escreve com a sessão em uso e o
+   * banco recusaria a linha de uma casa que não é a da sessão: a frase que
+   * voltaria falaria de política e não de permissão. De lá a tarefa se apaga
+   * lá, que é a um toque na própria linha.
+   *
+   * E nunca a `aprov`, que não é tarefa: é o checkpoint pedindo decisão.
+   */
+  const podeApagar = p.tipo !== 'aprov' && !p.fora && !!p.item
+    && !(p.item.ressalva && !p.item.feito)
+    && (p.item.autor_id === eu.id || p.item.resp_id === eu.id)
 
   return (
     <aside className="gaveta" data-tut="minhas-gaveta">
@@ -586,6 +616,31 @@ function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoA
             <Ic.devolver />Devolver para quem pediu
           </button>
         )
+      )}
+
+      {/**
+        * Apagar, e só a sua.
+        *
+        * Fica por último e em dois toques, sem caixa de confirmar: a caixa
+        * seria um modal por cima da gaveta, e a gaveta já é a camada de cima no
+        * celular. Dois toques no mesmo lugar resolvem, e o segundo diz o que
+        * vai acontecer.
+        *
+        * Some na tarefa com RESSALVA em aberto, porque ressalva é dívida e
+        * apagá-la era a saída mais fácil para não pagá-la. O banco recusa de
+        * qualquer jeito (`proteger_ressalva`); esconder é para a pessoa não
+        * tentar.
+        */}
+      {podeApagar && (
+        <button className={`gav-apagar ${apagando ? 'certeza' : ''}`}
+          onClick={async () => {
+            if (!apagando) { setApagando(true); return }
+            await excluirItem(p.item!)
+            aoFechar()
+          }}
+          onBlur={() => setApagando(false)}>
+          <Ic.x />{apagando ? 'Apagar mesmo? Não tem volta' : 'Apagar esta tarefa'}
+        </button>
       )}
 
       {/* A track escondida não está em Tracks, então mandar para ela seria

@@ -7,10 +7,11 @@ import { Carregando } from '@/componentes/Shell'
 import { Ic } from '@/componentes/Icones'
 import { Av } from '@/componentes/atomos'
 import {
-  PERIODOS, gargalos, indicadores, porArea, porDia, porPessoa, semHora,
+  PERIODOS, entregas, gargalos, indicadores, porArea, porDia, porPessoa, semHora,
   type Indicador, type Periodo,
 } from '@/lib/desempenho'
 import { FAIXAS, porque, timeInteiroApertado, type Carga } from '@/lib/sobrecarga'
+import { curta } from '@/lib/datas'
 
 /**
  * Desempenho: como a empresa está entregando, e onde ela está presa.
@@ -100,7 +101,7 @@ function LinhaCarga({ c }: { c: Carga }) {
 
 export function TelaDesempenho() {
   const { fluxos, areas, perfis, decisoesDe, anexosDe, nomeDe, carregando, todosFluxos, cargas,
-    pessoal } = useDados()
+    pessoal, eu, alternarItem } = useDados()
   const [janela, setJanela] = useState<Periodo>(30)
 
   const dados = useMemo(() => {
@@ -110,6 +111,10 @@ export function TelaDesempenho() {
       barras: porDia(fluxos, janela),
       pessoas: porPessoa(fluxos, perfis, janela),
       presos: gargalos(fluxos, nomeDe),
+      /* A lista do que SAIU. Os números do topo dizem quanto; esta diz o quê,
+         que é o que alguém procura quando concluiu por engano e quer desfazer.
+         `entregas` já devolve tudo que isto precisa, e ordena do mais novo. */
+      saiu: entregas(fluxos, janela),
       areasVivas: porArea(fluxos, areas, janela),
       orfas: semHora(fluxos),
     }
@@ -154,6 +159,44 @@ export function TelaDesempenho() {
             </div>
             <div className="card">
               <Grafico barras={dados.barras} />
+            </div>
+          </div>
+
+          <div className="blk">
+            <div className="bh">
+              <h2>O que saiu <span className="sec-ct num">{dados.saiu.length}</span></h2>
+              <span className="c">do mais novo para o mais antigo</span>
+            </div>
+            <div className="card">
+              {dados.saiu.length ? dados.saiu.slice(0, 60).map((e) => (
+                <div className="saiu" key={e.item.id}>
+                  <span className="ck on" aria-hidden><Ic.check /></span>
+                  <span className="saiu-tt">
+                    <b>{e.item.texto}</b>
+                    <small>
+                      {e.fluxo.nome}
+                      {e.item.resp_id ? ` · ${nomeDe(e.item.resp_id)}` : ''}
+                    </small>
+                  </span>
+                  <span className={`due ${e.noPrazo === false ? 'late' : ''}`}>
+                    {curta(e.quando)}{e.noPrazo === false ? ', fora do prazo' : ''}
+                  </span>
+                  {/* Reabrir mora aqui porque é aqui que a tarefa concluída
+                      aparece: na fila ela já saiu, e procurar a track dela para
+                      desfazer um toque é mais trabalho do que o engano custou.
+                      Só a sua: `concluir_meu_item` recusa a dos outros. */}
+                  {e.item.resp_id === eu.id ? (
+                    <button className="saiu-reabrir" onClick={() => void alternarItem(e.item)}>
+                      Reabrir
+                    </button>
+                  ) : <span />}
+                </div>
+              )) : (
+                <div className="empty" style={{ padding: 0 }}>Nada saiu no período.</div>
+              )}
+              {dados.saiu.length > 60 && (
+                <p className="hint">Mostrando as 60 mais novas de {dados.saiu.length}.</p>
+              )}
             </div>
           </div>
 
