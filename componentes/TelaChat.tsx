@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDados } from './Dados'
 import { useComandos } from './Comandos'
@@ -56,6 +56,7 @@ function Lista({ atual }: { atual?: string }) {
     nomeDe } = useDados()
   const { abrir } = useModais()
   const celular = useCelular()
+  const caminho = usePathname()
 
   /** A hora da última mensagem de cada canal, numa passada só. */
   const ultima = useMemo(() => {
@@ -119,6 +120,24 @@ function Lista({ atual }: { atual?: string }) {
       </div>
 
       <div className="chat-rolagem">
+        {/* O secretário é a primeira linha, e em TODO espaço.
+            Ele nasceu no pessoal, onde não há canal, e ficou preso lá por um
+            motivo que não era motivo: quem trabalha em equipe também tem a
+            ideia no trânsito e o compromisso dito no corredor. Pior, uma
+            empresa recém-aberta abre a Conversa sem nenhum canal, ou seja, sem
+            ninguém com quem falar, e a primeira tela do app é um vazio com um
+            botão de criar canal. Com ele aqui, sempre tem com quem começar.
+            Ele continua sendo a conversa solta do caderno DAQUELE espaço, e por
+            isso é privado: o que você pede a ele não é assunto da casa. */}
+        <Link href="/secretario"
+          className={`chat-item secr-linha ${caminho === '/secretario' ? 'on' : ''}`}>
+          <span className="mk"><Ic.faisca /></span>
+          <span className="nm">Secretário</span>
+          {celular && (
+            <span className="chat-previa">Peça: ele cria tarefa, marca e monta track</span>
+          )}
+        </Link>
+
         {grupos.map((g) => (
           <div key={g.rotulo}>
             {!!g.rotulo && <div className="chat-grupo">{g.rotulo}</div>}
@@ -154,7 +173,8 @@ function Lista({ atual }: { atual?: string }) {
         ))}
         {!canais.length && (
           <div className="mode" style={{ padding: '10px 12px' }}>
-            Nenhum canal ainda. Crie o primeiro no botão acima.
+            Nenhum canal ainda. Crie o primeiro no botão acima, ou fale com o secretário
+            aqui em cima.
           </div>
         )}
 
@@ -1176,6 +1196,10 @@ export function TelaChat({ id }: { id?: string }) {
             <p>
               Canais reúnem a equipe por assunto, por área e por projeto. O que ficar
               combinado aqui dentro vira tarefa na esteira, sem ninguém precisar copiar nada.
+            </p>
+            <p>
+              E o <b>Secretário</b>, no alto da lista, é com quem você fala sozinho: peça e
+              ele cria a tarefa, marca na agenda e monta a track.
             </p>
             <button className="btn pri" onClick={() => abrir({ tipo: 'canal' })}>
               <Ic.plus />Novo canal

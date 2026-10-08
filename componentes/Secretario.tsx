@@ -47,7 +47,7 @@ const hora = (ts: string) =>
 export function Secretario() {
   const {
     eu, org, carregando, conversaIA, abrirConversaIA, mensagensDaNota, sugestoesDaNota,
-    escreverNaNota, anexar, apagarMensagem, respondendo, lerNota, toast, abrirAudio,
+    escreverNaNota, anexar, apagarMensagem, respondendo, lerNota, toast, abrirAudio, pode,
   } = useDados()
   const [texto, setTexto] = useState('')
   const [arquivos, setArquivos] = useState<File[]>([])
@@ -115,13 +115,16 @@ export function Secretario() {
       <header className="chat-topo">
         {/* No celular a barra de abas some aqui, como dentro de um canal: ela
             come 56px justamente na tela onde a altura é o recurso escasso. Esta
-            seta é o que impede isso de prender a pessoa, e `/` no espaço
-            pessoal é o caderno, que é a inicial dela. */}
-        <Link className="iconbtn so-celular" href="/" aria-label="Voltar"><Ic.volta /></Link>
+            seta é o que impede isso de prender a pessoa.
+            Para onde ela volta é de onde se chegou: numa empresa o secretário é
+            a primeira linha da lista de conversas, e no pessoal ele é a própria
+            aba, então ali a volta é o caderno, que é a inicial de lá. */}
+        <Link className="iconbtn so-celular" href={pode.canais ? '/chat' : '/'}
+          aria-label="Voltar"><Ic.volta /></Link>
         <span className="mk"><Ic.faisca /></span>
         <div className="chat-titulo">
           <b>Secretário</b>
-          <span>Escreva o que vier, ou peça: ele cria tarefa, marca na agenda e guarda nota.</span>
+          <span>Escreva o que vier, ou peça: ele cria tarefa, marca na agenda, monta track e guarda nota.</span>
         </div>
         <button className="btn" disabled={organizando || !org.ia_ativa}
           onClick={() => void organizar()}>
@@ -140,9 +143,15 @@ export function Secretario() {
             </p>
             <p>
               <b>Pedindo, ele faz na hora</b>: &quot;cria uma tarefa para ligar para o contador
-              amanhã&quot;, &quot;marca o dentista quinta às 15h&quot;. O que você só pensou alto
-              fica como conversa, e em <b>Organizar</b> ele separa o que virou tarefa,
-              compromisso e nota para você aceitar.
+              amanhã&quot;, &quot;marca o dentista quinta às 15h&quot;, &quot;monta a track da
+              reforma do escritório&quot;, &quot;adia aquela tarefa do contrato para sexta&quot;.
+              Para montar bem uma track ele vai perguntar o que falta: conte o prazo, o que já
+              está pronto e quem participa.
+            </p>
+            <p>
+              O que você só pensou alto fica como conversa, e em <b>Organizar</b> ele separa o
+              que virou tarefa, compromisso e nota para você aceitar. Concluir e apagar
+              continuam sendo seus, na tela.
             </p>
           </div>
         )}

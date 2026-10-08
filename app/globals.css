@@ -1228,6 +1228,14 @@ h1{font-weight:var(--fw-bold);letter-spacing:var(--ls-title)}
 .chat-item:hover{background:var(--hover);color:var(--tx)}
 .chat-item.on{background:var(--panel);color:var(--tx);box-shadow:var(--sombra),0 0 0 1px var(--line)}
 .chat-item.novo .nm{font-weight:600;color:var(--tx)}
+/* A linha do secretário, no alto da lista. Ela vem antes do primeiro grupo e
+   ganha um fio embaixo, porque ele não é canal e não pertence a nenhum: a
+   separação é o que impede que ele pareça "mais um canal" chamado Secretário.
+   A faísca é do acento, que é onde o lima vale: ela é a marca da leitura em
+   todo o app. */
+.secr-linha{margin-bottom:6px;padding-bottom:9px;box-shadow:inset 0 -1px 0 var(--line)}
+.secr-linha .mk{color:var(--ac-tinta)}
+.secr-linha .nm{font-weight:600;color:var(--tx)}
 .chat-item .mk{width:15px;display:grid;place-items:center;color:var(--tx-3);flex:none}
 .chat-item .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
 .chat-item .due{font-size:10.5px}

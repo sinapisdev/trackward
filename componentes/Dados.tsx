@@ -4,10 +4,10 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode,
 } from 'react'
 import { supabase } from '@/lib/supabase/browser'
-import { curta, hojeIso, isoDe } from '@/lib/datas'
+import { curta, hojeIso, isoDe, soma } from '@/lib/datas'
 import { esqueletoEmBranco, proxPeriodo } from '@/lib/modelos'
 import type { RascunhoEtapa } from '@/lib/modelos'
-import { etapaAtual } from '@/lib/regras'
+import { etapaAtual, pendencias } from '@/lib/regras'
 import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Feedback, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta, Anexo, Decisao, TipoDecisao, NaCascata, PedidoPrazo, Agente, Conector, Nota, LinhaDoDia,
   Aviso, AvisoContato, PushAssinatura, Ciclo } from '@/lib/tipos'
 import { chama } from '@/lib/mencao'
@@ -2798,6 +2798,12 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    * O caminho contrário é seguro e está em `lerNota`: leitura privada pode ver
    * o que é público, porque o que ela devolve fica com o dono da nota.
    */
+  /* `pode` responde "este TIPO de espaço tem isto?", e a resposta nunca muda
+     com preço nenhum. Ele sobe para cá porque o contexto do secretário precisa
+     dele, e porque memorizá-lo é o que impede o efeito do tutorial de rodar a
+     cada render: ver a nota sobre as dependências em Tutorial.tsx. */
+  const pode = useMemo(() => recursos(org), [org])
+
   const oQueACasaTem = useMemo(() => {
     const publicas = todosFluxos.filter(
       (f) => !f.concluido && f.visib === 'equipe' && f.id !== minhaLista?.id,
@@ -2884,14 +2890,39 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       indice: notas.filter((n) => !n.arquivada).map((n) => n.titulo),
       memoria: paraOModelo(memoria),
       casa: oQueACasaTem,
+      /* O lado seguro da regra de mão única: esta conversa é dela e fica com
+         ela, então entra o que ela ENXERGA, e não só o que a casa publica.
+         `casa` existe para a leitura de um canal, onde o que sai aparece para
+         todo mundo; aqui é o contrário. É daqui que saem os ids que
+         `criar_tarefa` e `mudar_tarefa` usam. */
+      meu: {
+        tracks: fluxosComImplicitas
+          .filter((f) => !f.concluido && f.id !== minhaLista?.id && !f.implicita)
+          .slice(0, 40)
+          .map((f) => {
+            const et = etapaAtual(f)
+            return { id: f.id, nome: f.nome, etapa_id: et?.id ?? null, checkpoint: et?.nome ?? null }
+          }),
+        itens: pendencias(fluxosComImplicitas, eu.id)
+          .flatMap((p) => (p.item
+            ? [{
+                id: p.item.id, texto: p.item.texto,
+                onde: p.fluxo.implicita ? 'avulsa' : `${p.fluxo.nome} / ${p.etapa.nome}`,
+                prazo: p.item.prazo,
+              }]
+            : []))
+          .slice(0, 60),
+      },
       /* A conversa solta É o secretário: ali a pessoa fala com um assistente e
          o que ela pede acontece. Dentro de uma nota continua sendo conversa, e
          lá nada é criado, porque ninguém mandou criar nada. */
       secretario: !!nota?.conversa,
-      /* Track é a única coisa que não é só do dono num espaço de equipe: lá ela
-         é da casa, aparece em Tracks e conta para a trilha de todo mundo. Por
-         isso ela só existe onde não há segunda pessoa. */
-      pode: { tracks: org.tipo === 'pessoal' },
+      /* Se existe uma segunda pessoa aqui. A track continua sendo da casa num
+         espaço de equipe, e a resposta a isso deixou de ser esconder a
+         ferramenta: é o recibo dizer quem vai ver a track que acabou de
+         nascer. Esconder só empurrava a montagem para a tela, que é onde ela
+         dá trabalho. */
+      pode: { equipe: pode.canais },
       /* Só o que vem pela frente: a agenda inteira não cabe e não ajuda, e o
          que passou não muda o que marcar. */
       agenda: agenda
@@ -2900,7 +2931,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
         .slice(0, 40)
         .map((c) => ({ quando: c.quando, titulo: c.titulo, inicio: c.inicio, fim: c.fim })),
     }
-  }, [notas, areaDe, todosFluxos, memoria, oQueACasaTem, org.tipo, agenda])
+  }, [notas, areaDe, todosFluxos, memoria, oQueACasaTem, pode.canais, agenda,
+      fluxosComImplicitas, minhaLista?.id, eu.id])
 
   /** Fala com a leitura e devolve o texto da resposta e o que ela mandou fazer. */
   const pedirResposta = useCallback(async (corpo: ContextoConversa) => {
@@ -2935,13 +2967,34 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    */
   const executarAcoes = useCallback(async (acoes: Acao[]): Promise<string[]> => {
     const feitas: string[] = []
+    /* O prazo dentro de uma trilha vem em DIAS a partir de hoje, e vira data
+       aqui. É o mesmo caminho de `criar_do_processo`, e pelo mesmo motivo:
+       ninguém dita sete datas absolutas sem errar uma. */
+    const emDias = (n: number | null | undefined) =>
+      typeof n === 'number' ? soma(hojeIso(), n) : null
+
     for (const a of acoes) {
       try {
         if (a.faz === 'tarefa') {
-          // `quieto`: o recibo na conversa já conta, e o toast por cima dele
-          // seria a mesma notícia duas vezes, oito vezes seguidas.
-          const id = await criarAvulsa(a.texto, a.prazo || undefined, a.descricao)
-          if (id) feitas.push(contar(a))
+          if (a.fluxoId) {
+            /* Com endereço, ela entra na track e a equipe daquela track
+               enxerga. O checkpoint é o que o modelo disse, e na falta dele o
+               CORRENTE: pôr no primeiro seria pôr no passado de uma track que
+               já andou. */
+            const f = todosFluxos.find((x) => x.id === a.fluxoId)
+            const et = (a.etapaId && f?.etapas.find((e) => e.id === a.etapaId)) || (f && etapaAtual(f))
+            if (!f || !et) continue
+            const id = await adicionarItem(et, {
+              texto: a.texto, descricao: a.descricao || '', resp_id: eu.id,
+              prazo: a.prazo || '', priv: false, quieto: true,
+            })
+            if (id) feitas.push(contar(a, f.nome))
+          } else {
+            // `quieto`: o recibo na conversa já conta, e o toast por cima dele
+            // seria a mesma notícia duas vezes, oito vezes seguidas.
+            const id = await criarAvulsa(a.texto, a.prazo || undefined, a.descricao)
+            if (id) feitas.push(contar(a))
+          }
         } else if (a.faz === 'compromisso') {
           const id = await salvarCompromisso({
             titulo: a.titulo, quando: a.quando, inicio: a.inicio || null, fim: a.fim || null,
@@ -2951,11 +3004,34 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
         } else if (a.faz === 'nota') {
           const id = await salvarNota({ texto: a.texto })
           if (id) feitas.push(contar(a))
+        } else if (a.faz === 'mudaTarefa') {
+          /* Quem recusa é o BANCO, com as mesmas regras da tela: prazo e
+             critério são de quem responde pelo processo, e `manda_no_processo`
+             é um gatilho, não uma lista aqui que um dia discorda daquela. O que
+             se confere aqui é só se a tarefa existe para esta pessoa, porque um
+             id que ela não enxerga é leitura torta e não pedido. */
+          const achada = itemPorId(a.itemId)
+          if (!achada) continue
+          const mudanca: Record<string, unknown> = {}
+          if (a.texto) mudanca.texto = a.texto
+          if (a.prazo !== undefined) mudanca.prazo = a.prazo
+          if (a.descricao) mudanca.descricao = a.descricao
+          const { error } = await sb.from('itens').update(mudanca).eq('id', a.itemId)
+          if (error) continue
+          feitas.push(contar(a, achada.item.texto))
+          recarregar()
         } else if (a.faz === 'track') {
           const id = await salvarFluxo(
-            { nome: a.nome, tipo: a.tipo, visib: 'so_eu' },
+            {
+              nome: a.nome, tipo: a.tipo,
+              /* Num espaço de equipe a track é da casa, e nascer `so_eu` seria
+                 montá-la para ninguém. Quem pediu uma dela diz, e o recibo
+                 conta qual foi dos dois. */
+              visib: a.soMinha ? 'so_eu' : 'equipe',
+            },
             a.checkpoints.map((c) => ({
-              id: null, nome: c.nome, criterio: '', aprovador_id: null, prazo: '',
+              id: null, nome: c.nome, criterio: c.criterio || '',
+              aprovador_id: null, prazo: emDias(c.prazoDias) || '',
             })),
           )
           if (!id) continue
@@ -2968,10 +3044,11 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
           for (let k = 0; k < a.checkpoints.length; k++) {
             const etapa = lista[k]
             if (!etapa) continue
-            for (const t of a.checkpoints[k].tarefas || []) {
+            for (const t of a.checkpoints[k].tarefas) {
               await sb.from('itens').insert({
-                id: novoId(), etapa_id: etapa.id, fluxo_id: id, texto: t, descricao: '',
-                resp_id: eu.id, prazo: null, priv: false, prazo_firme: false,
+                id: novoId(), etapa_id: etapa.id, fluxo_id: id, texto: t.texto,
+                descricao: t.descricao || '', resp_id: eu.id,
+                prazo: emDias(t.prazoDias), priv: false, prazo_firme: false,
                 autor_id: eu.id, ordem: Date.now() % 100000,
               })
             }
@@ -2983,8 +3060,10 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
         // as que saíram: dizer que criou o que não criou é o pior dos dois.
       }
     }
+    if (feitas.length) recarregar()
     return feitas
-  }, [criarAvulsa, salvarCompromisso, salvarNota, salvarFluxo, sb, eu.id])
+  }, [criarAvulsa, salvarCompromisso, salvarNota, salvarFluxo, adicionarItem, itemPorId,
+      todosFluxos, recarregar, sb, eu.id])
 
   /**
    * A conversa solta: essa continua sendo conversa mesmo.
@@ -3520,7 +3599,6 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    * quem depender dele num `useEffect` (o tutorial, por exemplo) veria uma
    * dependência diferente a cada render e ficaria reiniciando para sempre.
    */
-  const pode = useMemo(() => recursos(org), [org])
 
   /**
    * O plano em vigor, e o tamanho da conta.

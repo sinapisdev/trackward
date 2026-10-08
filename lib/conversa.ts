@@ -48,6 +48,23 @@ export type ContextoConversa = {
     decisoes: { texto: string; quando: string }[]
   }
   /**
+   * O que ELA vê, e não o que a casa publica.
+   *
+   * `casa` existe para a leitura de um canal, e por isso só traz o que a
+   * empresa inteira já podia ler: o que sai de lá aparece para todo mundo com
+   * o trecho que o originou. Aqui é o contrário, e é o lado seguro da regra de
+   * mão única: a conversa do secretário é da pessoa e fica com ela, então pode
+   * entrar a track `escolhidas` em que ela está e a tarefa privada dela.
+   *
+   * Sem isto, "cria uma tarefa na Reforma" não achava a Reforma quando a
+   * Reforma não era da equipe inteira, e "adia aquela tarefa" não tinha id
+   * nenhum para mexer. É o que separa um assistente de um formulário falado.
+   */
+  meu?: {
+    tracks: { id: string; nome: string; etapa_id: string | null; checkpoint: string | null }[]
+    itens: { id: string; texto: string; onde: string; prazo: string | null }[]
+  }
+  /**
    * É o secretário quem está falando, e não a leitura dentro de uma nota.
    *
    * Aqui a conversa é com um assistente, e pedido vira coisa feita: ver
@@ -56,10 +73,14 @@ export type ContextoConversa = {
    */
   secretario?: boolean
   /**
-   * Quais ferramentas existem neste espaço. Track só onde não há segunda
-   * pessoa, porque num espaço de equipe ela é da casa e não do dono.
+   * Se este espaço tem uma segunda pessoa.
+   *
+   * Era `tracks`, e queria dizer "pode montar track", que só valia no pessoal.
+   * Agora montar track vale em todo lugar, e o que a bandeira responde é outra
+   * coisa: se existe "quem vê". Num espaço de uma pessoa a pergunta não se faz,
+   * e perguntá-la seria o app inventando plateia onde não há ninguém.
    */
-  pode?: { tracks: boolean }
+  pode?: { equipe: boolean }
   /**
    * O que já está marcado nos próximos dias.
    *
@@ -131,8 +152,25 @@ const FAZENDO = `- VOCÊ FAZ, quando ela PEDE. Esta é a parte mais importante:
   lista nem descreva campo por campo.
 - Datas sempre no formato AAAA-MM-DD, resolvidas a partir de hoje. "Amanhã",
   "sexta" e "semana que vem" são sua conta, não dela.
-- Você NÃO mexe no que já existe: não muda, não remarca e não apaga. Pedindo
-  isso, diga que para mudar ou cancelar ela abre na agenda ou nas tarefas.`
+- Você MUDA tarefa que já existe (texto, prazo, descrição), com mudar_tarefa.
+  "Adia aquilo para sexta", "muda o nome daquela tarefa", "tira o prazo": é
+  ordem, e você faz. O item_id sai das listas acima; não achando qual é, ou
+  achando duas parecidas, PERGUNTE qual. Chutar aqui muda o trabalho errado, e
+  quem vai descobrir é a pessoa que dependia dele.
+- Você NÃO conclui tarefa e NÃO apaga nada, nem tarefa, nem track, nem
+  compromisso. Marcar como feito o que não foi é a única mentira que este app
+  não pode contar, e apagar não tem volta. Pedindo isso, diga onde ela faz: o
+  visto da tarefa, e o menu dela para remover.
+- Compromisso você também não remarca nem cancela: isso é na agenda.
+- MONTAR TRACK É O QUE VOCÊ FAZ DE MAIS ÚTIL, e é onde dar meia resposta é
+  pior do que não fazer. Uma trilha de títulos vazios ("Planejamento",
+  "Execução", "Entrega") não ajuda ninguém e ainda dá trabalho de apagar.
+  Antes de montar, você precisa saber o bastante para cada checkpoint ter um
+  critério de saída de verdade e cada tarefa ser trabalho que alguém faz. Se a
+  pessoa disse pouco, faça UMA pergunta curta com as duas ou três coisas que
+  mais mudam o desenho (o prazo final, o que já está pronto, quem participa) e
+  monte na resposta seguinte. Perguntar uma vez é melhor que entregar um
+  esqueleto, e muito melhor que um interrogatório de seis perguntas.`
 
 export function instrucoes(ctx: ContextoConversa): string {
   const aprendido = ctx.memoria
@@ -177,6 +215,19 @@ ${ctx.agenda.slice(0, 40).map((c) => `- ${c.quando}${c.inicio ? ` ${c.inicio}${c
 `
     : ''
 
+  /* Só o secretário recebe isto: dentro de uma nota a leitura não cria nem
+     muda nada, então id de tarefa ali é contexto que não serve para nada e
+     ainda ocupa a janela. */
+  const meu = ctx.secretario && ctx.meu && (ctx.meu.tracks.length || ctx.meu.itens.length)
+    ? `
+AS TRACKS QUE ELA ENXERGA (use o id em criar_tarefa):
+${ctx.meu.tracks.slice(0, 40).map((t) => `- ${t.nome} | fluxo_id=${t.id}${t.etapa_id ? ` | checkpoint atual "${t.checkpoint}" etapa_id=${t.etapa_id}` : ''}`).join('\n') || '(nenhuma)'}
+
+AS TAREFAS ABERTAS DELA (use o id em mudar_tarefa):
+${ctx.meu.itens.slice(0, 60).map((i) => `- ${i.texto} | ${i.onde}${i.prazo ? ` | prazo ${i.prazo}` : ' | sem prazo'} | item_id=${i.id}`).join('\n') || '(nenhuma)'}
+`
+    : ''
+
   const tudo = ctx.indice.length
     ? `
 TÍTULOS DE TUDO QUE EXISTE NO CADERNO DELA:
@@ -191,7 +242,7 @@ ${ctx.indice.slice(0, 120).map((t) => `- ${t}`).join('\n')}
 
 Hoje é ${ctx.hoje}.${aprendido}
 ${naNota}
-${perto}${tudo}${agenda}${daCasa}
+${perto}${tudo}${agenda}${meu}${daCasa}
 Como responder:
 - Português do Brasil, direto, sem travessão e sem emoji.
 - Curto. Três parágrafos no máximo, quase sempre um.

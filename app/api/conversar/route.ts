@@ -31,7 +31,7 @@ type Volta = { texto: string | null; acoes: Acao[] }
 async function porModelo(
   ctx: ContextoConversa, chave: string, modelo: string, medida: { valor: Medida | null },
 ): Promise<Volta | null> {
-  const pode = { tracks: !!ctx.pode?.tracks }
+  const pode = { equipe: !!ctx.pode?.equipe }
   const r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -86,7 +86,7 @@ async function porModelo(
         (corpo.content || [])
           .filter((b) => b.type === 'tool_use')
           .map((b) => ({ ...(b.input as object), faz: doNomeDaFerramenta(b.name || '') })),
-        { tracks: !!ctx.pode?.tracks },
+        { equipe: !!ctx.pode?.equipe },
       )
     : []
 
