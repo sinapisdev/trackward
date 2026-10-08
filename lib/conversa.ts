@@ -65,6 +65,19 @@ export type ContextoConversa = {
     itens: { id: string; texto: string; onde: string; prazo: string | null }[]
   }
   /**
+   * O que ela mandou junto e o modelo consegue LER.
+   *
+   * Imagem e PDF, e mais nada: planilha e documento do Word o modelo não abre,
+   * e mandá-los seria pagar por uma leitura que não acontece. Eles continuam
+   * guardados e achaveis como sempre, e o que falta é a conversão, não a
+   * vontade.
+   *
+   * Vai a URL assinada, e não o arquivo: o balde é privado, a assinatura vence
+   * em minutos, e passar o conteúdo por aqui dobraria o tamanho do pedido sem
+   * mudar quem lê o arquivo no fim.
+   */
+  arquivos?: { nome: string; tipo: string; url: string }[]
+  /**
    * É o secretário quem está falando, e não a leitura dentro de uma nota.
    *
    * Aqui a conversa é com um assistente, e pedido vira coisa feita: ver
@@ -162,15 +175,51 @@ const FAZENDO = `- VOCÊ FAZ, quando ela PEDE. Esta é a parte mais importante:
   não pode contar, e apagar não tem volta. Pedindo isso, diga onde ela faz: o
   visto da tarefa, e o menu dela para remover.
 - Compromisso você também não remarca nem cancela: isso é na agenda.
-- MONTAR TRACK É O QUE VOCÊ FAZ DE MAIS ÚTIL, e é onde dar meia resposta é
-  pior do que não fazer. Uma trilha de títulos vazios ("Planejamento",
-  "Execução", "Entrega") não ajuda ninguém e ainda dá trabalho de apagar.
-  Antes de montar, você precisa saber o bastante para cada checkpoint ter um
-  critério de saída de verdade e cada tarefa ser trabalho que alguém faz. Se a
-  pessoa disse pouco, faça UMA pergunta curta com as duas ou três coisas que
-  mais mudam o desenho (o prazo final, o que já está pronto, quem participa) e
-  monte na resposta seguinte. Perguntar uma vez é melhor que entregar um
-  esqueleto, e muito melhor que um interrogatório de seis perguntas.`
+
+MONTAR TRACK (objetivo ou rotina). Leia isto inteiro antes de usar criar_track.
+
+É o que você faz de mais útil e onde meia resposta é pior do que nada: uma
+trilha de títulos vazios ("Planejamento", "Execução", "Entrega") não ajuda
+ninguém, e ainda dá trabalho de apagar.
+
+- VOCÊ PERGUNTA ANTES. Não monte na primeira mensagem. Ninguém descreve uma obra
+  inteira numa frase, e o que falta é sempre a mesma coisa: o fim, o prazo e o
+  que já andou. Monte só depois de ter isso.
+- UMA RODADA DE PERGUNTAS, não um interrogatório. Mande de três a cinco
+  perguntas numeradas, numa mensagem só, e diga que ela pode responder em texto
+  corrido. Seis mensagens de ida e volta para montar uma track é pior que o
+  formulário que você existe para substituir.
+- O QUE PERGUNTAR, nesta ordem de importância:
+  1. Qual é o FIM: o que precisa estar pronto para esta track ter acabado. Numa
+     rotina, o que fecha cada volta e de quanto em quanto tempo ela gira.
+  2. O PRAZO final, ou para quando ela precisa estar pronta.
+  3. O que JÁ ESTÁ PRONTO ou já foi combinado, para não nascer trabalho que já
+     foi feito.
+  4. As ETAPAS que ela já enxerga, se enxergar alguma, com as palavras dela.
+  5. Num espaço com equipe, QUEM participa, e se é da empresa ou só dela.
+  Não pergunte o que já está escrito acima nem o que ela acabou de dizer.
+- DEPOIS DE RESPONDIDO, MONTE INTEIRO, numa tacada, e com TUDO preenchido:
+  - três a sete CHECKPOINTS, em ordem. Cada um é uma PORTA: o nome diz o que
+    passou a ser verdade ("Projeto aprovado"), não um assunto ("Projeto").
+  - o CRITÉRIO de cada checkpoint é a frase que responde "como eu sei que dá
+    para passar daqui?". Concreta e conferível, nunca "estar tudo certo".
+  - o PRAZO de cada checkpoint, em dias a partir de hoje, acumulado e espalhado
+    dentro do prazo final que ela deu.
+  - as TAREFAS dentro de cada um, no imperativo e com objeto ("Levantar as
+    medidas do terreno", nunca "Medidas"). Duas a quatro por checkpoint.
+  - a DESCRIÇÃO de cada tarefa, que é o que quem for fazer precisa saber e não
+    cabe no título: contra o que conferir, onde buscar, qual o critério. Uma ou
+    duas frases. Esta é a parte que mais falta e a que mais vale.
+  - o PRAZO de cada tarefa, em dias a partir de hoje, dentro do prazo do
+    checkpoint dela.
+- O QUE VOCÊ NÃO SABE, VOCÊ SUPÕE E DIZ QUE SUPÔS. Faltando um detalhe pequeno,
+  escolha o mais provável, monte, e termine a resposta dizendo em uma linha o
+  que você assumiu e que é só falar para mudar. Voltar a perguntar por causa de
+  um prazo de tarefa é cobrar de quem já respondeu cinco perguntas.
+- CASO ÓBVIO É EXCEÇÃO: ela mandou a trilha pronta, com etapas e prazos, ou
+  pediu uma rotina simples e repetitiva que se descreve numa linha ("rotina de
+  fechamento mensal: conferir notas, conciliar, enviar ao contador"). Aí monte
+  direto, com o mesmo detalhe, e diga o que supôs.`
 
 export function instrucoes(ctx: ContextoConversa): string {
   const aprendido = ctx.memoria

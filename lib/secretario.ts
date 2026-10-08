@@ -324,16 +324,13 @@ export function ferramentas(pode: { equipe: boolean }): Ferramenta[] {
     },
     {
       name: 'criar_track',
-      description: 'Monta um objetivo (tem fim) ou uma rotina (dá voltas), com a trilha '
-        + 'inteira: checkpoints, critério de saída de cada um, prazo e as tarefas dentro. '
-        + 'Use quando ela PEDIR um projeto, uma obra, uma rotina ou um processo com etapas. '
-        + 'Para uma coisa só a fazer, use criar_tarefa. '
-        + 'MONTE DE VERDADE: cada checkpoint é uma PORTA do processo (o que precisa estar '
-        + 'pronto para passar dele), não um assunto; as tarefas dentro são o trabalho '
-        + 'concreto que abre essa porta, escritas como quem manda fazer ("Levantar as '
-        + 'medidas do terreno"), nunca como categoria ("Medidas"). Três a sete checkpoints '
-        + 'na maioria dos casos. Se ela não deu detalhe suficiente para isso, PERGUNTE o '
-        + 'que falta antes de montar, em vez de entregar uma trilha de títulos vazios.',
+      description: 'Monta um objetivo (tem fim) ou uma rotina (dá voltas) com a trilha '
+        + 'INTEIRA. Use quando ela PEDIR um projeto, uma obra, uma rotina ou um processo '
+        + 'com etapas; para uma coisa só a fazer, use criar_tarefa. '
+        + 'NÃO CHAME ISTO NA PRIMEIRA MENSAGEM: pergunte antes o fim, o prazo e o que já '
+        + 'está pronto, como diz a instrução. Chamando, preencha TODOS os campos, '
+        + 'inclusive o critério de cada checkpoint, a descrição de cada tarefa e os prazos '
+        + 'em dias: uma trilha de títulos vazios não ajuda ninguém e dá trabalho de apagar.',
       input_schema: {
         type: 'object',
         properties: {
@@ -351,26 +348,41 @@ export function ferramentas(pode: { equipe: boolean }): Ferramenta[] {
             items: {
               type: 'object',
               properties: {
-                nome: { type: 'string', description: 'O nome da porta, curto. Ex: "Projeto aprovado".' },
+                nome: { type: 'string',
+                  description: 'O que PASSOU A SER VERDADE, curto. "Projeto aprovado", e não '
+                    + '"Projeto". Ele é uma porta, não um assunto.' },
                 criterio: { type: 'string',
-                  description: 'O que precisa estar verdadeiro para passar daqui. Uma frase.' },
+                  description: 'A frase que responde "como eu sei que dá para passar daqui?". '
+                    + 'Concreta e conferível, nunca "estar tudo certo".' },
                 prazo_dias: { type: 'number',
                   description: 'Em quantos dias a partir de HOJE este checkpoint fecha. '
                     + 'Acumulado, não por etapa: o terceiro é maior que o segundo.' },
                 tarefas: {
                   type: 'array',
+                  description: 'Duas a quatro. O trabalho concreto que abre esta porta.',
                   items: {
                     type: 'object',
                     properties: {
-                      texto: { type: 'string', description: 'O que fazer, no imperativo.' },
-                      descricao: { type: 'string', description: 'O detalhe que o título não cabe.' },
-                      prazo_dias: { type: 'number', description: 'Dias a partir de hoje.' },
+                      texto: { type: 'string',
+                        description: 'No imperativo e com objeto: "Levantar as medidas do '
+                          + 'terreno", nunca "Medidas".' },
+                      descricao: { type: 'string',
+                        description: 'O que quem for fazer precisa saber e não cabe no título: '
+                          + 'contra o que conferir, onde buscar, qual o critério. Uma ou duas '
+                          + 'frases. É a parte que mais falta e a que mais vale.' },
+                      prazo_dias: { type: 'number',
+                        description: 'Dias a partir de hoje, dentro do prazo do checkpoint.' },
                     },
-                    required: ['texto'],
+                    /* `descricao` e `prazo_dias` entram em `required` de propósito.
+                       A instrução pedia os dois e o modelo os pulava, porque o esquema
+                       dizia que eram opcionais: entre o que o texto pede e o que o
+                       formato exige, o formato ganha. É a diferença entre a track que
+                       saiu meia boca e a que saiu inteira. */
+                    required: ['texto', 'descricao', 'prazo_dias'],
                   },
                 },
               },
-              required: ['nome'],
+              required: ['nome', 'criterio', 'prazo_dias', 'tarefas'],
             },
           },
         },

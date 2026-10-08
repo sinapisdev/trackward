@@ -1714,6 +1714,37 @@ virando uma tira de 104px. Ela não some de todo de propósito: foi dela que as 
 saíram, e o que está escrito ali é o que explica cada uma. **Elas nunca ficam escondidas**,
 em nenhum dos dois estados: esconder o que espera decisão é o jeito de nunca decidir.
 
+**Ele LÊ o que você manda**, e é isso que o separa de um campo de texto com botões. Imagem e
+PDF vão para o modelo como bloco de conteúdo, por URL assinada do balde: o arquivo não passa
+pelo servidor do app e a assinatura vence em cinco minutos, que é o mesmo endereço e o mesmo
+prazo de quando a própria pessoa clica para abrir. **Planilha e Word ficam de fora**, porque
+o modelo não os abre e mandá-los seria pagar por uma leitura que não acontece.
+
+**A ordem é anexar e DEPOIS perguntar**, e isso era um defeito: a tela escrevia a mensagem,
+o modelo era chamado, e só então o arquivo subia. Quem mandava o contrato e perguntava "o que
+diz aqui" recebia resposta sobre o texto da frase. Mandar o arquivo e a pergunta é um gesto
+só para quem usa, então é um gesto só por dentro (`escreverNaNota` recebe os arquivos).
+
+**E falhar com arquivo não pode derrubar a conversa.** O bloco de imagem e de documento é a
+parte mais nova do pedido e a que mais tem como ser recusada (formato, tamanho, assinatura
+vencida no caminho). A rota tenta **uma segunda vez sem os arquivos** e diz o que não
+conseguiu ler: sem isso, um PDF que o modelo não aceita vira "não consegui responder agora",
+e a pessoa nunca descobre que o problema era o anexo.
+
+**Montar track é PERGUNTAR primeiro, e isso é regra, não gosto.** Ninguém descreve uma obra
+numa frase, e o que falta é sempre o mesmo: o fim, o prazo e o que já andou. Uma rodada só,
+de três a cinco perguntas numeradas numa mensagem, e **a resposta seguinte já é a trilha
+inteira**: seis idas e vindas para montar uma track é pior que o formulário que ele existe
+para substituir. O que falta depois disso ele SUPÕE e diz que supôs, porque voltar a
+perguntar por causa de um prazo de tarefa é cobrar de quem já respondeu cinco perguntas.
+
+**E o que obriga o detalhe é o ESQUEMA, não o texto da instrução.** A instrução já pedia
+critério, descrição e prazo, e o modelo pulava os três, porque o JSON Schema dizia que eram
+opcionais: entre o que o texto pede e o que o formato exige, **o formato ganha sempre**. Com
+`required: ['texto','descricao','prazo_dias']` na tarefa e `['nome','criterio','prazo_dias',
+'tarefas']` no checkpoint, a trilha sai inteira ou não sai. É a diferença entre a track que
+saiu meia boca e a que serve.
+
 **O botão redondo some aqui**, como dentro de um canal: ele ficaria em cima do campo de
 escrever, e quem cria usa a barra. **E a barra de abas some junto**, pelo mesmo motivo do
 canal: ela come 56px onde a altura é escassa. A diferença é que o secretário é a PRIMEIRA

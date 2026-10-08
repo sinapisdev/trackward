@@ -17,7 +17,10 @@ import { custoMicro } from '@/lib/precos'
  */
 
 export const runtime = 'nodejs'
-export const maxDuration = 30
+/* 60 e não 30: ler um PDF e montar uma trilha inteira com critério, descrição e
+   prazo em cada linha é a resposta mais cara que este app pede, e cortá-la no
+   meio devolve nada depois de a pessoa ter respondido cinco perguntas. */
+export const maxDuration = 60
 
 const MODELO = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5'
 
@@ -27,6 +30,41 @@ type Medida = {
 }
 
 type Volta = { texto: string | null; acoes: Acao[] }
+
+/**
+ * As falas, com os arquivos pendurados na ÚLTIMA delas.
+ *
+ * O modelo lê imagem e PDF por bloco de conteúdo, e não por texto, então a fala
+ * deixa de ser uma string e vira uma lista quando há arquivo junto. Eles vão na
+ * última porque é dela que eles são: anexar na primeira faria o modelo responder
+ * sobre o documento quando a pessoa já mudou de assunto três mensagens atrás.
+ *
+ * O formato é `source.type: 'url'`, com a URL assinada do balde. O arquivo não
+ * passa por aqui, e a assinatura vence em minutos: é o mesmo endereço que a
+ * própria pessoa abriria no clique, com o mesmo prazo.
+ */
+function comArquivos(ctx: ContextoConversa) {
+  const falas = ctx.falas.map((f) => ({
+    role: (f.de === 'ia' ? 'assistant' : 'user') as 'assistant' | 'user',
+    content: f.texto as unknown,
+  }))
+  const arquivos = ctx.arquivos || []
+  if (!arquivos.length || !falas.length) return falas
+
+  const ultima = falas[falas.length - 1]
+  // Arquivo pertence a quem mandou. Numa resposta da leitura ele não cabe, e o
+  // caso não existe hoje: quem anexa é sempre a pessoa.
+  if (ultima.role !== 'user') return falas
+
+  const blocos: unknown[] = arquivos.map((a) => (
+    a.tipo === 'application/pdf'
+      ? { type: 'document', source: { type: 'url', url: a.url } }
+      : { type: 'image', source: { type: 'url', url: a.url } }
+  ))
+  const texto = String(ultima.content || '').trim()
+  ultima.content = [...blocos, { type: 'text', text: texto || 'Leia o que mandei.' }]
+  return falas
+}
 
 async function porModelo(
   ctx: ContextoConversa, chave: string, modelo: string, medida: { valor: Medida | null },
@@ -41,19 +79,22 @@ async function porModelo(
     },
     body: JSON.stringify({
       model: modelo,
-      max_tokens: 1600,
+      max_tokens: ctx.secretario ? 5000 : 1600,
       system: instrucoes(ctx),
       // As ferramentas só existem para o secretário. Dentro de uma nota a
       // conversa não cria nada, e oferecer a ferramenta ali seria convidar o
       // modelo a usá-la contra a regra escrita na instrução.
       ...(ctx.secretario ? { tools: ferramentas(pode) } : {}),
-      messages: ctx.falas.map((f) => ({
-        role: f.de === 'ia' ? 'assistant' : 'user',
-        content: f.texto,
-      })),
+      messages: comArquivos(ctx),
     }),
   })
-  if (!r.ok) return null
+  if (!r.ok) {
+    /* O corpo do erro vale a leitura: é por ele que se distingue "o modelo
+       recusou o arquivo" de "a chave venceu", e a segunda não se resolve
+       tentando de novo sem o arquivo. */
+    console.warn('[trackward] a conversa falhou:', r.status, (await r.text()).slice(0, 400))
+    return null
+  }
 
   const corpo = await r.json() as {
     content?: { type: string; text?: string; name?: string; input?: unknown }[]
@@ -144,7 +185,27 @@ export async function POST(req: Request) {
 
   const medida: { valor: Medida | null } = { valor: null }
   try {
-    const resposta = await porModelo(ctx, chave, modelo, medida)
+    let resposta = await porModelo(ctx, chave, modelo, medida)
+    /**
+     * Falhou com arquivo junto: tenta de novo sem ele.
+     *
+     * O bloco de imagem e de documento é a parte mais nova deste pedido e a que
+     * mais tem como ser recusada: formato que o modelo não abre, arquivo grande
+     * demais, assinatura vencida no caminho. Sem esta segunda tentativa, um PDF
+     * que ele não aceita derruba a CONVERSA inteira, e a pessoa lê "não consegui
+     * responder agora" sem nunca saber que o problema era o anexo.
+     *
+     * Uma vez só, e sem os arquivos: insistir com eles repetiria a recusa, e o
+     * que a pessoa perde aqui é a leitura do arquivo, não a resposta.
+     */
+    if (!resposta && ctx.arquivos?.length) {
+      resposta = await porModelo({ ...ctx, arquivos: [] }, chave, modelo, medida)
+      if (resposta) {
+        resposta.texto = (resposta.texto ? resposta.texto + '\n\n' : '')
+          + 'Não consegui abrir o que você mandou. Imagem e PDF eu leio; '
+          + 'planilha e documento do Word ainda não.'
+      }
+    }
     if (medida.valor) {
       const m = medida.valor
       await sb.rpc('registrar_consumo', {

@@ -12,7 +12,6 @@ import { CartaoSugestao } from './TelaChat'
 import { Carregando } from './Shell'
 import { useCelular } from './partes'
 import { LIGACAO } from '@/lib/notas'
-import type { Mensagem } from '@/lib/tipos'
 
 /** A hora curta da fala, no mesmo formato do chat. */
 const hora = (ts: string) =>
@@ -47,7 +46,7 @@ const hora = (ts: string) =>
 export function Secretario() {
   const {
     eu, org, carregando, conversaIA, abrirConversaIA, mensagensDaNota, sugestoesDaNota,
-    escreverNaNota, anexar, apagarMensagem, respondendo, lerNota, toast, abrirAudio, pode,
+    escreverNaNota, apagarMensagem, respondendo, lerNota, toast, abrirAudio, pode,
   } = useDados()
   const [texto, setTexto] = useState('')
   const [arquivos, setArquivos] = useState<File[]>([])
@@ -107,10 +106,12 @@ export function Secretario() {
     // junto, ele deixa de ser ordem e vira recado: o arquivo precisa de uma
     // fala onde morar.
     if (!indo.length && await cmd.rodar(t)) return
-    const id = await escreverNaNota(nota.id, t || indo.map((f) => f.name).join(', '))
-    if (id && indo.length) {
-      await anexar({ id, canal_id: null, nota_id: nota.id } as unknown as Mensagem, indo)
-    }
+    /* Os arquivos vão JUNTO, e não depois.
+       Subindo depois, o modelo era chamado sobre uma mensagem que ainda não
+       tinha arquivo nenhum: a pessoa mandava o contrato e perguntava "o que diz
+       aqui", e a resposta falava do texto da frase. Mandar o arquivo e a
+       pergunta é um gesto só para quem usa, e agora é um gesto só por dentro. */
+    await escreverNaNota(nota.id, t, indo)
   }
 
   const organizar = async () => {
@@ -149,14 +150,16 @@ export function Secretario() {
             <p>
               A ideia que você teve no trânsito, a reunião que alguém marcou por telefone, o
               documento que chegou e você ainda não sabe onde guarda. Escreva como escreveria
-              para uma pessoa, sem arrumar nada.
+              para uma pessoa, sem arrumar nada. <b>Mande foto e PDF também</b>, pelo clipe: ele
+              lê e responde sobre o que está lá dentro.
             </p>
             <p>
               <b>Pedindo, ele faz na hora</b>: &quot;cria uma tarefa para ligar para o contador
               amanhã&quot;, &quot;marca o dentista quinta às 15h&quot;, &quot;monta a track da
               reforma do escritório&quot;, &quot;adia aquela tarefa do contrato para sexta&quot;.
-              Para montar bem uma track ele vai perguntar o que falta: conte o prazo, o que já
-              está pronto e quem participa.
+              Para montar uma track ele <b>pergunta primeiro</b>, numa rodada só: qual é o fim,
+              para quando, e o que já está pronto. Respondido isso, ele monta a trilha inteira,
+              com critério de saída em cada checkpoint e descrição e prazo em cada tarefa.
             </p>
             <p>
               O que você só pensou alto fica como conversa, e em <b>Organizar</b> ele separa o

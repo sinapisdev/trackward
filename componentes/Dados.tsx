@@ -293,7 +293,7 @@ type Contexto = {
    * possível num caderno.
    */
   /** Devolve o id da fala, para quem precisar pendurar um anexo nela. */
-  escreverNaNota: (notaId: string, texto: string) => Promise<string | null>
+  escreverNaNota: (notaId: string, texto: string, arquivos?: File[]) => Promise<string | null>
   /**
    * Pergunta sobre uma nota, e escreve a resposta DENTRO dela.
    *
@@ -3122,14 +3122,62 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    * de falas. Dentro de uma nota é o contrário, e por isso lá a resposta entra
    * no texto: ver `perguntarNaNota`.
    */
-  const escreverNaNota: Contexto['escreverNaNota'] = useCallback(async (notaId, texto) => {
+  /**
+   * Os arquivos desta conversa que o modelo consegue LER.
+   *
+   * Vem do BANCO e não do estado: o anexo acabou de subir, e `recarregar()` não
+   * é await nenhum que a gente possa esperar aqui. Perguntar direto é exato, e
+   * é uma consulta a mais numa ação que já foi ao servidor três vezes.
+   *
+   * **Só imagem e PDF.** Planilha e documento do Word o modelo não abre, e
+   * mandá-los seria pagar por uma leitura que não acontece. Eles continuam
+   * guardados e achaveis como sempre: o que falta é a conversão, não a vontade.
+   *
+   * **E só os últimos.** O acervo inteiro de uma conversa de meses não cabe na
+   * janela e não ajuda: quem manda um contrato está perguntando sobre ele, não
+   * sobre o de março. Seis é o bastante para a pergunta de agora e para a de
+   * seguimento ("e na outra página?"), que é o caso que faria uma só falhar.
+   */
+  const arquivosParaOModelo = useCallback(async (notaId: string, mensagemNova: string) => {
+    const ids = [...mensagens.filter((m) => m.nota_id === notaId).map((m) => m.id), mensagemNova]
+    if (!ids.length) return []
+    const { data } = await sb.from('anexos').select('nome,tipo,caminho,criado_em')
+      .in('mensagem_id', ids.slice(-40))
+      .order('criado_em', { ascending: false }).limit(12)
+    const lidos = ((data || []) as { nome: string; tipo: string; caminho: string }[])
+      .filter((a) => a.tipo === 'application/pdf' || a.tipo.startsWith('image/'))
+      .slice(0, 6)
+    const saida: { nome: string; tipo: string; url: string }[] = []
+    for (const a of lidos) {
+      // A assinatura dura o que a chamada dura, e nem um minuto a mais: ela é a
+      // única coisa entre a url e o arquivo de um cliente.
+      const { data: url } = await sb.storage.from('anexos').createSignedUrl(a.caminho, 300)
+      if (url?.signedUrl) saida.push({ nome: a.nome, tipo: a.tipo, url: url.signedUrl })
+    }
+    return saida
+  }, [sb, mensagens])
+
+  const escreverNaNota: Contexto['escreverNaNota'] = useCallback(async (notaId, texto, arquivos) => {
     const limpo = texto.trim()
-    if (!limpo) return null
+    if (!limpo && !arquivos?.length) return null
     const id = novoId()
     const { error } = await sb.from('mensagens').insert({
       id, nota_id: notaId, autor_id: eu.id, texto: limpo, sistema: false,
     })
     if (error) { falhou(error, 'Não deu para escrever na nota.'); return null }
+
+    /**
+     * O anexo entra ANTES de perguntar, e essa ordem é a parte que importa.
+     *
+     * Ele subia depois, lá na tela, e por isso o modelo era chamado sobre uma
+     * mensagem que ainda não tinha arquivo nenhum: a pessoa mandava o contrato
+     * e perguntava "o que diz aqui", e a resposta falava do texto da frase.
+     * Mandar o arquivo e a pergunta é um gesto só para quem usa, então tem que
+     * ser um gesto só aqui dentro.
+     */
+    if (arquivos?.length) {
+      await anexar({ id, canal_id: null, nota_id: notaId } as unknown as Mensagem, arquivos)
+    }
     recarregar()
     if (!org.ia_ativa) return id
 
@@ -3142,7 +3190,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
     setRespondendo(notaId)
     try {
-      const resposta = await pedirResposta(contextoDaNota(nota, falas))
+      const paraLer = await arquivosParaOModelo(notaId, id)
+      const resposta = await pedirResposta({ ...contextoDaNota(nota, falas), arquivos: paraLer })
       // Sem resposta a fala da pessoa já está gravada, e é ela que importa: o
       // id volta do mesmo jeito para o anexo ter onde morar.
       if (!resposta) return id
@@ -3176,7 +3225,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     }
     return id
   }, [sb, eu.id, org.ia_ativa, todasNotas, mensagens, contextoDaNota, pedirResposta,
-      executarAcoes, falhou, recarregar])
+      executarAcoes, arquivosParaOModelo, anexar, falhou, recarregar])
 
   /**
    * Perguntar dentro da nota, com a resposta entrando no próprio texto.
