@@ -3113,6 +3113,11 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
    .iconbtn`, então ela aparece no passar do mouse como os dois ícones
    apareciam; aberta, ela fica, senão o menu flutua ligado a nada. */
 .mnu{position:relative;display:flex}
+/* Na fila a linha inteira é clicável e não tem `.tf-acao` para herdar, então a
+   regra de esconder até o mouse passar se escreve aqui. */
+.fila-l .mnu .iconbtn{opacity:0}
+.fila-l:hover .mnu .iconbtn,.fila-l .mnu.on .iconbtn,
+.fila-l .mnu .iconbtn:focus-visible{opacity:1}
 .mnu.on .iconbtn{opacity:1}
 .mnu-caixa{position:absolute;top:calc(100% + 4px);right:0;z-index:40;min-width:186px;
   padding:5px;border-radius:var(--r);background:var(--panel);
@@ -3245,17 +3250,6 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
   font-size:var(--fs-ui);color:var(--tx-2);transition:var(--t)}
 .gaveta-abrir:hover{color:var(--tx)}
 .gaveta-abrir svg{width:13px;height:13px}
-/* Apagar é dois toques, e não uma caixa de confirmar: a caixa seria outro modal
-   por cima da gaveta. O primeiro toque troca a frase, e sair do botão desiste.
-   Quieto no primeiro estado, vermelho no segundo: a cor chega com o aviso, e
-   não antes dele. */
-.gav-apagar{display:flex;align-items:center;justify-content:center;gap:8px;
-  width:100%;margin-top:14px;padding:9px 12px;border-radius:var(--r-sm);
-  font-size:var(--fs-meta);color:var(--tx-3);transition:var(--t)}
-.gav-apagar svg{width:13px;height:13px}
-.gav-apagar:hover{color:var(--tx-2);box-shadow:inset 0 0 0 1px var(--line-2)}
-.gav-apagar.certeza,.gav-apagar.certeza:hover{color:var(--late);
-  box-shadow:inset 0 0 0 1px var(--late)}
 .seg button .num{margin-left:7px;color:var(--tx-3);font-size:var(--fs-meta)}
 .seg button.on .num{color:var(--tx-2)}
 .seg button:disabled{opacity:.4;cursor:default}
@@ -4949,6 +4943,11 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
    Não resolvemos isto com `maximum-scale=1`: aquilo mata o zoom de pinça, que
    é de quem precisa dele para ler, e o Safari ignora de qualquer forma. */
 @media (pointer: coarse) {
+  /* Sem mouse não existe "passar o mouse", e a seta do menu ficava invisível
+     para sempre no celular: as ações da tarefa simplesmente não existiam lá.
+     Vale para a track e para a fila, que escondem pelo mesmo motivo. */
+  .tf-acao .iconbtn,.fila-l .mnu .iconbtn{opacity:1}
+
   input:not([type='checkbox']):not([type='radio']),
   textarea,
   select { font-size: 16px !important }

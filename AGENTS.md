@@ -1773,6 +1773,20 @@ vezes, e um booleano ficaria ligado depois da primeira. E `podeAnexar` subiu par
 só, porque agora o menu e o bloco perguntam a mesma coisa: duas cópias da condição é a
 garantia de que um dia o menu oferece o que o bloco recusa.
 
+**O mesmo menu está na fila de Tarefas**, na mesma posição relativa da linha: quem aprendeu
+a seta na track não pode ter que aprender outra coisa ali. Fora de `aprov`, que não é
+tarefa, e fora do que é de **outro espaço**, onde a escrita sairia com a sessão em uso e o
+banco recusaria falando de política em vez de permissão. Com ele, o botão de apagar que
+morava na gaveta saiu: **duas portas para apagar, com gestos diferentes, é pior que uma.**
+No lugar dele a gaveta ganhou os **anexos da tarefa**, que só existiam dentro da track, e
+é ali que o "Anexar" da linha é atendido, porque a linha não tem onde pôr um campo de
+arquivo e um input invisível solto esconderia os anexos que já existem.
+
+**E a seta precisa aparecer no toque.** Ela se esconde até o mouse passar, nas duas telas, e
+sem mouse não existe passar o mouse: no celular as ações da tarefa simplesmente não
+existiam, e isso já valia para o lápis e o X de antes. A regra está no bloco
+`@media (pointer: coarse)` do `app/globals.css`, junto da do zoom de campo.
+
 ## Dentro de uma conversa a tela é toda dela
 
 Duas coisas saem de cena no celular quando a pessoa entra num canal, e as duas pelo mesmo

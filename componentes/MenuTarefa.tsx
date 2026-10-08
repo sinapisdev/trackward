@@ -61,16 +61,19 @@ export function MenuTarefa({ titulo, itens }: { titulo: string; itens: ItemDeMen
 
   return (
     <div className={`mnu ${aberto ? 'on' : ''}`} ref={caixa}>
+      {/* `stopPropagation` porque a linha inteira costuma ser clicável: na fila,
+          clicar nela abre a gaveta, e abrir a gaveta ao pedir o menu seria o
+          app fazendo duas coisas para um gesto só. */}
       <button className="iconbtn mnu-seta" aria-haspopup="menu" aria-expanded={aberto}
         aria-label={`Opções de ${titulo}`} title="Opções"
-        onClick={() => setAberto((v) => !v)}><Ic.chev /></button>
+        onClick={(e) => { e.stopPropagation(); setAberto((v) => !v) }}><Ic.chev /></button>
 
       {aberto && (
         <div className="mnu-caixa" role="menu">
           {[...normais, ...perigosas].map((i, k) => (
             <button key={i.rotulo} role="menuitem"
               className={`mnu-op ${i.perigo ? 'perigo' : ''} ${i.perigo && k > 0 ? 'corte' : ''}`}
-              onClick={() => { setAberto(false); i.aoEscolher() }}>
+              onClick={(e) => { e.stopPropagation(); setAberto(false); i.aoEscolher() }}>
               {i.icone}{i.rotulo}
             </button>
           ))}

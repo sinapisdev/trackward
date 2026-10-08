@@ -12,6 +12,8 @@ import { Carregando } from './Shell'
 import { Ic } from './Icones'
 import { Av } from './atomos'
 import { TrilhaH } from './Trilha'
+import { MenuTarefa } from './MenuTarefa'
+import { Anexos } from './Anexos'
 import { classePrazo } from './partes'
 import { dias, isoDe, rel } from '@/lib/datas'
 import { etapaAtual, oQuePedi, pendencias } from '@/lib/regras'
@@ -32,7 +34,7 @@ const chave = (p: Pendencia) =>
 export function Minhas() {
   const { eu, org, pessoal, fluxos, fluxosComImplicitas, carregando, nomeDe, perfilDe, minhaLista,
     alternarItem, aprovar: aprovarSaida, meuDia, minhasEntregas, espacos,
-    trocarEspaco } = useDados()
+    trocarEspaco, notas, salvarNota, excluirItem } = useDados()
   const { abrir } = useModais()
   const celular = useCelular()
   const router = useRouter()
@@ -52,6 +54,9 @@ export function Minhas() {
   const [indo, setIndo] = useState('')
   const [termo, setTermo] = useState('')
   const [aberta, setAberta] = useState<string | null>(null)
+  /* O pedido de anexar vem do menu da linha e é atendido na gaveta. Carimbo de
+     hora e não booleano: pedir duas vezes seguidas precisa abrir duas vezes. */
+  const [pedindoArquivo, setPedindoArquivo] = useState(0)
 
   /**
    * A fila lê `fluxosComImplicitas`, e não `fluxos`: o que foi combinado num
@@ -119,6 +124,34 @@ export function Minhas() {
     // No pessoal, "só pessoal" estreita para o que é daqui mesmo.
     return daqui
   }, [daqui, deFora, soPessoal, pessoal])
+
+  /**
+   * A nota desta tarefa, e o caminho de ida.
+   *
+   * São as mesmas duas funções de `TelaFluxo`, e isso é cópia de propósito: o
+   * que não pode existir em dois lugares é a REGRA, e a regra aqui é uma linha
+   * (`notas.item_id` é a ligação). Pôr isto num gancho compartilhado custaria
+   * mais do que ele devolve, e a ligação está escrita no AGENTS.
+   */
+  const notaDaTarefa = (itemId: string) => notas.find((n) => n.item_id === itemId && !n.arquivada)
+
+  const abrirNotaDaTarefa = async (x: Item) => {
+    const existente = notaDaTarefa(x.id)
+    if (existente) { router.push(`/notas?nota=${existente.id}`); return }
+    const id = await salvarNota({ texto: `${x.texto}\n\n`, item_id: x.id, fluxo_id: x.fluxo_id })
+    if (id) router.push(`/notas?nota=${id}`)
+  }
+
+  /**
+   * Quem pode mexer: quem escreveu a tarefa, ou quem a executa.
+   *
+   * E nunca a de OUTRO espaço: `excluirItem` e `salvarNota` escrevem com a
+   * sessão em uso, e o banco recusaria a linha de uma casa que não é a da
+   * sessão com uma frase sobre política, não sobre permissão. De lá se mexe
+   * lá, que é a um toque na própria linha.
+   */
+  const meuItem = (p: Pendencia) => p.tipo !== 'aprov' && !p.fora && !!p.item
+    && (p.item.autor_id === eu.id || p.item.resp_id === eu.id)
 
   /** Índice de tarefas, para saber o que está travado por quem. */
   const porId = useMemo(() => {
@@ -404,6 +437,35 @@ export function Minhas() {
                         : travas.length || p.travado ? (travas[0]?.resp ? nomeDe(travas[0]!.resp) : 'Travada')
                           : p.prazo ? rel(p.prazo) : 'Sem prazo'}
                     </span>
+                    {/* O mesmo menu da track, na mesma posição relativa: quem
+                        aprendeu a setinha lá não pode ter que aprender outra
+                        coisa aqui. Fora de `aprov`, que não é tarefa, e fora do
+                        que é de outro espaço, onde a escrita seria recusada. */}
+                    {meuItem(p) && p.item && (
+                      <MenuTarefa titulo={p.item.texto} itens={[
+                        {
+                          rotulo: 'Editar tarefa', icone: <Ic.reguas />,
+                          aoEscolher: () => abrir({ tipo: 'item', etapa: p.etapa, item: p.item! }),
+                        },
+                        {
+                          rotulo: notaDaTarefa(p.item.id) ? 'Abrir a nota' : 'Escrever uma nota',
+                          icone: <Ic.edit />,
+                          aoEscolher: () => void abrirNotaDaTarefa(p.item!),
+                        },
+                        {
+                          /* Anexar abre a GAVETA e pede o arquivo lá, porque é
+                             lá que o bloco de anexos mora: a linha não tem
+                             onde pôr um campo de arquivo, e um input invisível
+                             solto aqui esconderia os anexos que já existem. */
+                          rotulo: 'Anexar arquivo', icone: <Ic.clipe />,
+                          aoEscolher: () => { setAberta(k); setPedindoArquivo(Date.now()) },
+                        },
+                        ...(p.item.ressalva && !p.item.feito ? [] : [{
+                          rotulo: 'Remover tarefa', icone: <Ic.x />, perigo: true,
+                          aoEscolher: () => void excluirItem(p.item!),
+                        }]),
+                      ]} />
+                    )}
                     <span className="fila-chev"><Ic.seta /></span>
                   </div>
                 )
@@ -436,6 +498,7 @@ export function Minhas() {
           avulsa={sel.fluxo.id === minhaLista?.id} nomeDe={nomeDe} perfilDe={perfilDe}
           aoFechar={() => setAberta(null)}
           aoConcluir={() => { if (sel.tipo === 'item') void alternarItem(sel.item) }}
+          pedindoArquivo={pedindoArquivo}
           aoAprovar={() => void aprovarSaida(sel.fluxo)} />}
       </div>
 
@@ -455,7 +518,8 @@ export function Minhas() {
 }
 
 /** A gaveta: a pendência escolhida, com tudo que ela precisa para sair daqui. */
-function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoAprovar }: {
+function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoAprovar,
+  pedindoArquivo = 0 }: {
   p: Pendencia
   travas: number
   /** Tarefa sem objetivo e sem rotina: a trilha e o critério não existem nela. */
@@ -465,10 +529,11 @@ function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoA
   aoFechar: () => void
   aoConcluir: () => void
   aoAprovar: () => void
+  /** Um pedido de anexar vindo do menu da linha. Ver `Anexos`, prop `pedido`. */
+  pedindoArquivo?: number
 }) {
-  const { devolverItem, excluirItem, eu, canais } = useDados()
+  const { devolverItem, eu, canais } = useDados()
   const [devolvendo, setDevolvendo] = useState(false)
-  const [apagando, setApagando] = useState(false)
   const [motivo, setMotivo] = useState('')
   const [indo, setIndo] = useState(false)
 
@@ -486,17 +551,15 @@ function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoA
     && !!p.item.autor_id && p.item.autor_id !== eu.id
 
   /**
-   * Quem pode apagar: quem escreveu a tarefa, ou quem a executa.
+   * Quem pode mexer: quem escreveu a tarefa, ou quem a executa.
    *
-   * Não a de outro espaço, porque `excluirItem` escreve com a sessão em uso e o
-   * banco recusaria a linha de uma casa que não é a da sessão: a frase que
-   * voltaria falaria de política e não de permissão. De lá a tarefa se apaga
-   * lá, que é a um toque na própria linha.
-   *
-   * E nunca a `aprov`, que não é tarefa: é o checkpoint pedindo decisão.
+   * Não a de outro espaço, porque a escrita sai com a sessão em uso e o banco
+   * recusaria a linha de uma casa que não é a da sessão, com uma frase sobre
+   * política e não sobre permissão. De lá se mexe lá, que é a um toque na
+   * própria linha. E nunca a `aprov`, que não é tarefa: é o checkpoint pedindo
+   * decisão.
    */
-  const podeApagar = p.tipo !== 'aprov' && !p.fora && !!p.item
-    && !(p.item.ressalva && !p.item.feito)
+  const podeMexer = p.tipo !== 'aprov' && !p.fora && !!p.item
     && (p.item.autor_id === eu.id || p.item.resp_id === eu.id)
 
   return (
@@ -618,29 +681,13 @@ function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoA
         )
       )}
 
-      {/**
-        * Apagar, e só a sua.
-        *
-        * Fica por último e em dois toques, sem caixa de confirmar: a caixa
-        * seria um modal por cima da gaveta, e a gaveta já é a camada de cima no
-        * celular. Dois toques no mesmo lugar resolvem, e o segundo diz o que
-        * vai acontecer.
-        *
-        * Some na tarefa com RESSALVA em aberto, porque ressalva é dívida e
-        * apagá-la era a saída mais fácil para não pagá-la. O banco recusa de
-        * qualquer jeito (`proteger_ressalva`); esconder é para a pessoa não
-        * tentar.
-        */}
-      {podeApagar && (
-        <button className={`gav-apagar ${apagando ? 'certeza' : ''}`}
-          onClick={async () => {
-            if (!apagando) { setApagando(true); return }
-            await excluirItem(p.item!)
-            aoFechar()
-          }}
-          onBlur={() => setApagando(false)}>
-          <Ic.x />{apagando ? 'Apagar mesmo? Não tem volta' : 'Apagar esta tarefa'}
-        </button>
+      {/* Os anexos da tarefa, aqui também.
+          Eles só existiam dentro da track, então quem trabalha por esta tela
+          não via o documento da própria tarefa nem tinha onde pôr um. O menu da
+          linha pede, e o campo mora aqui, que é onde cabe mostrar o que já
+          existe junto. */}
+      {p.tipo !== 'aprov' && !p.fora && p.item && (
+        <Anexos item={p.item} podeAnexar={podeMexer} pedido={pedindoArquivo} />
       )}
 
       {/* A track escondida não está em Tracks, então mandar para ela seria
