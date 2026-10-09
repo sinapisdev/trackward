@@ -1786,6 +1786,14 @@ descartava em silêncio, porque `lerFluxo` não copiava o `id` do bloco e `.filt
 derrubava tudo. De fora isso é indistinguível de "ele prometeu e não fez", e foi exatamente
 assim que foi lido.
 
+**E o ensaio contra o modelo de verdade existe agora, e é ele que fecha isto.** Com a chave
+num `.env.local`, dá para montar o contexto com `regras()` e `instrucoes()`, chamar a API com
+as ferramentas de produção e ver o que volta: `stop_reason`, tokens de saída, o JSON de cada
+`tool_use` e se ele passa na conferência. Medido depois do conserto, o pedido real de quatro
+frentes devolve **4 tracks, 17 checkpoints e 52 tarefas, com zero tarefa sem descrição e zero
+checkpoint sem prazo**. Antes do ensaio foram quatro rodadas de conserto no escuro, e nenhuma
+acertou a causa: **ao mexer no que o secretário faz, ensaiar antes de entregar.**
+
 **A lição é de método, e vale mais que o conserto:** quando o modelo parece não obedecer, a
 primeira coisa a olhar é se ele GASTOU tokens de saída. Gastou muito e a tela mostra pouco
 quer dizer que o app perdeu a resposta, e nenhuma mudança de instrução vai consertar isso.
@@ -1907,6 +1915,11 @@ parte mais nova do pedido e a que mais tem como ser recusada (formato, tamanho, 
 vencida no caminho). A rota tenta **uma segunda vez sem os arquivos** e diz o que não
 conseguiu ler: sem isso, um PDF que o modelo não aceita vira "não consegui responder agora",
 e a pessoa nunca descobre que o problema era o anexo.
+
+**A ordem vence a pergunta.** O protocolo de perguntar antes de montar é bom e estava
+atropelando quem já tinha decidido: a pessoa escrevia "faça as tracks que forem necessárias"
+e recebia um questionário de volta, que é o app pedindo que trabalhem por ele. Mandou fazer,
+já perguntou uma vez, ou está cobrando: monta com o que tem e diz no fim o que supôs.
 
 **Montar track é PERGUNTAR primeiro, e isso é regra, não gosto.** Ninguém descreve uma obra
 numa frase, e o que falta é sempre o mesmo: o fim, o prazo e o que já andou. Uma rodada só,
