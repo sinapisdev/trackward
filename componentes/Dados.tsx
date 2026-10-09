@@ -3401,7 +3401,22 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       }
       for (const p of comAcao) {
         const feitas = await executarAcoes([p.acao!])
-        if (feitas.length) { feitasTodas.push(feitas[0]); recibos.set(p.id, `Feito. ${feitas[0]}`) }
+        /**
+         * O recibo manda CONTINUAR, e isso não é redundância da instrução.
+         *
+         * Criada a primeira track, ele parava e perguntava se podia seguir, e
+         * aí a pessoa tinha que voltar e pedir a próxima, uma por uma. A
+         * instrução já diz para não perguntar, e ela está no começo de um
+         * prompt de sessenta mil tokens; este texto chega no fim, logo antes de
+         * ele decidir o que fazer, que é onde a frase pega.
+         */
+        if (feitas.length) {
+          feitasTodas.push(feitas[0])
+          recibos.set(p.id, `Feito. ${feitas[0]}\n\n`
+            + 'Se ainda falta alguma coisa do que ela pediu, FAÇA A PRÓXIMA AGORA, nesta '
+            + 'mesma resposta, sem perguntar se pode. Só pare quando tudo estiver feito, e '
+            + 'aí diga o que ficou pronto.')
+        }
         else recibos.set(p.id, 'Não deu para gravar. Não tente de novo igual, diga o que houve.')
       }
 

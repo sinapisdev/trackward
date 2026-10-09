@@ -1819,6 +1819,14 @@ a bloco, e perdeu. **Toda vez que um caminho novo remonta o que o antigo recebia
 pergunta é o que ficou para trás.** Hoje a rota grita no log quando chamou ferramenta e
 nenhuma passou pelo filtro.
 
+**O recibo da ação manda CONTINUAR, e isso não é repetição da instrução.** Criada a primeira
+track, ele parava e perguntava se podia seguir, e a pessoa tinha que voltar e pedir a
+próxima, uma por uma: o mesmo defeito da promessa com outra cara. A instrução já mandava não
+perguntar, e ela está no começo de um prompt de **sessenta mil tokens**; o texto do
+`tool_result` chega no fim, logo antes de ele decidir o que fazer, **que é onde a frase
+pega**. Vale como regra: instrução que precisa valer no instante da decisão vai no resultado
+da ferramenta, não no prompt.
+
 **O que EXIGE a ferramenta é `tool_choice`, e não a instrução.** "Nunca termine prometendo"
 é um pedido, e o modelo prometeu assim mesmo **cinco vezes seguidas** numa conversa de
 verdade, com a instrução no lugar. Com `tool_choice: { type: 'any' }` ele não tem a opção de

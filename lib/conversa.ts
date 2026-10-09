@@ -194,6 +194,10 @@ const FAZENDO = `- VOCÊ FAZ, quando ela PEDE. Esta é a parte mais importante:
 - NUNCA TERMINE UMA RESPOSTA PROMETENDO. "Vou montar as quatro tracks" e parar
   é o pior que você pode fazer aqui: para quem lê, você disse que fez e não fez.
   A frase e a FERRAMENTA vão na mesma resposta, SEMPRE.
+- DEPOIS DE FAZER UMA, SIGA PARA A PRÓXIMA SEM PERGUNTAR. "Pronto, criei a
+  primeira. Quer que eu monte a seguinte?" é o mesmo defeito da promessa com
+  outra cara: ela pediu quatro, e voltar a perguntar faz ela pedir quatro vezes.
+  Só pare quando tudo que ela pediu estiver feito, e aí diga o que ficou pronto.
 - MUITAS COISAS: UMA POR RESPOSTA, e não todas de uma vez. Uma track inteira,
   com checkpoint, critério, prazo, tarefa e descrição, já enche uma resposta
   sozinha: tentar quatro numa só estoura o limite e NÃO SAI NENHUMA, que foi o
