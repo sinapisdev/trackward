@@ -18,6 +18,8 @@ import { progresso, status } from '@/lib/regras'
 import { mandaNoProcesso } from '@/lib/acesso'
 import { BotaoVoz, Recado } from './Voz'
 import { AnexosDaMensagem } from './Anexos'
+import { MenuTarefa } from './MenuTarefa'
+import { MandarContato } from './MandarContato'
 
 const ROTULO: Record<TipoProposta, string> = {
   tarefa: 'Tarefa nova',
@@ -543,7 +545,7 @@ function Campo({ canalId, respondendo, fecharResposta }: {
   respondendo: Mensagem | null
   fecharResposta: () => void
 }) {
-  const { enviar, anexar, perfis, eu, nomeDe, canais } = useDados()
+  const { enviar, anexar, perfis, eu, nomeDe, canais, passarContato } = useDados()
   const celular = useCelular()
   const [texto, setTexto] = useState('')
   /** Os arquivos escolhidos, ainda não mandados. */
@@ -553,6 +555,7 @@ function Campo({ canalId, respondendo, fecharResposta }: {
    * o arquivo. Com gente dentro, quem está de fora não vê que ele existe.
    */
   const [quemVe, setQuemVe] = useState<string[]>([])
+  const [passandoContato, setPassandoContato] = useState(false)
   const [escolhendoQuem, setEscolhendoQuem] = useState(false)
   const entrada = useRef<HTMLInputElement>(null)
   const [mencao, setMencao] = useState<string | null>(null)
@@ -646,6 +649,10 @@ function Campo({ canalId, respondendo, fecharResposta }: {
 
   return (
     <div className="chat-campo" data-tut="chat-campo">
+      {passandoContato && (
+        <MandarContato aoFechar={() => setPassandoContato(false)}
+          aoMandar={(c) => passarContato({ canalId }, c)} />
+      )}
       {respondendo && (
         <div className="chat-resp">
           <Ic.responder />
@@ -745,8 +752,21 @@ function Campo({ canalId, respondendo, fecharResposta }: {
           e.target.value = ''
         }} />
       <span className="chat-dentro">
-        <button className="iconbtn" aria-label="Anexar arquivo" title="Anexar arquivo"
-          onClick={() => entrada.current?.click()}><Ic.clipe /></button>
+        {/* O clipe virou MENU, como no WhatsApp, e por necessidade: passar um
+            contato é um botão, não uma sintaxe, e um quinto controle nesta
+            linha não cabe em 360px. Dois itens só, e eles são o que se manda
+            junto de uma frase. */}
+        <MenuTarefa titulo="anexar" rotulo="Anexar ou passar contato" acima
+                icone={<Ic.clipe />} itens={[
+          {
+            rotulo: 'Arquivo', icone: <Ic.clipe />,
+            aoEscolher: () => entrada.current?.click(),
+          },
+          {
+            rotulo: 'Contato', icone: <Ic.team />,
+            aoEscolher: () => setPassandoContato(true),
+          },
+        ]} />
         <BotaoVoz canalId={canalId} respondeA={respondendo?.id ?? null} aoEnviar={fecharResposta} />
       </span>
       </div>

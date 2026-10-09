@@ -409,6 +409,11 @@ type Contexto = {
    * Devolve nulo quando a linha não é comando, e aí ela é mensagem comum. Ver
    * `lib/comandos.ts`: conversa vira proposta, comando vira coisa feita.
    */
+  /** Põe um cartão de contato na conversa. Uma escrita só para o botão e a barra. */
+  passarContato: (
+    onde: { canalId?: string | null; notaId?: string | null },
+    c: { nome: string; fone: string },
+  ) => Promise<boolean>
   executarComando: (
     entrada: string,
     onde: { canalId?: string | null; notaId?: string | null },
@@ -3479,6 +3484,29 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    * sistema. Sem isso o canal viraria um lugar onde coisas somem: alguém digita
    * e a tarefa nasce num canto que os outros não viram acontecer.
    */
+  /**
+   * Põe um cartão de contato na conversa.
+   *
+   * Mora aqui e não dentro de `executarComando` porque agora são DUAS portas
+   * para a mesma coisa, o botão e a barra, e a escrita não pode existir em duas
+   * cópias: no dia em que uma mudar, o cartão do botão e o da barra viram
+   * coisas diferentes. O comando chama esta função.
+   */
+  const passarContato: Contexto['passarContato'] = useCallback(async (onde, c) => {
+    const nome = c.nome.trim()
+    const fone = paraE164(c.fone) || c.fone.replace(/[^\d+]/g, '')
+    if (!nome || fone.replace(/\D/g, '').length < 8) return false
+    if (!onde.canalId && !onde.notaId) return false
+    const { error } = await sb.from('mensagens').insert({
+      id: novoId(), canal_id: onde.canalId || null, nota_id: onde.canalId ? null : onde.notaId,
+      autor_id: eu.id, texto: '', sistema: false, responde_a: null,
+      contato: { nome, fone },
+    })
+    if (error) { falhou(error, 'Não deu para passar o contato.'); return false }
+    recarregar()
+    return true
+  }, [sb, eu.id, falhou, recarregar])
+
   const executarComando: Contexto['executarComando'] = useCallback(async (entrada, onde) => {
     const lido = lerComando(entrada, hojeIso())
     if (!lido) return null
@@ -3670,23 +3698,14 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       if (!onde.canalId && !onde.notaId) {
         return { tipo: 'erro', motivo: 'O contato vai dentro de uma conversa. Abra uma e escreva lá.' }
       }
-      /* Guarda em E.164 quando dá, porque é esse formato que o `wa.me` exige e
-         é o único que diz de que país é o número. Um fixo sem DDD não vira
-         E.164 e fica como foi escrito: ele serve para ligar, que é o que
-         alguém faz com um fixo, e o botão do WhatsApp some sozinho. */
-      const { error } = await sb.from('mensagens').insert({
-        id: novoId(), canal_id: onde.canalId || null, nota_id: onde.canalId ? null : onde.notaId,
-        autor_id: eu.id, texto: '', sistema: false, responde_a: null,
-        contato: { nome, fone: paraE164(fone) || fone },
-      })
-      if (error) { falhou(error, 'Não deu para passar o contato.'); return { tipo: 'erro', motivo: '' } }
-      recarregar()
+      // Uma escrita só para as duas portas, o botão e a barra. Ver `passarContato`.
+      if (!await passarContato(onde, { nome, fone })) return { tipo: 'erro', motivo: '' }
       return { tipo: 'feito', conta: `passou o contato de ${nome}` }
     }
 
     return null
   }, [sb, eu.id, perfis, canais, todosFluxos, todasNotas, adicionarItem, criarAvulsa,
-      salvarFluxo, salvarNota, salvarCompromisso, empresaAtiva, falhou, recarregar])
+      salvarFluxo, salvarNota, salvarCompromisso, passarContato, empresaAtiva, falhou, recarregar])
 
   const lerConversa: Contexto['lerConversa'] = useCallback(async (canalId) => {
     const canal = canais.find((c) => c.id === canalId)
@@ -3876,7 +3895,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     ligarPushAqui, desligarPushAqui, esquecerAparelho,
     preverCascata, moverPrazo, devolverItem, pedidosPrazo, decidirPrazo,
     enviar, enviarAudio, abrirAudio, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
-    executarComando,
+    executarComando, passarContato,
     lerConversa, lerNota, aceitarSugestao, recusarSugestao,
     espacos, trocarEspaco, abrirEspaco,
   }

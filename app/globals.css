@@ -1489,6 +1489,23 @@ button.chat-sugs-h:hover{color:var(--tx)}
    com outros nomes, e são outros nomes de propósito: `.chat-anexando` mora
    dentro do campo de escrever e carrega as medidas dele, e classe curta
    repetida entre duas telas é o jeito mais silencioso de uma quebrar a outra. */
+/* A ficha de passar contato, em cima do campo de escrever. Mesma forma da
+   faixa de anexo pendente, porque as duas são a mesma coisa para o olho: uma
+   caixa que aparece acima da linha e some quando o gesto termina. */
+.ctt-ficha{display:flex;flex-direction:column;gap:7px;padding:12px 13px;margin-bottom:8px;
+  border-radius:var(--r);background:var(--panel);
+  box-shadow:0 0 0 1px var(--line),0 12px 28px rgba(10,11,10,.14)}
+.ctt-h{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--tx-2)}
+.ctt-h b{flex:1;font-weight:600;color:var(--tx)}
+.ctt-h>svg{flex:none;color:var(--tx-3)}
+.ctt-l{font-size:var(--fs-meta);color:var(--tx-2)}
+.ctt-ficha .hint{margin:0}
+.ctt-ficha .row-inline{justify-content:flex-end;gap:8px;margin-top:4px}
+.ctt-agenda{display:flex;align-items:center;gap:7px;align-self:flex-start;
+  font-size:var(--fs-meta);color:var(--tx-3);transition:var(--t)}
+.ctt-agenda:hover{color:var(--ac-tinta)}
+.ctt-agenda svg{width:13px;height:13px}
+
 .anx-pend{display:flex;flex-direction:column;align-items:flex-start;gap:7px;width:100%;
   padding:9px 11px;margin-top:6px;border-radius:var(--r-sm);background:var(--sunken);
   box-shadow:0 0 0 1px var(--line)}
@@ -3223,6 +3240,9 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
 .fila-l:hover .mnu .iconbtn,.fila-l .mnu.on .iconbtn,
 .fila-l .mnu .iconbtn:focus-visible{opacity:1}
 .mnu.on .iconbtn{opacity:1}
+/* Para cima, no campo de escrever: ele mora no fim da tela, e para baixo o menu
+   nasceria fora da janela. */
+.mnu.acima .mnu-caixa{top:auto;bottom:calc(100% + 6px)}
 .mnu-caixa{position:absolute;top:calc(100% + 4px);right:0;z-index:40;min-width:186px;
   padding:5px;border-radius:var(--r);background:var(--panel);
   box-shadow:var(--sombra),0 0 0 1px var(--line),0 12px 28px rgba(10,11,10,.14)}

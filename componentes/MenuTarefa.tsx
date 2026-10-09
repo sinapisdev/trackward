@@ -29,7 +29,17 @@ export type ItemDeMenu = {
   aoEscolher: () => void
 }
 
-export function MenuTarefa({ titulo, itens }: { titulo: string; itens: ItemDeMenu[] }) {
+export function MenuTarefa({ titulo, itens, icone, acima, rotulo }: {
+  titulo: string
+  /** O que o leitor de tela diz. Sem ele, "Opções de {titulo}". */
+  rotulo?: string
+  itens: ItemDeMenu[]
+  /** Outro gatilho que não a seta. O clipe da conversa usa o dele. */
+  icone?: React.ReactNode
+  /** Abre para CIMA. O campo de escrever mora no fim da tela, e para baixo o
+   *  menu nasceria fora da janela. */
+  acima?: boolean
+}) {
   const [aberto, setAberto] = useState(false)
   const caixa = useRef<HTMLDivElement>(null)
 
@@ -60,13 +70,13 @@ export function MenuTarefa({ titulo, itens }: { titulo: string; itens: ItemDeMen
   const perigosas = itens.filter((i) => i.perigo)
 
   return (
-    <div className={`mnu ${aberto ? 'on' : ''}`} ref={caixa}>
+    <div className={`mnu ${aberto ? 'on' : ''} ${acima ? 'acima' : ''}`} ref={caixa}>
       {/* `stopPropagation` porque a linha inteira costuma ser clicável: na fila,
           clicar nela abre a gaveta, e abrir a gaveta ao pedir o menu seria o
           app fazendo duas coisas para um gesto só. */}
       <button className="iconbtn mnu-seta" aria-haspopup="menu" aria-expanded={aberto}
-        aria-label={`Opções de ${titulo}`} title="Opções"
-        onClick={(e) => { e.stopPropagation(); setAberto((v) => !v) }}><Ic.chev /></button>
+        aria-label={rotulo || `Opções de ${titulo}`} title={rotulo || 'Opções'}
+        onClick={(e) => { e.stopPropagation(); setAberto((v) => !v) }}>{icone || <Ic.chev />}</button>
 
       {aberto && (
         <div className="mnu-caixa" role="menu">

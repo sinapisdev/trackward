@@ -1419,12 +1419,31 @@ Nelson é a mesma notícia duas vezes. E **no WhatsApp ele recusa com motivo**, 
 na triagem: lá a pessoa já está num app de mensagem com o contato na mão, e o gesto é
 encaminhar.
 
+**E o caminho principal é o BOTÃO, não a barra.** Digitar não é compartilhar: no WhatsApp
+passar um contato é um toque no clipe e um toque no nome, e é com isso que quem usa compara.
+Por isso **o clipe virou menu** (`Arquivo` e `Contato`), como lá, e por necessidade também:
+um quinto controle naquela linha não cabe em 360px, e a regra do clipe e do microfone dentro
+do campo continua valendo. A barra fica, porque ela é mais rápida para quem já sabe o número
+de cor, mas ela não pode ser o único caminho.
+
+**A escrita é UMA para as duas portas** (`passarContato`, em `Dados`), e o comando chama a
+função. Duas cópias seria o cartão do botão e o da barra virarem coisas diferentes no dia em
+que uma mudar.
+
+**A ficha aparece antes de mandar, inclusive vindo da agenda.** O número que o telefone
+guarda nem sempre é o que se quer passar (o fixo da empresa, o duplicado, o antigo), e ver
+antes resolve isso sem perguntar nada. Ela também mostra como o número vai ficar, que é o
+que evita mandar um DDD a menos e descobrir quando alguém tenta ligar.
+
 **`/contato` sozinho abre a agenda DO APARELHO, onde ela existe.** A Contact Picker API é do
 Chrome no Android; **o Safari não a tem, então no iPhone não existe caminho nenhum** para o
 app ler a agenda, nem instalado, nem pedindo permissão. Não é falta de permissão, é falta de
-API: só um app de loja alcançaria aquilo. Por isso o atalho **aparece onde funciona e some
-onde não funciona**, inclusive a linha que o anuncia no menu de comandos: prometer num
-aparelho que não tem o seletor é mandar a pessoa procurar um botão que nunca vai aparecer.
+API: só um app de loja alcançaria aquilo. O **botão é igual em todo aparelho; o que ele faz muda**: no Android ele
+abre a agenda, no iPhone ele abre dois campos. Dois campos é pior que escolher da lista, e é
+muito melhor que decorar uma sintaxe. O que **aparece onde funciona e some onde não
+funciona** é o "Escolher da agenda" dentro da ficha e a linha que o anuncia no menu de
+comandos: prometer num aparelho que não tem o seletor é mandar a pessoa procurar um botão
+que nunca vai aparecer.
 
 **E ele PREENCHE a linha em vez de mandar.** O número que o aparelho guarda nem sempre é o
 que ela quer passar (o fixo da empresa, o contato duplicado), e ver antes de mandar resolve

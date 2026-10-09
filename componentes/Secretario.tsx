@@ -7,6 +7,8 @@ import { useComandos } from './Comandos'
 import { Ic } from './Icones'
 import { Av } from './atomos'
 import { AnexosDaMensagem } from './Anexos'
+import { MenuTarefa } from './MenuTarefa'
+import { MandarContato } from './MandarContato'
 import { BotaoVoz, Recado } from './Voz'
 import { CartaoSugestao } from './TelaChat'
 import { Carregando } from './Shell'
@@ -47,9 +49,11 @@ export function Secretario() {
   const {
     eu, org, carregando, conversaIA, abrirConversaIA, mensagensDaNota, sugestoesDaNota,
     escreverNaNota, apagarMensagem, respondendo, lerNota, toast, abrirAudio, pode, saindo,
+    passarContato,
   } = useDados()
   const [texto, setTexto] = useState('')
   const [arquivos, setArquivos] = useState<File[]>([])
+  const [passandoContato, setPassandoContato] = useState(false)
   const [organizando, setOrganizando] = useState(false)
   /**
    * A faixa de propostas, em tamanho normal ou tomando a coluna.
@@ -253,6 +257,10 @@ export function Secretario() {
       )}
 
       <div className="chat-campo">
+        {passandoContato && (
+          <MandarContato aoFechar={() => setPassandoContato(false)}
+            aoMandar={(c) => passarContato({ notaId: nota.id }, c)} />
+        )}
         {!!arquivos.length && (
           <div className="chat-anexando">
             <div className="chat-anexando-l">
@@ -280,8 +288,19 @@ export function Secretario() {
             <input ref={entrada} type="file" multiple hidden
               onChange={(e) => { setArquivos(Array.from(e.target.files || [])); e.target.value = '' }} />
             <span className="chat-dentro">
-              <button className="iconbtn" aria-label="Anexar arquivo" title="Anexar arquivo"
-                onClick={() => entrada.current?.click()}><Ic.clipe /></button>
+              {/* O mesmo menu do chat: arquivo e contato. Quem aprendeu lá não
+                  pode ter que aprender outra coisa aqui. */}
+              <MenuTarefa titulo="anexar" rotulo="Anexar ou passar contato" acima
+                icone={<Ic.clipe />} itens={[
+                {
+                  rotulo: 'Arquivo', icone: <Ic.clipe />,
+                  aoEscolher: () => entrada.current?.click(),
+                },
+                {
+                  rotulo: 'Contato', icone: <Ic.team />,
+                  aoEscolher: () => setPassandoContato(true),
+                },
+              ]} />
               {/* Ditar é o jeito mais natural de despejar: quem está dirigindo
                   não digita, e é justamente aí que a ideia aparece. O navegador
                   transcreve, e o que a leitura separa depois é a transcrição. */}
