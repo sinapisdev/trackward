@@ -1779,6 +1779,32 @@ virando uma tira de 104px. Ela não some de todo de propósito: foi dela que as 
 saíram, e o que está escrito ali é o que explica cada uma. **Elas nunca ficam escondidas**,
 em nenhum dos dois estados: esconder o que espera decisão é o jeito de nunca decidir.
 
+**Ele FAZ, vê o que deu, e CONTINUA, e isto é o que faltava.** Era um pedido e uma resposta:
+o modelo dizia "vou montar as quatro tracks", a volta acabava ali, e não montava nenhuma.
+**Não é o modelo sendo fraco, é o app não ter dado a ele a chance de continuar**: um
+assistente de verdade age, recebe o resultado e segue do ponto em que parou, e sem isso
+qualquer pedido que precise de mais de uma criação vira uma promessa. O laço é
+`conversarEFazer`, em `Dados`, e vai até quatro voltas, que é o caso real (quatro frentes
+numa tacada) com teto, porque sem teto um engano vira uma conta que ninguém pediu.
+
+**O laço mora no NAVEGADOR e não na rota**, e não é escolha de arquitetura: quem escreve é
+a sessão da pessoa, o servidor não tem sessão, e dar-lhe a chave de serviço para escrever
+seria uma terceira rota com ela. A rota devolve os pedidos com o **id do `tool_use`**, o
+navegador executa e manda de volta o `tool_result` daquele id.
+
+**A recusa volta como RESULTADO, e não como silêncio.** Uma track sem critério era recusada
+na conferência e o modelo seguia achando que tinha funcionado: ele dizia "montei as quatro"
+tendo montado zero. Agora o `tool_result` diz "recusado, e foi por isto" (`porqueNaoPassou`),
+e ele corrige e manda de novo, que é o que qualquer um faria.
+
+**E a instrução parou de treinar a promessa.** Ela dizia "antes de usar a ferramenta,
+escreva uma frase dizendo o que você vai fazer", e isso ensinava exatamente o defeito. Agora
+diz o contrário em primeiro lugar: **nunca termine uma resposta prometendo**, a frase e a
+ferramenta vão na mesma resposta, e quatro coisas são quatro chamadas. Junto veio **uma
+track por chamada**, porque juntar quatro frentes numa só devolve uma track misturada, e
+**perguntar só UMA vez**: responder um "cadê as tracks?" com outra promessa é o jeito mais
+rápido de alguém parar de usar o app.
+
 **A resposta aparece SENDO ESCRITA, e isto é o que mais muda a sensação.** O app esperava o
 texto inteiro ficar pronto e mostrava "Lendo o seu caderno..." por vinte ou trinta segundos:
 a resposta mais longa que ele pede, que é uma trilha de sete checkpoints, era justamente a

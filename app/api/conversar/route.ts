@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { instrucoes, regras, semChave, type ContextoConversa } from '@/lib/conversa'
-import { doNomeDaFerramenta, ferramentas, validaTodas, type Acao } from '@/lib/secretario'
+import { doNomeDaFerramenta, ferramentas, valida, MAXIMO, type Acao } from '@/lib/secretario'
 import { clienteServidor } from '@/lib/supabase/servidor'
 import { custoMicro } from '@/lib/precos'
 
@@ -29,7 +29,23 @@ type Medida = {
   cacheLeitura: number; cacheEscrita: number
 }
 
-type Volta = { texto: string | null; acoes: Acao[] }
+type Pedido = {
+  /** O id do `tool_use`, que é por onde a volta seguinte devolve o resultado. */
+  id: string
+  /** A ação conferida, ou nulo quando ela não passou. */
+  acao: Acao | null
+  /** Por que não passou, em português, para o modelo poder corrigir. */
+  porque?: string
+}
+
+type Volta = {
+  texto: string | null
+  acoes: Acao[]
+  /** Os pedidos com id, para o laço. Vazio quando não houve ferramenta. */
+  pedidos: Pedido[]
+  /** O conteúdo cru do assistente, que volta inteiro na rodada seguinte. */
+  blocos: unknown[]
+}
 
 /**
  * As falas, com os arquivos pendurados na ÚLTIMA delas.
@@ -46,7 +62,8 @@ type Volta = { texto: string | null; acoes: Acao[] }
 function comArquivos(ctx: ContextoConversa) {
   const falas = ctx.falas.map((f) => ({
     role: (f.de === 'ia' ? 'assistant' : 'user') as 'assistant' | 'user',
-    content: f.texto as unknown,
+    // Volta do laço: o modelo recebe de volta o que ele mandou e o que deu.
+    content: (f.blocos && f.blocos.length ? f.blocos : f.texto) as unknown,
   }))
   const arquivos = ctx.arquivos || []
   if (!arquivos.length || !falas.length) return falas
@@ -64,6 +81,30 @@ function comArquivos(ctx: ContextoConversa) {
   const texto = String(ultima.content || '').trim()
   ultima.content = [...blocos, { type: 'text', text: texto || 'Leia o que mandei.' }]
   return falas
+}
+
+/**
+ * Por que a ação não passou, dito ao MODELO e não à pessoa.
+ *
+ * A conferência recusava em silêncio, e o modelo seguia como se tivesse
+ * funcionado: ele dizia "montei as quatro tracks" tendo montado zero. Devolver
+ * o motivo pelo `tool_result` é o que deixa ele consertar e tentar de novo, que
+ * é o que qualquer um faria ao receber "faltou o critério do checkpoint 2".
+ */
+function porqueNaoPassou(nome: string): string {
+  if (nome === 'track') {
+    return 'Recusado. Uma track precisa de nome e de pelo menos DOIS checkpoints, e cada '
+      + 'checkpoint precisa de nome, criterio, prazo_dias e tarefas, com texto, descricao e '
+      + 'prazo_dias em cada tarefa. Mande de novo com tudo preenchido.'
+  }
+  if (nome === 'tarefa') return 'Recusado: faltou o texto da tarefa.'
+  if (nome === 'compromisso') return 'Recusado: compromisso precisa de titulo e de quando (AAAA-MM-DD).'
+  if (nome === 'nota') return 'Recusado: faltou o texto da nota.'
+  if (nome === 'mudaTarefa') {
+    return 'Recusado: mudar_tarefa precisa de um item_id das listas acima e de ao menos um '
+      + 'campo para mudar.'
+  }
+  return 'Recusado: a ferramenta veio incompleta.'
 }
 
 type Resposta = {
@@ -245,15 +286,25 @@ async function porModelo(
   /* O que o modelo pediu para fazer, conferido aqui antes de ir para a tela.
      Quem ESCREVE no banco é o navegador, com a sessão da pessoa, como em todo
      o resto: o servidor não tem sessão, e dar-lhe a chave de serviço para isto
-     seria uma terceira rota com ela. */
-  const acoes = ctx.secretario
-    ? validaTodas(
-        (corpo.content || [])
-          .filter((b) => b.type === 'tool_use')
-          .map((b) => ({ ...(b.input as object), faz: doNomeDaFerramenta(b.name || '') })),
-        { equipe: !!ctx.pode?.equipe },
-      )
+     seria uma terceira rota com ela.
+
+     Cada pedido sai com o ID do `tool_use`, e é por ele que a volta seguinte
+     devolve o que aconteceu. O que NÃO passou na conferência sai também, com o
+     motivo: devolver "não consegui, e foi por isto" é o que deixa o modelo
+     corrigir, e engolir a recusa é o que fazia ele achar que tinha funcionado. */
+  const usos = ctx.secretario
+    ? (corpo.content || []).filter((b) => b.type === 'tool_use')
     : []
+  const pedidos: Pedido[] = usos.map((b) => {
+    const nome = doNomeDaFerramenta(b.name || '')
+    const acao = valida({ ...(b.input as object), faz: nome }, { equipe: !!ctx.pode?.equipe })
+    return {
+      id: (b as { id?: string }).id || '',
+      acao,
+      porque: acao ? undefined : porqueNaoPassou(nome),
+    }
+  }).filter((p) => p.id)
+  const acoes = pedidos.map((p) => p.acao).filter((a): a is Acao => !!a).slice(0, MAXIMO)
 
   /**
    * Cortado no meio: diz, em vez de ficar quieto.
@@ -269,14 +320,15 @@ async function porModelo(
       texto: (texto ? texto + '\n\n' : '')
         + 'A resposta ficou longa demais e foi cortada antes de eu terminar. '
         + 'Peça em pedaços, ou me diga para montar só a primeira parte.',
-      acoes: [],
+      acoes: [], pedidos: [], blocos: [],
     }
   }
 
   // Fez alguma coisa e não disse nada: o recibo que o app escreve embaixo conta
   // o que foi criado, mas uma tela que responde com silêncio parece travada.
-  if (!texto && acoes.length) return { texto: 'Pronto.', acoes }
-  return texto || acoes.length ? { texto: texto || null, acoes } : null
+  const blocos = (corpo.content || []) as unknown[]
+  if (!texto && acoes.length) return { texto: '', acoes, pedidos, blocos }
+  return texto || pedidos.length ? { texto: texto || null, acoes, pedidos, blocos } : null
 }
 
 export async function POST(req: Request) {
@@ -362,11 +414,16 @@ export async function POST(req: Request) {
         try {
           const resposta = await porModelo(ctx, chave, modelo, medida, (t) => manda({ t }))
           await cobrar()
-          manda({ fim: { acoes: resposta?.acoes || [], texto: resposta?.texto || '' } })
+          manda({ fim: {
+            acoes: resposta?.acoes || [],
+            texto: resposta?.texto || '',
+            pedidos: resposta?.pedidos || [],
+            blocos: resposta?.blocos || [],
+          } })
         } catch {
           // Modelo fora do ar não pode derrubar a tela: o que ela escreveu já
           // está guardado, e o fecho vazio deixa a tela sair do "pensando".
-          manda({ fim: { acoes: [], texto: '', erro: true } })
+          manda({ fim: { acoes: [], texto: '', pedidos: [], blocos: [], erro: true } })
         }
         fila.close()
       },

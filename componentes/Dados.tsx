@@ -22,6 +22,9 @@ import { comoBloco, parecidas, parecidasCom, resumo, tituloDe } from '@/lib/nota
 import { novoId } from '@/lib/id'
 import type { AlvoDoConvite } from '@/lib/convite'
 import { contar, type Acao } from '@/lib/secretario'
+
+/** Um pedido de ferramenta, com o id por onde o laço devolve o resultado. */
+type Pedido = { id: string; acao: Acao | null; porque?: string }
 import { recursos, type Recursos } from '@/lib/espaco'
 import { diasDeTeste, planoDe, tetoDeLeituras, type Plano } from '@/lib/planos'
 import { arquivada } from '@/lib/desfecho'
@@ -3026,6 +3029,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       let sobra = ''
       let texto = ''
       let acoes: Acao[] = []
+      let pedidos: Pedido[] = []
+      let blocos: unknown[] = []
       for (;;) {
         const { done, value } = await leitor.read()
         if (done) break
@@ -3037,17 +3042,25 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
           if (!l.startsWith('data:')) continue
           const cru = l.slice(5).trim()
           if (!cru) continue
-          let e: { t?: string; fim?: { acoes?: Acao[]; texto?: string; erro?: boolean } }
+          let e: {
+            t?: string
+            fim?: {
+              acoes?: Acao[]; texto?: string; erro?: boolean
+              pedidos?: Pedido[]; blocos?: unknown[]
+            }
+          }
           try { e = JSON.parse(cru) } catch { continue }
           if (e.t) { texto += e.t; aoTexto(texto) }
           if (e.fim) {
             acoes = e.fim.acoes || []
+            pedidos = e.fim.pedidos || []
+            blocos = e.fim.blocos || []
             if (e.fim.texto) texto = e.fim.texto
             if (e.fim.erro && !texto) { toast('Não consegui responder agora.', true); return null }
           }
         }
       }
-      return { texto, acoes }
+      return { texto, acoes, pedidos, blocos }
     } catch {
       toast('Não consegui responder agora.', true)
       return null
@@ -3193,6 +3206,87 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    * no texto: ver `perguntarNaNota`.
    */
   /**
+   * O laço: ele faz, vê o que deu, e continua.
+   *
+   * **Isto é o que faltava, e é a causa do defeito que mais incomodou.** Era um
+   * pedido e uma resposta: o modelo dizia "vou montar as quatro tracks", a volta
+   * acabava ali, e não montava nenhuma. Não é o modelo sendo fraco, é o app não
+   * ter dado a ele a chance de continuar: um assistente de verdade age, recebe o
+   * resultado da ação e segue do ponto em que parou. Sem isso, qualquer pedido
+   * que precise de mais de uma criação vira uma promessa.
+   *
+   * **Quem executa continua sendo o navegador**, com a sessão da pessoa, e por
+   * isso o laço mora aqui e não na rota: o servidor não tem sessão, e dar-lhe a
+   * chave de serviço para escrever seria uma terceira rota com ela.
+   *
+   * **A recusa volta como resultado, e não como silêncio.** Uma track sem
+   * critério era recusada na conferência e o modelo seguia achando que tinha
+   * funcionado: ele dizia "montei as quatro" tendo montado zero. Devolvendo
+   * "recusado, e foi por isto", ele corrige e manda de novo, que é o que
+   * qualquer um faria.
+   *
+   * **Quatro voltas é o teto.** Quatro tracks numa tacada é o caso real que
+   * motivou isto, e sem teto um engano vira uma conta que ninguém pediu.
+   */
+  const conversarEFazer = useCallback(async (
+    inicial: ContextoConversa, notaId: string,
+  ): Promise<{ texto: string; acoes: Acao[]; feitas: string[] } | null> => {
+    const VOLTAS = 4
+    const falas = [...inicial.falas]
+    const ditos: string[] = []
+    const feitasTodas: string[] = []
+    let jaEscrito = ''
+
+    for (let volta = 0; volta < VOLTAS; volta++) {
+      const r = await pedirTransmitido(
+        { ...inicial, falas },
+        // O texto das voltas anteriores continua na tela enquanto a nova sai:
+        // sem isto a resposta sumia e recomeçava a cada ação feita.
+        (t) => setSaindo({ notaId, texto: jaEscrito + t }),
+      )
+      if (!r) break
+      if (r.texto) ditos.push(r.texto)
+      jaEscrito = ditos.join('\n\n') + (r.texto ? '\n\n' : '')
+
+      const comAcao = r.pedidos.filter((p) => p.acao)
+      if (!r.pedidos.length) break
+
+      // Faz o que passou na conferência, e guarda o recibo de cada um.
+      const recibos = new Map<string, string>()
+      /* Montar uma track leva alguns segundos, e entre o fim do texto e o
+         recibo a tela ficava parada sem dizer nada: parada é como travada se
+         parece. A linha some quando o recibo de verdade entra. */
+      if (comAcao.length) {
+        setSaindo({ notaId, texto: `${jaEscrito}Criando ${comAcao.length === 1 ? 'o que combinamos' : `as ${comAcao.length} coisas`}...` })
+      }
+      for (const p of comAcao) {
+        const feitas = await executarAcoes([p.acao!])
+        if (feitas.length) { feitasTodas.push(feitas[0]); recibos.set(p.id, `Feito. ${feitas[0]}`) }
+        else recibos.set(p.id, 'Não deu para gravar. Não tente de novo igual, diga o que houve.')
+      }
+
+      // A volta: o que ele mandou, e o que aconteceu com cada coisa.
+      falas.push({ de: 'ia', texto: r.texto, blocos: r.blocos })
+      falas.push({
+        de: 'pessoa', texto: '',
+        blocos: r.pedidos.map((p) => ({
+          type: 'tool_result', tool_use_id: p.id,
+          content: p.acao ? (recibos.get(p.id) || 'Feito.') : (p.porque || 'Recusado.'),
+          ...(p.acao ? {} : { is_error: true }),
+        })),
+      })
+      setSaindo({ notaId, texto: jaEscrito })
+    }
+
+    const texto = ditos.join('\n\n').trim()
+    if (!texto && !feitasTodas.length) return null
+    /* As ações já foram feitas aqui dentro, uma a uma, porque cada resultado
+       alimenta a volta seguinte. O que sobe é o RECIBO delas: quem chamou
+       escreve o rastro e não executa nada de novo. */
+    return { texto, acoes: [], feitas: feitasTodas }
+  }, [pedirTransmitido, executarAcoes])
+
+  /**
    * Os arquivos desta conversa que o modelo consegue LER.
    *
    * Vem do BANCO e não do estado: o anexo acabou de subir, e `recarregar()` não
@@ -3283,7 +3377,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
          pior que esperar. */
       const ctx = { ...contextoDaNota(nota, falas), arquivos: paraLer }
       const resposta = ctx.secretario
-        ? await pedirTransmitido(ctx, (t) => setSaindo({ notaId, texto: t }))
+        ? await conversarEFazer(ctx, notaId)
         : await pedirResposta(ctx)
       // Sem resposta a fala da pessoa já está gravada, e é ela que importa: o
       // id volta do mesmo jeito para o anexo ter onde morar.
@@ -3312,15 +3406,17 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
          ninguém viu acontecer, que é o mesmo defeito que `contarNoCanal`
          fechou do lado da equipe. E ele é mensagem de SISTEMA, não fala dele:
          o que a máquina fez não pode se passar pelo que ela disse. */
-      if (resposta.acoes.length) {
-        const feitas = await executarAcoes(resposta.acoes)
-        if (feitas.length) {
-          await sb.from('mensagens').insert({
-            id: novoId(), nota_id: notaId, autor_id: eu.id,
-            texto: feitas.map((f) => `Criei. ${f}`).join('\n'),
-            sistema: true, por_ia: true,
-          })
-        }
+      /* No laço as ações já foram feitas, uma a uma, e o que volta é o recibo.
+         Fora dele (a leitura dentro de uma nota) elas vêm por fazer. Os dois
+         caminhos terminam na mesma linha de sistema. */
+      const doLaco = (resposta as { feitas?: string[] }).feitas
+      const feitas = doLaco ?? (resposta.acoes.length ? await executarAcoes(resposta.acoes) : [])
+      if (feitas.length) {
+        await sb.from('mensagens').insert({
+          id: novoId(), nota_id: notaId, autor_id: eu.id,
+          texto: feitas.map((f) => `Criei. ${f}`).join('\n'),
+          sistema: true, por_ia: true,
+        })
       }
       recarregar()
     } finally {
@@ -3329,7 +3425,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     }
     return id
   }, [sb, eu.id, org.ia_ativa, todasNotas, mensagens, contextoDaNota, pedirResposta,
-      pedirTransmitido, executarAcoes, arquivosParaOModelo, anexar, falhou, recarregar])
+      conversarEFazer, executarAcoes, arquivosParaOModelo, anexar, falhou, recarregar])
 
   /**
    * Perguntar dentro da nota, com a resposta entrando no próprio texto.
