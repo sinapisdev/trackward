@@ -21,10 +21,14 @@ import { preencher } from '@/lib/conectores'
 import { comoBloco, parecidas, parecidasCom, resumo, tituloDe } from '@/lib/notas'
 import { novoId } from '@/lib/id'
 import type { AlvoDoConvite } from '@/lib/convite'
-import { contar, type Acao } from '@/lib/secretario'
+import { contar, type Acao, type Pergunta } from '@/lib/secretario'
 
 /** Um pedido de ferramenta, com o id por onde o laço devolve o resultado. */
-type Pedido = { id: string; acao: Acao | null; porque?: string }
+type Pedido = { id: string; acao: Acao | null; pergunta?: Pergunta | null; porque?: string }
+
+/** Sem acento e sem caixa, que é como se procura. */
+const limparTexto = (x: string) =>
+  x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
 import { recursos, type Recursos } from '@/lib/espaco'
 import { diasDeTeste, planoDe, tetoDeLeituras, type Plano } from '@/lib/planos'
 import { arquivada } from '@/lib/desfecho'
@@ -3206,6 +3210,68 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    * no texto: ver `perguntarNaNota`.
    */
   /**
+   * Responde ao que o secretário quis OLHAR.
+   *
+   * Sai do que já está na tela, e isso é o desenho inteiro: o estado daqui é
+   * exatamente o que o banco deixou esta pessoa ver, então nenhuma destas pode
+   * devolver o que ela não abriria sozinha. Nenhuma vai ao servidor, então
+   * olhar é instantâneo e de graça.
+   *
+   * Em texto e não em JSON, porque o modelo lê texto melhor e porque o que
+   * importa aqui é o que está escrito, não a forma.
+   */
+  const responderOlhada = useCallback((q: Pergunta): string => {
+    if (q.ve === 'track') {
+      const f = todosFluxos.find((x) => x.id === q.id)
+      if (!f) return 'Não achei essa track. Confira o id na lista.'
+      const linhas = [`${f.nome} (${f.tipo === 'ciclo' ? 'rotina' : 'objetivo'}`
+        + `${f.concluido ? ', concluída' : ''})`]
+      f.etapas.forEach((e, i) => {
+        linhas.push(`\nCheckpoint ${i + 1}: ${e.nome}${i === f.atual ? '  <= está aqui' : ''}`)
+        if (e.criterio) linhas.push(`  Critério: ${e.criterio}`)
+        if (e.prazo) linhas.push(`  Prazo: ${e.prazo}`)
+        if (!e.itens.length) linhas.push('  (sem tarefas)')
+        for (const i2 of e.itens) {
+          linhas.push(`  - [${i2.feito ? 'x' : ' '}] ${i2.texto}`
+            + `${i2.resp_id ? ` | ${nomeDe(i2.resp_id)}` : ''}`
+            + `${i2.prazo ? ` | até ${i2.prazo}` : ''}`)
+          if (i2.descricao) linhas.push(`      ${i2.descricao}`)
+        }
+      })
+      return linhas.join('\n')
+    }
+
+    if (q.ve === 'nota') {
+      const alvo = limparTexto(q.titulo)
+      const n = notas.find((x) => limparTexto(x.titulo) === alvo)
+        || notas.find((x) => limparTexto(x.titulo).includes(alvo))
+      if (!n) return 'Não achei essa nota. Confira o título no índice.'
+      return `${n.titulo}\n\n${n.texto.slice(0, 8000)}`
+    }
+
+    const t = limparTexto(q.termo)
+    if (!t) return 'Faltou o termo.'
+    const achou: string[] = []
+    for (const n of notas) {
+      if (limparTexto(`${n.titulo} ${n.texto}`).includes(t)) {
+        achou.push(`Nota "${n.titulo}": ${n.texto.replace(/\s+/g, ' ').slice(0, 220)}`)
+      }
+    }
+    for (const f of todosFluxos) {
+      if (limparTexto(f.nome).includes(t)) achou.push(`Track "${f.nome}" | fluxo_id=${f.id}`)
+      for (const e of f.etapas) for (const i of e.itens) {
+        if (limparTexto(`${i.texto} ${i.descricao || ''}`).includes(t)) {
+          achou.push(`Tarefa "${i.texto}" em ${f.nome} / ${e.nome}`
+            + `${i.feito ? ' (pronta)' : ''} | item_id=${i.id}`)
+        }
+      }
+    }
+    if (!achou.length) return `Nada com "${q.termo}".`
+    return achou.slice(0, 25).join('\n')
+      + (achou.length > 25 ? `\n(e mais ${achou.length - 25})` : '')
+  }, [todosFluxos, notas, nomeDe])
+
+  /**
    * O laço: ele faz, vê o que deu, e continua.
    *
    * **Isto é o que faltava, e é a causa do defeito que mais incomodou.** Era um
@@ -3231,7 +3297,10 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const conversarEFazer = useCallback(async (
     inicial: ContextoConversa, notaId: string,
   ): Promise<{ texto: string; acoes: Acao[]; feitas: string[] } | null> => {
-    const VOLTAS = 4
+    /* Oito voltas, porque OLHAR gasta uma e olhar é o que faz ele pensar:
+       conferir a trilha, abrir a nota, procurar, e só então montar. Com quatro,
+       uma conversa que investiga antes de agir acabava antes de agir. */
+    const VOLTAS = 8
     const falas = [...inicial.falas]
     const ditos: string[] = []
     const feitasTodas: string[] = []
@@ -3248,14 +3317,20 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       if (r.texto) ditos.push(r.texto)
       jaEscrito = ditos.join('\n\n') + (r.texto ? '\n\n' : '')
 
-      const comAcao = r.pedidos.filter((p) => p.acao)
       if (!r.pedidos.length) break
+      const comAcao = r.pedidos.filter((p) => p.acao)
+      const aOlhar = r.pedidos.filter((p) => p.pergunta)
 
-      // Faz o que passou na conferência, e guarda o recibo de cada um.
       const recibos = new Map<string, string>()
-      /* Montar uma track leva alguns segundos, e entre o fim do texto e o
-         recibo a tela ficava parada sem dizer nada: parada é como travada se
-         parece. A linha some quando o recibo de verdade entra. */
+
+      /* Olhar primeiro, e sem alarde: é instantâneo, sai do que já está na
+         tela e não muda nada. A pessoa não precisa saber que ele foi conferir
+         a trilha antes de responder, como não precisa saber que você releu um
+         e-mail antes de responder. */
+      for (const p of aOlhar) recibos.set(p.id, responderOlhada(p.pergunta!))
+
+      /* Criar leva alguns segundos, e entre o fim do texto e o recibo a tela
+         ficava parada sem dizer nada: parada é como travada se parece. */
       if (comAcao.length) {
         setSaindo({ notaId, texto: `${jaEscrito}Criando ${comAcao.length === 1 ? 'o que combinamos' : `as ${comAcao.length} coisas`}...` })
       }
@@ -3271,8 +3346,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
         de: 'pessoa', texto: '',
         blocos: r.pedidos.map((p) => ({
           type: 'tool_result', tool_use_id: p.id,
-          content: p.acao ? (recibos.get(p.id) || 'Feito.') : (p.porque || 'Recusado.'),
-          ...(p.acao ? {} : { is_error: true }),
+          content: recibos.get(p.id) ?? (p.porque || 'Recusado.'),
+          ...(recibos.has(p.id) ? {} : { is_error: true }),
         })),
       })
       setSaindo({ notaId, texto: jaEscrito })
@@ -3284,7 +3359,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
        alimenta a volta seguinte. O que sobe é o RECIBO delas: quem chamou
        escreve o rastro e não executa nada de novo. */
     return { texto, acoes: [], feitas: feitasTodas }
-  }, [pedirTransmitido, executarAcoes])
+  }, [pedirTransmitido, executarAcoes, responderOlhada])
 
   /**
    * Os arquivos desta conversa que o modelo consegue LER.

@@ -60,6 +60,24 @@ export type Acao =
   | { faz: 'mudaTarefa'; itemId: string; texto?: string; prazo?: string | null
       descricao?: string }
 
+/**
+ * O que ele pode OLHAR, que é diferente do que ele pode fazer.
+ *
+ * Até aqui ele só escrevia: recebia um resumo pronto do que a casa tem e tinha
+ * que se virar com ele. Isso basta para "cria uma tarefa" e não basta para nada
+ * que exija pensar: "o que falta na Reforma", "aquilo que a gente conversou
+ * sobre a esquadria", "quais tracks estão paradas". Um assistente que não pode
+ * procurar nada é um formulário com conversa em volta.
+ *
+ * Olhar é barato e é seguro: a resposta sai do que JÁ está na tela da pessoa,
+ * ou seja, do que o banco já deixou ela ver. Nenhuma destas vai ao servidor, e
+ * nenhuma pode devolver o que ela não poderia abrir sozinha.
+ */
+export type Pergunta =
+  | { ve: 'track'; id: string }
+  | { ve: 'nota'; titulo: string }
+  | { ve: 'busca'; termo: string }
+
 /** Quanto uma leitura pode fazer de uma vez, para um engano não virar faxina. */
 export const MAXIMO = 8
 
@@ -213,6 +231,16 @@ export function valida(bruta: unknown, pode: { equipe: boolean }): Acao | null {
     }
   }
 
+  return null
+}
+
+/** A pergunta que veio do modelo, conferida. Nula quando não dá para responder. */
+export function validaPergunta(bruta: unknown): Pergunta | null {
+  const a = bruta as Record<string, unknown> | null
+  if (!a || typeof a !== 'object') return null
+  if (a.ve === 'track') { const i = id(a.fluxo_id); return i ? { ve: 'track', id: i } : null }
+  if (a.ve === 'nota') { const t = texto(a.titulo, 200); return t ? { ve: 'nota', titulo: t } : null }
+  if (a.ve === 'busca') { const t = texto(a.termo, 120); return t ? { ve: 'busca', termo: t } : null }
   return null
 }
 
@@ -390,6 +418,40 @@ export function ferramentas(pode: { equipe: boolean }): Ferramenta[] {
       },
     },
     {
+      name: 'ver_track',
+      description: 'Abre uma track e devolve a trilha inteira dela: cada checkpoint com '
+        + 'critério e prazo, e cada tarefa com responsável, prazo e se já saiu. Use SEMPRE '
+        + 'antes de opinar sobre uma track, antes de acrescentar tarefa nela e antes de '
+        + 'dizer em que pé ela está. A lista que você recebeu acima tem só os nomes.',
+      input_schema: {
+        type: 'object',
+        properties: { fluxo_id: { type: 'string', description: 'O id, das listas acima.' } },
+        required: ['fluxo_id'],
+      },
+    },
+    {
+      name: 'ver_nota',
+      description: 'Abre uma nota do caderno dela pelo título e devolve o texto inteiro. '
+        + 'Use quando a conversa tocar num assunto que ela já escreveu: o índice acima só '
+        + 'tem os títulos, e responder pelo título é chutar o conteúdo.',
+      input_schema: {
+        type: 'object',
+        properties: { titulo: { type: 'string', description: 'O título, do índice acima.' } },
+        required: ['titulo'],
+      },
+    },
+    {
+      name: 'buscar',
+      description: 'Procura uma palavra no que ela tem: notas, tarefas e tracks. Use quando '
+        + 'ela falar de algo que você não achou nas listas acima, antes de dizer que não '
+        + 'sabe. Uma ou duas palavras, sem acento nem caixa.',
+      input_schema: {
+        type: 'object',
+        properties: { termo: { type: 'string' } },
+        required: ['termo'],
+      },
+    },
+    {
       name: 'mudar_tarefa',
       description: 'Muda uma tarefa que JÁ EXISTE: o texto, o prazo ou a descrição. '
         + 'Use quando ela disser para adiar, antecipar, renomear ou detalhar algo que já '
@@ -414,3 +476,7 @@ export function ferramentas(pode: { equipe: boolean }): Ferramenta[] {
 export const doNomeDaFerramenta = (nome: string): string =>
   ({ criar_tarefa: 'tarefa', criar_compromisso: 'compromisso', criar_nota: 'nota',
      criar_track: 'track', mudar_tarefa: 'mudaTarefa' }[nome] || '')
+
+/** O nome da ferramenta de LEITURA vira o campo `ve` que `validaPergunta` entende. */
+export const doNomeDaPergunta = (nome: string): string =>
+  ({ ver_track: 'track', ver_nota: 'nota', buscar: 'busca' }[nome] || '')

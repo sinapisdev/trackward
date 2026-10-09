@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { instrucoes, regras, semChave, type ContextoConversa } from '@/lib/conversa'
-import { doNomeDaFerramenta, ferramentas, valida, MAXIMO, type Acao } from '@/lib/secretario'
+import {
+  doNomeDaFerramenta, doNomeDaPergunta, ferramentas, valida, validaPergunta, MAXIMO,
+  type Acao, type Pergunta,
+} from '@/lib/secretario'
 import { clienteServidor } from '@/lib/supabase/servidor'
 import { custoMicro } from '@/lib/precos'
 
@@ -32,8 +35,10 @@ type Medida = {
 type Pedido = {
   /** O id do `tool_use`, que é por onde a volta seguinte devolve o resultado. */
   id: string
-  /** A ação conferida, ou nulo quando ela não passou. */
+  /** A ação conferida, ou nulo quando ela não passou nem era pergunta. */
   acao: Acao | null
+  /** A pergunta conferida, quando o que ele quis foi OLHAR e não escrever. */
+  pergunta?: Pergunta | null
   /** Por que não passou, em português, para o modelo poder corrigir. */
   porque?: string
 }
@@ -296,13 +301,17 @@ async function porModelo(
     ? (corpo.content || []).filter((b) => b.type === 'tool_use')
     : []
   const pedidos: Pedido[] = usos.map((b) => {
+    const id = (b as { id?: string }).id || ''
+    // Olhar vem antes de escrever: `ver_track` e `buscar` não criam nada, e
+    // mandá-las pela peneira das ações as recusaria por não serem ações.
+    const quer = doNomeDaPergunta(b.name || '')
+    if (quer) {
+      const pergunta = validaPergunta({ ...(b.input as object), ve: quer })
+      return { id, acao: null, pergunta, porque: pergunta ? undefined : 'Recusado: faltou o que olhar.' }
+    }
     const nome = doNomeDaFerramenta(b.name || '')
     const acao = valida({ ...(b.input as object), faz: nome }, { equipe: !!ctx.pode?.equipe })
-    return {
-      id: (b as { id?: string }).id || '',
-      acao,
-      porque: acao ? undefined : porqueNaoPassou(nome),
-    }
+    return { id, acao, porque: acao ? undefined : porqueNaoPassou(nome) }
   }).filter((p) => p.id)
   const acoes = pedidos.map((p) => p.acao).filter((a): a is Acao => !!a).slice(0, MAXIMO)
 
@@ -342,8 +351,30 @@ export async function POST(req: Request) {
     return NextResponse.json({ erro: 'Sem nada para responder.' }, { status: 400 })
   }
 
-  // A conversa inteira não cabe nem ajuda: o assunto está nas últimas trocas.
-  ctx.falas = ctx.falas.slice(-24)
+  /**
+   * A memória da conversa, cortada por TAMANHO e não por número de falas.
+   *
+   * Era `slice(-24)`, e 24 é pouco para valer como memória: a conversa real de
+   * quem usa isto todo dia já passava de 68 falas, então ele esquecia tudo que
+   * tinha mais de uma sessão. "Ele não lembra do que a gente conversou" não era
+   * impressão, era a conta.
+   *
+   * Contar falas é a medida errada de qualquer jeito, porque uma fala tem duas
+   * palavras ou tem duas páginas. O que cabe na janela é CARACTERE, e o teto
+   * aqui é generoso de propósito: com o prompt cacheado, reler o começo de uma
+   * conversa antiga custa a décima parte de escrevê-lo.
+   */
+  const TETO = 120_000
+  let sobra = TETO
+  const guardadas: typeof ctx.falas = []
+  for (let i = ctx.falas.length - 1; i >= 0; i--) {
+    const f = ctx.falas[i]
+    const custo = (f.texto || '').length + (f.blocos ? JSON.stringify(f.blocos).length : 0) + 16
+    if (sobra - custo < 0 && guardadas.length) break
+    sobra -= custo
+    guardadas.unshift(f)
+  }
+  ctx.falas = guardadas
   ctx.caderno = (ctx.caderno || []).slice(0, 8)
   ctx.indice = (ctx.indice || []).slice(0, 120)
 
