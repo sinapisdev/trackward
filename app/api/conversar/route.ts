@@ -139,7 +139,20 @@ type Resposta = {
 async function lerFluxo(
   r: Response, modelo: string, medida: { valor: Medida | null }, aoTexto: (t: string) => void,
 ): Promise<Resposta> {
-  const blocos: { type: string; text?: string; name?: string; id?: string; input?: unknown }[] = []
+  /**
+   * Os blocos remontados, e eles precisam sair IGUAIS aos que vieram.
+   *
+   * Não é só texto e ferramenta: o modelo manda também o RACIOCÍNIO dele, em
+   * bloco próprio e assinado, e esse bloco volta inteiro na rodada seguinte ou
+   * a API recusa a conversa com "thinking.thinking: Field required". Era isso
+   * que matava o laço na segunda volta e fazia sair exatamente UMA track por
+   * mensagem: a primeira funcionava, a segunda nem chegava a ser pedida.
+   *
+   * Por isso cada tipo é montado com os campos DELE e com mais nenhum. Um
+   * `text: ''` sobrando num bloco de raciocínio é a mesma recusa por outro
+   * caminho.
+   */
+  const blocos: Record<string, unknown>[] = []
   const cruas = new Map<number, string>()
   const med = { entrada: 0, saida: 0, cacheLeitura: 0, cacheEscrita: 0 }
   /* Por que a resposta parou. `max_tokens` é a que importa: ali o JSON da
@@ -173,7 +186,10 @@ async function lerFluxo(
         med.cacheEscrita = u?.cache_creation_input_tokens ?? 0
       } else if (e.type === 'content_block_start') {
         const i = e.index as number
-        const b = e.content_block as { type: string; name?: string; id?: string }
+        const b = e.content_block as Record<string, unknown> & { type: string }
+        if (b.type === 'thinking') { blocos[i] = { type: 'thinking', thinking: '', signature: '' }; continue }
+        // O raciocínio tarjado vem pronto e opaco: ele se repassa como veio.
+        if (b.type === 'redacted_thinking') { blocos[i] = { ...b }; continue }
         /**
          * O `id` entra aqui, e esquecê-lo apagou TODA ação por quatro dias.
          *
@@ -186,17 +202,29 @@ async function lerFluxo(
          * fluxo lia o `id` do JSON de uma vez e funcionava, e o do fluxo, que
          * monta bloco a bloco, perdia.
          */
-        blocos[i] = { type: b.type, name: b.name, id: b.id, text: '' }
+        blocos[i] = b.type === 'tool_use'
+          ? { type: 'tool_use', id: b.id, name: b.name, input: {} }
+          : { type: 'text', text: '' }
         if (b.type === 'tool_use') cruas.set(i, '')
       } else if (e.type === 'content_block_delta') {
         const i = e.index as number
-        const d = e.delta as { type: string; text?: string; partial_json?: string }
+        const d = e.delta as {
+          type: string; text?: string; partial_json?: string
+          thinking?: string; signature?: string
+        }
         if (d.type === 'text_delta' && d.text) {
           blocos[i] = blocos[i] || { type: 'text', text: '' }
-          blocos[i].text = (blocos[i].text || '') + d.text
+          blocos[i].text = String(blocos[i].text || '') + d.text
           aoTexto(d.text)
         } else if (d.type === 'input_json_delta') {
           cruas.set(i, (cruas.get(i) || '') + (d.partial_json || ''))
+        } else if (d.type === 'thinking_delta' && blocos[i]) {
+          // O raciocínio NÃO vai para a tela: ele é do modelo, não é a resposta.
+          blocos[i].thinking = String(blocos[i].thinking || '') + (d.thinking || '')
+        } else if (d.type === 'signature_delta' && blocos[i]) {
+          // A assinatura é o que prova que o raciocínio não foi adulterado. Sem
+          // ela de volta, a API recusa a rodada seguinte.
+          blocos[i].signature = String(blocos[i].signature || '') + (d.signature || '')
         }
       } else if (e.type === 'content_block_stop') {
         const i = e.index as number
@@ -214,7 +242,7 @@ async function lerFluxo(
   }
 
   medida.valor = { modelo, ...med }
-  return { content: blocos.filter(Boolean), parouPor }
+  return { content: blocos.filter(Boolean) as Resposta['content'], parouPor }
 }
 
 /**

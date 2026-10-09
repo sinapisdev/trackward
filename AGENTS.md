@@ -1794,6 +1794,23 @@ frentes devolve **4 tracks, 17 checkpoints e 52 tarefas, com zero tarefa sem des
 checkpoint sem prazo**. Antes do ensaio foram quatro rodadas de conserto no escuro, e nenhuma
 acertou a causa: **ao mexer no que o secretário faz, ensaiar antes de entregar.**
 
+**E o segundo defeito do mesmo tipo matava o LAÇO: o bloco de raciocínio.** O modelo manda,
+junto do texto e da ferramenta, o raciocínio dele, em bloco próprio e **assinado**, e esse
+bloco volta inteiro na rodada seguinte ou a API recusa a conversa com `thinking.thinking:
+Field required`. `lerFluxo` montava aquele bloco com os campos de um bloco de texto, então a
+segunda volta nunca acontecia: saía **exatamente uma track por mensagem**, e de fora isso é
+"ele só faz uma coisa de cada vez".
+
+Por isso cada tipo é montado com os campos DELE e com mais nenhum: um `text: ''` sobrando
+num bloco de raciocínio é a mesma recusa por outro caminho. A assinatura é o que prova que
+o raciocínio não foi adulterado, e sem ela de volta a rodada seguinte não existe.
+
+**Os dois defeitos são a MESMA falha de desenho**, e é isso que vale guardar: o caminho com
+fluxo remonta bloco a bloco o que o caminho sem fluxo recebe pronto, e as duas vezes o que
+se perdeu foi um campo que ninguém vê na tela (o `id`, a assinatura). **Ao mexer em
+`lerFluxo`, a pergunta é se o que sai dele volta IGUAL ao que entrou**, e a prova é mandar o
+resultado de volta numa segunda rodada.
+
 **A lição é de método, e vale mais que o conserto:** quando o modelo parece não obedecer, a
 primeira coisa a olhar é se ele GASTOU tokens de saída. Gastou muito e a tela mostra pouco
 quer dizer que o app perdeu a resposta, e nenhuma mudança de instrução vai consertar isso.
