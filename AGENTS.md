@@ -1779,6 +1779,21 @@ virando uma tira de 104px. Ela não some de todo de propósito: foi dela que as 
 saíram, e o que está escrito ali é o que explica cada uma. **Elas nunca ficam escondidas**,
 em nenhum dos dois estados: esconder o que espera decisão é o jeito de nunca decidir.
 
+**O defeito real era o `id` do `tool_use`, perdido no fluxo.** Quatro rodadas de conserto
+foram gastas no lugar errado antes de alguém olhar a CONTA DE TOKENS: 3441 tokens de saída
+numa resposta cujo texto salvo tinha quarenta. O modelo montava a track inteira e o app
+descartava em silêncio, porque `lerFluxo` não copiava o `id` do bloco e `.filter(p => p.id)`
+derrubava tudo. De fora isso é indistinguível de "ele prometeu e não fez", e foi exatamente
+assim que foi lido.
+
+**A lição é de método, e vale mais que o conserto:** quando o modelo parece não obedecer, a
+primeira coisa a olhar é se ele GASTOU tokens de saída. Gastou muito e a tela mostra pouco
+quer dizer que o app perdeu a resposta, e nenhuma mudança de instrução vai consertar isso.
+O caminho sem fluxo lia o `id` do JSON de uma vez e sempre funcionou; o do fluxo monta bloco
+a bloco, e perdeu. **Toda vez que um caminho novo remonta o que o antigo recebia pronto, a
+pergunta é o que ficou para trás.** Hoje a rota grita no log quando chamou ferramenta e
+nenhuma passou pelo filtro.
+
 **O que EXIGE a ferramenta é `tool_choice`, e não a instrução.** "Nunca termine prometendo"
 é um pedido, e o modelo prometeu assim mesmo **cinco vezes seguidas** numa conversa de
 verdade, com a instrução no lugar. Com `tool_choice: { type: 'any' }` ele não tem a opção de

@@ -115,7 +115,7 @@ function porqueNaoPassou(nome: string): string {
 }
 
 type Resposta = {
-  content?: { type: string; text?: string; name?: string; input?: unknown }[]
+  content?: { type: string; text?: string; name?: string; id?: string; input?: unknown }[]
   usage?: {
     input_tokens?: number; output_tokens?: number
     cache_read_input_tokens?: number; cache_creation_input_tokens?: number
@@ -139,7 +139,7 @@ type Resposta = {
 async function lerFluxo(
   r: Response, modelo: string, medida: { valor: Medida | null }, aoTexto: (t: string) => void,
 ): Promise<Resposta> {
-  const blocos: { type: string; text?: string; name?: string; input?: unknown }[] = []
+  const blocos: { type: string; text?: string; name?: string; id?: string; input?: unknown }[] = []
   const cruas = new Map<number, string>()
   const med = { entrada: 0, saida: 0, cacheLeitura: 0, cacheEscrita: 0 }
   /* Por que a resposta parou. `max_tokens` é a que importa: ali o JSON da
@@ -173,8 +173,20 @@ async function lerFluxo(
         med.cacheEscrita = u?.cache_creation_input_tokens ?? 0
       } else if (e.type === 'content_block_start') {
         const i = e.index as number
-        const b = e.content_block as { type: string; name?: string }
-        blocos[i] = { type: b.type, name: b.name, text: '' }
+        const b = e.content_block as { type: string; name?: string; id?: string }
+        /**
+         * O `id` entra aqui, e esquecê-lo apagou TODA ação por quatro dias.
+         *
+         * Ele é o que liga o pedido ao resultado, e o pedido sem id é filtrado
+         * fora lá embaixo. Sem ele, o modelo montava a track inteira (3441
+         * tokens de saída medidos numa conversa de verdade) e o app descartava
+         * em silêncio, guardando só a frase que veio antes. De fora isso é
+         * exatamente igual a "ele prometeu e não fez", e foi assim que quatro
+         * rodadas de conserto foram gastas no lugar errado: o caminho sem
+         * fluxo lia o `id` do JSON de uma vez e funcionava, e o do fluxo, que
+         * monta bloco a bloco, perdia.
+         */
+        blocos[i] = { type: b.type, name: b.name, id: b.id, text: '' }
         if (b.type === 'tool_use') cruas.set(i, '')
       } else if (e.type === 'content_block_delta') {
         const i = e.index as number
@@ -320,6 +332,12 @@ async function porModelo(
     const acao = valida({ ...(b.input as object), faz: nome }, { equipe: !!ctx.pode?.equipe })
     return { id, acao, porque: acao ? undefined : porqueNaoPassou(nome) }
   }).filter((p) => p.id)
+  /* Chamou e nenhum sobreviveu ao filtro: isto é defeito deste arquivo, não do
+     modelo, e some calado. Já custou quatro dias uma vez. */
+  if (usos.length && !pedidos.length) {
+    console.error('[trackward] o modelo chamou', usos.length,
+      'ferramenta(s) e nenhuma passou: `id` faltando no tool_use?')
+  }
   const acoes = pedidos.map((p) => p.acao).filter((a): a is Acao => !!a).slice(0, MAXIMO)
 
   /**
