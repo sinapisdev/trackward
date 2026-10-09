@@ -1779,6 +1779,28 @@ virando uma tira de 104px. Ela não some de todo de propósito: foi dela que as 
 saíram, e o que está escrito ali é o que explica cada uma. **Elas nunca ficam escondidas**,
 em nenhum dos dois estados: esconder o que espera decisão é o jeito de nunca decidir.
 
+**O que EXIGE a ferramenta é `tool_choice`, e não a instrução.** "Nunca termine prometendo"
+é um pedido, e o modelo prometeu assim mesmo **cinco vezes seguidas** numa conversa de
+verdade, com a instrução no lugar. Com `tool_choice: { type: 'any' }` ele não tem a opção de
+responder só texto. Vale **só na cobrança**, nunca na primeira volta: forçar logo faria um
+"bom dia" virar uma tarefa chamada bom dia.
+
+**A cobrança existe em DOIS lugares, e as duas cópias são necessárias.** A do laço, no
+navegador, cobre as voltas seguintes, que dependem de executar as ações, e isso o servidor
+não faz. A da rota cobre a aba velha: o app é uma página só, o servidor atualiza no instante
+do deploy e **a aba continua rodando o código do dia em que foi aberta**. Em 09/10/2026 isso
+custou uma rodada inteira de depuração, com o conserto no ar e a aba sem ele.
+
+**Por isso a aba avisa quando envelhece.** A resposta da conversa carrega a versão do
+servidor (`NEXT_PUBLIC_VERSAO`, do sha do commit), a tela compara com a dela e diz uma vez
+por sessão. Uma vez, porque duas já é tarja e tarja se aprende a ignorar.
+
+**E quando um defeito "continua acontecendo" depois de um conserto que subiu, a primeira
+pergunta é se a aba é velha**, não se o conserto estava errado. A segunda é ler o banco: a
+conversa inteira está em `mensagens`, e ela diz exatamente o que foi pedido, o que foi
+respondido e o que foi criado. Foi assim que se descobriu que uma track funcionava e quatro
+nunca, depois de três rodadas gastas adivinhando.
+
 **Prometer e não chamar ferramenta é o defeito que mais voltou, e ele tem DUAS causas.**
 Está no banco, numa conversa de verdade: "vou montar a track de Sistema" criou uma track de
 6 checkpoints e 18 tarefas, e "vou montar as quatro tracks" não criou nada, **quatro vezes

@@ -1,6 +1,19 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  /**
+   * A versão que ESTE pacote de JavaScript tem, para a aba saber que envelheceu.
+   *
+   * O app é uma página só: o servidor atualiza no instante do deploy e a aba
+   * continua rodando o código do dia em que foi aberta. Isso virou um problema
+   * de verdade em 09/10/2026: o conserto do secretário saiu, a aba aberta
+   * desde a véspera seguiu com o código velho, e o defeito "continuou"
+   * acontecendo por um motivo que não tinha mais nada a ver com o defeito.
+   *
+   * Com isto a resposta do servidor carrega a versão dele, a tela compara com a
+   * sua e avisa. Em desenvolvimento é 'dev' dos dois lados, e nada aparece.
+   */
+  env: { NEXT_PUBLIC_VERSAO: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) || 'dev' },
   // Tira o selo do Next do canto da tela, que cobria o rodapé da lateral.
   devIndicators: false,
   // Endereços de onde o app pode ser aberto durante o desenvolvimento, para

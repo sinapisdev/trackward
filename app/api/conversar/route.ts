@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { instrucoes, regras, semChave, type ContextoConversa } from '@/lib/conversa'
 import {
-  doNomeDaFerramenta, doNomeDaPergunta, ferramentas, valida, validaPergunta, MAXIMO,
+  doNomeDaFerramenta, doNomeDaPergunta, ferramentas, prometeu, valida, validaPergunta, MAXIMO,
   type Acao, type Pergunta,
 } from '@/lib/secretario'
 import { clienteServidor } from '@/lib/supabase/servidor'
@@ -45,6 +45,8 @@ type Pedido = {
 
 type Volta = {
   texto: string | null
+  /** Por que o modelo parou. Vai para o console da tela, que é onde se depura. */
+  parou?: string
   acoes: Acao[]
   /** Os pedidos com id, para o laço. Vazio quando não houve ferramenta. */
   pedidos: Pedido[]
@@ -257,6 +259,11 @@ async function porModelo(
       // conversa não cria nada, e oferecer a ferramenta ali seria convidar o
       // modelo a usá-la contra a regra escrita na instrução.
       ...(ctx.secretario ? { tools: ferramentas(pode) } : {}),
+      /* `any` quer dizer "alguma ferramenta, obrigatoriamente". É o que
+         transforma "nunca termine prometendo" de pedido em regra: por
+         instrução ele prometia assim mesmo. Só na cobrança, porque forçar na
+         primeira volta faria um "bom dia" virar uma tarefa chamada bom dia. */
+      ...(ctx.secretario && ctx.exigirFerramenta ? { tool_choice: { type: 'any' } } : {}),
       messages: comArquivos(ctx),
     }),
   })
@@ -336,8 +343,9 @@ async function porModelo(
   // Fez alguma coisa e não disse nada: o recibo que o app escreve embaixo conta
   // o que foi criado, mas uma tela que responde com silêncio parece travada.
   const blocos = (corpo.content || []) as unknown[]
-  if (!texto && acoes.length) return { texto: '', acoes, pedidos, blocos }
-  return texto || pedidos.length ? { texto: texto || null, acoes, pedidos, blocos } : null
+  const parou = corpo.parouPor || corpo.stop_reason || ''
+  if (!texto && acoes.length) return { texto: '', acoes, pedidos, blocos, parou }
+  return texto || pedidos.length ? { texto: texto || null, acoes, pedidos, blocos, parou } : null
 }
 
 export async function POST(req: Request) {
@@ -443,13 +451,54 @@ export async function POST(req: Request) {
       async start(fila) {
         const manda = (o: unknown) => fila.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(o)}\n\n`))
         try {
-          const resposta = await porModelo(ctx, chave, modelo, medida, (t) => manda({ t }))
+          let resposta = await porModelo(ctx, chave, modelo, medida, (t) => manda({ t }))
+
+          /**
+           * Prometeu e não chamou nada: cobra AQUI, no servidor.
+           *
+           * O laço do navegador faz isto também, e mesmo assim esta cópia
+           * precisa existir: o laço mora no JavaScript da aba, e uma aba aberta
+           * desde ontem roda o código de ontem. A rota é a única parte que
+           * atualiza para todo mundo no instante do deploy, então a garantia
+           * mora aqui. Lá ela continua valendo para as voltas seguintes, que
+           * dependem de executar as ações, e isso o servidor não faz.
+           *
+           * `tool_choice: any` é o que separa pedir de exigir. A instrução já
+           * dizia "nunca termine prometendo", e ele prometeu assim mesmo cinco
+           * vezes seguidas numa conversa de verdade. Com isto ele não tem a
+           * opção de responder só texto.
+           */
+          if (ctx.secretario && resposta && !resposta.pedidos.length && prometeu(resposta.texto || '')) {
+            const comCobranca: ContextoConversa = {
+              ...ctx,
+              exigirFerramenta: true,
+              falas: [
+                ...ctx.falas,
+                { de: 'ia', texto: resposta.texto || '', blocos: resposta.blocos },
+                { de: 'pessoa', texto:
+                  'Você disse que ia fazer e não chamou ferramenta nenhuma, então não foi '
+                  + 'feito. Faça AGORA, nesta resposta. Se for mais de uma coisa, faça a '
+                  + 'PRIMEIRA e deixe as outras para as respostas seguintes.' },
+              ],
+            }
+            const segunda = await porModelo(comCobranca, chave, modelo, medida, (t) => manda({ t }))
+            if (segunda?.pedidos.length) {
+              segunda.texto = [resposta.texto, segunda.texto].filter(Boolean).join('\n\n')
+              resposta = segunda
+            }
+          }
+
           await cobrar()
           manda({ fim: {
             acoes: resposta?.acoes || [],
             texto: resposta?.texto || '',
             pedidos: resposta?.pedidos || [],
             blocos: resposta?.blocos || [],
+            parou: resposta?.parou || '',
+            /* A versão do SERVIDOR. A aba compara com a dela e avisa quando
+               envelheceu: ela é uma página só, e continua rodando o código do
+               dia em que foi aberta. */
+            versao: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) || 'dev',
           } })
         } catch {
           // Modelo fora do ar não pode derrubar a tela: o que ela escreveu já

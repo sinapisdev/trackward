@@ -522,6 +522,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    * justamente a que mais parecia travada.
    */
   const [saindo, setSaindo] = useState<{ notaId: string; texto: string } | null>(null)
+  /** Uma vez por sessão: duas já é tarja, e tarja se aprende a ignorar. */
+  const avisouVelho = useRef(false)
   const [avisos, setAvisos] = useState<Aviso[]>([])
   const [contato, setContato] = useState<AvisoContato | null>(null)
   const [aparelhos, setAparelhos] = useState<PushAssinatura[]>([])
@@ -3035,6 +3037,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       let acoes: Acao[] = []
       let pedidos: Pedido[] = []
       let blocos: unknown[] = []
+      let parou = ''
       for (;;) {
         const { done, value } = await leitor.read()
         if (done) break
@@ -3050,7 +3053,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
             t?: string
             fim?: {
               acoes?: Acao[]; texto?: string; erro?: boolean
-              pedidos?: Pedido[]; blocos?: unknown[]
+              pedidos?: Pedido[]; blocos?: unknown[]; parou?: string; versao?: string
             }
           }
           try { e = JSON.parse(cru) } catch { continue }
@@ -3059,12 +3062,27 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
             acoes = e.fim.acoes || []
             pedidos = e.fim.pedidos || []
             blocos = e.fim.blocos || []
+            parou = e.fim.parou || ''
+            /**
+             * A aba envelheceu, e ela precisa dizer isso.
+             *
+             * O app é uma página só: o servidor atualiza no deploy e a aba
+             * segue com o código do dia em que foi aberta. Em 09/10/2026 isso
+             * custou uma rodada inteira de depuração, porque o conserto estava
+             * no ar e a aba não tinha ele. O aviso sai uma vez por sessão: duas
+             * vezes já é tarja, e tarja se aprende a ignorar.
+             */
+            const minha = process.env.NEXT_PUBLIC_VERSAO || 'dev'
+            if (e.fim.versao && e.fim.versao !== 'dev' && e.fim.versao !== minha && !avisouVelho.current) {
+              avisouVelho.current = true
+              toast('Saiu uma versão nova do TrackWard. Recarregue a página para usá-la.', true)
+            }
             if (e.fim.texto) texto = e.fim.texto
             if (e.fim.erro && !texto) { toast('Não consegui responder agora.', true); return null }
           }
         }
       }
-      return { texto, acoes, pedidos, blocos }
+      return { texto, acoes, pedidos, blocos, parou }
     } catch {
       toast('Não consegui responder agora.', true)
       return null
@@ -3317,15 +3335,25 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     const feitasTodas: string[] = []
     let jaEscrito = ''
     let cobradas = 0
+    let exigindo = false
 
     for (let volta = 0; volta < VOLTAS; volta++) {
       const r = await pedirTransmitido(
-        { ...inicial, falas },
+        /* Depois de uma cobrança, a volta EXIGE ferramenta: ele já disse que ia
+           fazer, então responder texto de novo não é uma opção que deva existir.
+           Era pedido por instrução, e ele prometeu assim mesmo cinco vezes. */
+        { ...inicial, falas, exigirFerramenta: exigindo },
         // O texto das voltas anteriores continua na tela enquanto a nova sai:
         // sem isto a resposta sumia e recomeçava a cada ação feita.
         (t) => setSaindo({ notaId, texto: jaEscrito + t }),
       )
+      exigindo = false
       if (!r) break
+      if (r.parou && r.parou !== 'end_turn' && r.parou !== 'tool_use') {
+        // `max_tokens` é o que importa, e ele some sem isto: a ferramenta fica
+        // pela metade, a conferência recusa, e de fora parece desobediência.
+        console.warn('[trackward] o modelo parou por', r.parou)
+      }
       if (r.texto) ditos.push(r.texto)
       jaEscrito = ditos.join('\n\n') + (r.texto ? '\n\n' : '')
 
@@ -3346,6 +3374,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       if (!r.pedidos.length) {
         if (cobradas >= 2 || !prometeu(r.texto)) break
         cobradas++
+        exigindo = true
         falas.push({ de: 'ia', texto: r.texto, blocos: r.blocos })
         falas.push({ de: 'pessoa', texto:
           'Você disse que ia fazer e não chamou ferramenta nenhuma, então não foi feito. '

@@ -88,6 +88,19 @@ export type ContextoConversa = {
    */
   arquivos?: { nome: string; tipo: string; url: string }[]
   /**
+   * Esta volta EXIGE ferramenta, em vez de pedir.
+   *
+   * A API tem `tool_choice`, e eu vinha só pedindo por instrução: "nunca
+   * termine prometendo" é um pedido, e o modelo prometeu assim mesmo, cinco
+   * vezes seguidas numa conversa de verdade. Com isto ligado ele não tem a
+   * opção de responder só texto.
+   *
+   * Vale na COBRANÇA e em mais lugar nenhum: forçar na primeira volta faria
+   * "bom dia" virar uma tarefa chamada bom dia. Aqui ele já disse que ia fazer,
+   * então a única coisa que falta mesmo é fazer.
+   */
+  exigirFerramenta?: boolean
+  /**
    * A resposta sai em TEMPO REAL, e não de uma vez no fim.
    *
    * Vale para o secretário, que é onde a pessoa está olhando a tela esperando.
