@@ -21,7 +21,7 @@ import { preencher } from '@/lib/conectores'
 import { comoBloco, parecidas, parecidasCom, resumo, tituloDe } from '@/lib/notas'
 import { novoId } from '@/lib/id'
 import type { AlvoDoConvite } from '@/lib/convite'
-import { contar, type Acao, type Pergunta } from '@/lib/secretario'
+import { contar, prometeu, type Acao, type Pergunta } from '@/lib/secretario'
 
 /** Um pedido de ferramenta, com o id por onde o laço devolve o resultado. */
 type Pedido = { id: string; acao: Acao | null; pergunta?: Pergunta | null; porque?: string }
@@ -3297,14 +3297,26 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const conversarEFazer = useCallback(async (
     inicial: ContextoConversa, notaId: string,
   ): Promise<{ texto: string; acoes: Acao[]; feitas: string[] } | null> => {
-    /* Oito voltas, porque OLHAR gasta uma e olhar é o que faz ele pensar:
-       conferir a trilha, abrir a nota, procurar, e só então montar. Com quatro,
-       uma conversa que investiga antes de agir acabava antes de agir. */
-    const VOLTAS = 8
+    /**
+     * Doze voltas, e o número tem conta por trás.
+     *
+     * Uma track com seis checkpoints e dezoito tarefas, cada uma com descrição
+     * e prazo, já é quase o teto de saída de uma resposta: QUATRO delas não
+     * cabem numa só, e é por isso que pedir quatro não produzia nenhuma. A
+     * saída é uma por volta, então quatro frentes custam quatro voltas, mais o
+     * que ele gasta olhando antes (conferir a trilha, abrir a nota, procurar) e
+     * as duas cobranças quando ele promete em vez de fazer.
+     *
+     * O teto existe para um engano não virar uma conta que ninguém pediu, e não
+     * para apertar o trabalho. O laço para sozinho quando ele não pede mais
+     * nada, que é o fim normal e o que acontece quase sempre.
+     */
+    const VOLTAS = 12
     const falas = [...inicial.falas]
     const ditos: string[] = []
     const feitasTodas: string[] = []
     let jaEscrito = ''
+    let cobradas = 0
 
     for (let volta = 0; volta < VOLTAS; volta++) {
       const r = await pedirTransmitido(
@@ -3317,7 +3329,31 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       if (r.texto) ditos.push(r.texto)
       jaEscrito = ditos.join('\n\n') + (r.texto ? '\n\n' : '')
 
-      if (!r.pedidos.length) break
+      /**
+       * Prometeu e não chamou nada: cobra, aqui mesmo.
+       *
+       * Este é o defeito que mais incomodou, e o laço anterior não o cobria:
+       * ele só continuava quando HOUVE ferramenta, então uma resposta que
+       * dizia "vou montar as quatro tracks" e chamava zero encerrava tudo. No
+       * banco isso aparece quatro vezes seguidas: promessa, promessa, promessa,
+       * nenhuma track.
+       *
+       * A cobrança é uma fala de gente, porque é o que o modelo entende, e é
+       * limitada a duas: insistir além disso é o app discutindo sozinho com uma
+       * resposta que não vai mudar, e aí o certo é a pessoa ver o que ele disse
+       * e responder ela mesma.
+       */
+      if (!r.pedidos.length) {
+        if (cobradas >= 2 || !prometeu(r.texto)) break
+        cobradas++
+        falas.push({ de: 'ia', texto: r.texto, blocos: r.blocos })
+        falas.push({ de: 'pessoa', texto:
+          'Você disse que ia fazer e não chamou ferramenta nenhuma, então não foi feito. '
+          + 'Faça AGORA: chame a ferramenta nesta resposta. Se for mais de uma coisa, faça a '
+          + 'PRIMEIRA agora e as outras nas respostas seguintes, uma por vez.' })
+        setSaindo({ notaId, texto: jaEscrito })
+        continue
+      }
       const comAcao = r.pedidos.filter((p) => p.acao)
       const aOlhar = r.pedidos.filter((p) => p.pergunta)
 

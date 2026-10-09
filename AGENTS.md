@@ -1779,6 +1779,27 @@ virando uma tira de 104px. Ela não some de todo de propósito: foi dela que as 
 saíram, e o que está escrito ali é o que explica cada uma. **Elas nunca ficam escondidas**,
 em nenhum dos dois estados: esconder o que espera decisão é o jeito de nunca decidir.
 
+**Prometer e não chamar ferramenta é o defeito que mais voltou, e ele tem DUAS causas.**
+Está no banco, numa conversa de verdade: "vou montar a track de Sistema" criou uma track de
+6 checkpoints e 18 tarefas, e "vou montar as quatro tracks" não criou nada, **quatro vezes
+seguidas**.
+
+A primeira causa é de TAMANHO. Uma track inteira, com critério, prazo, tarefa e descrição,
+já enche uma resposta sozinha: quatro numa só estouram o teto de saída e **não sai nenhuma**.
+Por isso a regra é **uma por RESPOSTA**, não uma por chamada, e o laço é que emenda as
+quatro. Dizer ao modelo "chame a ferramenta quatro vezes" era pedir o que não cabe.
+
+A segunda é que o laço **só continuava quando havia ferramenta**: uma resposta que promete e
+chama zero encerrava tudo. Agora ele COBRA (`prometeu`, em `lib/secretario.ts`, uma peneira
+de futuro mais verbo de criar), no máximo duas vezes. A peneira erra para o lado de cobrar
+de propósito: cobrar à toa custa uma volta, e não cobrar custa a coisa não acontecer. Quem
+limita o estrago é o teto de duas, não a precisão dela.
+
+**O teto de voltas é 12, e o número tem conta**: quatro frentes são quatro voltas, mais o
+que ele gasta olhando antes e as duas cobranças. Ele existe para um engano não virar uma
+conta que ninguém pediu, e não para apertar o trabalho: o laço para sozinho quando o modelo
+não pede mais nada, que é o fim normal.
+
 **Ele FAZ, vê o que deu, e CONTINUA, e isto é o que faltava.** Era um pedido e uma resposta:
 o modelo dizia "vou montar as quatro tracks", a volta acabava ali, e não montava nenhuma.
 **Não é o modelo sendo fraco, é o app não ter dado a ele a chance de continuar**: um

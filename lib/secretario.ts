@@ -78,6 +78,29 @@ export type Pergunta =
   | { ve: 'nota'; titulo: string }
   | { ve: 'busca'; termo: string }
 
+/**
+ * A resposta PROMETE fazer e não fez?
+ *
+ * Existe porque o defeito existe: "Vou montar as quatro tracks" sem chamar
+ * ferramenta nenhuma apareceu quatro vezes seguidas numa conversa de verdade.
+ * Para quem lê, prometer é dizer que fez.
+ *
+ * A peneira é de FUTURO mais VERBO DE CRIAR, e é de propósito que ela erre para
+ * o lado de cobrar: cobrar à toa custa uma volta que o modelo responde com
+ * "não era para fazer nada", e não cobrar custa a coisa não acontecer. Quem
+ * limita o estrago é o teto de duas cobranças, não a precisão desta função.
+ */
+export function prometeu(texto: string): boolean {
+  const t = (texto || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  if (!t.trim()) return false
+  // Pergunta aberta não é promessa: ele está esperando a pessoa, e cobrar ali
+  // seria responder por ela.
+  if (/\?\s*$/.test(t.trim())) return false
+  const futuro = /\b(vou|vamos|irei|ja vou|agora vou|deixa comigo|pode deixar|em seguida)\b/
+  const criar = /\b(mont|cri|separ|organiz|abr|registr|marc|anot|faz|fac)\w*/
+  return futuro.test(t) && criar.test(t)
+}
+
 /** Quanto uma leitura pode fazer de uma vez, para um engano não virar faxina. */
 export const MAXIMO = 8
 
