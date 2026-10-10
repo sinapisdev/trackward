@@ -15,12 +15,21 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 App de acompanhamento de projetos, rotinas e areas da SILVERENG.
 Next.js (App Router) + Supabase. Leia o `README.md` antes de mexer.
 
-**Quatro documentos, e cada um responde outra coisa.** Este diz as REGRAS, que é o que não
+**Cinco documentos, e cada um responde outra coisa.** Este diz as REGRAS, que é o que não
 pode ser violado. O `PLANO-OAAS.md` diz para onde o produto ia em 26/09. O `IDEIAS.md` diz
 o que foi conversado depois e onde cada ideia parou, inclusive o que ainda não foi
 decidido. O `PLANO-LANCAR.md` diz o que falta para o produto SAIR, medido contra o manual
 de 12 etapas do Leo, e a conclusão dele é desconfortável de propósito: **a construção está
-na etapa 9, a evidência está na 2 e a comercialização está na 0**. Antes de construir
+na etapa 9, a evidência está na 2 e a comercialização está na 0**. O `PLANO-REDE.md` diz o
+que o produto precisa ser para o valor NÃO estar no código, e a conta ali também é
+desconfortável: **ninguém de fora nunca usou o app, nenhuma vez**, e é justamente essa a
+parte onde se quer apostar o valor inteiro.
+
+**A tensão que atravessa os cinco, e que ainda não foi decidida:** a parede entre empresas
+clientes é a peça mais bem construída do sistema e é o que se vende, e ela diz que nada
+atravessa de uma organização para outra. A rede exige que alguma coisa atravesse. As duas
+convivem só se o atravessamento for um OBJETO com nome, política e teste, como a ocupação
+da agenda já é, e não uma exceção na política. Exceção na parede é como a parede acaba. Antes de construir
 qualquer coisa nova, ler aquele arquivo e perguntar se o que se vai construir aparece lá. **Ideia que muda a direção do produto entra no `IDEIAS.md` no dia em que é
 discutida**, mesmo sem decisão: ele existe porque uma conversa inteira de estratégia se
 perdeu quando o contexto foi comprimido, e descobrir isso custou mais caro do que escrever
