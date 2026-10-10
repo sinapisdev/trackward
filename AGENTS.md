@@ -3188,6 +3188,14 @@ deixa de ser rótulo e vira porta.
 
 ## A caixa de e-mail é a segunda entrada, e ela é lida pelo ENVELOPE
 
+**Atenção, e isto estava errado em três arquivos:** o que existe é o DESENHO, não a
+ligação. A seção 49 do schema, as tabelas `caixas` e `envelopes_vistos` e as regras de
+casamento de `lib/caixa.ts` estão de pé e são boas. **Nenhuma linha do app jamais falou com
+um servidor de e-mail**: não há cliente de IMAP, não há rota, não há biblioteca de e-mail
+no `package.json`, e `caixas` tem zero linhas em produção. Tudo abaixo descreve como ela
+DEVE funcionar quando for ligada, e as decisões continuam valendo; o que não vale é contar
+com ela como coisa pronta.
+
 O plano previa um endereço para onde encaminhar. A forma melhor é a contrária, porque
 ninguém encaminha: a pessoa conecta a caixa dela (seção 49) e o app repara no que já
 acontece ali. O encaminhamento continua fazendo sentido para arquivar algo de propósito, e

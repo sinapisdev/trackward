@@ -63,8 +63,9 @@ nesse ponto exato, e não por falta de recurso.
 
 - o `@`, que é o primeiro endereço que o app tem de verdade
 - o telefone verificado, que é o segundo
-- a caixa de e-mail conectada, lida pelo ENVELOPE (seção 49), que é como o app observa o
-  trabalho onde ele acontece sem ler o conteúdo de ninguém
+- a caixa de e-mail: o DESENHO de lê-la pelo envelope (seção 49), que é como o app
+  observaria o trabalho sem ler o conteúdo de ninguém. O desenho está pronto e a conexão
+  não existe: ver a seção 5
 - o link de feedback, que é a prova de que dá para alguém de fora participar sem conta
 
 **O que falta, em ordem de dificuldade:**
@@ -150,7 +151,13 @@ Sua ideia, e é a parte mais realista da série: não tentar substituir o e-mail
 e sim entrar por onde a pessoa já está.
 
 - **conectar o WhatsApp**: feito no código, travado na verificação da Meta
-- **conectar a caixa de e-mail**: feito (seção 49), lendo só o envelope
+- **conectar a caixa de e-mail**: **NÃO feito**, e este arquivo dizia que estava. O que
+  existe é o desenho inteiro (seção 49 do schema, a tabela `caixas`, `envelopes_vistos`, e
+  as regras de casamento em `lib/caixa.ts`, que são funções puras e testáveis). O que não
+  existe é **o cliente de IMAP e a rota que busca um envelope**: nenhuma linha do app
+  jamais falou com um servidor de e-mail, não há biblioteca de e-mail no `package.json`, e
+  `caixas` tem zero linhas. Confundir "decidido e desenhado" com "feito" foi o que fez esta
+  lista mentir, e planejar em cima dela custa mês
 - **o telefone como entrada**: feito
 
 O princípio: o app observa o trabalho onde ele acontece, em vez de pedir que a pessoa

@@ -263,6 +263,76 @@ mostra numa venda para empresa grande, e é o que nenhum concorrente de IA tem h
 
 ---
 
+## 8. A camada entre a pessoa e as redes dela: o estado real, medido
+
+Esta é a parte que o Leo chama de mais importante, e ela merece a conta exata. Medido na
+base de produção em 10/10/2026:
+
+| rede | lê? | escreve? | em uso |
+|---|---|---|---|
+| **WhatsApp** | sim, as duas vias | sim | 2 conectores, **travado na verificação da Meta** |
+| **Agenda externa** | sim, só INTERVALOS (`lib/ical.ts` descarta título e local de propósito) | não | **0 agendas conectadas** |
+| **E-mail** | **não**: existe o desenho, não existe o cliente | não | **0 caixas**, e nenhuma linha do app jamais falou com um servidor de e-mail |
+| **Sistemas de gestão** | pelo conector genérico, se alguém escrever a chamada | não | nenhum ligado |
+
+**Ou seja: a camada que vai ser o produto hoje é uma rede travada e duas integrações com
+zero uso, uma delas sem implementação nenhuma.** Não é pouco para onde se chegou, e é
+muito menos do que os documentos diziam.
+
+### 8.1 O limite duro, que não é trabalho e sim impossibilidade
+
+**O WhatsApp PESSOAL não pode ser lido por aplicativo nenhum.** A Meta publica a
+plataforma de negócios, que funciona com um número registrado como empresa, e aquele
+número **não pode ser o mesmo que você usa no WhatsApp do celular**. Não existe API para
+as suas conversas pessoais, não é questão de permissão e não vai existir: o produto deles
+é criptografado de ponta a ponta e isso é o argumento de venda deles.
+
+Existem bibliotecas que dirigem o WhatsApp Web por fora. Elas funcionam, violam os termos
+e levam banimento do número, que é o ativo da pessoa. **Não é um caminho, é um risco
+fatiado.**
+
+**O que dá para fazer, e é bastante:** um número do TrackWard pelo qual os OUTROS falam
+com você e com o seu agente, que é o que já está construído e travado na verificação. A
+frase honesta para quem compra é *"o seu WhatsApp continua sendo seu; o que entra pelo
+número da empresa vira trabalho sozinho"*, e nunca *"você não precisa mais olhar o
+WhatsApp"*.
+
+### 8.2 O que falta construir, por rede
+
+**E-mail, que é o buraco maior e o mais viável.** Falta o cliente de IMAP e a rota que
+busca envelope, do jeito que `lib/caixa.ts` já sabe casar. Isso é trabalho de dias, não de
+mês, e destrava a metade mais valiosa, que é a caixa de SAÍDA: "terminei e mandei" já está
+nos enviados e não precisa virar clique.
+
+Depois dele, **enviar**. Aí entram duas coisas novas: credencial de escrita (hoje só
+existe segredo para leitura) e a conta de quem errou quando o agente mandar o e-mail
+errado.
+
+Pelo Gmail, ler e enviar exigem OAuth e **revisão de segurança do Google** para os escopos
+restritos, que é semanas e tem auditoria paga. Por IMAP e SMTP com senha de aplicativo,
+funciona hoje e sem revisão, e é por onde se começa.
+
+**Agenda, que é o mais próximo de pronto.** Ler já funciona por iCal e só devolve
+intervalo, por decisão escrita. Para o agente MARCAR, falta escrita, e aí o iCal não serve:
+é a API do Google ou do Microsoft, com OAuth. O escopo de agenda é "sensível" e não
+"restrito", então a revisão é mais leve que a de e-mail.
+
+**E falta o que não é de rede nenhuma: a CAIXA ÚNICA.** Hoje o app tem canais internos,
+notas e o secretário. Não existe um lugar onde o e-mail, o WhatsApp, o compromisso e o
+pedido externo caem juntos, em ordem, com o agente separando o que é trabalho do que é
+ruído. **É isso que a pessoa compra quando ouve "um lugar só", e é a única peça da lista
+que não é integração: é produto.**
+
+### 8.3 A ordem que eu defenderia aqui
+
+1. **IMAP de leitura**, porque é dias e porque a caixa de saída prova a tese sozinha
+2. **A caixa única**, com o que já entra (WhatsApp e e-mail), antes de somar mais rede
+3. **Escrever e-mail**, com desfazer e com o registro de quem mandou
+4. **Escrever na agenda**, uma plataforma de cada vez
+5. **Os outros sistemas**, pelo conector, um por cliente que pedir
+
+---
+
 ## 7. O que eu faria, e em que ordem
 
 Discordo de um ponto do plano da mensagem, e é de ordem, não de direção: ela põe a rede na
