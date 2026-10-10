@@ -263,7 +263,7 @@ mostra numa venda para empresa grande, e é o que nenhum concorrente de IA tem h
 
 ---
 
-## 8. A camada entre a pessoa e as redes dela: o estado real, medido
+## 7. A camada entre a pessoa e as redes dela: o estado real, medido
 
 Esta é a parte que o Leo chama de mais importante, e ela merece a conta exata. Medido na
 base de produção em 10/10/2026:
@@ -279,7 +279,7 @@ base de produção em 10/10/2026:
 zero uso, uma delas sem implementação nenhuma.** Não é pouco para onde se chegou, e é
 muito menos do que os documentos diziam.
 
-### 8.1 O limite duro, que não é trabalho e sim impossibilidade
+### 7.1 O limite duro, que não é trabalho e sim impossibilidade
 
 **O WhatsApp PESSOAL não pode ser lido por aplicativo nenhum.** A Meta publica a
 plataforma de negócios, que funciona com um número registrado como empresa, e aquele
@@ -297,7 +297,7 @@ frase honesta para quem compra é *"o seu WhatsApp continua sendo seu; o que ent
 número da empresa vira trabalho sozinho"*, e nunca *"você não precisa mais olhar o
 WhatsApp"*.
 
-### 8.2 O que falta construir, por rede
+### 7.2 O que falta construir, por rede
 
 **E-mail, que é o buraco maior e o mais viável.** Falta o cliente de IMAP e a rota que
 busca envelope, do jeito que `lib/caixa.ts` já sabe casar. Isso é trabalho de dias, não de
@@ -323,34 +323,106 @@ pedido externo caem juntos, em ordem, com o agente separando o que é trabalho d
 ruído. **É isso que a pessoa compra quando ouve "um lugar só", e é a única peça da lista
 que não é integração: é produto.**
 
-### 8.3 A ordem que eu defenderia aqui
+### 7.3 Onde esta camada entra na ordem geral
 
-1. **IMAP de leitura**, porque é dias e porque a caixa de saída prova a tese sozinha
-2. **A caixa única**, com o que já entra (WhatsApp e e-mail), antes de somar mais rede
-3. **Escrever e-mail**, com desfazer e com o registro de quem mandou
-4. **Escrever na agenda**, uma plataforma de cada vez
-5. **Os outros sistemas**, pelo conector, um por cliente que pedir
+Ela não tem ordem própria: está dentro da seção 8, que é a única lista deste arquivo.
+Duas listas paralelas é como um plano começa a se contradizer sozinho.
 
 ---
 
-## 7. O que eu faria, e em que ordem
+## 8. A ordem, uma só
 
-Discordo de um ponto do plano da mensagem, e é de ordem, não de direção: ela põe a rede na
-fase 2, depois de 12 meses provando execução. **O `PLANO-LANCAR.md` já tem "deixar o app
-receber um estranho" como checkpoint 2, antes de provar que alguém paga**, e o motivo
-continua valendo: é mais barato testar o laço agora, com cinco fornecedores de verdade, do
-que construir um ano em cima de uma hipótese nunca exercida.
+Escrita em 10/10/2026, juntando o que estava espalhado em três listas. **Se duas partes
+deste arquivo discordarem da ordem, esta vale.**
 
-1. **Atravessar a porta uma vez.** Pegar um pedido real da Simonetto, mandar por link para
-   um fornecedor de verdade, e ver se ele responde. Custa uma tarde. Cinco pedidos de
-   feedback com zero resposta é um sinal, e ele merece ser entendido antes de virar
-   arquitetura.
-2. **Dar nome à contraparte**, no banco e no teste da parede, antes de qualquer tela.
-3. **O fluxo de duas pontas**, com o estranho anexando e perguntando de volta.
-4. **Medir o grafo**, desde o primeiro dia dele.
-5. **O desfazer e o registro do agente**, que é o que destrava a venda e o nível 4.
-6. **O endereço público**, com o primeiro contato sem modelo.
-7. **Escrever nos sistemas de fora**, por último, uma integração de cada vez.
+### O princípio que decide o começo
 
-Os passos 1 a 4 cabem no que `PLANO-LANCAR.md` já chama de checkpoint 2. Os 5 a 7 são o
-produto da mensagem, e nenhum deles vale ser começado antes de o passo 1 ter resposta.
+**Separe o que custa o seu TEMPO do que custa ESPERA.** As duas coisas se tocam uma vez
+só, e a espera não anda sozinha se ninguém começar. Tudo que depende de aprovação de
+terceiro entra hoje, em paralelo, porque é calendário e não trabalho.
+
+### Hoje, porque é espera
+
+- **A verificação do negócio na Meta.** Ela trava o WhatsApp inteiro, que é a única rede
+  de verdade já construída, e nada do que se escrever aqui destrava. Está parada desde
+  setembro.
+- **A decisão do plano grátis.** Está aberta desde setembro e trava a conversa de preço,
+  que é o passo 6. Não é trabalho, é uma escolha.
+- **O contrato de tratamento de dados com a Anthropic**, que é LGPD e deixa de ser
+  opcional no dia do primeiro cliente pagante.
+
+### 1. Atravessar a porta uma vez. Zero código.
+
+Pegar um pedido real da Simonetto, mandar o link para um fornecedor de verdade, e ver se
+ele responde. **Cinco pedidos de feedback com zero respostas é o fato mais importante
+desta pasta**, e nenhuma linha de código vale mais do que entender por quê: o link não
+chegou, chegou e não foi entendido, ou foi entendido e não interessou. As três levam a
+produtos diferentes.
+
+Custa uma tarde, e roda em segundo plano enquanto o passo 2 é construído.
+
+### 2. O IMAP de leitura. Dias.
+
+É o buraco maior da camada e o mais barato de fechar, porque `lib/caixa.ts` já sabe casar
+envelope com tarefa: falta o cliente e a rota. Por IMAP com senha de aplicativo funciona
+hoje, sem revisão do Google.
+
+E ele prova a tese sozinho pela caixa de SAÍDA: "terminei e mandei" já está nos enviados,
+e a tarefa fecha sem ninguém tocar em nada. É a demonstração mais curta de "o app já sabe
+o que eu combinei" que este produto tem.
+
+**Não depende de ninguém de fora**, e é por isso que ele vem enquanto o passo 1 espera.
+
+### 3. A caixa única. Uma a duas semanas.
+
+O lugar onde o e-mail, o WhatsApp, o compromisso e o pedido externo caem juntos, com o
+agente separando trabalho de ruído. **É a única peça desta lista que é produto e não
+ligação**, e é literalmente o que a pessoa compra quando ouve "um lugar só".
+
+Vem depois do IMAP porque uma caixa única com uma fonte só é uma lista com outro nome.
+
+### 4. A contraparte e o fluxo de duas pontas. Duas a quatro semanas.
+
+Aqui estão as duas coisas juntas porque uma não funciona sem a outra: o estranho que abre,
+anexa e pergunta de volta, e o objeto que faz o app reconhecê-lo quando ele voltar.
+
+**É o motor de crescimento**, e é também a decisão de arquitetura da seção 2. Vem depois
+do passo 1 de propósito: o que aquele teste mostrar muda o desenho desta parte.
+
+### 5. Medir o grafo. Junto com o 4, não depois.
+
+Quantas pessoas de fora participaram de um fluxo, e quantas voltaram. Hoje é zero e não há
+onde pôr o número. Construir o motor sem o medidor é descobrir em seis meses que ele não
+girava.
+
+### 6. Um piloto de verdade, e o preço.
+
+Uma empresa que não é sua, usando, com o plano ligado. É o checkpoint 3 e 4 do
+`PLANO-LANCAR.md`, e a ordem é a de lá.
+
+### 7. Daqui para frente, e só com o 6 respondido
+
+Nenhum destes vale ser começado antes de alguém de fora pagar:
+
+- **escrever e-mail**, com desfazer e com registro de quem mandou
+- **escrever na agenda**, uma plataforma de cada vez (aí é OAuth, e o iCal não serve)
+- **o desfazer do agente**, que é o que destrava o nível 4 de autonomia
+- **o endereço público**, com o primeiro contato sem chamar modelo
+- **os outros sistemas**, um por cliente que pedir
+
+### O que eu NÃO faria agora, e por quê
+
+- **O endereço público.** Ele é a tese inteira e é a coisa mais cara de operar: todo
+  endereço público é um alvo, e aqui cada contato custa dinheiro de IA. Depois do grafo
+  existir.
+- **Níveis 4 e 5 de autonomia.** Sem o desfazer, nenhum cliente autoriza, e com razão.
+- **Escrever nos sistemas de fora.** Reverte uma decisão de segurança tomada com motivo,
+  e o erro ali acontece na agenda de outra pessoa.
+- **Mais rede.** WhatsApp e e-mail já são duas, e nenhuma delas está provada.
+
+### A discordância com o plano de fases
+
+A proposta de fases põe a rede na fase 2, depois de doze meses provando execução. **Eu
+inverteria**, e o motivo é o fato do topo deste arquivo: é mais barato testar o laço agora,
+com cinco fornecedores de verdade, do que construir um ano em cima de uma hipótese que
+nunca foi exercida nenhuma vez.
