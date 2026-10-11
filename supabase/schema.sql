@@ -3406,7 +3406,16 @@ alter table public.anexos alter column fluxo_id drop not null;
 
 do $$
 begin
-  if not exists (select 1 from pg_constraint where conname = 'anexos_de_uma_coisa') then
+  /* Esta é a versão ESTREITA, e ela só vale numa base onde o anexo ainda não
+     pode pertencer a um ciclo nem a uma mensagem. Sem esta guarda, numa base
+     que já tem anexo de mensagem ela recusa a linha que já existe e derruba o
+     arquivo no meio, que é a regra do AGENTS sobre restrição que se alarga
+     depois. Aqui ela não pode nascer larga, porque as colunas ainda não
+     existem: a guarda é a forma que a regra assume. */
+  if not exists (select 1 from pg_constraint where conname = 'anexos_de_uma_coisa')
+     and not exists (select 1 from information_schema.columns
+       where table_schema = 'public' and table_name = 'anexos' and column_name = 'ciclo_id')
+  then
     alter table public.anexos add constraint anexos_de_uma_coisa
       check ((item_id is not null and nota_id is null)
           or (item_id is null and nota_id is not null));
@@ -6421,11 +6430,19 @@ alter table public.anexos add column if not exists ciclo_id uuid
 
 do $$
 begin
-  if exists (select 1 from pg_constraint where conname = 'anexos_de_uma_coisa') then
-    alter table public.anexos drop constraint anexos_de_uma_coisa;
+  /* Idem: esta vale enquanto o anexo não pode ser de uma MENSAGEM. Numa base
+     que já tem anexo de mensagem, ela conta zero colunas preenchidas das três e
+     recusa a linha. Foi exatamente isto que derrubou o arquivo em 11/10/2026,
+     com dois contratos anexados numa conversa. */
+  if not exists (select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'anexos' and column_name = 'mensagem_id')
+  then
+    if exists (select 1 from pg_constraint where conname = 'anexos_de_uma_coisa') then
+      alter table public.anexos drop constraint anexos_de_uma_coisa;
+    end if;
+    alter table public.anexos add constraint anexos_de_uma_coisa
+      check (num_nonnulls(item_id, nota_id, ciclo_id) = 1);
   end if;
-  alter table public.anexos add constraint anexos_de_uma_coisa
-    check (num_nonnulls(item_id, nota_id, ciclo_id) = 1);
 end $$;
 
 create index if not exists anexos_ciclo_idx on public.anexos (ciclo_id) where ciclo_id is not null;

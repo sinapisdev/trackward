@@ -998,6 +998,22 @@ A regra: **lista de valores permitidos se escreve uma vez, completa, no primeiro
 aparece.** Ao criar um tipo novo de aviso, acrescentá-lo ali, não numa seção depois. Vale
 para qualquer `check (x in (...))` que o arquivo repita.
 
+**E quando ela NÃO PODE nascer larga, a guarda é a forma que a regra assume.** Aconteceu de
+novo em 11/10/2026, com `anexos_de_uma_coisa`: ela nasce falando de duas colunas, vira três
+quando o anexo passa a poder ser de um ciclo, e quatro quando passa a poder ser de uma
+mensagem. A versão de três não pode ser escrita larga no lugar dela, porque `mensagem_id`
+ainda não existe ali. Numa base que já tem anexo de mensagem, ela conta zero das três e
+recusa a linha: o arquivo parou no meio, com dois contratos anexados numa conversa.
+
+A saída é **cada versão estreita só rodar enquanto a coluna da versão seguinte não existe**
+(`not exists (select 1 from information_schema.columns ...)`). Assim ela vale na base nova,
+que ainda não chegou lá, e é pulada na base antiga, que já passou.
+
+**Ao acrescentar uma coluna a um `num_nonnulls(...) = 1`, conferir se a versão anterior tem
+essa guarda.** E vale medir antes de mandar alguém rodar: as restrições de `check` e os
+índices únicos são o que quebra com dado de verdade, e dá para conferir cada um contra a
+produção numa consulta.
+
 ## Um `update` no meio do arquivo dispara gatilho, e gatilho escolhe função
 
 `avisar` nasce com dez argumentos na seção 14 e ganha o décimo primeiro na 27. Numa segunda
