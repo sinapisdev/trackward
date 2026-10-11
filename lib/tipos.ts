@@ -776,6 +776,15 @@ export type Alvo = {
   item_id?: string | null
   resp_id?: string | null
   prazo?: string | null
+  /**
+   * Quanto a tarefa leva, em minutos, estimado pela leitura.
+   *
+   * É o que dá ORÇAMENTO ao dia. Sem ele, cinco tarefas cabem igualmente numa
+   * terça com duas reuniões e numa quarta vazia, o que é falso, e o Organizar
+   * empilha trabalho onde não há hora. É também o tamanho da reserva que vai
+   * para a agenda: cinco horas de tarefa no dia são cinco horas bloqueadas.
+   */
+  minutos?: number | null
   /** A tarefa que nasceu daqui. Sem guardar isto não há como desfazer depois. */
   criou_id?: string | null
   /**

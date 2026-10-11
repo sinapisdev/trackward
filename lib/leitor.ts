@@ -614,21 +614,43 @@ export function doDespejo(ctx: Contexto): Proposta[] {
 
   // Sem podar por semelhança: no caderno, duas anotações parecidas em dias
   // diferentes são duas anotações, e apagar uma delas é perder informação.
-  return saida.slice(0, 12)
+  return saida.slice(0, TETO_DESPEJO)
 }
 
-/** Duas propostas dizendo a mesma coisa viram uma. A última é a que vale. */
-export function podar(lista: Proposta[]) {
+/**
+ * Duas propostas dizendo a mesma coisa viram uma. A última é a que vale.
+ *
+ * **O teto era 8, fixo, e era ele que comia o Organizar de uma nota longa.**
+ * Uma página de caderno rende tarefa, compromisso, ideia e decisão com
+ * facilidade, e o que passava de oito sumia sem erro, sem aviso e sem vestígio:
+ * de fora é indistinguível de a leitura não ter achado nada ali, que é o modo
+ * de falha mais caro deste app. Numa conversa de equipe oito continua certo,
+ * porque lá o risco é o contrário, criar trabalho que ninguém pediu.
+ *
+ * **E no caderno não se junta por SEMELHANÇA DE TEXTO.** Duas ideias escritas
+ * com as mesmas palavras são duas ideias, e `doDespejo` já dizia isso ao não
+ * podar nada: apagar uma é perder informação que a pessoa escreveu de
+ * propósito para não perder. O que continua valendo nos dois é juntar pelo
+ * `item_id`, que é identidade e não parecença.
+ */
+export function podar(lista: Proposta[], opc?: { teto?: number; porTexto?: boolean }) {
+  const teto = opc?.teto ?? 8
+  const porTexto = opc?.porTexto ?? true
   const saida: Proposta[] = []
   for (const p of [...lista].reverse()) {
     const repetida = saida.some(
       (q) => q.tipo === p.tipo &&
-        (q.dados.item_id ? q.dados.item_id === p.dados.item_id : mesmaCoisa(q.texto, p.texto) >= 0.6),
+        (q.dados.item_id
+          ? q.dados.item_id === p.dados.item_id
+          : porTexto && mesmaCoisa(q.texto, p.texto) >= 0.6),
     )
     if (!repetida) saida.push(p)
   }
-  return saida.reverse().slice(0, 8)
+  return saida.reverse().slice(0, teto)
 }
+
+/** O teto do caderno. Generoso porque ali perder é o erro, ver `podar`. */
+export const TETO_DESPEJO = 40
 
 export const resumo = (p: Proposta, pessoas: Contexto['pessoas']) =>
   p.tipo === 'tarefa' && p.dados.resp_id ? `${p.texto} · ${nomeDe(p.dados.resp_id, pessoas)}` : p.texto

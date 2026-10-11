@@ -2895,7 +2895,7 @@ textarea.tk-in{resize:vertical;line-height:1.5;min-height:46px}
    Caixa em volta de folha faz o bloco de notas parecer formulário. */
 .nt-aberta{display:flex;flex-direction:column;min-height:0;overflow-y:auto;
   padding-right:8px}
-.nt-aberta>.doc{flex:1;min-height:0}
+.nt-aberta>.doc{flex:1 0 auto;min-height:0}
 .nt-a-h{display:flex;align-items:center;gap:10px;flex:none}
 .nt-a-h h2{flex:1;font:var(--fw-semibold) var(--fs-h3)/var(--lh-h3) var(--sans)}
 .nt-quando{font-size:var(--fs-meta);color:var(--tx-3);flex:1;margin:0}
@@ -4506,7 +4506,40 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
   min-height:240px;resize:none;font:inherit;line-height:1.6;
   font-size:var(--fs-body);color:var(--tx)}
 .doc-campo:focus{outline:none;box-shadow:none;border:0}
-.doc-lido{flex:1;min-height:240px}
+.doc-lido{flex:1 0 auto;min-height:240px}
+
+/* A sobra depois do fim do texto.
+
+   MEDIDO, e o que parecia bastar não bastava: `padding-bottom` sozinho some
+   quando a folha é ESPREMIDA pelo flex. No computador `.doc-lido` era
+   `flex:1`, com base zero, então ela ficava do tamanho da coluna e o texto
+   transbordava por baixo; o recuo cabia dentro da caixa espremida e sobrava
+   **1px** depois da última linha. Com `flex:1 0 auto` a folha passa a ter o
+   tamanho do que tem dentro, e a sobra aparece: 1px vira 447. No telefone já
+   funcionava, porque `.dp-dentro` tem `min-height:100%` e não altura, então
+   nada ali era espremido.
+
+   E `.doc` cresce junto pela mesma razão, com um ganho de brinde: espremida,
+   ela deixava o texto de uma nota longa ser pintado POR CIMA do "Daqui saiu"
+   logo abaixo. Medido nas três formas, só com as duas crescendo o texto para
+   onde deve parar.
+
+   Chegando ao fim, a última linha ficava colada no rodapé: ler o fim de uma
+   nota era ler em cima da barra, e escrever o fim era escrever na beira da
+   tela. Todo editor de texto longo deixa rolar além do fim, e o motivo é esse.
+
+   **Ela fica DENTRO da folha, e não no recipiente que rola.** A barra de ações
+   gruda no rodapé da `.doc`, então a sobra posta fora dela viraria um trecho
+   de tela em branco sem Perguntar nem Organizar, que é o contrário do que a
+   barra grudada existe para fazer. Dentro, a barra continua pinada enquanto
+   você rola pelo vazio.
+
+   E vale com a nota vazia também, de propósito: a folha é a mesma antes e
+   depois de ter texto, e uma régua que só aparece quando o texto cresce é uma
+   régua que ninguém entende. Vale nos dois tamanhos porque `.doc` é um
+   componente só, o mesmo no computador e no telefone. */
+.doc{--folha-sobra:55dvh}
+.doc-campo,.doc-lido{padding-bottom:var(--folha-sobra)}
 
 .doc-titulo{margin:0 0 10px;font:var(--fw-semibold) var(--fs-h3)/var(--lh-h3) var(--sans);
   letter-spacing:var(--ls-h3);color:var(--tx)}

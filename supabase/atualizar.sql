@@ -7544,6 +7544,173 @@ $$;
 revoke all on function public.meu_expediente() from public, anon;
 grant execute on function public.meu_expediente() to authenticated, service_role;
 
+-- --------------------------------------------------------------------------
+-- 76. A reserva: a hora que a tarefa ocupa na agenda
+--
+--     A agenda sabia de compromisso e a fila sabia de tarefa, e as duas nunca
+--     se falavam. O resultado aparecia na terça: duas reuniões marcadas e cinco
+--     tarefas com prazo naquele dia, somando sete horas de promessa num dia que
+--     tinha três livres. Ninguém mentiu, só que ninguém fez a conta.
+--
+--     A peça que faltava é esta: a tarefa planejada OCUPA HORA, e a hora dela
+--     mora na agenda como qualquer outra. Com isso as duas direções que o Leo
+--     pediu caem de graça, porque viram a mesma conta: dia cheio de reunião tem
+--     pouca hora para tarefa, e dia cheio de tarefa tem pouca hora para reunião.
+--     Quem decide onde cada coisa cai é `lib/plano.ts`, puro e ensaiável; o que
+--     mora aqui é o que a reserva É.
+--
+--     `compromissos.item_id` é tudo: é ele que diz "este bloco existe por causa
+--     daquela tarefa". Sem a ligação a reserva seria um compromisso qualquer
+--     chamado "Trabalho", que ninguém sabe de onde veio, ninguém sabe quando
+--     apagar, e que apodrece na agenda até a pessoa desistir do recurso.
+--
+--     **A reserva só TRAVA de perto.** Decisão do Leo, 11/10/2026, e ela é o
+--     meio-termo entre as duas coisas que a gente queria ao mesmo tempo. Longe,
+--     ela aparece e não bloqueia: a semana que vem ainda vai mudar, e uma agenda
+--     que recusa reunião daqui a duas semanas por causa de uma tarefa é uma
+--     agenda que a pessoa passa a contornar. De perto, ela trava: dentro de três
+--     dias o plano é o plano, e a hora que você reservou para escrever a
+--     proposta não pode ser tomada por quem olhou a sua agenda e a viu vazia.
+--
+--     **E concluir a tarefa LIBERA a hora.** É o que separa isto de um
+--     calendário que enche de bloco morto: o que a reserva protege é trabalho
+--     por fazer, e trabalho feito não precisa de proteção nenhuma. Quem faz isso
+--     é um gatilho, e não a tela, pelo mesmo motivo de `aviso_ao_concluir`:
+--     concluir acontece de quatro lugares diferentes, e a tela de um deles
+--     sempre esquece.
+--
+--     O que NÃO está aqui, de propósito: substituir uma reserva por um
+--     compromisso. O banco não recusa nem desfaz, porque a troca é decisão de
+--     gente ("tenho reunião nessa hora, tudo bem perder o bloco") e decisão de
+--     gente pede uma pergunta na tela, não uma recusa em inglês vinda de um
+--     gatilho.
+-- --------------------------------------------------------------------------
+
+/**
+ * Quanto a tarefa leva, em minutos.
+ *
+ * Sem isto o dia não tem orçamento: cinco tarefas cabem igualmente numa terça
+ * com duas reuniões e numa quarta vazia, o que é falso. É ESTIMATIVA, e
+ * estimativa grosseira serve; o que não serve é não ter nenhuma.
+ *
+ * Fica fora de `proteger_item` de propósito: quanto uma tarefa leva é de quem
+ * vai fazê-la, e não de quem responde pelo processo. Prazo é compromisso com
+ * quem espera; duração é conhecimento de quem executa.
+ */
+alter table public.itens add column if not exists minutos integer;
+alter table public.itens drop constraint if exists itens_minutos_cabe;
+alter table public.itens add constraint itens_minutos_cabe
+  check (minutos is null or (minutos >= 10 and minutos <= 480));
+
+/**
+ * A tarefa de quem este bloco guarda a hora.
+ *
+ * `on delete cascade` porque a reserva não sobrevive à tarefa: apagada a
+ * tarefa, o bloco perdeu o motivo de existir e ficaria na agenda como uma hora
+ * marcada para nada. É o mesmo raciocínio de `convidados`.
+ */
+alter table public.compromissos add column if not exists item_id uuid
+  references public.itens(id) on delete cascade;
+
+create index if not exists compromissos_item on public.compromissos (item_id)
+  where item_id is not null;
+
+/**
+ * Quantos dias adiante a reserva trava.
+ *
+ * Três, e o número é do Leo. É função e não literal espalhado porque ele vai
+ * ser discutido: o dia em que virar cinco, vira em um lugar só.
+ */
+create or replace function public.dias_que_a_reserva_trava()
+returns integer language sql immutable as $$ select 3 $$;
+
+/**
+ * Este compromisso bloqueia a agenda AGORA?
+ *
+ * Compromisso comum responde o que sempre respondeu, `bloqueia`. A reserva de
+ * tarefa responde `bloqueia` E estar dentro da janela: longe ela é um desenho
+ * do plano, de perto ela é a sua hora.
+ *
+ * Ela é `stable` e não `immutable` porque depende de `current_date`, e isso
+ * importa: marcada como immutable, o Postgres poderia congelar o resultado num
+ * índice e a reserva de amanhã continuaria não travando depois da virada do dia.
+ */
+create or replace function public.reserva_trava(
+  p_bloqueia boolean, p_item_id uuid, p_quando date
+) returns boolean language sql stable as $$
+  select coalesce(p_bloqueia, false)
+     and (p_item_id is null
+          or p_quando <= current_date + dias_que_a_reserva_trava())
+$$;
+revoke all on function public.reserva_trava(boolean, uuid, date) from public, anon;
+grant execute on function public.reserva_trava(boolean, uuid, date) to authenticated, service_role;
+
+/**
+ * A ocupação passa a perguntar pela janela.
+ *
+ * Era `where cp.bloqueia`, e com a reserva entrando na mesma tabela isso faria
+ * a hora que você guardou para escrever a proposta daqui a três semanas
+ * aparecer para o colega como "Ocupado", recusando reunião por causa de um
+ * plano que ainda vai mudar dez vezes. Mesma função, uma condição a mais, e a
+ * regra da janela mora num lugar só.
+ *
+ * O resto não muda: continua sem título, sem local e sem observação.
+ */
+create or replace function public.ocupacao()
+returns table (id uuid, perfil_id uuid, quando date, inicio time, fim time)
+language sql stable security definer set search_path = public as $$
+  with colegas as (
+    select p.user_id, p.id as perfil_aqui
+    from perfis p
+    where p.org_id in (select org_id from minhas_casas()) and p.user_id is not null
+  ),
+  deles as (
+    select p.id as perfil_la, c.user_id, c.perfil_aqui
+    from perfis p join colegas c on c.user_id = p.user_id
+  )
+  select cp.id, d.perfil_aqui, cp.quando, cp.inicio, cp.fim
+  from compromissos cp
+  cross join lateral (
+    select cp.dono_id as perfil_id
+    union
+    select cv.perfil_id from convidados cv where cv.compromisso_id = cp.id
+  ) e
+  join deles d on d.perfil_la = e.perfil_id
+  where reserva_trava(cp.bloqueia, cp.item_id, cp.quando)
+    and e.perfil_id is not null and ativo();
+$$;
+revoke all on function public.ocupacao() from public, anon;
+grant execute on function public.ocupacao() to authenticated, service_role;
+
+/**
+ * Concluiu a tarefa, a hora volta a ser sua.
+ *
+ * Só as reservas de HOJE PARA A FRENTE. A de ontem é registro do que aconteceu,
+ * e apagar o passado da agenda de alguém porque ela terminou o trabalho é
+ * reescrever o dia dela depois de vivido: quem olha a semana que passou quer
+ * ver onde o tempo foi.
+ *
+ * E desmarcar não devolve o bloco. Uma tarefa reaberta precisa de hora de novo,
+ * e quem acha hora é o plano, olhando a agenda de agora; ressuscitar o horário
+ * antigo seria marcar trabalho num espaço que a essa altura pode ter virado
+ * reunião.
+ */
+create or replace function public.liberar_reserva()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.feito and not old.feito then
+    delete from compromissos
+     where item_id = new.id and quando >= current_date;
+  end if;
+  return new;
+end $$;
+revoke all on function public.liberar_reserva() from public, anon, authenticated;
+
+drop trigger if exists ao_concluir_libera_reserva on public.itens;
+create trigger ao_concluir_libera_reserva
+  after update of feito on public.itens
+  for each row execute function public.liberar_reserva();
+
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
     as "carimbo de organizacao (40)",
@@ -8081,4 +8248,24 @@ select
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 've_item'
       and pg_get_functiondef(p.oid) like '%escolhidas%')
-    as "convidado ve a track inteira (1)";
+    as "convidado ve a track inteira (1)",
+  -- A tarefa tem duração, e é ela que dá orçamento ao dia.
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'itens' and column_name = 'minutos')
+    as "a duracao da tarefa (1)",
+  -- A reserva sabe de que tarefa ela é. Sem isto é um bloco chamado "Trabalho"
+  -- que ninguém sabe de onde veio nem quando apagar.
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'compromissos' and column_name = 'item_id')
+    as "a reserva conhece a tarefa (1)",
+  -- E a ocupação pergunta pela JANELA: longe a reserva aparece e não trava,
+  -- senão o colega leva "Ocupado" por causa de um plano de daqui a três semanas.
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'ocupacao'
+      and pg_get_functiondef(p.oid) like '%reserva_trava%')
+    as "a ocupacao olha a janela (1)",
+  -- Concluir a tarefa devolve a hora. Quem faz é gatilho, não a tela: concluir
+  -- acontece de quatro lugares e a tela de um deles sempre esquece.
+  (select count(*) from pg_trigger
+    where tgname = 'ao_concluir_libera_reserva' and not tgisinternal)
+    as "concluir libera a reserva (1)";

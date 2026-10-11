@@ -71,8 +71,15 @@ export function valida(cru: unknown): Blocos {
   return saida
 }
 
-/** Alguma coisa foi dita? Vazio é "ela não respondeu ainda". */
-export const temExpediente = (e: Expediente | null | undefined) =>
+/**
+ * Alguma coisa foi dita? Vazio é "ela não respondeu ainda".
+ *
+ * É um GUARDA DE TIPO (`e is Expediente`), e não só um booleano: quem pergunta
+ * isto está prestes a usar o expediente, e sem o guarda cada chamador precisa
+ * de um `as Expediente` logo abaixo, que é o jeito de um dia alguém escrever
+ * `as` sem ter perguntado.
+ */
+export const temExpediente = (e: Expediente | null | undefined): e is Expediente =>
   !!e && Object.keys(e.blocos || {}).length > 0
 
 /** Este dia tem expediente? Sábado e domingo somem por ausência, não por regra. */
@@ -193,7 +200,7 @@ const paraHora = (m: number) =>
  *
  * Compromisso de dia inteiro come o dia, porque é isso que ele quer dizer.
  */
-function livresDoDia(e: Expediente, dia: string, ocupado: Ocupado[]): [number, number][] {
+export function livresDoDia(e: Expediente, dia: string, ocupado: Ocupado[]): [number, number][] {
   const doDia = ocupado.filter((o) => o.quando === dia)
   if (doDia.some((o) => !o.inicio)) return []
   const cheios = doDia

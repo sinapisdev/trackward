@@ -1,5 +1,5 @@
 import 'server-only'
-import { doDespejo, porRegras, podar, type Contexto, type Proposta } from './leitor'
+import { doDespejo, porRegras, podar, TETO_DESPEJO, type Contexto, type Proposta } from './leitor'
 import type { TipoProposta } from './tipos'
 
 /**
@@ -44,6 +44,11 @@ const FERRAMENTA = {
             fluxo_id: { type: ['string', 'null'], description: 'Para tarefa nova: o id da track onde ela deve nascer, quando a conversa deixar claro que é de outra frente. Só ids da lista de tracks da casa.' },
             resp_id: { type: ['string', 'null'], description: 'O id da pessoa responsável, quando a conversa deixa claro.' },
             prazo: { type: ['string', 'null'], description: 'Data no formato AAAA-MM-DD, só quando a conversa disser.' },
+            /* Quanto a coisa LEVA. Sem isto o dia não tem orçamento: o app não
+               sabe se cinco tarefas cabem numa terça que já tem duas reuniões,
+               e acaba empilhando trabalho onde não há hora. É estimativa, e
+               estimativa grosseira serve; o que não serve é não ter nenhuma. */
+            minutos: { type: ['number', 'null'], description: 'Só para TAREFA: quanto tempo ela leva, em minutos, na sua melhor estimativa. Um telefonema são 15, responder um e-mail 15, conferir um documento 45, escrever uma proposta 120. Entre 10 e 480.' },
             agente_id: { type: ['string', 'null'], description: 'Só para tipo agente: o id do agente que reconheceu a situação.' },
             /* `quando` e `inicio` não estavam aqui, e o tipo compromisso existe
                desde sempre: sem o campo no esquema o modelo não tinha por onde
@@ -216,12 +221,25 @@ de quando e de quanto.
   tarefa com prazo nos próximos dias úteis, e se a coisa for grande, reserve também um
   bloco com repete.
 - "(lembrete de ideia)", "(pensar depois)" é NOTA, nunca tarefa. Ela disse o que é.
-- Tarefa sem cadência e sem data ganha prazo mesmo assim: espalhe pelos próximos dias
-  úteis, uma coisa por dia, em vez de empilhar tudo para hoje. Tudo com a mesma data é a
-  lista que ela já tinha.
+- TODA TAREFA LEVA MINUTOS, e você estima: 15 para um telefonema, 45 para conferir um
+  documento, 120 para escrever uma proposta. Não é precisão, é ordem de grandeza, e sem
+  ela o app não sabe se cinco tarefas cabem numa terça que já tem duas reuniões. Chute
+  para mais quando não souber: a conta de um dia que estourou dói mais que a de um dia
+  que sobrou.
+- Tarefa sem cadência e sem data ganha prazo mesmo assim, mas NÃO empilhe tudo para hoje
+  nem invente a distribuição: quem encaixa na semana, contando as horas livres de cada dia
+  e desviando do que já está marcado, é o app. Ponha o prazo que a coisa de fato tem, e
+  deixe sem prazo o que não tem nenhum.
 - Não marque nada fora do expediente dela nem em dia que ela não trabalha.
 
 Regras:
+- VARRA O TEXTO INTEIRO, do começo ao fim, parágrafo por parágrafo. Não pare na metade e
+  não escolha "as mais importantes": nada aqui é importante demais ou de menos, tudo que
+  ela escreveu ela escreveu para não perder. Uma página de caderno rende facilmente quinze
+  ou vinte coisas, e devolver seis é deixar quatorze para trás sem ela saber.
+- Antes de terminar, leia o texto de novo e pergunte o que ficou sem virar nada. Tarefa
+  solta no meio de um parágrafo, decisão escrita como constatação ("ficou decidido que",
+  "vamos de"), ideia jogada entre parênteses: essas são as que mais escapam.
 - Aqui NÃO REGISTRAR É O ERRO. Se ela escreveu, ela quis guardar. Em dúvida entre nota e
   ignorar, registre nota.
 - Em dúvida entre tarefa e nota, veja se tem ação: "ligar para o contador" é tarefa,
@@ -271,7 +289,7 @@ function conversa(ctx: Contexto) {
 type Cru = {
   tipo?: string; texto?: string; motivo?: string
   mensagem_id?: string | null; item_id?: string | null; fluxo_id?: string | null
-  resp_id?: string | null; prazo?: string | null
+  resp_id?: string | null; prazo?: string | null; minutos?: number | null
   agente_id?: string | null
   quando?: string | null; inicio?: string | null; somar_em?: string | null
   repete?: { minutos?: number; vezes?: number; cadencia?: string; periodo?: string } | null
@@ -315,6 +333,20 @@ function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
     if (tipo === 'prazo' && !prazo) continue
 
     const resp = c.resp_id && pessoas.has(c.resp_id) ? c.resp_id : null
+
+    /**
+     * Quanto a tarefa leva.
+     *
+     * É o que transforma uma lista num plano: sem duração, cinco tarefas numa
+     * terça com duas reuniões cabem tanto quanto numa quarta vazia, o que é
+     * falso, e o app empilha trabalho onde não há hora. Dez minutos é o menor
+     * que vale medir e oito horas é o dia inteiro; fora disso o modelo chutou e
+     * o palpite da casa vale mais que o dele.
+     */
+    const minutos = tipo === 'tarefa'
+      && Number(c.minutos) >= 10 && Number(c.minutos) <= 480
+      ? Math.round(Number(c.minutos))
+      : null
 
     // Agente sem id de agente conhecido não existe: o modelo não inventa agente.
     const agentes = new Set((ctx.agentes || []).map((a) => a.id))
@@ -382,6 +414,7 @@ function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
         item_id: item ? item.id : null,
         resp_id: resp,
         prazo,
+        ...(minutos ? { minutos } : {}),
         agente_id: tipo === 'agente' ? c.agente_id : null,
         quando: tipo === 'compromisso' ? quando : null,
         ...(somarEm ? { somar_em: somarEm } : {}),
@@ -390,7 +423,15 @@ function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
       },
     })
   }
-  return podar(saida)
+  /**
+   * No caderno o teto é outro, e a peneira de semelhança sai.
+   *
+   * Ver `podar`: oito é o número de uma conversa de equipe, onde o risco é
+   * criar trabalho que ninguém pediu. Aqui o risco é o inverso, e o corte em
+   * oito era o que fazia o Organizar de uma página inteira devolver meia
+   * dúzia de coisas e deixar o resto para trás, sem dizer que deixou.
+   */
+  return podar(saida, ctx.despejo ? { teto: TETO_DESPEJO, porTexto: false } : undefined)
 }
 
 export type Medida = {
@@ -413,7 +454,19 @@ export async function porModelo(
     },
     body: JSON.stringify({
       model: modelo,
-      max_tokens: 2000,
+      /**
+       * O teto de saída, e ele era a SEGUNDA porta por onde o Organizar perdia
+       * coisa.
+       *
+       * Cada proposta carrega o texto mais o `motivo`, que é o trecho copiado
+       * do que a pessoa escreveu. Vinte propostas de uma página de caderno não
+       * cabem em 2000 tokens: o JSON da ferramenta fica pela metade, e um JSON
+       * pela metade não vira proposta nenhuma. É o mesmo defeito do secretário
+       * (ver AGENTS), e de fora ele é igualzinho a "a leitura não achou nada".
+       * Na conversa de equipe 2000 continua de sobra, porque lá a resposta boa
+       * costuma ser curta.
+       */
+      max_tokens: ctx.despejo ? 8000 : 2000,
       system: instrucoes(ctx),
       tools: [FERRAMENTA],
       tool_choice: { type: 'tool', name: 'registrar' },
