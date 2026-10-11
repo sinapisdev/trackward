@@ -569,6 +569,15 @@ export type Compromisso = {
   visivel: boolean
   /** Esteira a que este compromisso se refere, quando houver. */
   fluxo_id: string | null
+  /**
+   * A tarefa de quem este bloco guarda a hora. Nulo é compromisso normal.
+   *
+   * É o que distingue a RESERVA de uma reunião, e as duas coisas se comportam
+   * diferente: a reserva só trava de perto (ver `reserva_trava`, seção 76),
+   * some sozinha quando a tarefa é concluída, e aceita ser substituída por um
+   * compromisso de verdade, com a pessoa confirmando.
+   */
+  item_id?: string | null
   convidados: string[]
   criado_em: string
   /** Falso quando só chegou a ocupação, sem o conteúdo. */

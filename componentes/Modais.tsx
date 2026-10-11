@@ -1697,14 +1697,41 @@ function MCompromisso({ pedido, fechar }: {
           </div>
         </div>
 
+        {/**
+          * O conflito, e a RESERVA tratada à parte.
+          *
+          * Uma reserva é a hora que você guardou para uma tarefa sua, e a
+          * decisão do Leo (11/10/2026) é que ela aceita ser substituída por um
+          * compromisso, com você aprovando. Tratá-la como conflito comum seria
+          * o app dizendo "você já tem compromisso" sobre uma hora que é sua e
+          * que você pode abrir mão: o aviso certo é a porta, não a parede.
+          *
+          * Liberar apaga só aquele bloco, e não a tarefa. A tarefa continua na
+          * fila com o prazo dela, e quem lhe acha hora de novo é o Organizar,
+          * olhando a agenda de depois desta reunião.
+          */}
         {!!conflitos.length && (
           <div className="erro">
             <Ic.x />
             <span>
               {conflitos.map(({ pessoa, conflito }) => (
                 <span key={pessoa.id} style={{ display: 'block' }}>
-                  <b>{pessoa.id === eu.id ? 'Você' : pessoa.nome}</b> já tem compromisso nesse horário
-                  {conflito.aberto ? `: ${conflito.titulo}, ${faixa(conflito)}` : `, das ${faixa(conflito)}`}.
+                  {conflito.item_id && pessoa.id === eu.id ? (
+                    <>
+                      Essa hora está <b>reservada para uma tarefa sua</b>
+                      {conflito.aberto ? `: ${conflito.titulo}, ${faixa(conflito)}` : `, das ${faixa(conflito)}`}.
+                      {' '}
+                      <button className="link" onClick={() => void excluirCompromisso(conflito.id)}>
+                        Liberar a hora
+                      </button>
+                      {' '}e a tarefa volta a procurar lugar.
+                    </>
+                  ) : (
+                    <>
+                      <b>{pessoa.id === eu.id ? 'Você' : pessoa.nome}</b> já tem compromisso nesse horário
+                      {conflito.aberto ? `: ${conflito.titulo}, ${faixa(conflito)}` : `, das ${faixa(conflito)}`}.
+                    </>
+                  )}
                 </span>
               ))}
             </span>

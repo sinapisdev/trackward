@@ -5232,3 +5232,81 @@ a.btn{text-decoration:none}
   padding:11px 14px;border-radius:var(--r-sm);background:var(--alto);
   border:1px solid var(--line);font-size:var(--fs-ui);color:var(--tx)}
 .aj-fone-ok svg{width:15px;height:15px;flex:none;color:var(--ac-tinta)}
+
+/* ==========================================================================
+   A semana montada
+
+   O Organizar devolvia vinte cartões soltos e o encaixe voltava a ser trabalho
+   de quem clicou para não fazer isso. Aqui a semana aparece inteira, por dia,
+   com a carga de cada um, e os cartões continuam logo abaixo para quem quiser
+   mexer numa linha só.
+
+   Sem lima no corpo: o acento é do "Aceitar tudo", que é a ação que faz o
+   trabalho andar. Dois lima na mesma tela é defeito.
+   ========================================================================== */
+
+.plano{border:1px solid var(--line);border-radius:var(--r);background:var(--brilho);
+  padding:12px 14px;margin-bottom:14px}
+.plano-h{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:10px}
+.plano-h>svg{color:var(--tx-3);flex:none}
+.plano-h b{font:var(--fw-semibold) var(--fs-ui)/1.2 var(--sans)}
+.plano-h .hint{flex:1;min-width:120px;margin:0;font-size:var(--fs-micro)}
+
+.plano-dia{margin-bottom:10px}
+.plano-dia:last-of-type{margin-bottom:0}
+.plano-dia-h{display:flex;align-items:baseline;gap:8px;padding:4px 0 5px;
+  border-bottom:1px solid var(--line)}
+.plano-dia-h b{font:var(--fw-medium) var(--fs-meta)/1 var(--sans);color:var(--tx-2);
+  text-transform:capitalize}
+/* A carga do dia, que é o tamanho da reserva na agenda. Discreta: ela informa,
+   não cobra. */
+.plano-dia-h i{font-style:normal;font-size:var(--fs-micro);color:var(--tx-3);margin-left:auto}
+
+.plano-l{display:grid;grid-template-columns:46px minmax(0,1fr) auto auto;gap:9px;
+  align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.plano-l:last-child{border-bottom:0}
+.plano-hora{font-variant-numeric:tabular-nums;font-size:var(--fs-meta);color:var(--tx-3)}
+.plano-tx{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:var(--fs-ui);color:var(--tx)}
+.plano-dur{font-size:var(--fs-micro);color:var(--tx-3);flex:none}
+/* Compromisso e tarefa se distinguem pela FORMA, não por cor nova: o fio à
+   esquerda marca o que é hora combinada com alguém. */
+.plano-l.compromisso .plano-hora{color:var(--tx-2);font-weight:var(--fw-medium)}
+.plano-l .iconbtn{opacity:0;transition:var(--t)}
+.plano-l:hover .iconbtn{opacity:1}
+
+/* O que não coube aparece, e dizendo por quê: plano que esconde sobra mente. */
+.plano-sobra{margin-top:10px;padding-top:9px;border-top:1px solid var(--line)}
+.plano-sobra p{margin:5px 0 0;font-size:var(--fs-meta);color:var(--tx-3)}
+.plano-sobra p b{font-weight:var(--fw-medium);color:var(--tx-2)}
+
+.plano-voltar{display:inline-flex;align-items:center;gap:6px;margin-top:9px;
+  background:none;border:0;padding:0;font-size:var(--fs-meta);color:var(--tx-3)}
+.plano-voltar:hover{color:var(--tx-2)}
+.plano-voltar>svg{width:12px;height:12px;transform:rotate(180deg)}
+.plano-guardar{margin:10px 0 0}
+
+@media (pointer: coarse){
+  /* Sem mouse não existe passar o mouse, e o botão de tirar da semana
+     simplesmente não existia no telefone. Mesma regra da seta da tarefa. */
+  .plano-l .iconbtn{opacity:1}
+}
+
+@media (max-width:840px){
+  .plano{padding:10px 11px}
+  .plano-h .hint{display:none}
+  .plano-h .btn{width:100%}
+  .plano-l{grid-template-columns:44px minmax(0,1fr) auto}
+  /* A duração sai antes do botão: no estreito, o que não pode faltar é o que
+     a linha diz e a porta de tirá-la. */
+  .plano-dur{display:none}
+}
+
+/* --------------------------------------------- a reserva, dentro da agenda */
+
+/* Ela não é reunião, e não pode parecer uma: reunião é combinada com alguém, e
+   esta é a hora que você guardou para um trabalho seu. Fio à esquerda e fundo
+   mais apagado dizem isso sem cor nova e sem legenda. */
+.ev-bloco.reserva{background:var(--brilho);border-left:2px solid var(--line-3)}
+.ev-bloco.reserva b{color:var(--tx-2);font-weight:var(--fw-regular)}
+.ev-chip.reserva{opacity:.78}

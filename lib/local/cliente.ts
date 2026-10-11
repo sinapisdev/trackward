@@ -443,6 +443,22 @@ class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
         if (this.tabela === 'itens') {
           if (l.feito && !antes) l.feito_em = agora()
           else if (!l.feito && antes) l.feito_em = null
+          /**
+           * Mesmo gatilho de `liberar_reserva`, seção 76: concluir devolve a
+           * hora. Só as de hoje para a frente, porque a de ontem é registro do
+           * que aconteceu, e apagar o passado da agenda de alguém porque ela
+           * terminou o trabalho é reescrever o dia dela depois de vivido.
+           *
+           * E desmarcar não devolve o bloco: uma tarefa reaberta precisa de
+           * hora de novo, e quem acha hora é o plano, olhando a agenda de
+           * agora.
+           */
+          if (l.feito && !antes) {
+            const hoje = new Date().toISOString().slice(0, 10)
+            b.compromissos = b.compromissos.filter(
+              (c) => !(c.item_id === l.id && String(c.quando) >= hoje),
+            )
+          }
         }
       })
       gravar()
@@ -481,6 +497,9 @@ class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
       if (this.tabela === 'itens') {
         const ids = new Set(fora)
         b.dependencias = b.dependencias.filter((x) => !ids.has(x.item_id) && !ids.has(x.depende_de))
+        // `compromissos.item_id on delete cascade`: a reserva não sobrevive à
+        // tarefa, senão fica na agenda como uma hora marcada para nada.
+        b.compromissos = b.compromissos.filter((x) => !ids.has(x.item_id as string))
       }
       if (this.tabela === 'compromissos') {
         const ids = new Set(fora)

@@ -9018,6 +9018,11 @@ grant execute on function public.ocupacao() to authenticated, service_role;
  * perguntar pela agenda de outra pessoa. Quem quiser saber se alguém está
  * livre pergunta a `ocupacao()`, que responde em intervalo.
  */
+/* A forma ANTIGA sai antes, senão a segunda passada do arquivo bate em "cannot
+   change return type of existing function": a seção 76 recria esta função com
+   `item_id` no retorno, e `create or replace` não troca assinatura. É o mesmo
+   cuidado do `avisar` com dez e onze argumentos, e o ensaio pegou. */
+drop function if exists public.minha_agenda();
 create or replace function public.minha_agenda()
 returns table (
   id uuid, org_id uuid, espaco text, titulo text, quando date,
@@ -10334,3 +10339,39 @@ drop trigger if exists ao_concluir_libera_reserva on public.itens;
 create trigger ao_concluir_libera_reserva
   after update of feito on public.itens
   for each row execute function public.liberar_reserva();
+
+/**
+ * `minha_agenda()` passa a dizer qual compromisso é RESERVA.
+ *
+ * Sem a coluna, a reserva que mora noutro espaço meu chegava aqui parecendo
+ * reunião: a tela não teria como desenhá-la diferente nem como oferecer a
+ * substituição, e a hora que eu guardei para uma tarefa viraria um bloco que
+ * ninguém sabe de onde veio. O resto da função não muda.
+ */
+drop function if exists public.minha_agenda();
+create or replace function public.minha_agenda()
+returns table (
+  id uuid, org_id uuid, espaco text, titulo text, quando date,
+  inicio time, fim time, local text, nota text, dono_id uuid,
+  bloqueia boolean, visivel boolean, fluxo_id uuid, item_id uuid,
+  criado_em timestamptz
+)
+language sql stable security definer set search_path = public as $$
+  select distinct on (cp.id)
+    cp.id, cp.org_id, o.nome, cp.titulo, cp.quando, cp.inicio, cp.fim,
+    cp.local, cp.nota, cp.dono_id, cp.bloqueia, cp.visivel, cp.fluxo_id,
+    cp.item_id, cp.criado_em
+  from compromissos cp
+  join organizacoes o on o.id = cp.org_id
+  where ativo() and (
+    cp.dono_id in (select perfil_id from meus_perfis())
+    or exists (
+      select 1 from convidados cv
+      where cv.compromisso_id = cp.id
+        and cv.perfil_id in (select perfil_id from meus_perfis())
+    )
+  );
+$$;
+revoke all on function public.minha_agenda() from public, anon;
+grant execute on function public.minha_agenda() to authenticated, service_role;
+

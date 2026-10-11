@@ -9,6 +9,7 @@ import { Anexos } from '@/componentes/Anexos'
 import { ConversaNota } from '@/componentes/ConversaNota'
 import { Documento } from '@/componentes/Documento'
 import { CartaoSugestao } from '@/componentes/TelaChat'
+import { PlanoDaSemana } from './PlanoDaSemana'
 import { DetalhesNota } from '@/componentes/DetalhesNota'
 import { rel, isoDe } from '@/lib/datas'
 import {
@@ -102,6 +103,11 @@ function Aberta({ nota, ir, aoApagar }: {
           <div className="rd-bh">
             <h3>Daqui saiu <span className="num">({propostas.length})</span></h3>
           </div>
+          {/* A semana montada vem ANTES dos cartões, e a ordem é o argumento:
+              distribuir é decisão sobre o conjunto, e aceitas uma a uma a ordem
+              do clique decidia quem ficava com os melhores horários. Os cartões
+              continuam logo abaixo, que é a saída para o detalhe. */}
+          <PlanoDaSemana propostas={propostas} />
           {propostas.map((s) => <CartaoSugestao key={s.id} s={s} despejo />)}
         </section>
       )}

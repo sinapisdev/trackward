@@ -8,6 +8,7 @@ import { ConversaNota } from './ConversaNota'
 import { Documento } from './Documento'
 import { DetalhesNota } from './DetalhesNota'
 import { CartaoSugestao } from './TelaChat'
+import { PlanoDaSemana } from './PlanoDaSemana'
 import { buscar, porTitulo, resumo } from '@/lib/notas'
 import { isoDe, rel } from '@/lib/datas'
 import type { Nota } from '@/lib/tipos'
@@ -269,6 +270,11 @@ export function Caderno({ abas }: { abas?: ReactNode }) {
           <div className="rd-bh">
             <h3>Daqui saiu <span className="num">({propostas.length})</span></h3>
           </div>
+          {/* A semana montada vem ANTES dos cartões, e a ordem é o argumento:
+              distribuir é decisão sobre o conjunto, e aceitas uma a uma a ordem
+              do clique decidia quem ficava com os melhores horários. Os cartões
+              continuam logo abaixo, que é a saída para o detalhe. */}
+          <PlanoDaSemana propostas={propostas} />
           {/* O MESMO cartão do chat e do secretário, e não um feito à mão.
               O daqui não tinha "Ajustar", e a regra é que ele aparece em TODA
               proposta: sem ele, "quase isso" só tem a saída de dispensar e

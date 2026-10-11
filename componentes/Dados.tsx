@@ -41,7 +41,7 @@ import { lerComando, ondeEh, quemEh, separaFone } from '@/lib/comandos'
 import { paraE164 } from '@/lib/fone'
 import {
   valida as validaExpediente, paraOModelo as expedienteParaOModelo, proximoUtil,
-  dentro, diaUtil, temExpediente, vagas, type Expediente,
+  dentro, diaUtil, somaMinutos, temExpediente, vagas, type Expediente,
 } from '@/lib/expediente'
 import type { ContextoConversa, Fala } from '@/lib/conversa'
 import type { Alvo } from '@/lib/tipos'
@@ -81,6 +81,14 @@ type DadosItem = {
   prazo: string
   priv: boolean
   firme?: boolean
+  /**
+   * Quanto ela leva, estimado. É o que dá ORÇAMENTO ao dia.
+   *
+   * Sem isto, cinco tarefas cabem igualmente numa terça com duas reuniões e
+   * numa quarta vazia, o que é falso, e o plano empilha trabalho onde não há
+   * hora. É também o tamanho da reserva que vai para a agenda.
+   */
+  minutos?: number | null
   /** Sem aviso na tela: quem chamou já vai dizer algo mais importante. */
   quieto?: boolean
 }
@@ -1225,6 +1233,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       prazo: d.prazo || null,
       priv: d.priv,
       prazo_firme: !!d.firme,
+      minutos: d.minutos ?? null,
       autor_id: eu.id,
       ordem: et.itens.length,
     })
@@ -2543,10 +2552,46 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       if (!et) return toast('Escolha para qual projeto esta tarefa vai.', true)
       const id = await adicionarItem(et, {
         texto, resp_id: dados.resp_id ?? null, prazo: dados.prazo || '', priv: false,
+        minutos: dados.minutos ?? null,
       }, porIa)
       if (!id) return
       // Guardamos o que nasceu daqui, senão não há como desfazer depois.
       dados.criou_id = id
+
+      /**
+       * A RESERVA: a hora que esta tarefa ocupa na agenda.
+       *
+       * O plano já escolheu o dia e a hora olhando o que estava livre, então
+       * aqui é só gravar. Sem isto, a tarefa nasce com um prazo e o dia dela
+       * continua parecendo vazio para todo mundo, inclusive para o próprio
+       * app na próxima vez que ele for distribuir: era assim que a terça
+       * ganhava sete horas de promessa num dia de três horas livres.
+       *
+       * Sem hora não há reserva, e isso é de propósito: tarefa aceita de um
+       * cartão solto, fora de um plano, continua sendo só uma tarefa com
+       * prazo. Reservar a agenda de alguém sem ela ter visto a semana seria
+       * marcar o dia dela por conta própria.
+       *
+       * `bloqueia` nasce verdadeiro sempre, e quem decide se ela TRAVA é o
+       * banco, por `reserva_trava`: longe ela aparece e aceita compromisso por
+       * cima, de perto ela segura a hora. A regra mora num lugar só, na seção
+       * 76, senão a tela e o banco discordariam no primeiro dia em que alguém
+       * mexesse num dos dois.
+       */
+      if (dados.inicio && dados.prazo && dados.minutos) {
+        const fim = somaMinutos(dados.inicio, dados.minutos)
+        // Sem pedir a linha de volta: ver AGENTS, o RETURNING passa pela
+        // política de leitura e a recusa é indistinguível da de escrita.
+        const { error } = await sb.from('compromissos').insert({
+          id: novoId(), titulo: texto, quando: dados.prazo, inicio: dados.inicio, fim,
+          nota: 'Hora reservada para esta tarefa.', bloqueia: true, visivel: true,
+          dono_id: eu.id, item_id: id,
+        })
+        // A reserva que falha não derruba a tarefa: o trabalho existe, e a
+        // hora dele é um acréscimo. O contrário seria perder a tarefa por
+        // causa do calendário.
+        if (error) console.warn('a reserva não entrou', error)
+      }
       dados.fluxo_id = et.fluxo_id
       /**
        * Duas linhas para a mesma coisa, e o canal virava mural de recibo.

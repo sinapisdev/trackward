@@ -196,6 +196,18 @@ const paraHora = (m: number) =>
   `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 
 /**
+ * A hora depois de somar minutos. "09:00" mais 90 é "10:30".
+ *
+ * Mora aqui com `emMinutos` e `paraHora`, e não em quem precisa dela, porque
+ * conta de hora escrita à mão em três telas é o jeito conhecido de uma delas
+ * devolver "9:0" num dia qualquer. Passa das 24h e para nas 23:59: um bloco que
+ * vira a noite não é bloco, é leitura torta, e devolver "25:30" seria gravar o
+ * engano com outra cara.
+ */
+export const somaMinutos = (hora: string, minutos: number) =>
+  paraHora(Math.min(emMinutos(hora) + Math.max(0, Math.round(minutos)), 23 * 60 + 59))
+
+/**
  * Os pedaços livres de um dia: o expediente menos o que já está marcado.
  *
  * Compromisso de dia inteiro come o dia, porque é isso que ele quer dizer.

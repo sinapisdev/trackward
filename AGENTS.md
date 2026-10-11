@@ -3378,3 +3378,97 @@ Ao mexer em `supabase/schema.sql`, espelhar a mudança em `lib/local/cliente.ts`
 repete as regras de visibilidade e as funções `salvar_fluxo` e `aprovar_etapa`.
 
 <!-- END:esteira-local -->
+
+## O dia tem orçamento, e tarefa e compromisso gastam do mesmo bolso
+
+A agenda sabia de compromisso e a fila sabia de tarefa, e as duas nunca se falavam. O
+resultado aparecia na terça: duas reuniões marcadas e cinco tarefas com prazo naquele dia,
+somando sete horas de promessa num dia que tinha três livres. Ninguém mentiu, só que
+ninguém fez a conta.
+
+- **O ORGANIZAR perdia coisa por duas portas, e as duas calavam.** `podar()` cortava em **8
+  propostas, fixo**, e uma página de caderno rende quinze: o que passava sumia sem erro e
+  sem vestígio, que de fora é idêntico a a leitura não ter achado nada. E `max_tokens` era
+  2000, que não cabe vinte propostas com o trecho copiado em cada uma, então o JSON da
+  ferramenta ficava pela metade e virava zero. No caderno são **40 e 8000**; na conversa de
+  equipe continuam 8 e 2000, porque lá o risco é o contrário, criar trabalho que ninguém
+  pediu. **No caderno não se junta por semelhança de texto**: duas ideias escritas parecido
+  são duas ideias, e `doDespejo` já dizia isso ao não podar nada.
+- **Toda tarefa LEVA MINUTOS, e o modelo estima** (`itens.minutos`, 10 a 480). Sem duração,
+  cinco tarefas cabem igualmente numa terça com duas reuniões e numa quarta vazia, o que é
+  falso. É estimativa, e grosseira serve; o que não serve é não ter nenhuma. Ela fica fora
+  de `proteger_item` de propósito: **prazo é compromisso com quem espera, duração é
+  conhecimento de quem executa**.
+- **Quem encaixa é `lib/plano.ts`, puro.** Mesma divisão de `lib/trilhar.ts` e de
+  `lib/raiox.ts`: o modelo diz O QUÊ e QUANTO LEVA, o código diz QUANDO. Somar horas, pular
+  sábado e desviar da reunião que já existe é aritmética, e modelo erra aritmética de
+  calendário com uma confiança que ninguém audita depois.
+- **A ordem do encaixe é a regra inteira:** a agenda que já existe ocupa primeiro; depois o
+  compromisso com dia e hora, firme, porque o app não remarca o que a pessoa combinou com
+  alguém; depois os blocos que se repetem; e a **tarefa por último, no que sobrou**. É isso
+  que faz "dia cheio de compromisso recebe menos tarefa" acontecer sem nenhuma regra dizendo
+  isso. O contrário vale porque cada tarefa encaixada passa a OCUPAR, então o compromisso
+  seguinte já encontra o dia menor.
+- **A conta da folga é do dia INTEIRO, e não só do que o plano pôs.** Foi assim que ela
+  nasceu errada: olhando só a própria carga, uma terça com seis horas e meia de reunião
+  ainda parecia vazia e ganhava tarefa nas frestas até somar oito horas e meia. Medido
+  depois do conserto: aquela terça recebe **zero**.
+- **`FOLGA` é 80%, e não 100%.** Ninguém cumpre oito horas de lista em oito horas de
+  expediente: aparece telefone, aparece gente na porta, e a hora que o plano tomou toda é a
+  que faltou para o imprevisto. O `Math.max` com os próprios minutos existe para a tarefa de
+  quatro horas não ficar órfã num dia de quatro horas livres.
+- **A tarefa ordena por PRAZO, e as sem prazo vão por último.** Quem tem data tem data por
+  um motivo que o app não conhece, e dar a vaga da terça para a que vence em duas semanas é
+  o erro que o botão existe para não cometer. Prazo é parede: a tarefa não nasce depois do
+  dia em que vence, e o que não couber vira **sobra visível**, dizendo por quê. Plano que
+  esconde sobra mente.
+
+### A reserva: a hora que a tarefa ocupa na agenda
+
+`compromissos.item_id` é a peça (seção 76). Sem a ligação, a reserva seria um compromisso
+qualquer chamado "Trabalho", que ninguém sabe de onde veio nem quando apagar, e que apodrece
+na agenda até a pessoa desistir do recurso.
+
+- **Ela só TRAVA de perto.** Decisão do Leo, 11/10/2026, e é o meio-termo entre as duas
+  coisas que se queria ao mesmo tempo. Longe (mais de `dias_que_a_reserva_trava()`, hoje 3),
+  ela aparece e não bloqueia: a semana que vem ainda vai mudar, e uma agenda que recusa
+  reunião daqui a duas semanas por causa de uma tarefa é uma agenda que se passa a
+  contornar. De perto ela trava, porque ali o plano é o plano. Quem responde é
+  `reserva_trava()`, e `ocupacao()` pergunta a ela: a regra mora num lugar só.
+- **Concluir a tarefa LIBERA a hora**, e só as reservas de hoje para a frente: a de ontem é
+  registro do que aconteceu, e apagar o passado da agenda de alguém porque ela terminou o
+  trabalho é reescrever o dia dela depois de vivido. **Desmarcar não devolve o bloco**: a
+  tarefa reaberta precisa de hora de novo, e quem acha hora é o plano, olhando a agenda de
+  agora. Quem faz é gatilho e não a tela, pelo mesmo motivo de `aviso_ao_concluir`: concluir
+  acontece de quatro lugares, e a tela de um deles sempre esquece.
+- **Substituir reserva por compromisso é permitido, com a pessoa aprovando.** O banco não
+  recusa nem desfaz: a troca é decisão de gente ("tenho reunião nessa hora, tudo bem perder
+  o bloco"), e decisão de gente pede uma pergunta na tela, não uma recusa em inglês vinda de
+  um gatilho. O aviso de conflito trata a reserva à parte e oferece "Liberar a hora": sobre
+  uma hora que é sua e da qual você pode abrir mão, **o aviso certo é a porta, não a
+  parede**. Liberar apaga o bloco e não a tarefa.
+- **Sem hora não há reserva.** Tarefa aceita de um cartão solto, fora de um plano, continua
+  sendo só tarefa com prazo: reservar a agenda de alguém sem ela ter visto a semana seria
+  marcar o dia dela por conta própria.
+- **Na agenda ela se distingue pela FORMA**, fio à esquerda e texto mais apagado, nunca por
+  cor nova: reunião é combinada com alguém, reserva é hora guardada para trabalho seu.
+
+### O plano se aceita inteiro, e cada linha continua tendo porta
+
+`componentes/PlanoDaSemana.tsx`, acima dos cartões, nas duas telas de nota.
+
+- **Distribuir é decisão sobre o CONJUNTO.** Aceitas uma a uma, a ordem do clique decidia
+  quem ficava com os melhores horários, e nenhuma voltava atrás quando o dia enchia.
+- **O plano não é guardado**, é calculado das propostas abertas a cada abertura. Guardá-lo
+  criaria uma terceira verdade entre a proposta e a agenda, que envelheceria sozinha:
+  bastaria marcar uma reunião para a tela passar a mentir sobre um dia que já não existe.
+- **Os cartões continuam logo abaixo**, com Ajustar e Dispensar. O plano resolve o caso
+  comum de um toque; trocar a frase, a espécie ou o dia de uma linha é o caminho que já
+  existia.
+- **Tirar do plano não é dispensar a proposta.** São duas decisões, e juntá-las faria "não
+  nesta semana" virar "não".
+- **Nota e decisão não ocupam hora**: são guardadas, não feitas. Ficam fora do calendário e
+  aparecem contadas embaixo, porque sumir com elas é o mesmo defeito que o botão existe para
+  consertar.
+- **Sem expediente não há plano**, e a tela diz isso em vez de inventar um horário: marcar a
+  semana de alguém por horas que ela nunca deu é o oposto de organizar.

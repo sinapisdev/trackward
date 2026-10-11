@@ -101,8 +101,10 @@ export function TelaAgenda() {
     const top = ((ini - PRIMEIRA * 60) / 60) * ALTURA
     const alt = Math.max(22, ((fim - ini) / 60) * ALTURA - 2)
     const pessoas = envolvidos(c).filter((p) => p !== eu.id)
+    // `reserva` é a hora guardada para uma tarefa, e não uma reunião: ela se
+    // distingue pela forma, com fio à esquerda, e não por cor nova.
     return (
-      <button className={`ev-bloco ${c.aberto ? '' : 'fechado'} ${c.bloqueia ? '' : 'livre'} ${sel === c.id ? 'sel' : ''}`}
+      <button className={`ev-bloco ${c.aberto ? '' : 'fechado'} ${c.bloqueia ? '' : 'livre'} ${c.item_id ? 'reserva' : ''} ${sel === c.id ? 'sel' : ''}`}
         style={{ top, height: alt }}
         title={c.aberto
           ? `${c.titulo}, ${faixa(c)}${c.local ? `, ${c.local}` : ''}`
