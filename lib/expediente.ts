@@ -176,3 +176,97 @@ ${escrito(e)}
 Fuso: ${e!.fuso}.
 ${e!.observacao ? `Ela ainda disse: ${e!.observacao}\n` : ''}Não ponha prazo nem compromisso fora disso sem ela pedir. Pedindo, faça e diga que está fora do expediente dela.`
 }
+
+/* ------------------------------------------------------------------ vagas */
+
+/** Um pedaço de tempo ocupado, vindo da agenda. Dia inteiro tem hora nula. */
+export type Ocupado = { quando: string; inicio: string | null; fim: string | null }
+
+/** Uma vaga achada: dia, começo e fim, já dentro do expediente. */
+export type Vaga = { quando: string; inicio: string; fim: string }
+
+const paraHora = (m: number) =>
+  `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+
+/**
+ * Os pedaços livres de um dia: o expediente menos o que já está marcado.
+ *
+ * Compromisso de dia inteiro come o dia, porque é isso que ele quer dizer.
+ */
+function livresDoDia(e: Expediente, dia: string, ocupado: Ocupado[]): [number, number][] {
+  const doDia = ocupado.filter((o) => o.quando === dia)
+  if (doDia.some((o) => !o.inicio)) return []
+  const cheios = doDia
+    .map((o) => [emMinutos(o.inicio!), o.fim ? emMinutos(o.fim) : emMinutos(o.inicio!) + 60] as [number, number])
+    .sort((a, b) => a[0] - b[0])
+
+  const livres: [number, number][] = []
+  for (const [a, b] of e.blocos[String(data(dia).getDay())] || []) {
+    let corte = emMinutos(a)
+    const fim = emMinutos(b)
+    for (const [ci, cf] of cheios) {
+      if (cf <= corte || ci >= fim) continue
+      if (ci > corte) livres.push([corte, Math.min(ci, fim)])
+      corte = Math.max(corte, cf)
+    }
+    if (corte < fim) livres.push([corte, fim])
+  }
+  return livres.filter(([a, b]) => b > a)
+}
+
+/**
+ * Onde cabem N blocos de X minutos, dentro do expediente e sem colidir.
+ *
+ * **A conta de calendário é do CÓDIGO, e o modelo só diz quanto tempo e com que
+ * frequência.** É a mesma divisão de `lib/trilhar.ts` e de `lib/descobrir.ts`,
+ * e aqui ela é ainda mais clara: somar horas, pular sábado e desviar da reunião
+ * que já existe é aritmética, e modelo erra aritmética de calendário com uma
+ * confiança que ninguém audita depois.
+ *
+ * `cadencia` é o que a pessoa disse entre parênteses. "2h por dia" é `dia`, e
+ * sai em dias seguidos; "2 a 3 dias por semana" é `semana`, e sai espaçado, com
+ * um dia de folga entre um e outro, porque é isso que a frase quer dizer.
+ *
+ * Sem expediente devolve vazio, e isso é de propósito: marcar a semana de
+ * alguém por um horário que ela nunca deu é o oposto de organizar.
+ */
+export function vagas(
+  e: Expediente | null | undefined,
+  ocupado: Ocupado[],
+  deDia: string,
+  quantas: number,
+  minutos: number,
+  opcoes?: { cadencia?: 'dia' | 'semana'; periodo?: 'manha' | 'tarde' },
+): Vaga[] {
+  if (!temExpediente(e) || quantas < 1 || minutos < 15) return []
+  const cadencia = opcoes?.cadencia || 'dia'
+  const periodo = opcoes?.periodo
+  const saida: Vaga[] = []
+  let dia = deDia
+  let folga = false
+
+  // 60 dias é o horizonte: quem pede dez blocos numa semana de quatro vagas
+  // recebe o que coube, e não um laço procurando para sempre.
+  for (let i = 0; i < 60 && saida.length < quantas; i++) {
+    const x = data(dia)
+    if (i > 0) { x.setDate(x.getDate() + 1); dia = iso(x) }
+    if (!diaUtil(e, dia)) continue
+    if (folga) { folga = false; continue }
+
+    const cabe = livresDoDia(e!, dia, ocupado).find(([a, b]) => {
+      if (b - a < minutos) return false
+      if (periodo === 'manha') return a < 12 * 60
+      if (periodo === 'tarde') return a >= 12 * 60
+      return true
+    })
+    if (!cabe) continue
+
+    const inicio = cabe[0]
+    saida.push({ quando: dia, inicio: paraHora(inicio), fim: paraHora(inicio + minutos) })
+    // O que acabou de ser marcado também ocupa, senão dois blocos do mesmo dia
+    // nascem um em cima do outro.
+    ocupado = [...ocupado, { quando: dia, inicio: paraHora(inicio), fim: paraHora(inicio + minutos) }]
+    if (cadencia === 'semana') folga = true
+  }
+  return saida
+}

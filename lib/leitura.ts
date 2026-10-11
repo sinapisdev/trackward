@@ -45,6 +45,28 @@ const FERRAMENTA = {
             resp_id: { type: ['string', 'null'], description: 'O id da pessoa responsável, quando a conversa deixa claro.' },
             prazo: { type: ['string', 'null'], description: 'Data no formato AAAA-MM-DD, só quando a conversa disser.' },
             agente_id: { type: ['string', 'null'], description: 'Só para tipo agente: o id do agente que reconheceu a situação.' },
+            /* `quando` e `inicio` não estavam aqui, e o tipo compromisso existe
+               desde sempre: sem o campo no esquema o modelo não tinha por onde
+               devolver o dia, e a conferência descartava a proposta inteira.
+               Campo que falta no esquema é funcionalidade que não existe, e
+               some sem erro nenhum. */
+            quando: { type: ['string', 'null'], description: 'Só para compromisso MARCADO: o dia, AAAA-MM-DD.' },
+            inicio: { type: ['string', 'null'], description: 'Só para compromisso marcado: a hora, HH:MM.' },
+            repete: {
+              type: ['object', 'null'],
+              description: 'Só para compromisso de TEMPO RESERVADO, quando ela disser uma '
+                + 'cadência ("2h por dia", "2 a 3 dias por semana"). Não mande quando junto: '
+                + 'quem acha os dias e as horas livres é o app.',
+              properties: {
+                minutos: { type: 'number', description: 'Duração de cada bloco, em minutos.' },
+                vezes: { type: 'number', description: 'Quantos blocos. Uma semana de trabalho é 5.' },
+                cadencia: { type: 'string', enum: ['dia', 'semana'],
+                  description: '"dia" sai em dias seguidos; "semana" sai espaçado.' },
+                periodo: { type: 'string', enum: ['manha', 'tarde'],
+                  description: 'Quando ela pedir o turno. Omita se tanto faz.' },
+              },
+              required: ['minutos', 'vezes', 'cadencia'],
+            },
           },
           required: ['tipo', 'texto', 'motivo'],
         },
@@ -144,19 +166,52 @@ um agente que dispara errado cria trabalho errado em área que não é sua.
    * compromisso não é lixo, é ideia, e ideia tem onde ficar.
    */
   if (ctx.despejo) {
+    const comExpediente = ctx.expediente ? `\n${ctx.expediente}\n` : `
+ELA AINDA NÃO DISSE O EXPEDIENTE DELA. Então não reserve bloco nenhum (nada de repete) e
+não invente horário: ponha prazo de tarefa nos próximos dias e diga, numa nota, que vale
+contar o expediente em Ajustes para você poder organizar a semana.
+`
+    const comAgenda = ctx.agenda?.length
+      ? `\nO QUE JÁ ESTÁ MARCADO NA AGENDA DELA (não marque em cima):\n${ctx.agenda
+          .map((c) => `- ${c.quando}${c.inicio ? ` ${c.inicio}${c.fim ? `-${c.fim}` : ''}` : ' (dia inteiro)'}: ${c.titulo}`)
+          .join('\n')}\n`
+      : ''
+
     return `Você lê o caderno de bolso de UMA pessoa e separa o que ela jogou lá dentro.
 
-Hoje é ${ctx.hoje}.${aprendido}${comCaderno}${comCasa}
+Hoje é ${ctx.hoje}.${aprendido}${comExpediente}${comAgenda}${comCaderno}${comCasa}
 Ela está falando sozinha, para o app ouvir. Não é conversa de equipe: não tem ninguém
 para quem delegar, e tudo que está escrito ela escreveu de propósito, para não perder.
 
 Três tipos:
 - tarefa: algo que ela precisa fazer. Uma ação, com verbo.
-- compromisso: algo que acontece num dia e possivelmente numa hora. Use quando e, se a
-  pessoa disser, inicio. Reunião, consulta, viagem, entrega marcada, prova, aniversário.
+- compromisso: hora reservada. São DOIS casos, e o segundo é o que mais importa aqui:
+  (a) algo marcado num dia e hora (reunião, consulta, viagem, prova). Use quando e inicio.
+  (b) TEMPO RESERVADO PARA TRABALHAR numa coisa, quando ela disser uma cadência. Use
+      repete, e NÃO use quando: quem acha os dias e as horas livres é o app, dentro do
+      expediente dela e desviando do que já está marcado. Você só diz quanto e quantas.
 - nota: todo o resto que valha guardar. Ideia, insight, número que ela ouviu, nome de
   alguém, link, trecho de raciocínio, dúvida para pensar depois. Em texto, ponha o
   pensamento dela quase como ela escreveu, sem resumir até virar nada.
+
+ELA CLICOU EM ORGANIZAR, E ORGANIZAR É DISTRIBUIR. Devolver uma pilha de tarefas sem dia
+é devolver o trabalho para ela, que é o oposto do que o botão existe para fazer. Leia o
+que ela escreveu ENTRE PARÊNTESES e nas palavras de urgência: é ali que está a instrução
+de quando e de quanto.
+
+- "(2h por dia)", "(30 min a 1h por dia)" é compromisso com repete:
+  {minutos: 120, vezes: 5, cadencia: "dia"}. Cinco é uma semana de trabalho.
+  Faixa ("30 min a 1h") pegue o meio ou o menor: começar modesto é melhor que furar.
+- "(2 a 3 dias por semana)", "(meio período)" é repete com cadencia "semana":
+  {minutos: 210, vezes: 3, cadencia: "semana"}. Meio período é 3 a 4 horas.
+- "(o quanto antes)", "(finalizar tudo quanto antes)" não é cadência, é PRIORIDADE: vire
+  tarefa com prazo nos próximos dias úteis, e se a coisa for grande, reserve também um
+  bloco com repete.
+- "(lembrete de ideia)", "(pensar depois)" é NOTA, nunca tarefa. Ela disse o que é.
+- Tarefa sem cadência e sem data ganha prazo mesmo assim: espalhe pelos próximos dias
+  úteis, uma coisa por dia, em vez de empilhar tudo para hoje. Tudo com a mesma data é a
+  lista que ela já tinha.
+- Não marque nada fora do expediente dela nem em dia que ela não trabalha.
 
 Regras:
 - Aqui NÃO REGISTRAR É O ERRO. Se ela escreveu, ela quis guardar. Em dúvida entre nota e
@@ -165,8 +220,7 @@ Regras:
   "o contador falou que dá para lançar isso na PJ" é nota.
 - Uma mensagem pode render mais de uma coisa: separe. "Reunião quinta 10h e preciso levar
   o contrato" é um compromisso e uma tarefa.
-- quando só quando a pessoa disser o dia, mesmo que de jeito solto ("quinta", "amanhã"):
-  traduza para data, contando de hoje. Nunca invente dia.
+- Dizendo o dia, mesmo solto ("quinta", "amanhã"), traduza para data contando de hoje.
 - Desabafo e xingamento não são nada. Deixe passar.
 - Escreva em português do Brasil, sem travessão.`
   }
@@ -212,6 +266,7 @@ type Cru = {
   resp_id?: string | null; prazo?: string | null
   agente_id?: string | null
   quando?: string | null; inicio?: string | null
+  repete?: { minutos?: number; vezes?: number; cadencia?: string; periodo?: string } | null
 }
 
 /** O que volta do modelo é texto, não verdade: cada campo é conferido aqui. */
@@ -250,7 +305,30 @@ function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
     // guardar nota no caderno de outra pessoa.
     if ((tipo === 'nota' || tipo === 'compromisso') && !ctx.despejo) continue
     const quando = /^\d{4}-\d{2}-\d{2}$/.test(String(c.quando)) ? String(c.quando) : null
-    if (tipo === 'compromisso' && !quando) continue
+    /**
+     * O bloco que se repete, conferido.
+     *
+     * Ele vale NO LUGAR do dia: o modelo diz quanto e quantas vezes, e quem
+     * acha os dias e as horas é `vagas()`, no aceite. Tetos generosos e
+     * honestos: quinze minutos é o menor bloco que vale reservar, oito horas é
+     * o dia inteiro, e vinte vezes é um mês de trabalho.
+     */
+    const r = c.repete || null
+    const repete = r && Number(r.minutos) >= 15 && Number(r.minutos) <= 480
+      && Number(r.vezes) >= 1 && Number(r.vezes) <= 20
+      && (r.cadencia === 'dia' || r.cadencia === 'semana')
+      ? {
+          minutos: Math.round(Number(r.minutos)),
+          vezes: Math.round(Number(r.vezes)),
+          cadencia: r.cadencia as 'dia' | 'semana',
+          ...(r.periodo === 'manha' || r.periodo === 'tarde'
+            ? { periodo: r.periodo as 'manha' | 'tarde' } : {}),
+        }
+      : null
+    // Compromisso é ou um dia marcado, ou um bloco que se repete. Sem nenhum
+    // dos dois ele não é compromisso nenhum, e virar tarefa seria decidir pelo
+    // modelo o que ele não decidiu.
+    if (tipo === 'compromisso' && !quando && !repete) continue
     const inicio = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(c.inicio)) ? String(c.inicio) : null
 
     // Track escolhida pelo modelo: vale só se existir na lista que foi mandada.
@@ -273,6 +351,7 @@ function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
         prazo,
         agente_id: tipo === 'agente' ? c.agente_id : null,
         quando: tipo === 'compromisso' ? quando : null,
+        ...(tipo === 'compromisso' && repete ? { repete } : {}),
         inicio: tipo === 'compromisso' ? inicio : null,
       },
     })

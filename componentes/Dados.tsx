@@ -41,7 +41,7 @@ import { lerComando, ondeEh, quemEh, separaFone } from '@/lib/comandos'
 import { paraE164 } from '@/lib/fone'
 import {
   valida as validaExpediente, paraOModelo as expedienteParaOModelo, proximoUtil,
-  dentro, diaUtil, temExpediente, type Expediente,
+  dentro, diaUtil, temExpediente, vagas, type Expediente,
 } from '@/lib/expediente'
 import type { ContextoConversa, Fala } from '@/lib/conversa'
 import type { Alvo } from '@/lib/tipos'
@@ -2758,14 +2758,65 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       dados.nota_id = id
       contou = `guardou a nota "${titulo}"`
     } else if (tipo === 'compromisso') {
-      if (!dados.quando) return toast('A proposta não diz o dia.', true)
-      const id = await salvarCompromisso({
-        titulo: sug.texto, quando: dados.quando, inicio: dados.inicio || null,
-        nota: sug.motivo || '', bloqueia: true, visivel: true, convidados: [],
-      })
-      if (!id) return
-      dados.compromisso_id = id
-      contou = `marcou "${sug.texto}" para ${curta(dados.quando)}`
+      /**
+       * O bloco que se REPETE, que é o que "organizar a semana" quer dizer.
+       *
+       * "2h por dia" não é um compromisso, é cinco, e aceitar isso como um só
+       * devolvia o problema para a pessoa: ela clicava em Organizar justamente
+       * para não ficar encaixando as coisas no calendário. O modelo disse
+       * quanto e com que frequência; quem acha os dias e as horas é `vagas()`,
+       * dentro do expediente dela e desviando do que já está marcado.
+       */
+      if (dados.repete) {
+        /**
+         * A agenda vem do BANCO, e não do estado.
+         *
+         * Aceitando três blocos seguidos, os dois últimos olhariam uma agenda
+         * de antes do primeiro: `recarregar()` é debounced em 220ms e ninguém
+         * espera por ele. O resultado seria três reservas começando na mesma
+         * hora do mesmo dia, que é exatamente o encaixe manual que o botão
+         * existe para evitar. Uma consulta a mais numa ação que já foi ao
+         * servidor, e ela é exata.
+         */
+        const { data: cheio } = await sb.from('compromissos')
+          .select('quando,inicio,fim')
+          .gte('quando', hojeIso())
+          .order('quando')
+          .limit(400)
+        const ocupado = ((cheio || []) as { quando: string; inicio: string | null; fim: string | null }[])
+          .map((c) => ({ quando: c.quando, inicio: c.inicio, fim: c.fim }))
+        const achadas = vagas(
+          expediente, ocupado, proximoUtil(expediente, hojeIso()),
+          dados.repete.vezes, dados.repete.minutos,
+          { cadencia: dados.repete.cadencia, periodo: dados.repete.periodo },
+        )
+        if (!achadas.length) {
+          return toast(temExpediente(expediente)
+            ? 'Não achei espaço livre no seu expediente para isto.'
+            : 'Diga o seu expediente primeiro, em Ajustes: sem ele não dá para achar espaço.', true)
+        }
+        const ids: string[] = []
+        for (const v of achadas) {
+          const id = await salvarCompromisso({
+            titulo: sug.texto, quando: v.quando, inicio: v.inicio, fim: v.fim,
+            nota: sug.motivo || '', bloqueia: true, visivel: true, convidados: [],
+          })
+          if (id) ids.push(id)
+        }
+        if (!ids.length) return
+        dados.criou_ids = ids
+        contou = `reservou ${ids.length} ${ids.length === 1 ? 'vez' : 'vezes'} para "${sug.texto}", `
+          + `a partir de ${curta(achadas[0].quando)}`
+      } else {
+        if (!dados.quando) return toast('A proposta não diz o dia.', true)
+        const id = await salvarCompromisso({
+          titulo: sug.texto, quando: dados.quando, inicio: dados.inicio || null,
+          nota: sug.motivo || '', bloqueia: true, visivel: true, convidados: [],
+        })
+        if (!id) return
+        dados.compromisso_id = id
+        contou = `marcou "${sug.texto}" para ${curta(dados.quando)}`
+      }
     } else if (tipo === 'distribuir') {
       const achado = itemPorId(dados.item_id)
       if (!achado) return toast('A tarefa não existe mais.', true)
@@ -2838,6 +2889,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       if (d.nota_id) await excluirNota(d.nota_id)
     } else if (sug.tipo === 'compromisso') {
       if (d.compromisso_id) await excluirCompromisso(d.compromisso_id)
+      // Um bloco que se repete virou vários: desfazer tira todos, senão sobra
+      // a semana marcada de uma coisa que a pessoa desfez.
+      for (const x of d.criou_ids || []) await excluirCompromisso(x)
     } else if (sug.tipo === 'distribuir') {
       const achado = itemPorId(d.item_id)
       if (achado) {
@@ -3740,6 +3794,16 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       casa: oQueACasaTem,
       // Despejo: uma pessoa falando sozinha para o app ouvir. Muda o que a
       // leitura procura e o quanto ela se arrisca.
+      /* O expediente e a agenda, que é o que faltava para o Organizar
+         ORGANIZAR. Sem eles ele devolvia uma pilha de tarefas sem prazo, e
+         encaixar cada uma num dia voltava a ser trabalho de quem clicou
+         justamente para não fazer isso. */
+      expediente: expedienteParaOModelo(expediente),
+      agenda: agenda
+        .filter((c) => c.aberto && c.quando >= hojeIso())
+        .sort((a, b) => a.quando.localeCompare(b.quando))
+        .slice(0, 40)
+        .map((c) => ({ quando: c.quando, titulo: c.titulo, inicio: c.inicio, fim: c.fim })),
       despejo: true,
       agentes: [],
       /**
@@ -3800,7 +3864,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       ? `${novas.length} ${novas.length === 1 ? 'proposta' : 'propostas'} da sua nota.`
       : 'Li a nota e não achei nada para propor.')
     return { achou: novas.length, motor }
-  }, [sb, notas, todasNotas, mensagensDaNota, eu.id, eu.nome, perfis, memoria,
+  }, [sb, notas, todasNotas, mensagensDaNota, eu.id, eu.nome, perfis, memoria, expediente, agenda,
       oQueACasaTem, sugestoesDaNota, toast, recarregar])
 
   /**

@@ -424,6 +424,33 @@ teria custado.
   disse o expediente.
 - **E ele é do dono, nem do administrador.** A que horas alguém trabalha é dela; o que a
   casa pode saber é a OCUPAÇÃO, pela agenda, que já tem a regra dela.
+- **ORGANIZAR É DISTRIBUIR, e ele devolvia uma pilha.** O botão da nota separava tarefa,
+  compromisso e nota e parava aí: tudo sem dia, e encaixar cada coisa na semana voltava a
+  ser trabalho de quem clicou justamente para não fazer isso. Pior, a instrução dizia
+  "nunca invente dia", que é o oposto do que organizar significa.
+- **O que a pessoa escreve ENTRE PARÊNTESES é a instrução de quando e de quanto.** "(2h por
+  dia)", "(30 min a 1h por dia)", "(2 a 3 dias por semana, meio período)", "(o quanto
+  antes)", "(lembrete de ideia)". Era tudo ignorado, e é ali que está metade do que ela
+  quis dizer.
+- **Tempo reservado é COMPROMISSO, não tarefa.** "2h por dia para o TrackWard" não é uma
+  coisa a fazer, é hora bloqueada, e é vários compromissos e não um. Vai em
+  `dados.repete` (`{minutos, vezes, cadencia, periodo}`), sem `quando`.
+- **O modelo diz QUANTO e COM QUE FREQUÊNCIA; quem acha os dias e as horas é o CÓDIGO**
+  (`vagas()`, em `lib/expediente.ts`). Mesma divisão de `lib/trilhar.ts`, e aqui ela é mais
+  clara ainda: somar horas, pular sábado e desviar da reunião que já existe é aritmética, e
+  modelo erra aritmética de calendário com uma confiança que ninguém audita depois.
+- **A agenda do aceite vem do BANCO, não do estado.** Aceitando três blocos seguidos, os
+  dois últimos olhariam a agenda de antes do primeiro, porque `recarregar()` é debounced em
+  220ms: as três reservas nasceriam na mesma hora do mesmo dia, que é exatamente o encaixe
+  manual que o botão existe para evitar.
+- **Campo que falta no ESQUEMA é funcionalidade que não existe, e some sem erro.** O tipo
+  `compromisso` existia no despejo desde sempre e o esquema da ferramenta não tinha `quando`
+  nem `inicio`: o modelo não tinha por onde devolver o dia, e a conferência descartava a
+  proposta inteira. Ao acrescentar um tipo ou um campo, conferir os TRÊS lugares: o esquema,
+  a peneira em `conferir` e o aceite.
+- **Sem expediente, nada de bloco.** A instrução diz isso ao modelo e o aceite recusa: marcar
+  a semana de alguém por um horário que ela nunca deu é o oposto de organizar. A tela manda
+  ela dizer o expediente, em vez de inventar um.
 - **Agenda**: `bloqueia` e `visivel` são chaves independentes. Quem não pode ler um
   compromisso recebe apenas a ocupação (via função `ocupacao()`), com título trocado por
   "Ocupado" e `aberto: false`. Nunca vazar título, local ou observação de compromisso

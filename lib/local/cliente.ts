@@ -369,6 +369,7 @@ const CHAVE: Record<string, string[]> = { canal_membros: ['canal_id', 'perfil_id
 class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
   private filtros: [string, unknown][] = []
   private dentro: [string, Set<unknown>][] = []
+  private desde: [string, unknown][] = []
   private ordens: [string, boolean][] = []
   private unico: 'single' | 'maybe' | null = null
   private teto = 0
@@ -381,6 +382,8 @@ class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
   eq(col: string, val: unknown) { this.filtros.push([col, val]); return this }
   is(col: string, val: unknown) { this.filtros.push([col, val]); return this }
   in(col: string, vals: unknown[]) { this.dentro.push([col, new Set(vals)]); return this }
+  /** Daqui para frente. Existe porque a reserva de blocos só olha o futuro. */
+  gte(col: string, val: unknown) { this.desde.push([col, val]); return this }
   limit(n: number) { this.teto = n; return this }
   order(col: string, o?: { ascending?: boolean }) {
     this.ordens.push([col, o?.ascending !== false])
@@ -392,6 +395,7 @@ class Consulta<T = unknown> implements PromiseLike<Resp<T>> {
     // que é como o banco enxerga as duas situações.
     return (
       this.filtros.every(([c, v]) => (v === null ? l[c] == null : l[c] === v)) &&
+      this.desde.every(([c, v]) => String(l[c] ?? '') >= String(v)) &&
       this.dentro.every(([c, v]) => v.has(l[c]))
     )
   }

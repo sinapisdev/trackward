@@ -778,6 +778,25 @@ export type Alvo = {
   prazo?: string | null
   /** A tarefa que nasceu daqui. Sem guardar isto não há como desfazer depois. */
   criou_id?: string | null
+  /**
+   * O bloco de tempo que se REPETE, quando a pessoa disse uma cadência.
+   *
+   * "2h por dia", "30 min a 1h por dia", "2 a 3 dias por semana com meio
+   * período" não é um compromisso: é vários, e é a coisa que mais se quer de um
+   * botão chamado Organizar. O modelo diz QUANTO e COM QUE FREQUÊNCIA; quem
+   * acha os dias e as horas livres é `vagas()`, em `lib/expediente.ts`, porque
+   * somar horas, pular sábado e desviar da reunião que já existe é aritmética,
+   * e modelo erra aritmética de calendário com uma confiança que ninguém
+   * audita depois.
+   */
+  repete?: {
+    minutos: number
+    vezes: number
+    cadencia: 'dia' | 'semana'
+    periodo?: 'manha' | 'tarde'
+  }
+  /** Os compromissos que nasceram de um `repete`, para desfazer poder tirá-los. */
+  criou_ids?: string[]
   /** Quem era o dono antes, para desfazer poder devolver ao que era. */
   de_resp_id?: string | null
   /**

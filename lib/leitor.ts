@@ -101,6 +101,17 @@ export type Contexto = {
    * Quem usa é o modelo, em /api/leitor.
    */
   caderno?: { titulo: string; trecho: string }[]
+  /**
+   * As horas em que ela trabalha, em texto (`lib/expediente.ts`).
+   *
+   * Sem isto o Organizar não organizava nada: ele devolvia uma pilha de tarefas
+   * sem prazo, e encaixar cada uma num dia voltava a ser trabalho da pessoa,
+   * que é exatamente o que ela clicou para não fazer. As regras deste arquivo
+   * não usam, porque distribuir semana é julgamento; quem usa é o modelo.
+   */
+  expediente?: string
+  /** O que já está marcado, para o que for reservado não cair em cima. */
+  agenda?: { quando: string; titulo: string; inicio: string | null; fim: string | null }[]
 }
 
 export type Proposta = {
