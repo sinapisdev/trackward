@@ -55,7 +55,7 @@ export type Acao =
       fluxoId?: string | null; etapaId?: string | null }
   | { faz: 'compromisso'; titulo: string; quando: string; inicio?: string | null
       fim?: string | null; local?: string }
-  | { faz: 'nota'; texto: string }
+  | { faz: 'nota'; texto: string; somarEm?: string | null }
   | { faz: 'track'; nome: string; tipo: 'esteira' | 'ciclo'; soMinha: boolean
       checkpoints: { nome: string; criterio: string; prazoDias: number | null
         tarefas: TarefaDita[] }[] }
@@ -205,7 +205,10 @@ export function valida(bruta: unknown, pode: { equipe: boolean }): Acao | null {
 
   if (a.faz === 'nota') {
     const t = typeof a.texto === 'string' ? a.texto.trim().slice(0, 20000) : ''
-    return t ? { faz: 'nota', texto: t } : null
+    if (!t) return null
+    /* Somar numa nota que já existe é o normal, não a exceção: o caderno
+       existe para juntar, e dez notas chamadas "ideias" é nenhuma achável. */
+    return { faz: 'nota', texto: t, somarEm: id(a.somar_em) }
   }
 
   if (a.faz === 'track') {
@@ -307,7 +310,8 @@ export function contar(a: Acao, onde?: string): string {
   }
   if (a.faz === 'nota') {
     const primeira = a.texto.split('\n')[0].trim()
-    return `Nota: ${primeira.slice(0, 80)}${primeira.length > 80 ? '...' : ''}`
+    const curto = `${primeira.slice(0, 80)}${primeira.length > 80 ? '...' : ''}`
+    return a.somarEm ? `Somei em ${onde || 'uma nota'}: ${curto}` : `Nota: ${curto}`
   }
   if (a.faz === 'expediente') {
     return `Expediente: ${escritoExpediente({ blocos: a.blocos, fuso: '', observacao: '' })}`
@@ -381,11 +385,17 @@ export function ferramentas(pode: { equipe: boolean }): Ferramenta[] {
     },
     {
       name: 'criar_nota',
-      description: 'Guarda uma nota no caderno dela. Use quando ela PEDIR para '
-        + 'guardar, anotar ou salvar uma ideia como nota. A primeira linha é o título.',
+      description: 'Guarda no caderno dela. Use quando ela PEDIR para guardar, anotar ou '
+        + 'salvar algo como nota. SE JÁ EXISTE uma nota onde aquilo mora (uma de ideias, '
+        + 'de decisões, de contatos, de aprendizados), mande somar_em com o id dela em vez '
+        + 'de criar outra: dez notas chamadas "ideias" é nenhuma achável depois. Criando '
+        + 'nova, a primeira linha é o título.',
       input_schema: {
         type: 'object',
-        properties: { texto: { type: 'string' } },
+        properties: {
+          texto: { type: 'string', description: 'Criando nova, a primeira linha é o título. Somando, é só o que entra.' },
+          somar_em: { type: 'string', description: 'O id de uma nota que já existe, das listas acima, onde isto deve ser somado.' },
+        },
         required: ['texto'],
       },
     },

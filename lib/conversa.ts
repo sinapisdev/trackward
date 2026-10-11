@@ -43,6 +43,16 @@ export type ContextoConversa = {
   caderno: { titulo: string; trecho: string }[]
   /** Os títulos de tudo que existe no caderno, para ela saber o que há. */
   indice: string[]
+  /**
+   * As notas que existem para JUNTAR coisa, com o id.
+   *
+   * "Ideias", "Decisões", "Contatos": são as notas em que a pessoa vai somando
+   * ao longo dos meses, e são o lugar natural do que for daquele tipo. Elas
+   * precisam do id porque o índice é só de título, e título não dá para
+   * apontar. Sem isto, toda ideia virava nota nova e a décima chamada "ideias"
+   * tornava todas inacháveis.
+   */
+  gavetas?: { id: string; titulo: string }[]
   /** O que esta casa já ensinou ao app, em texto pronto para o modelo. */
   memoria?: string
   /**
@@ -347,6 +357,13 @@ ${ctx.meu.itens.slice(0, 60).map((i) => `- ${i.texto} | ${i.onde}${i.prazo ? ` |
 
   const expediente = ctx.expediente ? `\n${ctx.expediente}\n` : ''
 
+  const gavetas = ctx.gavetas?.length
+    ? `
+ONDE ELA JÁ JUNTA COISA (some aqui em vez de criar nota nova, com somar_em):
+${ctx.gavetas.map((g) => `- "${g.titulo}" | id ${g.id}`).join('\n')}
+`
+    : ''
+
   const tudo = ctx.indice.length
     ? `
 TÍTULOS DE TUDO QUE EXISTE NO CADERNO DELA:
@@ -356,7 +373,7 @@ ${ctx.indice.slice(0, 120).map((t) => `- ${t}`).join('\n')}
 
   return `Hoje é ${ctx.hoje}.${aprendido}
 ${naNota}
-${perto}${tudo}${expediente}${agenda}${meu}${daCasa}`
+${perto}${gavetas}${tudo}${expediente}${agenda}${meu}${daCasa}`
 }
 
 /**
@@ -383,6 +400,10 @@ Como responder:
 - Puxe o que ela já guardou quando fizer sentido, citando o título entre
   colchetes duplos, assim: [[título da nota]]. É o que faz o caderno somar: ela
   escreveu para não precisar lembrar, então lembrar é o seu trabalho.
+- O CADERNO EXISTE PARA SOMAR. Guardando algo que pertence a uma nota que ela já
+  tem (a de ideias, a de decisões, a de contatos), use somar_em com o id dela em
+  vez de criar outra. Dez notas chamadas "ideias" é nenhuma achável no dia em que
+  ela procura uma. Nota nova é para assunto que ainda não tem casa.
 - Você pode OLHAR antes de responder, e deve. As listas abaixo têm só os NOMES:
   ver_track abre a trilha inteira de uma track, ver_nota abre o texto de uma
   nota, buscar procura uma palavra em tudo. Olhar é instantâneo e não muda

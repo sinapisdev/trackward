@@ -50,6 +50,7 @@ const FERRAMENTA = {
                devolver o dia, e a conferência descartava a proposta inteira.
                Campo que falta no esquema é funcionalidade que não existe, e
                some sem erro nenhum. */
+            somar_em: { type: ['string', 'null'], description: 'Só para NOTA: o id de uma nota que JÁ EXISTE e onde isto deve ser somado, em vez de criar outra. Use quando o assunto for o mesmo. Só ids da lista do caderno.' },
             quando: { type: ['string', 'null'], description: 'Só para compromisso MARCADO: o dia, AAAA-MM-DD.' },
             inicio: { type: ['string', 'null'], description: 'Só para compromisso marcado: a hora, HH:MM.' },
             repete: {
@@ -104,10 +105,15 @@ function instrucoes(ctx: Contexto) {
   const comCaderno = ctx.caderno?.length
     ? `
 O QUE ESTA PESSOA JÁ GUARDOU NO CADERNO E PARECE TER A VER:
-${ctx.caderno.map((n) => `- "${n.titulo}": ${n.trecho}`).join('\n')}
+${ctx.caderno.map((n) => `- "${n.titulo}"${n.id ? ` (id ${n.id})` : ''}: ${n.trecho}`).join('\n')}
 
-Se o que está sendo lido agora conversar com alguma dessas, diga isso no motivo
-da proposta, citando o título entre colchetes duplos, assim: [[título da nota]].
+O CADERNO EXISTE PARA SOMAR, E SOMAR É ESCREVER ONDE O ASSUNTO JÁ MORA. Se o que
+está sendo lido pertence a uma dessas, mande a nota com somar_em = o id dela, em vez
+de criar outra. É o que impede dez notas chamadas "ideias" e nenhuma achável depois.
+Uma nota que a pessoa abriu PARA JUNTAR COISA (ideias, decisões, aprendizados,
+contatos, dúvidas) é o lugar natural do que for daquele tipo.
+Criar nota nova é para assunto que ainda não tem casa.
+Citando uma nota no motivo, use o título entre colchetes duplos: [[título da nota]].
 Não invente ligação: só aponte quando a relação for evidente no texto.
 `
     : ''
@@ -190,9 +196,11 @@ Três tipos:
   (b) TEMPO RESERVADO PARA TRABALHAR numa coisa, quando ela disser uma cadência. Use
       repete, e NÃO use quando: quem acha os dias e as horas livres é o app, dentro do
       expediente dela e desviando do que já está marcado. Você só diz quanto e quantas.
-- nota: todo o resto que valha guardar. Ideia, insight, número que ela ouviu, nome de
-  alguém, link, trecho de raciocínio, dúvida para pensar depois. Em texto, ponha o
-  pensamento dela quase como ela escreveu, sem resumir até virar nada.
+- nota: todo o resto que valha guardar. Ideia, insight, DECISÃO que ela tomou, número que
+  ela ouviu, nome de alguém, link, trecho de raciocínio, dúvida para pensar depois. Em
+  texto, ponha o pensamento dela quase como ela escreveu, sem resumir até virar nada.
+  Aqui não existe o tipo decisao: no caderno de uma pessoa, decisão é nota, e vai para a
+  nota de decisões dela quando ela tem uma.
 
 ELA CLICOU EM ORGANIZAR, E ORGANIZAR É DISTRIBUIR. Devolver uma pilha de tarefas sem dia
 é devolver o trabalho para ela, que é o oposto do que o botão existe para fazer. Leia o
@@ -265,7 +273,7 @@ type Cru = {
   mensagem_id?: string | null; item_id?: string | null; fluxo_id?: string | null
   resp_id?: string | null; prazo?: string | null
   agente_id?: string | null
-  quando?: string | null; inicio?: string | null
+  quando?: string | null; inicio?: string | null; somar_em?: string | null
   repete?: { minutos?: number; vezes?: number; cadencia?: string; periodo?: string } | null
 }
 
@@ -282,9 +290,23 @@ function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
   const saida: Proposta[] = []
 
   for (const c of cru) {
-    const tipo = TIPOS.find((t) => t === c.tipo)
+    let tipo = TIPOS.find((t) => t === c.tipo)
     const texto = String(c.texto || '').trim()
     if (!tipo || !texto) continue
+
+    /**
+     * No despejo, DECISÃO é nota, e isto não é tradução: é conserto.
+     *
+     * Aceitar uma decisão escreve na ATIVIDADE de uma track, e no caderno de
+     * uma pessoa não há track: o aceite dizia "registrou a decisão" e não
+     * gravava em lugar nenhum achável. Ou seja, a coisa que ela mais quer
+     * reencontrar depois era a que mais sumia.
+     *
+     * Virando nota, ela entra no caderno, vai para a nota de decisões quando
+     * existe uma, e a busca acha. O texto dela é o que ela escreveu, que é o
+     * que importava.
+     */
+    if (ctx.despejo && tipo === 'decisao') tipo = 'nota'
 
     const item = c.item_id && itens.get(c.item_id)
     if ((tipo === 'concluir' || tipo === 'prazo' || tipo === 'distribuir') && !item) continue
@@ -313,6 +335,17 @@ function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
      * honestos: quinze minutos é o menor bloco que vale reservar, oito horas é
      * o dia inteiro, e vinte vezes é um mês de trabalho.
      */
+    /**
+     * Somar numa nota que já existe, em vez de criar outra.
+     *
+     * O id tem que estar na lista que FOI MANDADA: id inventado escreveria no
+     * nada, ou pior, na nota errada. Mesma régua de `fluxo_id` e de `item_id`.
+     */
+    const doCaderno = new Set((ctx.caderno || []).map((n) => n.id).filter(Boolean))
+    const somarEm = tipo === 'nota' && c.somar_em && doCaderno.has(c.somar_em)
+      ? c.somar_em
+      : null
+
     const r = c.repete || null
     const repete = r && Number(r.minutos) >= 15 && Number(r.minutos) <= 480
       && Number(r.vezes) >= 1 && Number(r.vezes) <= 20
@@ -351,6 +384,7 @@ function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
         prazo,
         agente_id: tipo === 'agente' ? c.agente_id : null,
         quando: tipo === 'compromisso' ? quando : null,
+        ...(somarEm ? { somar_em: somarEm } : {}),
         ...(tipo === 'compromisso' && repete ? { repete } : {}),
         inicio: tipo === 'compromisso' ? inicio : null,
       },

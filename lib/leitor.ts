@@ -100,7 +100,7 @@ export type Contexto = {
    * As regras deste arquivo não usam: ligar assunto com assunto é julgamento.
    * Quem usa é o modelo, em /api/leitor.
    */
-  caderno?: { titulo: string; trecho: string }[]
+  caderno?: { id?: string; titulo: string; trecho: string }[]
   /**
    * As horas em que ela trabalha, em texto (`lib/expediente.ts`).
    *

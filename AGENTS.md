@@ -1072,6 +1072,33 @@ alternar entre elas não deve exigir aprender duas listas diferentes. **Não tem
 campo de escrita rápida no topo**: o que se faz numa lista é achar, e quem vem
 guardar toca no botão de criar, que abre a nota já aberta para escrever.
 
+**O caderno existe para SOMAR, e somar é escrever onde o assunto já mora.** Toda ideia
+virava nota nova: dez notas chamadas "ideias", e no dia em que a pessoa procura uma, não
+acha nenhuma. Agora a proposta pode apontar uma nota que já existe (`dados.somar_em`), e o
+secretário tem o mesmo (`somar_em` em `criar_nota`). O texto entra no FIM, com uma linha em
+branco antes, **nunca por cima**: o que ela escreveu continua como estava.
+
+**E desfazer devolve o texto de antes, não apaga a nota.** Apagar levaria junto tudo que já
+morava lá, que é o contrário do que ela pediu ao desfazer: `dados.nota_antes` guarda o que
+havia.
+
+**Quem garante que a gaveta APAREÇA é `juntadoras()`, em `lib/notas.ts`.** O caderno que vai
+para a leitura sai de `parecidas`, que compara TEXTO, e **a nota onde se juntam ideias não
+se parece com a ideia nova: ela é o lugar dela**. Sem um caminho próprio ela nunca aparecia
+na lista justamente quando mais importava. O reconhecimento é pelo título e é
+deliberadamente pobre (plural, cara de coleção), porque adivinhar mais é a leitura decidindo
+sozinha o que é gaveta, e errar aqui é escrever no lugar errado. **Quem escolhe continua
+sendo o modelo**; a função só garante a candidata na mesa.
+
+**No despejo, DECISÃO é nota, e isso é conserto e não tradução.** Aceitar uma decisão
+escreve na ATIVIDADE de uma track, e no caderno de uma pessoa não há track: o aceite dizia
+"registrou a decisão" e **não gravava em lugar nenhum achável**. A coisa que ela mais quer
+reencontrar depois era a que mais sumia. Virando nota, ela entra no caderno, vai para a nota
+de decisões quando existe uma, e a busca acha.
+
+**Em canal de equipe nada disso vale**, e continua certo: nota não existe lá, porque seria
+guardar no caderno de outra pessoa. O lugar das notas é o caderno e o secretário.
+
 **A busca procura em tudo**: título, corpo, o nome da área e da track, e o que
 foi dito na conversa de dentro da nota. Sem a conversa, procurar "betoneira" não
 acharia a nota onde você perguntou sobre betoneira para a leitura, que é

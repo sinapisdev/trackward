@@ -18,7 +18,7 @@ import { distribuir, type Palpite } from '@/lib/distribuir'
 import { sobrecarga, type Carga } from '@/lib/sobrecarga'
 import { escutaAqui, oQueFaz, porPalavras } from '@/lib/agentes'
 import { preencher } from '@/lib/conectores'
-import { comoBloco, parecidas, parecidasCom, resumo, tituloDe } from '@/lib/notas'
+import { comoBloco, parecidas, parecidasCom, resumo, tituloDe, juntadoras } from '@/lib/notas'
 import { novoId } from '@/lib/id'
 import type { AlvoDoConvite } from '@/lib/convite'
 import { contar, prometeu, type Acao, type Pergunta } from '@/lib/secretario'
@@ -2753,10 +2753,43 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
        */
       const resumo = sug.texto?.trim() || ''
       const titulo = resumo && !resumo.endsWith('...') ? resumo : tituloDe(corpo)
-      const id = await salvarNota({ titulo, texto: corpo, mensagem_id: sug.mensagem_id })
-      if (!id) return
-      dados.nota_id = id
-      contou = `guardou a nota "${titulo}"`
+
+      /**
+       * Somar na nota que já existe, quando ela existe.
+       *
+       * Sem isto toda ideia virava uma nota nova: dez notas chamadas "ideias",
+       * e no dia em que a pessoa procura uma, não acha nenhuma. O caderno
+       * existe para somar, e somar é escrever no lugar onde o assunto já mora.
+       *
+       * O texto entra no FIM e com uma linha em branco antes, nunca por cima: o
+       * que ela escreveu continua exatamente como estava, e o que chega agora
+       * aparece embaixo, que é como um caderno cresce.
+       */
+      if (dados.somar_em) {
+        const alvo = todasNotas.find((n) => n.id === dados.somar_em)
+        if (!alvo) return toast('A nota onde isto ia não existe mais.', true)
+        if (alvo.dono_id && alvo.dono_id !== eu.id) {
+          return toast('Essa nota é de outra pessoa.', true)
+        }
+        const antes = alvo.texto || ''
+        const novo = antes.trim() ? `${antes.replace(/\s+$/, '')}\n\n${corpo}` : corpo
+        const feito = await salvarNota({
+          id: alvo.id, titulo: alvo.titulo, texto: novo,
+          fixada: alvo.fixada, arquivada: alvo.arquivada,
+          area_id: alvo.area_id, fluxo_id: alvo.fluxo_id,
+        })
+        if (!feito) return
+        dados.nota_id = alvo.id
+        // O que havia antes, para desfazer devolver ao que era em vez de apagar
+        // a nota inteira, que levaria junto tudo que já estava lá.
+        dados.nota_antes = antes
+        contou = `somou em "${alvo.titulo}"`
+      } else {
+        const id = await salvarNota({ titulo, texto: corpo, mensagem_id: sug.mensagem_id })
+        if (!id) return
+        dados.nota_id = id
+        contou = `guardou a nota "${titulo}"`
+      }
     } else if (tipo === 'compromisso') {
       /**
        * O bloco que se REPETE, que é o que "organizar a semana" quer dizer.
@@ -2886,7 +2919,19 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       // Webhook e conector não desfazem: a chamada já saiu, e fingir que dá para
       // voltar seria pior do que dizer que não dá.
     } else if (sug.tipo === 'nota') {
-      if (d.nota_id) await excluirNota(d.nota_id)
+      /* Desfazer o que foi SOMADO devolve o texto de antes, e não apaga a nota:
+         apagar levaria junto tudo que já morava lá, que é o contrário do que a
+         pessoa pediu ao desfazer. */
+      if (d.somar_em && typeof d.nota_antes === 'string') {
+        const alvo = todasNotas.find((n) => n.id === d.somar_em)
+        if (alvo) {
+          await salvarNota({
+            id: alvo.id, titulo: alvo.titulo, texto: d.nota_antes,
+            fixada: alvo.fixada, arquivada: alvo.arquivada,
+            area_id: alvo.area_id, fluxo_id: alvo.fluxo_id,
+          })
+        }
+      } else if (d.nota_id) await excluirNota(d.nota_id)
     } else if (sug.tipo === 'compromisso') {
       if (d.compromisso_id) await excluirCompromisso(d.compromisso_id)
       // Um bloco que se repete virou vários: desfazer tira todos, senão sobra
@@ -3065,6 +3110,10 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
         .slice(0, 8)
         .map((n) => ({ titulo: n.titulo, trecho: n.texto.replace(/\s+/g, ' ').slice(0, 220) })),
       indice: notas.filter((n) => !n.arquivada).map((n) => n.titulo),
+      /* As notas que existem para JUNTAR coisa, com o id, para ele poder somar
+         nelas em vez de criar a décima chamada "ideias". O índice acima é só de
+         títulos, e título sem id não dá para apontar. */
+      gavetas: juntadoras(notas).map((n) => ({ id: n.id, titulo: n.titulo })),
       memoria: paraOModelo(memoria),
       casa: oQueACasaTem,
       /* O lado seguro da regra de mão única: esta conversa é dela e fica com
@@ -3284,8 +3333,22 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
             feitas.push(contar(a) + (fora ? ' (fora do seu expediente)' : ''))
           }
         } else if (a.faz === 'nota') {
-          const id = await salvarNota({ texto: a.texto })
-          if (id) feitas.push(contar(a))
+          /* Somar onde o assunto já mora, em vez de criar a décima nota com o
+             mesmo nome. O texto entra no FIM e nunca por cima. */
+          const alvo = a.somarEm ? todasNotas.find((n) => n.id === a.somarEm) : null
+          if (alvo && (!alvo.dono_id || alvo.dono_id === eu.id)) {
+            const antes = (alvo.texto || '').replace(/\s+$/, '')
+            const feito = await salvarNota({
+              id: alvo.id, titulo: alvo.titulo,
+              texto: antes ? `${antes}\n\n${a.texto}` : a.texto,
+              fixada: alvo.fixada, arquivada: alvo.arquivada,
+              area_id: alvo.area_id, fluxo_id: alvo.fluxo_id,
+            })
+            if (feito) feitas.push(contar(a, alvo.titulo))
+          } else {
+            const id = await salvarNota({ texto: a.texto })
+            if (id) feitas.push(contar(a))
+          }
         } else if (a.faz === 'expediente') {
           const deu = await salvarExpediente({
             blocos: a.blocos, fuso: expediente?.fuso || 'America/Sao_Paulo',
@@ -3812,15 +3875,27 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
        * uma ideia hoje e sobre outra daqui a um mês, e quem tinha que lembrar da
        * primeira era ela, que escreveu justamente para não precisar lembrar.
        */
+      /**
+       * O caderno, agora COM O ID, e com as notas que juntam coisa na frente.
+       *
+       * O id é o que permite somar numa nota que já existe em vez de criar a
+       * décima chamada "ideias". E `juntadoras` entra porque "parecidas" é
+       * semelhança de texto: a nota onde a pessoa junta ideias não se parece
+       * com a ideia nova, ela é o LUGAR dela, e sem isto ela nunca apareceria
+       * na lista justamente quando mais importa.
+       */
       caderno: [
+        ...juntadoras(notas, nota.id),
         ...parecidas(nota, notas, 4),
         ...notas.filter((n) => n.id !== nota.id && !n.arquivada
           && ((nota.area_id && n.area_id === nota.area_id)
             || (nota.fluxo_id && n.fluxo_id === nota.fluxo_id))),
       ]
         .filter((n, i, todas) => todas.findIndex((x) => x.id === n.id) === i)
-        .slice(0, 6)
-        .map((n) => ({ titulo: n.titulo, trecho: n.texto.replace(/\s+/g, ' ').slice(0, 220) })),
+        .slice(0, 10)
+        .map((n) => ({
+          id: n.id, titulo: n.titulo, trecho: n.texto.replace(/\s+/g, ' ').slice(0, 220),
+        })),
     }
 
     let propostas: Proposta[] = []

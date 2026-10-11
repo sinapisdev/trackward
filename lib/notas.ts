@@ -295,3 +295,30 @@ export function ligar(texto: string, titulo: string): string {
   const fim = texto.trimEnd()
   return `${fim}${fim ? '\n\n' : ''}[[${titulo}]]`
 }
+
+/**
+ * As notas que existem para JUNTAR coisa, e não para contar uma história.
+ *
+ * "Ideias", "Decisões", "Aprendizados", "Contatos", "Dúvidas": são as notas em
+ * que a pessoa vai somando ao longo dos meses, e são o lugar natural do que for
+ * daquele tipo. Elas precisam de um caminho próprio até a leitura porque
+ * `parecidas` compara TEXTO, e a nota onde se juntam ideias não se parece com a
+ * ideia nova: ela é o lugar dela. Sem isto ela nunca aparecia na lista
+ * justamente quando mais importava, e o resultado era a décima nota chamada
+ * "ideia", com nenhuma achável depois.
+ *
+ * O reconhecimento é pelo TÍTULO e é deliberadamente pobre: título no plural ou
+ * com cara de coleção. Adivinhar mais do que isso é a leitura decidindo sozinha
+ * o que é gaveta, e o custo de errar aqui é escrever no lugar errado. O modelo
+ * continua sendo quem escolhe; esta função só garante que a candidata APAREÇA.
+ */
+const JUNTADORAS = /\b(ideias?|decis(a|ã)o|decis(o|õ)es|aprendizad|contatos?|d(u|ú)vidas?|lembretes?|insights?|refer(e|ê)ncias?|lista de|perguntas?)\b/i
+
+export function juntadoras(notas: Nota[], fora?: string): Nota[] {
+  return notas
+    .filter((n) => !n.arquivada && !n.conversa && n.id !== fora && JUNTADORAS.test(n.titulo))
+    // A mexida por último primeiro: entre duas notas de ideias, a que está viva
+    // é a que a pessoa está usando.
+    .sort((a, b) => (b.mexido_em || '').localeCompare(a.mexido_em || ''))
+    .slice(0, 4)
+}

@@ -154,6 +154,23 @@ returns boolean language sql stable security definer set search_path = public as
       where d.depende_de = p_id and meu.resp_id in (select meu_alcance())
     )
     or exists (select 1 from itens i where i.id = p_id and ve_area_de(i.fluxo_id))
+    /* Convidado para uma track `escolhidas` vê as tarefas DELA, todas.
+       Aquela visibilidade existe para escolher a dedo quem acompanha AQUELE
+       trabalho, e filtrar de novo por tarefa esvaziava o convite: a pessoa
+       entrava na lista, abria a track e via uma tarefa de quatro. E qual
+       aparecia dependia de haver DEPENDÊNCIA com a dela, detalhe que ninguém
+       enxerga: duas tarefas idênticas, do mesmo responsável, uma aparecia e a
+       outra não. Em `equipe` nada muda, porque lá a empresa inteira abre a
+       track e o filtro por tarefa é o que separa o que é seu do resto.
+       Tarefa privada continua fora: a condição é outra, e mora em itens_sel. */
+    or exists (
+      select 1 from itens i join fluxos f on f.id = i.fluxo_id
+      where i.id = p_id and f.visib = 'escolhidas'
+        and exists (
+          select 1 from fluxo_pessoas fp
+          where fp.fluxo_id = f.id and fp.perfil_id in (select meu_alcance())
+        )
+    )
     -- Quem aprova o checkpoint lê as tarefas dele. Não é exceção à regra, é a
     -- definição de aprovar: ninguém dá aceite no que não pode ler. Tarefa
     -- privada continua fora, porque isso é outra condição, em itens_sel.
@@ -8041,4 +8058,10 @@ select
   -- E ele é do dono e de mais ninguém, nem do administrador.
   (select count(*) from pg_policies
     where schemaname = 'public' and tablename = 'expediente')
-    as "politicas do expediente (4)";
+    as "politicas do expediente (4)",
+  -- Convidado para uma track `escolhidas` vê as tarefas DELA. Sem esta linha a
+  -- pessoa era posta na lista, abria a track e encontrava uma tarefa de quatro.
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 've_item'
+      and pg_get_functiondef(p.oid) like '%escolhidas%')
+    as "convidado ve a track inteira (1)";

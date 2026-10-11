@@ -797,6 +797,20 @@ export type Alvo = {
   }
   /** Os compromissos que nasceram de um `repete`, para desfazer poder tirá-los. */
   criou_ids?: string[]
+  /**
+   * A nota que JÁ EXISTE e onde isto deve ser somado, em vez de nascer solta.
+   *
+   * Sem isto, toda ideia virava uma nota nova: dez notas chamadas "ideia", e no
+   * dia em que a pessoa procura uma, ela não acha nenhuma. O caderno existe
+   * para somar, e somar é escrever no lugar onde o assunto já mora.
+   *
+   * É só para o ACEITE escolher entre criar e acrescentar. Quem decide que há
+   * um lugar é o modelo, que recebe o índice com os ids; quem confere que o id
+   * existe é `conferir`, porque id inventado escreveria no nada.
+   */
+  somar_em?: string | null
+  /** O que havia na nota ANTES de somar, para desfazer devolver ao que era. */
+  nota_antes?: string
   /** Quem era o dono antes, para desfazer poder devolver ao que era. */
   de_resp_id?: string | null
   /**
