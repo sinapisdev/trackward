@@ -27,7 +27,7 @@ const VAZIA: Base = { organizacoes: [], empresas: [], perfis: [], areas: [], flu
   historico: [], atividades: [], ciclos: [], raiox_achados: [],
   anexos: [], decisoes: [], pedidos_prazo: [], memoria: [], consumo: [], agentes: [], conectores: [], notas: [],
   avisos: [], avisos_contato: [], push_assinaturas: [], perguntas_abertas: [],
-  anexo_pessoas: [] }
+  anexo_pessoas: [], expediente: [] }
 
 let base: Base | null = null
 const ouvintes = new Set<() => void>()
@@ -341,7 +341,12 @@ function visiveis(tabela: string, todas: Linha[]): Linha[] {
     return linhas.filter((x) => ok.has(x.canal_id))
   }
   if (tabela === 'organizacoes' || tabela === 'convites') return linhas
-  if (tabela === 'apelidos' || tabela === 'apelidos_reservados') return linhas
+  /* O `@` e o EXPEDIENTE são do login e não têm `org_id`: filtrá-los por
+     organização os faria sumir, e no caso do `@` isso já aconteceu uma vez (o
+     cartão do perfil caía no e-mail). */
+  if (tabela === 'apelidos' || tabela === 'apelidos_reservados' || tabela === 'expediente') {
+    return linhas
+  }
   if (tabela === 'processos' || tabela === 'processo_etapas' || tabela === 'processo_itens') return linhas
   if (tabela === 'agendas_externas') return linhas.filter((a) => a.perfil_id === eu)
   if (tabela === 'ocupacao_externa') return linhas
@@ -1886,6 +1891,13 @@ function montarCliente() {
 
         /* Concluir de qualquer espaço meu, com o rastro inteiro.
            Espelha `concluir_meu_item()`, seção 69. */
+        /* Espelho de `meu_expediente()` (seção 75). O expediente é do LOGIN,
+           como o `@`: aqui ele mora numa linha só por usuário. */
+        if (nome === 'meu_expediente') {
+          const b = ler()
+          const u = usuarioLocal()
+          return { data: (b.expediente || []).find((x: Linha) => x.user_id === u) || null, error: null }
+        }
         if (nome === 'concluir_meu_item') {
           const b = ler()
           const u = usuarioLocal()

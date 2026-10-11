@@ -37,6 +37,8 @@
  * acontecer, que é o mesmo defeito que `contarNoCanal` existe para fechar.
  */
 
+import { valida as validaExpediente, escrito as escritoExpediente } from './expediente'
+
 /**
  * Uma tarefa ditada dentro de uma trilha.
  *
@@ -59,6 +61,7 @@ export type Acao =
         tarefas: TarefaDita[] }[] }
   | { faz: 'mudaTarefa'; itemId: string; texto?: string; prazo?: string | null
       descricao?: string }
+  | { faz: 'expediente'; blocos: Record<string, [string, string][]>; observacao?: string }
 
 /**
  * O que ele pode OLHAR, que é diferente do que ele pode fazer.
@@ -232,6 +235,16 @@ export function valida(bruta: unknown, pode: { equipe: boolean }): Acao | null {
     return { faz: 'track', nome, tipo, soMinha, checkpoints }
   }
 
+  if (a.faz === 'expediente') {
+    /* A conferência das faixas mora em `lib/expediente.ts`, e é a mesma que a
+       tela usa: hora de verdade, fim depois do começo, em ordem. Duas peneiras
+       para a mesma coisa é a garantia de que um dia a conversa aceita o que a
+       tela recusa. */
+    const blocos = validaExpediente(a.blocos) as Record<string, [string, string][]>
+    if (!Object.keys(blocos).length) return null
+    return { faz: 'expediente', blocos, observacao: texto(a.observacao, 1000) }
+  }
+
   if (a.faz === 'mudaTarefa') {
     const itemId = id(a.item_id)
     if (!itemId) return null
@@ -295,6 +308,9 @@ export function contar(a: Acao, onde?: string): string {
   if (a.faz === 'nota') {
     const primeira = a.texto.split('\n')[0].trim()
     return `Nota: ${primeira.slice(0, 80)}${primeira.length > 80 ? '...' : ''}`
+  }
+  if (a.faz === 'expediente') {
+    return `Expediente: ${escritoExpediente({ blocos: a.blocos, fuso: '', observacao: '' })}`
   }
   if (a.faz === 'mudaTarefa') {
     const mudou = [
@@ -475,6 +491,32 @@ export function ferramentas(pode: { equipe: boolean }): Ferramenta[] {
       },
     },
     {
+      name: 'definir_expediente',
+      description: 'Guarda as horas em que ela trabalha, por dia da semana. Use quando ela '
+        + 'CONTAR a rotina dela ("trabalho das 8h30 ao meio-dia e da 13h30 às 17h30", '
+        + '"sexta só de manhã", "não trabalho sábado"). Isso passa a valer para todo prazo '
+        + 'e todo compromisso que você puser daqui para frente. Mande a semana INTEIRA toda '
+        + 'vez: o que você não mandar vira dia sem expediente, então se ela só está mudando '
+        + 'a sexta, repita os outros dias como já estão.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          blocos: {
+            type: 'object',
+            description: 'Por dia da semana, "0" é domingo e "6" é sábado. Cada dia é uma '
+              + 'lista de faixas [inicio, fim] em HH:MM. Dia que ela não trabalha fica de '
+              + 'fora. Ex: {"1":[["08:30","12:00"],["13:30","17:30"]],"5":[["08:30","12:00"]]}',
+          },
+          observacao: {
+            type: 'string',
+            description: 'O que ela disse sobre a rotina e não cabe em hora: "não marco '
+              + 'nada na sexta à tarde", "viajo toda terça". Omita se não houver.',
+          },
+        },
+        required: ['blocos'],
+      },
+    },
+    {
       name: 'mudar_tarefa',
       description: 'Muda uma tarefa que JÁ EXISTE: o texto, o prazo ou a descrição. '
         + 'Use quando ela disser para adiar, antecipar, renomear ou detalhar algo que já '
@@ -498,7 +540,8 @@ export function ferramentas(pode: { equipe: boolean }): Ferramenta[] {
 /** O nome da ferramenta vira o campo `faz` que `valida` entende. */
 export const doNomeDaFerramenta = (nome: string): string =>
   ({ criar_tarefa: 'tarefa', criar_compromisso: 'compromisso', criar_nota: 'nota',
-     criar_track: 'track', mudar_tarefa: 'mudaTarefa' }[nome] || '')
+     criar_track: 'track', mudar_tarefa: 'mudaTarefa',
+     definir_expediente: 'expediente' }[nome] || '')
 
 /** O nome da ferramenta de LEITURA vira o campo `ve` que `validaPergunta` entende. */
 export const doNomeDaPergunta = (nome: string): string =>

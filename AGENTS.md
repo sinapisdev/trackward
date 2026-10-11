@@ -390,6 +390,40 @@ teria custado.
   pessoa foi chamada, e abrir o pessoal vazio para quem acabou de aceitar um convite é
   mostrar um app sem nada dentro no momento em que ela veio ver o trabalho de alguém. Quem
   já existia ganha o dele numa passada de migração, que é idempotente.
+- **O EXPEDIENTE é as horas em que a pessoa trabalha, e é do LOGIN** (seção 75,
+  `lib/expediente.ts`). O app sabia quando a CASA fala (`leitura_janela`, aprendida em
+  `lib/ritmo.ts`) e quando não perturbar (`avisos_contato.calado_*`), e não sabia a coisa
+  mais simples: de que horas a que horas aquela pessoa trabalha. Sem isso, prazo de tarefa
+  cai em sábado e o secretário marca reunião às sete da noite.
+- **Do login e não do perfil**, pela mesma razão da agenda: o expediente é de um corpo, e o
+  corpo não trabalha num horário na Simonetto e noutro na Silvereng. Quem tem quatro
+  empresas tem um expediente; por perfil daria quatro respostas para uma pergunta que só
+  tem uma. É a família do `@`: chaveado por `user_id`, e **exempto do filtro por `org_id`
+  no modo local**, senão ele some, que já aconteceu uma vez com o `@`.
+- **Vazio quer dizer "ela não disse", e isso NÃO é "trabalha sempre".** A diferença decide
+  o comportamento: sem resposta o app **não mexe em prazo nenhum**, porque empurrar a
+  tarefa de alguém por uma regra que essa pessoa nunca deu é pior do que o prazo cair num
+  sábado que ela talvez trabalhe.
+- **Ele se conta FALANDO**, que é como uma pessoa descreve a própria rotina: o secretário
+  tem `definir_expediente`, e "das 8 e meia ao meio-dia, e da uma e meia às cinco e meia,
+  sexta eu paro meio-dia" vira a semana certa (ensaiado contra o modelo). A tela em Ajustes
+  existe para VER o que ficou guardado e corrigir uma linha, que é o que ninguém quer fazer
+  conversando.
+- **A peneira das faixas mora num lugar só**, `lib/expediente.ts`, e a conversa e a tela
+  perguntam a ela. Duas peneiras é a garantia de que um dia a conversa aceita o que a tela
+  recusa. Ela conserta a ORDEM (manhã dita depois da tarde é a mesma manhã) e recusa o
+  resto, como toda conferência deste app.
+- **Marcar fora do expediente é DIREITO de quem marca**, e o app avisa em vez de recusar: a
+  reunião das 19h com o cliente existe, e um app que a recusa é um app que se descobre
+  contornando. **Quem avisa é o app e não o modelo**, no recibo da ação: ensaiado, o modelo
+  marcou a sexta às 15h de quem para ao meio-dia e não disse nada, e o app sabe a resposta
+  sem perguntar a ninguém.
+- **O prazo de trilha cai em dia de trabalho.** O modelo conta dias de calendário porque é
+  só isso que ele tem, e prazo em sábado é prazo vencido na segunda de manhã, posto pelo
+  app. `proximoUtil` empurra para o próximo dia útil, e não empurra nada quando ninguém
+  disse o expediente.
+- **E ele é do dono, nem do administrador.** A que horas alguém trabalha é dela; o que a
+  casa pode saber é a OCUPAÇÃO, pela agenda, que já tem a regra dela.
 - **Agenda**: `bloqueia` e `visivel` são chaves independentes. Quem não pode ler um
   compromisso recebe apenas a ocupação (via função `ocupacao()`), com título trocado por
   "Ocupado" e `aberto: false`. Nunca vazar título, local ou observação de compromisso

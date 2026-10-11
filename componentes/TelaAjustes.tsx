@@ -10,6 +10,7 @@ import { Ic } from './Icones'
 import { AjustesAvisos } from './AjustesAvisos'
 import { confere, normaliza, PORQUE } from '@/lib/apelido'
 import { MeuTelefone } from './MeuTelefone'
+import { MeuExpediente } from './MeuExpediente'
 import { isoDe, rel } from '@/lib/datas'
 import { MODO_LOCAL } from '@/lib/modo'
 import { ComoNoIphone, useConviteDeInstalar } from './Instalar'
@@ -20,6 +21,7 @@ import { aplicarTema, temaAtual, TEMAS, type Tema } from '@/lib/tema'
 import { toursDe } from '@/lib/tutorial'
 import { esquecerTutoriais } from './Tutorial'
 import { esquecerPedidoDePush } from './PedirPush'
+import { esquecerPedidoDeExpediente } from './PedeExpediente'
 
 export function TelaAjustes() {
   const { meuApelido, escolherApelido,
@@ -108,6 +110,10 @@ export function TelaAjustes() {
             {/* O telefone vem logo abaixo do @ porque os dois são a mesma
                 coisa vista de dois jeitos: como as pessoas te acham. */}
             <MeuTelefone />
+            {/* E o expediente logo depois, porque os três são a mesma família:
+                coisas do LOGIN, que valem em todos os seus espaços, e não da
+                empresa em que você está agora. */}
+            <MeuExpediente />
           </div>
         </div>
 
@@ -603,6 +609,7 @@ export function TelaAjustes() {
                 // O "agora não" do pedido de aviso volta junto: quem pede para
                 // ver tudo de novo está pedindo as perguntas também.
                 esquecerPedidoDePush()
+                esquecerPedidoDeExpediente()
                 void salvarPerfil(eu.id, { tutoriais: [] }, true)
               }}>
               <Ic.faisca />Ver tudo de novo

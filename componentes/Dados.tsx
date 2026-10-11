@@ -39,6 +39,10 @@ import {
 import type { Contexto as ContextoLeitura, Proposta } from '@/lib/leitor'
 import { lerComando, ondeEh, quemEh, separaFone } from '@/lib/comandos'
 import { paraE164 } from '@/lib/fone'
+import {
+  valida as validaExpediente, paraOModelo as expedienteParaOModelo, proximoUtil,
+  dentro, diaUtil, temExpediente, type Expediente,
+} from '@/lib/expediente'
 import type { ContextoConversa, Fala } from '@/lib/conversa'
 import type { Alvo } from '@/lib/tipos'
 import { iso } from '@/lib/datas'
@@ -202,6 +206,15 @@ type Contexto = {
    * Com gente dentro, só ela e quem mandou abrem, e mais ninguém vê que ele
    * existe.
    */
+  /**
+   * As horas em que esta pessoa trabalha. Nulo é "ela ainda não disse".
+   *
+   * Nulo e "trabalha sempre" são coisas diferentes, e o app precisa distinguir:
+   * sem resposta ele não mexe em prazo nenhum.
+   */
+  expediente: Expediente | null
+  /** Grava o expediente. Vale para o login inteiro, não para um espaço. */
+  salvarExpediente: (e: Expediente) => Promise<boolean>
   /** Quem abre este anexo. Vazio quer dizer que ele segue a coisa a que pertence. */
   quemAbreAnexo: (anexoId: string) => string[]
   /** Troca quem abre um anexo que já subiu. Não desfaz quem já viu. */
@@ -496,6 +509,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [minhasEntregas, setMinhasEntregas] = useState(0)
   /** O @ de cada login que eu enxergo, pelo `user_id`. */
   const [apelidos, setApelidos] = useState<Map<string, string>>(new Map())
+  const [expediente, setExpediente] = useState<Expediente | null>(null)
   const [minhaAgendaExterna, setMinhaExterna] = useState<AgendaExterna | null>(null)
   const [processos, setProcessos] = useState<Processo[]>([])
   const [ciclos, setCiclos] = useState<Ciclo[]>([])
@@ -563,7 +577,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   /** Recolhe tudo que a pessoa pode ver e monta a árvore de fluxos. */
   const carregar = useCallback(async () => {
-    const [p, s, f, e, i, h, cic, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, anxPes, dec, pz, mem, cns, ags, cnc, nts, notaPes, fbk, avs, ctt, psh, mag, mdia, ment, apl] = await Promise.all([
+    const [p, s, f, e, i, h, cic, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, anxPes, dec, pz, mem, cns, ags, cnc, nts, notaPes, fbk, avs, ctt, psh, mag, mdia, ment, apl, exp] = await Promise.all([
       sb.from('perfis').select('*').order('nome'),
       sb.from('areas').select('*').order('ordem'),
       sb.from('fluxos').select('*').order('criado_em'),
@@ -624,6 +638,10 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       /* O @ é do LOGIN, não do perfil: a política devolve o seu e o de quem
          divide um espaço com você, que é o que escreve "@ana" na tela. */
       sb.from('apelidos').select('user_id,apelido'),
+      /* O expediente é do LOGIN, como o `@` e a agenda: um corpo, um horário de
+         trabalho. Nulo quer dizer que ela ainda não disse, e isso é diferente de
+         "trabalha sempre": sem resposta o app não mexe em prazo nenhum. */
+      sb.rpc('meu_expediente'),
     ])
 
     /**
@@ -774,6 +792,12 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     setAgenda([...abertos, ...meus, ...fechados.values(), ...externos])
     setMeuDia(((mdia.data || []) as LinhaDoDia[]) || [])
     setMinhasEntregas(typeof ment.data === 'number' ? ment.data : 0)
+    const umExp = (exp.data || null) as { blocos?: unknown; fuso?: string; observacao?: string } | null
+    setExpediente(umExp ? {
+      blocos: validaExpediente(umExp.blocos),
+      fuso: umExp.fuso || 'America/Sao_Paulo',
+      observacao: umExp.observacao || '',
+    } : null)
     setApelidos(new Map(((apl.data || []) as { user_id: string; apelido: string }[])
       .map((a) => [a.user_id, a.apelido])))
     setMinhaExterna(((ax.data || []) as AgendaExterna[])[0] || null)
@@ -1392,6 +1416,28 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   }, [sb, eu.id, org.id, falhou, toast, recarregar])
 
   /** Quem abre este anexo quando ele é fechado. Lista vazia quer dizer aberto. */
+  /**
+   * Grava o expediente, do login inteiro.
+   *
+   * Não passa por `org_id` nem por `carimbar_org`: a tabela é chaveada por
+   * `user_id`, como `apelidos`, e é a mesma razão da agenda. Quem tem quatro
+   * empresas tem um expediente; guardá-lo por perfil daria quatro respostas
+   * para uma pergunta que só tem uma.
+   */
+  const salvarExpediente: Contexto['salvarExpediente'] = useCallback(async (e) => {
+    const blocos = validaExpediente(e.blocos)
+    const { error } = await sb.from('expediente').upsert({
+      user_id: eu.user_id,
+      blocos,
+      fuso: (e.fuso || 'America/Sao_Paulo').slice(0, 60),
+      observacao: (e.observacao || '').trim().slice(0, 1000),
+      mexido_em: new Date().toISOString(),
+    })
+    if (error) { falhou(error, 'Não deu para salvar o seu expediente.'); return false }
+    setExpediente({ blocos, fuso: e.fuso || 'America/Sao_Paulo', observacao: e.observacao || '' })
+    return true
+  }, [sb, eu.user_id, falhou])
+
   const quemAbreAnexo: Contexto['quemAbreAnexo'] = useCallback(
     (anexoId) => anexoPessoas.filter((x) => x.anexo_id === anexoId).map((x) => x.perfil_id),
     [anexoPessoas],
@@ -3002,13 +3048,17 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       pode: { equipe: pode.canais },
       /* Só o que vem pela frente: a agenda inteira não cabe e não ajuda, e o
          que passou não muda o que marcar. */
+      /* O expediente em texto, porque é isso que o modelo lê: as horas em que
+         ela trabalha, o fuso, e o que ela disse e não cabe em hora. Vazio
+         quando ela ainda não disse, e aí ele não inventa horário nenhum. */
+      expediente: expedienteParaOModelo(expediente),
       agenda: agenda
         .filter((c) => c.aberto && c.quando >= hojeIso())
         .sort((a, b) => a.quando.localeCompare(b.quando))
         .slice(0, 40)
         .map((c) => ({ quando: c.quando, titulo: c.titulo, inicio: c.inicio, fim: c.fim })),
     }
-  }, [notas, areaDe, todosFluxos, memoria, oQueACasaTem, pode.canais, agenda,
+  }, [notas, areaDe, todosFluxos, memoria, oQueACasaTem, pode.canais, agenda, expediente,
       fluxosComImplicitas, minhaLista?.id, eu.id])
 
   /**
@@ -3122,11 +3172,19 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    */
   const executarAcoes = useCallback(async (acoes: Acao[]): Promise<string[]> => {
     const feitas: string[] = []
-    /* O prazo dentro de uma trilha vem em DIAS a partir de hoje, e vira data
-       aqui. É o mesmo caminho de `criar_do_processo`, e pelo mesmo motivo:
-       ninguém dita sete datas absolutas sem errar uma. */
+    /**
+     * O prazo dentro de uma trilha vem em DIAS a partir de hoje, e vira data
+     * aqui. É o mesmo caminho de `criar_do_processo`, e pelo mesmo motivo:
+     * ninguém dita sete datas absolutas sem errar uma.
+     *
+     * E ele cai num dia em que ela TRABALHA. Prazo em sábado é prazo vencido
+     * na segunda de manhã, e quem pôs foi o app: o modelo contou dias de
+     * calendário porque é só isso que ele tem. Sem expediente dito, não mexe,
+     * porque empurrar a tarefa de alguém por uma regra que essa pessoa nunca
+     * deu é pior do que o prazo cair num sábado que ela talvez trabalhe.
+     */
     const emDias = (n: number | null | undefined) =>
-      typeof n === 'number' ? soma(hojeIso(), n) : null
+      typeof n === 'number' ? proximoUtil(expediente, soma(hojeIso(), n)) : null
 
     for (const a of acoes) {
       try {
@@ -3155,10 +3213,31 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
             titulo: a.titulo, quando: a.quando, inicio: a.inicio || null, fim: a.fim || null,
             local: a.local || '', nota: '', bloqueia: true, visivel: true, convidados: [],
           })
-          if (id) feitas.push(contar(a))
+          /**
+           * Fora do expediente, o RECIBO diz, e quem diz é o app.
+           *
+           * Marcar fora é direito de quem marca: a reunião das 19h com o
+           * cliente existe, e um app que a recusa é um app que se descobre
+           * contornando. O que não pode é acontecer calado, e deixar isso com
+           * o modelo é deixar no acaso: ensaiado, ele marcou a sexta às 15h de
+           * quem para ao meio-dia e não disse nada. O app sabe a resposta sem
+           * perguntar a ninguém.
+           */
+          if (id) {
+            const fora = temExpediente(expediente) && (a.inicio
+              ? !dentro(expediente, a.quando, a.inicio)
+              : !diaUtil(expediente, a.quando))
+            feitas.push(contar(a) + (fora ? ' (fora do seu expediente)' : ''))
+          }
         } else if (a.faz === 'nota') {
           const id = await salvarNota({ texto: a.texto })
           if (id) feitas.push(contar(a))
+        } else if (a.faz === 'expediente') {
+          const deu = await salvarExpediente({
+            blocos: a.blocos, fuso: expediente?.fuso || 'America/Sao_Paulo',
+            observacao: a.observacao || expediente?.observacao || '',
+          })
+          if (deu) feitas.push(contar(a))
         } else if (a.faz === 'mudaTarefa') {
           /* Quem recusa é o BANCO, com as mesmas regras da tela: prazo e
              critério são de quem responde pelo processo, e `manda_no_processo`
@@ -3218,7 +3297,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     if (feitas.length) recarregar()
     return feitas
   }, [criarAvulsa, salvarCompromisso, salvarNota, salvarFluxo, adicionarItem, itemPorId,
-      todosFluxos, recarregar, sb, eu.id])
+      todosFluxos, recarregar, salvarExpediente, expediente, sb, eu.id])
 
   /**
    * A conversa solta: essa continua sendo conversa mesmo.
@@ -4130,7 +4209,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     salvarProcesso, excluirProcesso, duplicarProcesso, criarDoProcesso,
     criarConvite, excluirConvite,
     canais, mensagens, sugestoes, mensagensDe, sugestoesDe, naoLidas, meChamaram,
-    anexosDe, ciclosDe, anexar, removerAnexo, abrirAnexo, quemAbreAnexo, definirQuemAbre,
+    anexosDe, ciclosDe, anexar, removerAnexo, abrirAnexo, quemAbreAnexo, definirQuemAbre, expediente, salvarExpediente,
     decisoesDe, decidir,
     desfazerSugestao, palpites, distribuirTarefa, cargas, cargaDe,
     memoria, esquecer, consumo, agentes, salvarAgente, excluirAgente,

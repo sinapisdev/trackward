@@ -8,6 +8,7 @@ import { Ic } from './Icones'
 import { PedeNome } from './PedeNome'
 import { Instalar } from './Instalar'
 import { PedirPush } from './PedirPush'
+import { PedeExpediente } from './PedeExpediente'
 import { Medidor } from './Medidor'
 import { Tutorial } from './Tutorial'
 import { FaixaDoPlano } from './Plano'
@@ -124,6 +125,11 @@ export function Shell({ children }: { children: ReactNode }) {
           e o nome: uma coisa de cada vez, e instalar é a menos urgente das três. */}
       <Instalar />
       <PedirPush />
+      {/* Quarto e último da fila de "uma coisa de cada vez": nome, tour,
+          instalar, push, expediente. Ele vem por último porque é o único que o
+          app consegue viver sem: sem expediente ele não mexe em prazo, que é a
+          omissão segura. */}
+      <PedeExpediente />
 
       {/* A primeira vez de cada pessoa, apontando para a tela de verdade. */}
       <Tutorial />

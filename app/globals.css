@@ -1489,6 +1489,29 @@ button.chat-sugs-h:hover{color:var(--tx)}
    com outros nomes, e são outros nomes de propósito: `.chat-anexando` mora
    dentro do campo de escrever e carrega as medidas dele, e classe curta
    repetida entre duas telas é o jeito mais silencioso de uma quebrar a outra. */
+/* O expediente, em Ajustes. Um bloco por dia, e o dia desligado fica apagado:
+   a semana inteira na tela é o que deixa ver de relance que sábado não tem
+   nada, que é a coisa que mais se confere aqui. */
+.exp-dias{display:flex;flex-direction:column;gap:8px;margin:8px 0 14px}
+.exp-dia{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;padding:9px 11px;
+  border-radius:var(--r-sm);background:var(--sunken);opacity:.55;transition:var(--t)}
+.exp-dia.on{opacity:1}
+.exp-dia>.chk{flex:0 0 118px;font-weight:500}
+.exp-faixa{display:flex;align-items:center;gap:6px}
+.exp-faixa .inp{width:110px;padding:6px 8px;font-variant-numeric:tabular-nums}
+.exp-faixa i{font-style:normal;font-size:var(--fs-meta);color:var(--tx-3)}
+.exp-mais{display:flex;align-items:center;gap:5px;font-size:var(--fs-meta);color:var(--tx-3);
+  transition:var(--t)}
+.exp-mais:hover{color:var(--ac-tinta)}
+.exp-mais svg{width:12px;height:12px}
+.exp-l{display:block;font-size:var(--fs-meta);color:var(--tx-2);margin-bottom:6px}
+/* No telefone o nome do dia ganha a linha dele: nome mais duas faixas não cabem
+   em 360px, e a faixa quebrada no meio é pior que a linha a mais. */
+@media (max-width:560px){
+  .exp-dia>.chk{flex:0 0 100%}
+  .exp-faixa .inp{width:94px}
+}
+
 /* A ficha de passar contato, em cima do campo de escrever. Mesma forma da
    faixa de anexo pendente, porque as duas são a mesma coisa para o olho: uma
    caixa que aparece acima da linha e some quando o gesto termina. */

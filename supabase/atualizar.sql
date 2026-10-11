@@ -7435,6 +7435,81 @@ begin
   end if;
 end $$;
 
+-- --------------------------------------------------------------------------
+-- 75. O expediente: as horas em que a pessoa trabalha
+--
+--     O app sabia quando a CASA fala (`leitura_janela`, aprendida em
+--     `lib/ritmo.ts`) e quando não perturbar (`avisos_contato.calado_*`), e não
+--     sabia a coisa mais simples: de que horas a que horas aquela pessoa
+--     trabalha. Sem isso, prazo de tarefa cai em sábado, o secretário marca
+--     reunião às 19h, e a conta de carga divide o trabalho por um dia que não
+--     existe.
+--
+--     É DO LOGIN e não do perfil, pela mesma razão da agenda: o expediente é de
+--     um corpo, e o corpo não trabalha num horário na Simonetto e noutro na
+--     Silvereng. Quem tem quatro empresas tem um expediente. Guardá-lo por
+--     perfil daria quatro respostas para uma pergunta que só tem uma.
+--
+--     `blocos` é jsonb e não coluna, porque a forma é irregular de verdade:
+--     segunda a quinta das 8h30 ao meio-dia e da 13h30 às 17h30, sexta só de
+--     manhã, sábado nada. Em coluna isso vira catorze campos e um dia alguém
+--     precisa de três faixas numa terça.
+--
+--     `observacao` existe porque metade do que se diz sobre rotina não cabe em
+--     hora: "não marco nada na sexta à tarde", "viajo toda terça". O modelo lê,
+--     o app não interpreta. Texto que o app não entende é melhor guardado do que
+--     perdido, desde que ninguém finja que ele é regra.
+-- --------------------------------------------------------------------------
+
+create table if not exists public.expediente (
+  user_id    uuid primary key references auth.users on delete cascade,
+  /**
+   * As faixas por dia da semana, 0 = domingo.
+   *   {"1": [["08:30","12:00"], ["13:30","17:30"]], "5": [["08:30","12:00"]]}
+   * Dia ausente é dia sem expediente, e é assim que sábado e domingo somem.
+   */
+  blocos     jsonb not null default '{}'::jsonb,
+  /** O fuso de quem trabalha, que é o que dá sentido às horas. */
+  fuso       text not null default 'America/Sao_Paulo',
+  /** O que não cabe em hora, para o modelo ler. O app não interpreta. */
+  observacao text not null default '',
+  mexido_em  timestamptz not null default now()
+);
+
+alter table public.expediente enable row level security;
+
+/**
+ * Do dono, e de mais ninguém.
+ *
+ * Nem do administrador: a que horas alguém trabalha é dela, e um app que deixa
+ * o chefe ler a rotina do time vira outra coisa. O que a casa pode saber é a
+ * OCUPAÇÃO, pela agenda, que já tem a regra dela.
+ */
+drop policy if exists exp_sel on public.expediente;
+create policy exp_sel on public.expediente for select using (user_id = auth.uid());
+drop policy if exists exp_ins on public.expediente;
+create policy exp_ins on public.expediente for insert with check (user_id = auth.uid());
+drop policy if exists exp_upd on public.expediente;
+create policy exp_upd on public.expediente for update using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+drop policy if exists exp_del on public.expediente;
+create policy exp_del on public.expediente for delete using (user_id = auth.uid());
+
+/**
+ * O expediente de quem está logado, ou nulo quando ela ainda não disse.
+ *
+ * Nulo e "trabalha o dia inteiro" são coisas diferentes, e o app precisa
+ * distinguir: sem resposta ele não mexe em prazo nenhum, e é isso que impede o
+ * primeiro dia de uso de empurrar as tarefas de alguém para uma semana que ela
+ * nunca combinou.
+ */
+create or replace function public.meu_expediente()
+returns expediente language sql stable security definer set search_path = public as $$
+  select * from expediente where user_id = auth.uid();
+$$;
+revoke all on function public.meu_expediente() from public, anon;
+grant execute on function public.meu_expediente() to authenticated, service_role;
+
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
     as "carimbo de organizacao (40)",
@@ -7958,4 +8033,12 @@ select
   -- O cartão de contato na conversa.
   (select count(*) from information_schema.columns
     where table_schema = 'public' and table_name = 'mensagens' and column_name = 'contato')
-    as "o contato na mensagem (1)";
+    as "o contato na mensagem (1)",
+  -- O expediente é do LOGIN, como a agenda: um corpo, um horário de trabalho.
+  (select count(*) from information_schema.tables
+    where table_schema = 'public' and table_name = 'expediente')
+    as "a tabela do expediente (1)",
+  -- E ele é do dono e de mais ninguém, nem do administrador.
+  (select count(*) from pg_policies
+    where schemaname = 'public' and tablename = 'expediente')
+    as "politicas do expediente (4)";

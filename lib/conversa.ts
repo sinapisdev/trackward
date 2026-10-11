@@ -126,6 +126,14 @@ export type ContextoConversa = {
    */
   pode?: { equipe: boolean }
   /**
+   * As horas em que ela trabalha, já em texto (`lib/expediente.ts`).
+   *
+   * Vazio quando ela ainda não disse, e aí o modelo não inventa horário: pôr
+   * prazo numa semana que ela nunca combinou é pior que o prazo cair num
+   * sábado que ela talvez trabalhe.
+   */
+  expediente?: string
+  /**
    * O que já está marcado nos próximos dias.
    *
    * Sem isso o secretário marcava reunião por cima de reunião e respondia "não
@@ -337,6 +345,8 @@ ${ctx.meu.itens.slice(0, 60).map((i) => `- ${i.texto} | ${i.onde}${i.prazo ? ` |
 `
     : ''
 
+  const expediente = ctx.expediente ? `\n${ctx.expediente}\n` : ''
+
   const tudo = ctx.indice.length
     ? `
 TÍTULOS DE TUDO QUE EXISTE NO CADERNO DELA:
@@ -346,7 +356,7 @@ ${ctx.indice.slice(0, 120).map((t) => `- ${t}`).join('\n')}
 
   return `Hoje é ${ctx.hoje}.${aprendido}
 ${naNota}
-${perto}${tudo}${agenda}${meu}${daCasa}`
+${perto}${tudo}${expediente}${agenda}${meu}${daCasa}`
 }
 
 /**
