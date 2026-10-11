@@ -3030,6 +3030,22 @@ o seletor para o caderno é a tela que o tem (`<Caderno abas={...}>`), e não o 
 o inventa: no computador ele continua sendo a primeira linha da coluna do meio quando a
 conversa está aberta.
 
+**Organizar vive na barra do `Documento`, e nas DUAS telas.** Ele faltava em `/notas`, no
+computador, e a falta não era decisão: `Caderno.tsx` passava `acoes` e `TelaNotas.tsx` não,
+então a mesma nota tinha o botão no telefone e não tinha no computador. As duas ações da
+nota moram juntas, grudadas no rodapé da folha, e não numa segunda barra.
+
+**E o que ele separa aparece na própria nota**, em "Daqui saiu". Botão cujo resultado a tela
+não mostra é o modo de falha mais caro deste app com um clique antes: a leitura acha o
+trabalho, grava a proposta, e ela fica numa tela que esta não abre.
+
+**O cartão é o MESMO do chat** (`CartaoSugestao`, com `despejo`). O caderno tinha um feito à
+mão, sem o "Ajustar", e a regra é que ele aparece em toda proposta: sem ele, "quase isso" só
+tem a saída de dispensar e digitar tudo de novo, que é o trabalho da leitura virando zero
+justamente quando ela quase acertou. `despejo` é o que faz a tarefa cair na lista pessoal e
+ser sua sem perguntar, porque numa nota não há projeto a escolher nem outra pessoa a quem
+dar.
+
 Perguntar e Organizar ficam **um embaixo do outro no celular**. Lado a lado eles cabiam,
 mas cabiam apertados, com o texto no limite de quebrar e o polegar tendo que mirar.
 

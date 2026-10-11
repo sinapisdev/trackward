@@ -7,23 +7,11 @@ import { Ic } from './Icones'
 import { ConversaNota } from './ConversaNota'
 import { Documento } from './Documento'
 import { DetalhesNota } from './DetalhesNota'
+import { CartaoSugestao } from './TelaChat'
 import { buscar, porTitulo, resumo } from '@/lib/notas'
 import { isoDe, rel } from '@/lib/datas'
-import type { Nota, TipoProposta } from '@/lib/tipos'
+import type { Nota } from '@/lib/tipos'
 
-const ROTULO: Record<TipoProposta, string> = {
-  tarefa: 'Vira tarefa',
-  prazo: 'Prazo',
-  concluir: 'Ficou pronto',
-  decisao: 'Decisão',
-  trava: 'Travou',
-  distribuir: 'Quem faz',
-  agente: 'Agente',
-  nota: 'Guardar como nota',
-  compromisso: 'Marcar na agenda',
-  trilha: 'Virar track',
-  checkpoint: 'Ajuste na trilha',
-}
 
 /**
  * As notas, do jeito que elas servem no dia: uma nota é um assunto.
@@ -46,7 +34,7 @@ const ROTULO: Record<TipoProposta, string> = {
 export function Caderno({ abas }: { abas?: ReactNode }) {
   const { notas, areas, fluxos, areaDe, eu, nomeDe, comQuem, minhaLista, abrirMinhaLista,
     conversaIA, abrirConversaIA, sugestoesDaNota, mensagensDaNota, salvarNota,
-    lerNota, aceitarSugestao, recusarSugestao, org } = useDados()
+    lerNota, org } = useDados()
 
   const [termo, setTermo] = useState('')
   const [abertaId, setAbertaId] = useState<string | null>(null)
@@ -121,14 +109,7 @@ export function Caderno({ abas }: { abas?: ReactNode }) {
    * é de projeto nenhum, e ela nasce agora se ainda não existir: conta nova não
    * precisa começar com uma esteira vazia dentro.
    */
-  const aceitar = async (s: Parameters<typeof aceitarSugestao>[0]) => {
-    if (s.tipo === 'tarefa' && !s.dados.fluxo_id) {
-      const destino = minhaLista?.id || await abrirMinhaLista()
-      await aceitarSugestao(s, { fluxo_id: destino, resp_id: s.dados.resp_id || eu.id })
-      return
-    }
-    await aceitarSugestao(s)
-  }
+
 
   /** Abrir pelo título, quando a leitura citar uma nota que ela achou. */
   const ir = (nome: string) => {
@@ -288,20 +269,15 @@ export function Caderno({ abas }: { abas?: ReactNode }) {
           <div className="rd-bh">
             <h3>Daqui saiu <span className="num">({propostas.length})</span></h3>
           </div>
-          {propostas.map((s) => (
-            <div className="dp-prop" key={s.id}>
-              <span className="dp-prop-t">
-                <i>{ROTULO[s.tipo]}</i>
-                <b>{s.texto}</b>
-                {!!s.motivo && <small>{s.motivo}</small>}
-              </span>
-              <span className="dp-prop-a">
-                <button className="btn-sm" onClick={() => void aceitar(s)}>Aceitar</button>
-                <button className="iconbtn" aria-label="Dispensar"
-                  onClick={() => void recusarSugestao(s)}><Ic.x /></button>
-              </span>
-            </div>
-          ))}
+          {/* O MESMO cartão do chat e do secretário, e não um feito à mão.
+              O daqui não tinha "Ajustar", e a regra é que ele aparece em TODA
+              proposta: sem ele, "quase isso" só tem a saída de dispensar e
+              digitar tudo de novo, que é o trabalho da leitura virando zero
+              justamente quando ela quase acertou.
+              `despejo` é o que faz a tarefa cair na lista pessoal e ser sua sem
+              perguntar: numa nota não há projeto a escolher nem outra pessoa a
+              quem dar. */}
+          {propostas.map((s) => <CartaoSugestao key={s.id} s={s} despejo />)}
         </section>
       )}
 

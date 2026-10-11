@@ -4046,16 +4046,11 @@ textarea.inp{resize:vertical;min-height:70px;line-height:1.5;font:inherit;paddin
 .dp-jogar-pe{display:flex;align-items:center;gap:12px;margin-top:10px}
 .dp-jogar-pe .hint{flex:1;margin:0}
 
+/* A seção "Daqui saiu", nas duas telas de nota. O cartão de dentro é o mesmo do
+   chat (`.sug`): o que havia aqui era um cartão feito à mão, sem o "Ajustar"
+   que toda proposta tem, e duas formas da mesma coisa é uma a mais para
+   manter. */
 .dp-props{margin-top:22px}
-.dp-prop{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;
-  padding:12px 0;border-bottom:1px solid var(--line)}
-.dp-prop-t{min-width:0}
-.dp-prop-t i{display:block;font-style:normal;font-size:var(--fs-kicker);letter-spacing:var(--ls-kicker);
-  text-transform:uppercase;color:var(--ac-tinta);font-weight:var(--fw-semibold)}
-.dp-prop-t b{display:block;font:var(--fw-medium) var(--fs-ui)/1.35 var(--sans);color:var(--tx);margin-top:5px}
-.dp-prop-t small{display:block;font-size:var(--fs-meta);color:var(--tx-3);margin-top:4px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dp-prop-a{display:flex;align-items:center;gap:6px}
 
 .dp-lista{margin-top:22px}
 .dp-l{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center;

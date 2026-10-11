@@ -8,6 +8,7 @@ import { Ic } from '@/componentes/Icones'
 import { Anexos } from '@/componentes/Anexos'
 import { ConversaNota } from '@/componentes/ConversaNota'
 import { Documento } from '@/componentes/Documento'
+import { CartaoSugestao } from '@/componentes/TelaChat'
 import { DetalhesNota } from '@/componentes/DetalhesNota'
 import { rel, isoDe } from '@/lib/datas'
 import {
@@ -33,7 +34,9 @@ import type { Nota } from '@/lib/tipos'
 function Aberta({ nota, ir, aoApagar }: {
   nota: Nota; ir: (titulo: string) => void; aoApagar: () => void
 }) {
-  const { notas, salvarNota, toast, eu } = useDados()
+  const { notas, salvarNota, toast, eu, lerNota, org, sugestoesDaNota } = useDados()
+  const [lendo, setLendo] = useState(false)
+  const propostas = sugestoesDaNota(nota.id).filter((s) => s.estado === 'aberta')
 
   const aponta = saidas(nota, notas)
   const citam = entradas(nota, notas)
@@ -67,8 +70,41 @@ function Aberta({ nota, ir, aoApagar }: {
       </div>
 
       {/* Um texto só, e a leitura escreve dentro dele. A primeira linha é o
-          título: não há campo separado para ele. */}
-      <Documento nota={nota} ir={ir} />
+          título: não há campo separado para ele.
+
+          **Organizar entra na barra do Documento, e não numa segunda barra**:
+          as duas ações da nota moram juntas, grudadas no rodapé da folha, como
+          já era no caderno do celular. Ele faltava só aqui, e a falta não era
+          decisão: `Caderno.tsx` passava `acoes` e esta tela não, então a mesma
+          nota tinha o botão no telefone e não tinha no computador.
+
+          Responder é uma coisa e organizar é outra: Perguntar devolve texto
+          dentro do documento, Organizar vai pelo leitor e devolve PROPOSTAS que
+          alguém aceita. */}
+      <Documento nota={nota} ir={ir} acoes={org.ia_ativa ? (
+        <button className="btn" disabled={lendo} onClick={async () => {
+          setLendo(true)
+          await lerNota(nota.id)
+          setLendo(false)
+        }}>
+          <Ic.faisca />{lendo ? 'Organizando...' : 'Organizar'}
+        </button>
+      ) : null} />
+
+      {/* O que o Organizar separou, esperando um sim.
+          Sem este bloco o botão acima seria um botão que não faz nada visível:
+          a leitura acharia o trabalho, gravaria a proposta, e ela ficaria numa
+          tela que esta não mostra. Erro de leitura que vira lista vazia é o
+          modo de falha mais caro deste app, e botão sem resposta é o mesmo
+          defeito com um clique antes. */}
+      {!!propostas.length && (
+        <section className="dp-props">
+          <div className="rd-bh">
+            <h3>Daqui saiu <span className="num">({propostas.length})</span></h3>
+          </div>
+          {propostas.map((s) => <CartaoSugestao key={s.id} s={s} despejo />)}
+        </section>
+      )}
 
       {!!aponta.length && (
         <div className="nt-bloco">
