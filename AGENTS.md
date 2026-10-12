@@ -2481,6 +2481,20 @@ trabalho com o que ele já enxerga em Tracks. O buraco que a lista fecha é outr
 combinado num canal que ainda não tem forma mora numa track escondida, que não aparece em
 lugar nenhum, e sem ela quem pediu só descobre perguntando.
 
+**A fila agrupa por TEMPO, e em todo filtro.** "A seguir" era um balaio: tudo que tem
+prazo futuro mais tudo que não tem prazo nenhum, numa lista só. Com cem tarefas isso não é
+fila, é depósito, e quem abre fica **perdido**, que foi a palavra que o Leo usou em
+12/10/2026. E escolher "Executar" devolvia um bloco chamado Executar com a mesma pilha
+dentro. São sete faixas, que são as perguntas que a pessoa de fato faz: Vencida, Hoje,
+Amanhã, Esta semana, Este mês, Depois e Sem prazo. **Faixa vazia não aparece**, então um dia
+tranquilo mostra duas linhas e não sete cabeçalhos vazios, e **Sem prazo fica no fim**,
+porque é a que menos cobra e no alto ela empurra para baixo o que de fato vence.
+
+**E o estreitamento virou "de qual espaço", em pílulas.** Era um booleano, "Só pessoal", e
+com quatro espaços ele respondia a pergunta errada: a pessoa não quer "tudo ou só o meu",
+quer "só a AVLE agora". Continua só no espaço pessoal, pela mesma razão de antes: dentro de
+uma empresa a fila já é daquela empresa, e não há o que estreitar.
+
 **A tela chama-se Tarefas**, e não "Meu trabalho". O nome antigo descrevia a tela de quando
 ela só tinha a sua fila; hoje ela tem também o que você pediu, e "trabalho" é a palavra
 mais vaga do app: tudo ali é trabalho. A rota continua `/minhas`, porque endereço está em

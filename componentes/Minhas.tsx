@@ -51,7 +51,15 @@ export function Minhas() {
    * que ela tem. Então lá a lista soma tudo, e a lente estreita para o que é
    * dela mesma.
    */
-  const [soPessoal, setSoPessoal] = useState(false)
+  /**
+   * Qual espaço a fila mostra. Vazio é todos.
+   *
+   * Era um booleano, "só pessoal", e com quatro espaços ele respondia a pergunta
+   * errada: a pessoa não quer "tudo ou só o meu", ela quer "só a AVLE agora".
+   * Só existe no espaço pessoal, porque é lá que a fila soma: dentro de uma
+   * empresa ela já é daquela empresa, e não há o que estreitar.
+   */
+  const [espacoSo, setEspacoSo] = useState('')
   const [indo, setIndo] = useState('')
   const [termo, setTermo] = useState('')
   const [aberta, setAberta] = useState<string | null>(null)
@@ -121,10 +129,13 @@ export function Minhas() {
    */
   const tudo = useMemo(() => {
     if (!pessoal) return daqui
-    if (!soPessoal) return [...daqui, ...deFora]
-    // No pessoal, "só pessoal" estreita para o que é daqui mesmo.
-    return daqui
-  }, [daqui, deFora, soPessoal, pessoal])
+    const todas = [...daqui, ...deFora]
+    if (!espacoSo) return todas
+    // 'daqui' é o próprio pessoal; o resto é o id da organização escolhida.
+    return espacoSo === 'daqui'
+      ? daqui
+      : todas.filter((p) => p.org_id === espacoSo)
+  }, [daqui, deFora, espacoSo, pessoal])
 
   /**
    * A nota desta tarefa, e o caminho de ida.
@@ -260,17 +271,44 @@ export function Minhas() {
   ]
   const atual = abas.find((a) => a.id === filtro) || abas[0]
 
+  /**
+   * A fila agrupada por TEMPO, e em todo filtro.
+   *
+   * "A seguir" era um balaio: tudo que tem prazo futuro mais tudo que não tem
+   * prazo nenhum, numa lista só. Com cem tarefas isso não é uma fila, é um
+   * depósito, e quem abre fica perdido, que foi exatamente a palavra que o Leo
+   * usou. E escolher "Executar" devolvia um bloco chamado Executar, com a
+   * mesma pilha dentro.
+   *
+   * Sete faixas, e elas são as perguntas que a pessoa realmente faz: o que
+   * passou, o que é hoje, o que é amanhã, o que é desta semana, o que é deste
+   * mês, o que vem depois e o que não tem data. **Faixa vazia não aparece**,
+   * então um dia tranquilo mostra duas linhas e não sete cabeçalhos vazios.
+   */
+  const porTempo = (itens: Pendencia[]) => {
+    const d = (p: Pendencia) => (p.prazo ? dias(p.prazo) : null)
+    return [
+      { titulo: 'Vencida', itens: itens.filter((p) => d(p) !== null && d(p)! < 0) },
+      { titulo: 'Hoje', itens: itens.filter((p) => d(p) === 0) },
+      { titulo: 'Amanhã', itens: itens.filter((p) => d(p) === 1) },
+      { titulo: 'Esta semana', itens: itens.filter((p) => d(p) !== null && d(p)! > 1 && d(p)! <= 7) },
+      { titulo: 'Este mês', itens: itens.filter((p) => d(p) !== null && d(p)! > 7 && d(p)! <= 31) },
+      { titulo: 'Depois', itens: itens.filter((p) => d(p) !== null && d(p)! > 31) },
+      // Sem prazo fica no FIM, e não no começo: ela é a que menos cobra, e pôr
+      // no alto empurra para baixo o que tem data, que é o que de fato vence.
+      { titulo: 'Sem prazo', itens: itens.filter((p) => d(p) === null) },
+    ].filter((b) => b.itens.length)
+  }
+
   const blocos = filtro === 'tudo'
     ? [
         // Em "Tudo", o que eu pedi fica no fim, depois do que é meu: a fila
         // responde primeiro "o que eu faço", e só depois "o que estou esperando".
-        { titulo: 'Vencida', itens: busca.filter((p) => p.tipo !== 'pedi' && p.prazo && dias(p.prazo) < 0 && !presa(p)) },
-        { titulo: 'Hoje', itens: busca.filter((p) => p.tipo !== 'pedi' && p.prazo && dias(p.prazo) === 0 && !presa(p)) },
-        { titulo: 'A seguir', itens: busca.filter((p) => p.tipo !== 'pedi' && (!p.prazo || dias(p.prazo) > 0) && !presa(p)) },
+        ...porTempo(busca.filter((p) => p.tipo !== 'pedi' && !presa(p))),
         { titulo: 'Aguardando', itens: travadas },
         { titulo: 'Pedi', itens: pedidas },
       ].filter((b) => b.itens.length)
-    : [{ titulo: atual.nome, itens: atual.itens }]
+    : porTempo(atual.itens)
 
   const naFila = blocos.flatMap((b) => b.itens)
   /**
@@ -306,7 +344,7 @@ export function Minhas() {
             {tudo.length
               ? <>
                   {tudo.length} {tudo.length > 1 ? 'pendências' : 'pendência'}
-                  {pessoal && !soPessoal && outros.length > 0 && ', somando os seus espaços'}.{' '}
+                  {pessoal && !espacoSo && outros.length > 0 && ', somando os seus espaços'}.{' '}
                   {/* A frase fala de FILA e de prazo, nunca de esforço: "a sua
                       fila não cabe no tempo que tem" é sobre distribuição, "você
                       está devagar" é sobre a pessoa, e a segunda é o tipo de
@@ -342,16 +380,21 @@ export function Minhas() {
                 </button>
               ))}
             </div>
-            {/* O estreitamento para o pessoal, e não um seletor de espaço: a
-                pergunta que se faz aqui é "e se eu olhar só o que é meu",
-                não "em qual empresa estou". Só aparece para quem tem um
-                pessoal E alguma outra coisa, senão não estreita nada. */}
+            {/* De qual espaço, e só no pessoal: é lá que a fila soma quatro
+                empresas, e com quatro a pergunta deixa de ser "tudo ou só o
+                meu" e passa a ser "só a AVLE agora". Dentro de uma empresa a
+                fila já é daquela empresa, e não há o que estreitar. */}
             {pessoal && outros.length > 0 && (
-              <button className={`btn fila-so ${soPessoal ? 'on' : ''}`}
-                aria-pressed={soPessoal}
-                onClick={() => { setSoPessoal((v) => !v); setAberta(null) }}>
-                <Ic.eu />Só pessoal
-              </button>
+              <div className="seg fila-esp" role="group" aria-label="De qual espaço">
+                <button className={espacoSo ? '' : 'on'}
+                  onClick={() => { setEspacoSo(''); setAberta(null) }}>Todos</button>
+                <button className={espacoSo === 'daqui' ? 'on' : ''}
+                  onClick={() => { setEspacoSo('daqui'); setAberta(null) }}>Pessoal</button>
+                {outros.map((e) => (
+                  <button key={e.org_id} className={espacoSo === e.org_id ? 'on' : ''}
+                    onClick={() => { setEspacoSo(e.org_id); setAberta(null) }}>{e.nome}</button>
+                ))}
+              </div>
             )}
             <label className="campo-busca">
               <Ic.lupa />

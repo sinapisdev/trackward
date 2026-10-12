@@ -5180,9 +5180,12 @@ a.btn{text-decoration:none}
 /* O estreitamento para o pessoal. Ele é um interruptor e não uma pílula de
    segmento: segmento responde "qual destes", e aqui a pergunta é "e se eu
    olhar só o que é meu", que tem uma resposta ligada e uma desligada. */
-.fila-so{padding:8px 14px;font-size:var(--fs-meta);white-space:nowrap}
-.fila-so svg{width:14px;height:14px}
-.fila-so.on{background:var(--line-3);border-color:transparent;color:var(--tx)}
+/* De qual espaço, no pessoal. Pílulas como o segmento do lado, e não um botão
+   de ligar: a pergunta deixou de ser "tudo ou só o meu" e passou a ser "qual",
+   e para "qual" a forma certa é a lista das respostas. */
+.fila-esp{flex:none;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.fila-esp::-webkit-scrollbar{display:none}
+.fila-esp>button{white-space:nowrap}
 
 /* De qual espaço a linha veio, quando não é deste. Etiqueta e não cor: cor
    nova só entra quando significa algo que a pessoa precisa agir, e "de qual
@@ -5370,3 +5373,8 @@ a.btn{text-decoration:none}
 .sug-duvida b{display:block;font:var(--fw-medium) var(--fs-ui)/1.3 var(--sans);color:var(--tx)}
 .sug-duvida>span{display:block;margin:3px 0 8px;font-size:var(--fs-micro);color:var(--tx-3)}
 .sug-duvida .btn{padding:6px 12px;font-size:var(--fs-meta)}
+
+/* Faixa de tempo na fila: a mesma hierarquia dos grupos de antes, com o cabeçalho
+   grudado no alto enquanto a faixa rola. Sem isso, numa faixa de trinta linhas a
+   pessoa perde de vista se está lendo "Esta semana" ou "Este mês". */
+.fila-gh{position:sticky;top:0;z-index:2;background:var(--bg)}
