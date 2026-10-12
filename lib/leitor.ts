@@ -110,6 +110,15 @@ export type Contexto = {
    * não usam, porque distribuir semana é julgamento; quem usa é o modelo.
    */
   expediente?: string
+  /**
+   * As últimas correções de estimativa desta pessoa.
+   *
+   * É a volta que faltava: estimativa corrigida e esquecida faz o modelo errar
+   * igual na semana seguinte, e aí ela para de corrigir, porque corrigir não
+   * muda nada. Doze exemplos, as mais recentes primeiro, porque o ritmo de
+   * alguém muda e a correção de ontem vale mais que a de março.
+   */
+  estimativas?: { texto: string; estimado: number; corrigido: number }[]
   /** O que já está marcado, para o que for reservado não cair em cima. */
   agenda?: { quando: string; titulo: string; inicio: string | null; fim: string | null }[]
 }

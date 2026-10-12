@@ -7823,6 +7823,82 @@ create trigger ao_salvar_reserva
   before insert or update on public.compromissos
   for each row execute function public.reserva_sem_hora_nao_bloqueia();
 
+-- --------------------------------------------------------------------------
+-- 78. A estimativa que aprende com a correção
+--
+--     Toda tarefa precisa de duração, senão o dia não tem orçamento. Pedir que a
+--     pessoa digite quanto cada coisa leva é o formulário que o Organizar existe
+--     para não ser, então quem estima é o modelo: ele afirma, e a pessoa corrige
+--     com um toque. É a mesma regra que já vale no processo descoberto, onde
+--     maioria clara afirma e empate pergunta.
+--
+--     O que faltava era a volta. Uma estimativa corrigida e esquecida faz o
+--     modelo errar igual na semana seguinte, e aí a pessoa para de corrigir,
+--     porque corrigir não muda nada. Esta tabela é a volta: guarda o que ele
+--     chutou e o que ela disse, e as últimas correções entram no pedido
+--     seguinte como exemplo.
+--
+--     **É do LOGIN, como o expediente e o @.** Quanto tempo você leva para
+--     conferir um contrato é seu, e não da empresa: quem tem quatro espaços
+--     continua sendo uma pessoa só com um ritmo só. E por isso ninguém mais lê:
+--     a política é `user_id = auth.uid()` e acabou, sem exceção para
+--     administrador. Um chefe lendo que você leva o dobro do que estimou é o
+--     tipo de dado que muda o que as pessoas registram, e aí ele apodrece na
+--     origem, que é a mesma razão de o raio-X não ranquear gente.
+--
+--     **Sem texto de tarefa de outra pessoa, e sem id.** Guarda o texto da
+--     própria tarefa porque é dele que sai a semelhança ("conferir contrato"
+--     parece com "conferir a ART"), e nada mais: nem track, nem quem pediu, nem
+--     a que empresa pertence. Registro que copia contexto vira uma segunda cópia
+--     do que a parede existe para separar.
+-- --------------------------------------------------------------------------
+
+create table if not exists public.estimativas (
+  id        uuid primary key default gen_random_uuid(),
+  user_id   uuid not null references auth.users on delete cascade,
+  /** O texto da tarefa, que é de onde sai a semelhança com a próxima. */
+  texto     text not null,
+  /** O que o modelo chutou, em minutos. */
+  estimado  integer not null,
+  /** O que a pessoa disse que era. */
+  corrigido integer not null,
+  em        timestamptz not null default now(),
+  constraint estimativas_cabem
+    check (estimado between 10 and 480 and corrigido between 10 and 480)
+);
+
+create index if not exists estimativas_de on public.estimativas (user_id, em desc);
+
+alter table public.estimativas enable row level security;
+
+/** Do dono e de mais ninguém, nem do administrador. Ver o cabeçalho da seção. */
+drop policy if exists est_sel on public.estimativas;
+create policy est_sel on public.estimativas for select using (user_id = auth.uid());
+drop policy if exists est_ins on public.estimativas;
+create policy est_ins on public.estimativas for insert with check (user_id = auth.uid());
+drop policy if exists est_del on public.estimativas;
+create policy est_del on public.estimativas for delete using (user_id = auth.uid());
+
+/**
+ * As últimas correções desta pessoa, para o pedido seguinte.
+ *
+ * Doze, e o número tem razão: são exemplos dentro de um prompt que já é grande,
+ * e vinte não ensinam mais que doze, só custam mais. As mais recentes primeiro,
+ * porque o ritmo de alguém muda e a correção de ontem vale mais que a de março.
+ */
+create or replace function public.minhas_estimativas()
+returns table (texto text, estimado integer, corrigido integer)
+language sql stable security definer set search_path = public as $$
+  select e.texto, e.estimado, e.corrigido
+  from estimativas e
+  where e.user_id = auth.uid()
+  order by e.em desc
+  limit 12;
+$$;
+revoke all on function public.minhas_estimativas() from public, anon;
+grant execute on function public.minhas_estimativas() to authenticated, service_role;
+
+
 
 
 select
@@ -8393,4 +8469,13 @@ select
   -- como ocupado por causa de duas horas de estudo.
   (select count(*) from pg_trigger
     where tgname = 'ao_salvar_reserva' and not tgisinternal)
-    as "reserva sem hora nao bloqueia (1)";
+    as "reserva sem hora nao bloqueia (1)",
+  -- A estimativa aprende com a correção, senão o modelo erra igual na semana
+  -- seguinte e a pessoa para de corrigir, porque corrigir não muda nada.
+  (select count(*) from information_schema.tables
+    where table_schema = 'public' and table_name = 'estimativas')
+    as "a tabela das estimativas (1)",
+  -- E ela é do dono e de mais ninguém: quanto tempo você leva é seu.
+  (select count(*) from pg_policies
+    where schemaname = 'public' and tablename = 'estimativas')
+    as "politicas das estimativas (3)";

@@ -48,6 +48,7 @@ const FERRAMENTA = {
                sabe se cinco tarefas cabem numa terça que já tem duas reuniões,
                e acaba empilhando trabalho onde não há hora. É estimativa, e
                estimativa grosseira serve; o que não serve é não ter nenhuma. */
+            tipo_incerto: { type: ['boolean', 'null'], description: 'Marque TRUE quando você não conseguir decidir entre tarefa e compromisso porque o texto não diz se há alguém ou um lugar envolvido. Na dúvida, marque: perguntar custa um toque, e marcar hora numa coisa que não tem hora estraga a agenda dela.' },
             minutos: { type: ['number', 'null'], description: 'Só para TAREFA: quanto tempo ela leva, em minutos, na sua melhor estimativa. Um telefonema são 15, responder um e-mail 15, conferir um documento 45, escrever uma proposta 120. Entre 10 e 480.' },
             agente_id: { type: ['string', 'null'], description: 'Só para tipo agente: o id do agente que reconheceu a situação.' },
             /* `quando` e `inicio` não estavam aqui, e o tipo compromisso existe
@@ -189,9 +190,22 @@ contar o expediente em Ajustes para você poder organizar a semana.
           .join('\n')}\n`
       : ''
 
+    /**
+     * O que ela já corrigiu, para você não errar igual.
+     *
+     * Entra como exemplo e não como regra: duas horas numa tarefa parecida não
+     * quer dizer duas horas nesta, quer dizer que o seu chute anterior foi
+     * curto naquele tipo de coisa.
+     */
+    const comEstimativas = ctx.estimativas?.length
+      ? `\nO QUE ELA JÁ CORRIGIU NAS SUAS ESTIMATIVAS (use para calibrar, não copie):\n${ctx.estimativas
+          .map((e) => `- "${e.texto}": você disse ${e.estimado} min, ela disse ${e.corrigido} min.`)
+          .join('\n')}\n`
+      : ''
+
     return `Você lê o caderno de bolso de UMA pessoa e separa o que ela jogou lá dentro.
 
-Hoje é ${ctx.hoje}.${aprendido}${comExpediente}${comAgenda}${comCaderno}${comCasa}
+Hoje é ${ctx.hoje}.${aprendido}${comExpediente}${comAgenda}${comEstimativas}${comCaderno}${comCasa}
 Ela está falando sozinha, para o app ouvir. Não é conversa de equipe: não tem ninguém
 para quem delegar, e tudo que está escrito ela escreveu de propósito, para não perder.
 
@@ -209,6 +223,13 @@ inteiro e mesmo que ela diga quanto tempo leva.
 O erro comum é esse último: "estudar canais e vendas, 2h por dia" NÃO é compromisso das
 13h30 às 15h30. É tarefa, e o que ela disse foi a duração. Hora só quando ela disser a
 hora, e só quando houver com quem ou onde.
+
+E QUANDO VOCÊ NÃO CONSEGUIR DECIDIR, DIGA QUE NÃO CONSEGUIU: mande tipo_incerto = true.
+"Fazer os vídeos" é tarefa para quem edita sozinho e compromisso para quem grava com três
+pessoas, e o texto não diz qual é. Obrigado a escolher, você vai chutar, e chutar hora
+numa coisa que não tem hora estraga a agenda dela. Perguntar custa um toque.
+Marque a dúvida quando o texto não disser nem a hora, nem com quem, nem onde, e a coisa
+puder razoavelmente ser as duas.
 
 Três tipos:
 - tarefa: algo que ela precisa fazer. Uma ação, com verbo. NUNCA ponha hora numa tarefa:
@@ -239,11 +260,12 @@ de quando e de quanto.
   tarefa com prazo nos próximos dias úteis, e se a coisa for grande, reserve também um
   bloco com repete.
 - "(lembrete de ideia)", "(pensar depois)" é NOTA, nunca tarefa. Ela disse o que é.
-- TODA TAREFA LEVA MINUTOS, e você estima: 15 para um telefonema, 45 para conferir um
-  documento, 120 para escrever uma proposta. Não é precisão, é ordem de grandeza, e sem
-  ela o app não sabe se cinco tarefas cabem numa terça que já tem duas reuniões. Chute
-  para mais quando não souber: a conta de um dia que estourou dói mais que a de um dia
-  que sobrou.
+- TODA TAREFA LEVA MINUTOS, e você estima SEMPRE, mesmo sem pista nenhuma: 15 para um
+  telefonema, 45 para conferir um documento, 120 para escrever uma proposta. Não é
+  precisão, é ordem de grandeza, e sem ela o app não sabe se cinco tarefas cabem numa
+  terça que já tem duas reuniões. Chute para mais quando não souber: a conta de um dia
+  que estourou dói mais que a de um dia que sobrou. Ela corrige com um toque, e a
+  correção volta para você da próxima vez.
 - Tarefa sem cadência e sem data ganha prazo mesmo assim, mas NÃO empilhe tudo para hoje
   nem invente a distribuição: quem encaixa na semana, contando as horas livres de cada dia
   e desviando do que já está marcado, é o app. Ponha o prazo que a coisa de fato tem, e
@@ -308,6 +330,7 @@ type Cru = {
   tipo?: string; texto?: string; motivo?: string
   mensagem_id?: string | null; item_id?: string | null; fluxo_id?: string | null
   resp_id?: string | null; prazo?: string | null; minutos?: number | null
+  tipo_incerto?: boolean | null
   agente_id?: string | null
   quando?: string | null; inicio?: string | null; somar_em?: string | null
   repete?: { minutos?: number; vezes?: number; cadencia?: string; periodo?: string } | null
@@ -361,10 +384,35 @@ function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
      * que vale medir e oito horas é o dia inteiro; fora disso o modelo chutou e
      * o palpite da casa vale mais que o dele.
      */
-    const minutos = tipo === 'tarefa'
-      && Number(c.minutos) >= 10 && Number(c.minutos) <= 480
+    /**
+     * Toda tarefa sai daqui COM duração, e quando o modelo não deu, o app
+     * chuta 45 minutos.
+     *
+     * Sem duração o dia não tem orçamento, e tarefa sem orçamento é tarefa que
+     * o plano trata como se não custasse nada: ela entra em qualquer dia, por
+     * cima de qualquer coisa. Quarenta e cinco é o tamanho de uma coisa de
+     * escritório qualquer, e errar para mais é o lado certo de errar, porque o
+     * dia que sobrou se resolve sozinho e o que estourou cobra da pessoa.
+     *
+     * `chutado` viaja junto para a tela saber o que oferecer: a estimativa que
+     * veio do modelo merece o botão de corrigir, e a que veio daqui merece mais
+     * ainda, porque o app não leu nada para dizer 45.
+     */
+    const doModelo = Number(c.minutos) >= 10 && Number(c.minutos) <= 480
       ? Math.round(Number(c.minutos))
       : null
+    const minutos = tipo === 'tarefa' ? (doModelo ?? 45) : null
+    const chutado = tipo === 'tarefa' && !doModelo
+
+    /**
+     * A dúvida entre tarefa e compromisso, declarada em vez de engolida.
+     *
+     * "Fazer vídeos" é tarefa para quem edita sozinho e compromisso para quem
+     * grava com três pessoas, e o texto não diz qual é: nenhum modelo acerta
+     * isso, e o que ele faz quando é obrigado a escolher é chutar. Na dúvida
+     * ele marca, e quem responde é a pessoa, com dois botões.
+     */
+    const incerto = (tipo === 'tarefa' || tipo === 'compromisso') && c.tipo_incerto === true
 
     // Agente sem id de agente conhecido não existe: o modelo não inventa agente.
     const agentes = new Set((ctx.agentes || []).map((a) => a.id))
@@ -433,6 +481,8 @@ function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
         resp_id: resp,
         prazo,
         ...(minutos ? { minutos } : {}),
+        ...(chutado ? { minutos_chutado: true } : {}),
+        ...(incerto ? { tipo_incerto: true } : {}),
         agente_id: tipo === 'agente' ? c.agente_id : null,
         quando: tipo === 'compromisso' ? quando : null,
         ...(somarEm ? { somar_em: somarEm } : {}),

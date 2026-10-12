@@ -388,6 +388,20 @@ type Contexto = {
    * avisar quando a reunião nova come a folga que as tarefas precisam.
    */
   saldoEm: (dia: string) => { devido: number; sobra: number }
+  /**
+   * Corrige quanto uma tarefa leva, e ENSINA.
+   *
+   * O app estima sempre, porque sem duração o dia não tem orçamento, e pedir
+   * que a pessoa digite o tempo de cada coisa é o formulário que o Organizar
+   * existe para não ser. O que faltava era a volta: estimativa corrigida e
+   * esquecida faz o modelo errar igual na semana seguinte, e aí ela para de
+   * corrigir, porque corrigir não muda nada.
+   *
+   * `mais` é um empurrão de 50%, e não um campo de minutos: a pessoa sabe que
+   * foi pouco, não sabe que eram 68 minutos. Dois toques chegam ao dobro, que
+   * é a correção que a maioria quer.
+   */
+  corrigirDuracao: (item: Item, mais: boolean) => Promise<void>
   salvarCompromisso: (d: Partial<Compromisso> & { convidados: string[] }) => Promise<string | null>
   excluirCompromisso: (id: string) => Promise<void>
   ligarAgendaExterna: (url: string) => Promise<{ blocos: number } | null>
@@ -516,6 +530,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
   const [areas, setAreas] = useState<Area[]>([])
   const [empresas, setEmpresas] = useState<Empresa[]>([])
   const [org, setOrg] = useState<Organizacao>(ORG_PADRAO)
+  const [estimativas, setEstimativas] = useState<{ texto: string; estimado: number; corrigido: number }[]>([])
   const [todosFluxos, setFluxos] = useState<Fluxo[]>([])
   const [empresaAtiva, setEmpresaAtiva] = useState<string | null>(null)
   /** Quantas tarefas cada esteira tem ao todo, para avisar o que ficou de fora. */
@@ -595,7 +610,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
 
   /** Recolhe tudo que a pessoa pode ver e monta a árvore de fluxos. */
   const carregar = useCallback(async () => {
-    const [p, s, f, e, i, h, cic, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, anxPes, dec, pz, mem, cns, ags, cnc, nts, notaPes, fbk, avs, ctt, psh, mag, mdia, ment, apl, exp] = await Promise.all([
+    const [p, s, f, e, i, h, cic, a, em, cf, dp, cm, cv, oc, oe, ax, pr, pe, pi, fp, cvt, kn, km, ms, sg, esp, anx, anxPes, dec, pz, mem, cns, ags, cnc, nts, notaPes, fbk, avs, ctt, psh, mag, mdia, ment, apl, exp, est] = await Promise.all([
       sb.from('perfis').select('*').order('nome'),
       sb.from('areas').select('*').order('ordem'),
       sb.from('fluxos').select('*').order('criado_em'),
@@ -660,6 +675,10 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
          trabalho. Nulo quer dizer que ela ainda não disse, e isso é diferente de
          "trabalha sempre": sem resposta o app não mexe em prazo nenhum. */
       sb.rpc('meu_expediente'),
+      /* As últimas correções de estimativa dela, que voltam para o modelo no
+         pedido seguinte. Sem a volta ele erra igual na semana que vem, e aí ela
+         para de corrigir, porque corrigir não muda nada. */
+      sb.rpc('minhas_estimativas'),
     ])
 
     /**
@@ -810,6 +829,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     setAgenda([...abertos, ...meus, ...fechados.values(), ...externos])
     setMeuDia(((mdia.data || []) as LinhaDoDia[]) || [])
     setMinhasEntregas(typeof ment.data === 'number' ? ment.data : 0)
+    setEstimativas(((est.data || []) as { texto: string; estimado: number; corrigido: number }[]) || [])
     const umExp = (exp.data || null) as { blocos?: unknown; fuso?: string; observacao?: string } | null
     setExpediente(umExp ? {
       blocos: validaExpediente(umExp.blocos),
@@ -2549,6 +2569,31 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     return { devido, sobra: saldoDoDia(expediente, dia, comHora, devido) }
   }, [devedores, agenda, expediente])
 
+  const corrigirDuracao = useCallback<Contexto['corrigirDuracao']>(async (item, mais) => {
+    const antes = item.minutos || 45
+    // Os degraus são os mesmos da estimativa: 10 é o menor que vale medir e 480
+    // é o dia inteiro. Fora disso o botão não tem para onde ir, e dizer isso é
+    // melhor que fingir que mexeu.
+    const novo = Math.max(10, Math.min(480, Math.round(mais ? antes * 1.5 : antes / 1.5)))
+    if (novo === antes) return toast(mais ? 'Já é um dia inteiro.' : 'Já é o menor que dá para medir.')
+    const { error } = await sb.from('itens').update({ minutos: novo }).eq('id', item.id)
+    if (error) return falhou(error, 'Não deu para mudar a duração.')
+    /**
+     * A correção vira exemplo para a próxima estimativa.
+     *
+     * Falha calada: um ensinamento que não entrou não pode impedir a correção
+     * que a pessoa acabou de fazer, que é a parte que ela vê. A queixa vai para
+     * o console, como em `logar` e no rastro do canal.
+     */
+    const { error: eErr } = await sb.from('estimativas').insert({
+      id: novoId(), user_id: eu.user_id, texto: item.texto.slice(0, 160),
+      estimado: antes, corrigido: novo,
+    })
+    if (eErr) console.warn('a correção não virou exemplo', eErr)
+    toast(`Agora são ${novo >= 60 ? `${(novo / 60).toFixed(novo % 60 ? 1 : 0)}h` : `${novo}min`}.`)
+    recarregar()
+  }, [sb, eu.user_id, falhou, toast, recarregar])
+
   const aceitarSugestao: Contexto['aceitarSugestao'] = useCallback(async (sug, ajuste, porIa = false) => {
     const dados: Alvo = { ...sug.dados, ...ajuste }
     const fluxoEscolhido = todosFluxos.find((x) => x.id === dados.fluxo_id) || null
@@ -3935,6 +3980,9 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
          encaixar cada uma num dia voltava a ser trabalho de quem clicou
          justamente para não fazer isso. */
       expediente: expedienteParaOModelo(expediente),
+      /* O que ela já corrigiu, para o modelo não errar igual. Exemplo, nunca
+         regra: duas horas numa tarefa parecida não quer dizer duas horas nesta. */
+      estimativas,
       agenda: agenda
         .filter((c) => c.aberto && c.quando >= hojeIso())
         .sort((a, b) => a.quando.localeCompare(b.quando))
@@ -4013,7 +4061,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       : 'Li a nota e não achei nada para propor.')
     return { achou: novas.length, motor }
   }, [sb, notas, todasNotas, mensagensDaNota, eu.id, eu.nome, perfis, memoria, expediente, agenda,
-      oQueACasaTem, sugestoesDaNota, toast, recarregar])
+      estimativas, oQueACasaTem, sugestoesDaNota, toast, recarregar])
 
   /**
    * A linguagem do chat.
@@ -4438,7 +4486,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     preverCascata, moverPrazo, devolverItem, pedidosPrazo, decidirPrazo,
     enviar, enviarAudio, abrirAudio, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
     executarComando, passarContato,
-    saldoEm,
+    saldoEm, corrigirDuracao,
     lerConversa, lerNota, aceitarSugestao, recusarSugestao,
     espacos, trocarEspaco, abrirEspaco,
   }

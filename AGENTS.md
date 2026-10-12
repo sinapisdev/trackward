@@ -3468,6 +3468,42 @@ continua valendo mesmo quando leva o dia inteiro e mesmo quando ela diz quanto l
   dias e o gatilho que libera ao concluir continuam de pé para esse caso, e deixaram de ser
   o caminho normal. Não voltar a fazer o plano criar bloco com hora para tarefa.
 
+### Na dúvida entre tarefa e compromisso, pergunta
+
+**"Fazer os vídeos" é tarefa para quem edita sozinho e compromisso para quem grava com três
+pessoas, e o texto não diz qual é.** Nenhum modelo acerta isso, e obrigado a escolher ele
+chuta; chutar hora numa coisa que não tem hora estraga a agenda, que é o defeito que a
+seção 77 acabou de consertar. Então a leitura **declara a dúvida** (`tipo_incerto`) em vez
+de decidir, e o cartão pergunta: "isto tem hora marcada com alguém?", com duas portas e
+nenhuma pré-selecionada, porque deixar uma marcada é perguntar e responder pela pessoa.
+Marcar a dúvida é barato (um toque) e decidir errado não é, então a instrução manda errar
+para o lado de perguntar.
+
+### A estimativa é do app, a correção é da pessoa, e ela ENSINA
+
+**Toda tarefa sai da leitura com duração**, e quando o modelo não deu, `conferir` põe 45
+minutos. Sem duração o dia não tem orçamento, e tarefa sem orçamento é tarefa que o plano
+trata como se não custasse nada: entra em qualquer dia, por cima de qualquer coisa. Pedir
+que a pessoa digite o tempo de cada coisa é o formulário que o Organizar existe para não
+ser, então o app afirma e ela corrige, que é a mesma regra do processo descoberto.
+
+- **A correção é em PORCENTAGEM, não em minutos** ("leva mais tempo" sobe 50%). A pessoa
+  sabe que foi pouco; ela não sabe que eram 68 minutos. Dois toques chegam ao dobro, que é
+  a correção que a maioria quer.
+- **E ela vira exemplo** (`estimativas`, seção 78): as doze últimas voltam no pedido
+  seguinte. Sem a volta, o modelo erra igual na semana que vem, e aí a pessoa para de
+  corrigir, porque corrigir não muda nada.
+- **É do LOGIN e de mais ninguém, nem do administrador.** Quanto tempo você leva para
+  conferir um contrato é seu: um chefe lendo que você leva o dobro do que estimou é o tipo
+  de dado que muda o que as pessoas registram, e aí ele apodrece na origem. Mesma razão de
+  o raio-X não ranquear gente.
+- **Guarda o texto da tarefa e mais nada**: nem track, nem quem pediu, nem a empresa.
+  Registro que copia contexto vira uma segunda cópia do que a parede existe para separar.
+- **"Sem duração" não quer dizer "menos importante"**, e por isso essas tarefas não vão
+  para uma lista à parte. As que não têm duração são as que nasceram antes da coluna
+  existir, ou seja, as mais ANTIGAS: separá-las seria pôr o trabalho mais velho num segundo
+  plano, por um detalhe técnico que quem usa não deveria precisar conhecer.
+
 ### O plano se aceita inteiro, e cada linha continua tendo porta
 
 `componentes/PlanoDaSemana.tsx`, acima dos cartões, nas duas telas de nota.

@@ -319,6 +319,35 @@ export function CartaoSugestao({ s, despejo = false }: { s: Sugestao; despejo?: 
           : <span className="sug-txt">{texto}</span>}
       </div>
 
+      {/**
+        * A DÚVIDA entre tarefa e compromisso, perguntada em vez de chutada.
+        *
+        * "Fazer os vídeos" é tarefa para quem edita sozinho e compromisso para
+        * quem grava com três pessoas, e o texto não diz qual é: nenhum modelo
+        * acerta isso, e obrigado a escolher ele chuta. Chutar hora numa coisa
+        * que não tem hora estraga a agenda, e é por isso que a leitura marca a
+        * dúvida em vez de decidir.
+        *
+        * Duas portas e nenhuma pré-selecionada: deixar uma marcada seria
+        * perguntar e responder no lugar da pessoa. "Tem hora" abre o
+        * formulário de compromisso já preenchido, que é o que o app faz sempre
+        * que falta uma decisão que ele não pode tomar.
+        */}
+      {s.dados.tipo_incerto && !ajustando && (
+        <div className="sug-duvida">
+          <b>Isto tem hora marcada com alguém?</b>
+          <span>Se tiver, vira compromisso na agenda. Se não, vira tarefa e ocupa o saldo do dia.</span>
+          <div className="row-inline">
+            <button className="btn" disabled={ocupado} onClick={() => { setOcupado(true); void aceitarSugestao(s, { tipo_incerto: false }) }}>
+              Não, é tarefa
+            </button>
+            <button className="btn" onClick={() => setAjustando(true)}>
+              Tem hora marcada
+            </button>
+          </div>
+        </div>
+      )}
+
       {ajustando && !ehTrilha && !ehAjuste && (
         <div className="sug-vira">
           <span className="lbl">Isto é</span>

@@ -812,6 +812,16 @@ export type Alvo = {
    * para a agenda: cinco horas de tarefa no dia são cinco horas bloqueadas.
    */
   minutos?: number | null
+  /** A duração veio do app e não da leitura: o botão de corrigir pesa mais. */
+  minutos_chutado?: boolean
+  /**
+   * A leitura não soube dizer se é tarefa ou compromisso, e disse que não soube.
+   *
+   * "Fazer vídeos" é tarefa para quem edita sozinho e compromisso para quem
+   * grava com três pessoas, e o texto não diz qual é. Obrigado a escolher, o
+   * modelo chuta; marcando a dúvida, quem responde é quem sabe.
+   */
+  tipo_incerto?: boolean
   /** A tarefa que nasceu daqui. Sem guardar isto não há como desfazer depois. */
   criou_id?: string | null
   /**
