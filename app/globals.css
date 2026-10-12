@@ -5418,3 +5418,6 @@ a.btn{text-decoration:none}
   font:var(--fw-medium) var(--fs-micro)/1 var(--sans);text-transform:capitalize;
   transition:var(--t)}
 .rep-dias>button.on{background:var(--alto);border-color:var(--line-3);color:var(--tx)}
+/* A segunda fileira, do até quando. Afastada da primeira porque são duas
+   perguntas (com que frequência, e até quando), e coladas elas parecem uma. */
+.rep-quantas{margin-top:8px}

@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { useDados } from './Dados'
 import { emMinutos } from '@/lib/expediente'
 import {
-  ATALHOS, escrito as escritoRepeticao, mesma as mesmaRepeticao, valida as validaRepeticao,
+  ATALHOS, QUANTAS, escrito as escritoRepeticao, mesma as mesmaRepeticao,
+  valida as validaRepeticao,
 } from '@/lib/repetir'
 import { Ic } from './Icones'
 import { explicaTipo, rotuloTipo } from '@/lib/rotulos'
@@ -1481,10 +1482,27 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
                   ))}
                 </div>
               )}
+              {/* Até quando. Em VEZES e não em dias, porque é o que a regra
+                  conta: "7 vezes" numa diária é uma semana e numa semanal é
+                  quase dois meses, e traduzir para dias daria dois números para
+                  a mesma coisa. "Sempre" é o padrão e vem primeiro. */}
+              {!!repete && (
+                <div className="rep-atalhos rep-quantas">
+                  {QUANTAS.map((q) => (
+                    <button type="button" key={q}
+                      className={(repete.vezes || 0) === q ? 'on' : ''}
+                      onClick={() => setRepete({ ...repete, vezes: q || undefined })}>
+                      {q ? `${q} vezes` : 'Sempre'}
+                    </button>
+                  ))}
+                </div>
+              )}
               {!!repete && (
                 <p className="hint">
                   {escritoRepeticao(repete)}. Concluir não fecha esta tarefa: ela volta com o
-                  prazo da próxima vez. Por isso ela não aparece em Desempenho.
+                  prazo da próxima vez{repete.vezes
+                    ? `, e depois da ${repete.vezes}ª ela fecha de vez`
+                    : ''}. Por isso ela não aparece em Desempenho.
                 </p>
               )}
             </div>

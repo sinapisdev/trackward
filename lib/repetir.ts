@@ -29,6 +29,15 @@ export type Repeticao = {
   n: number
   /** Só em `semana`: em quais dias ela cai. Vazio quer dizer "a cada N semanas". */
   dias?: number[]
+  /**
+   * Quantas voltas ela AINDA tem. Ausente quer dizer para sempre.
+   *
+   * "Todo dia durante uma semana" é o caso comum de verdade, e sem fim a tarefa
+   * cobra para sempre: no mês seguinte ela ainda está lá, e aí a pessoa a apaga,
+   * perdendo junto a repetição que funcionava. Quem desconta é o banco, a cada
+   * conclusão; chegando à última, ela fecha de vez.
+   */
+  vezes?: number
 }
 
 /**
@@ -48,6 +57,15 @@ export const ATALHOS: { nome: string; volta: Repeticao }[] = [
   { nome: 'Todo mês', volta: { cada: 'mes', n: 1 } },
 ]
 
+/**
+ * Quantas vezes, em atalho.
+ *
+ * Em VEZES e não em dias, porque é o que a regra conta: "7 vezes" numa diária é
+ * uma semana e numa semanal é quase dois meses, e traduzir isso para dias na
+ * tela daria dois números para a mesma coisa. Sempre é o padrão e vem primeiro.
+ */
+export const QUANTAS = [0, 5, 7, 10, 15, 30]
+
 /** O que veio do banco, conferido. Torto vira nulo: ver `valida` do expediente. */
 export function valida(cru: unknown): Repeticao | null {
   const o = (cru || {}) as Record<string, unknown>
@@ -58,7 +76,12 @@ export function valida(cru: unknown): Repeticao | null {
   const dias = Array.isArray(o.dias)
     ? [...new Set(o.dias.map((d) => Math.round(Number(d))).filter((d) => d >= 0 && d <= 6))].sort()
     : []
-  return { cada, n, ...(cada === 'semana' && dias.length ? { dias } : {}) }
+  const vezes = Math.round(Number(o.vezes))
+  return {
+    cada, n,
+    ...(cada === 'semana' && dias.length ? { dias } : {}),
+    ...(vezes >= 1 && vezes <= 365 ? { vezes } : {}),
+  }
 }
 
 /**
@@ -70,6 +93,12 @@ export function valida(cru: unknown): Repeticao | null {
  */
 export function escrito(v: Repeticao | null | undefined): string {
   if (!v) return ''
+  const fim = v.vezes ? `, ${v.vezes} ${v.vezes === 1 ? 'vez' : 'vezes'}` : ''
+  return base(v) + fim
+}
+
+/** A cadência sozinha, sem o quantas. */
+function base(v: Repeticao): string {
   if (v.cada === 'semana' && v.dias?.length) {
     if (v.dias.length === 5 && [1, 2, 3, 4, 5].every((d) => v.dias!.includes(d))) return 'Dias úteis'
     if (v.dias.length === 7) return 'Todo dia'
@@ -87,7 +116,11 @@ export function escrito(v: Repeticao | null | undefined): string {
   return v.n === 1 ? 'Todo mês' : `A cada ${v.n} meses`
 }
 
-/** Duas regras são a mesma? Usado para acender o atalho certo nos botões. */
+/**
+ * Duas regras têm a mesma CADÊNCIA? `vezes` fica de fora de propósito: ele é
+ * o outro botão, e comparar os dois juntos apagaria o atalho da cadência assim
+ * que alguém escolhesse um fim.
+ */
 export const mesma = (a: Repeticao | null | undefined, b: Repeticao) =>
   !!a && a.cada === b.cada && a.n === b.n
   && (a.dias || []).join(',') === (b.dias || []).join(',')

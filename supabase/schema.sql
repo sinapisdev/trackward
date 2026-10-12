@@ -10565,6 +10565,9 @@ alter table public.itens add constraint itens_repete_vale check (
   repete is null or (
     repete->>'cada' in ('dia', 'semana', 'mes')
     and (repete->>'n')::int between 1 and 30
+    /* `vezes` é quantas voltas ela AINDA tem. Ausente quer dizer para sempre, e
+       é o padrão: a maioria das repetidas de verdade não tem fim marcado. */
+    and (repete->>'vezes' is null or (repete->>'vezes')::int between 1 and 365)
   )
 );
 
@@ -10639,11 +10642,29 @@ grant execute on function public.proxima_volta(date, jsonb) to authenticated, se
  */
 create or replace function public.volta_a_tarefa()
 returns trigger language plpgsql as $$
+declare v_vezes int;
 begin
   if new.repete is not null and new.feito and not coalesce(old.feito, false) then
+    v_vezes := (new.repete->>'vezes')::int;
+    /**
+     * A ÚLTIMA volta fecha de vez.
+     *
+     * "Todo dia durante uma semana" é o caso comum de verdade, e sem fim a
+     * tarefa cobra para sempre: no mês seguinte ela ainda está lá, e aí a
+     * pessoa a apaga, perdendo junto a repetição que funcionava. Chegando a
+     * uma, ela conclui como qualquer outra e `repete` sai, senão a linha fica
+     * concluída dizendo "toda segunda", que não quer dizer nada.
+     */
+    if v_vezes is not null and v_vezes <= 1 then
+      new.repete := null;
+      return new;
+    end if;
     new.prazo    := proxima_volta(old.prazo, new.repete);
     new.feito    := false;
     new.feito_em := null;
+    if v_vezes is not null then
+      new.repete := jsonb_set(new.repete, '{vezes}', to_jsonb(v_vezes - 1));
+    end if;
   end if;
   return new;
 end $$;

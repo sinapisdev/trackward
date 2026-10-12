@@ -3497,6 +3497,13 @@ Seção 79, `itens.repete`.
 - **A consequência está escrita para não ser descoberta depois:** a tarefa que volta **nunca
   aparece em "O que saiu"**, no Desempenho, porque ela nunca fica concluída. É o preço de não
   guardar histórico, e foi escolhido sabendo.
+- **E ela pode TER FIM** (`repete.vezes`). "Todo dia durante uma semana" é o caso comum de
+  verdade, e sem fim a tarefa cobra para sempre: no mês seguinte ela ainda está lá, e aí a
+  pessoa a apaga, perdendo junto a repetição que funcionava. Chegando à última volta ela
+  conclui como qualquer outra e `repete` sai, senão a linha fica concluída dizendo "toda
+  segunda", que não quer dizer nada. Na tela é a segunda fileira de botões, em VEZES e não
+  em dias: "7 vezes" numa diária é uma semana e numa semanal é quase dois meses, e traduzir
+  para dias daria dois números para a mesma coisa.
 - **Quem a devolve é GATILHO, não a tela** (`volta_a_tarefa`), pelo mesmo motivo de
   `liberar_reserva`: concluir acontece de quatro lugares, e a tela de um deles sempre
   esquece. É `before` porque ele DESFAZ a conclusão na mesma instrução, e por isso ela não
