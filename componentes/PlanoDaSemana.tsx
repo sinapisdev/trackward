@@ -99,13 +99,18 @@ export function PlanoDaSemana({ propostas }: { propostas: Sugestao[] }) {
    */
   const aceitarTudo = async () => {
     setIndo(true)
+    // Uma proposta pode render vários dias (a cadência), e aceitar uma vez
+    // basta: quem distribui os dias é o aceite, não esta lista.
+    const feitas = new Set<string>()
     for (const e of plano.encaixes) {
+      if (feitas.has(e.chave)) continue
+      feitas.add(e.chave)
       const s = propostas.find((x) => x.id === e.chave)
       if (!s) continue
       await aceitarSugestao(s, e.tipo === 'tarefa'
-        // A tarefa leva o dia como PRAZO e a hora como reserva: ela continua
-        // sendo tarefa, e o bloco na agenda é a hora dela.
-        ? { prazo: e.quando, inicio: e.inicio, minutos: e.minutos }
+        // A tarefa leva o dia como PRAZO e a duração como peso. Hora, não:
+        // ela ocupa capacidade do dia, e não um horário.
+        ? { prazo: e.quando, minutos: e.minutos }
         : { quando: e.quando, inicio: e.inicio })
     }
     for (const s of guardar) await aceitarSugestao(s)
@@ -136,8 +141,11 @@ export function PlanoDaSemana({ propostas }: { propostas: Sugestao[] }) {
             {!!plano.carga[dia] && <i>{horas(plano.carga[dia])} de tarefa</i>}
           </div>
           {itens.map((e) => (
-            <div className={`plano-l ${e.tipo}`} key={e.chave + e.inicio}>
-              <span className="plano-hora">{e.inicio}</span>
+            <div className={`plano-l ${e.tipo}`} key={e.chave + (e.inicio || '')}>
+              {/* Hora só onde ela existe de verdade. Tarefa e reserva de
+                  capacidade tomam saldo do dia, em qualquer horário, e cravar
+                  um horário para elas seria o app decidindo a ordem do seu dia. */}
+              <span className="plano-hora">{e.inicio || '—'}</span>
               <span className="plano-tx">{e.texto}</span>
               <span className="plano-dur">{horas(e.minutos)}</span>
               {/* Tirar do plano não é dispensar a proposta: ela continua no

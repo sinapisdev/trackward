@@ -57,12 +57,13 @@ const FERRAMENTA = {
                some sem erro nenhum. */
             somar_em: { type: ['string', 'null'], description: 'Só para NOTA: o id de uma nota que JÁ EXISTE e onde isto deve ser somado, em vez de criar outra. Use quando o assunto for o mesmo. Só ids da lista do caderno.' },
             quando: { type: ['string', 'null'], description: 'Só para compromisso MARCADO: o dia, AAAA-MM-DD.' },
-            inicio: { type: ['string', 'null'], description: 'Só para compromisso marcado: a hora, HH:MM.' },
+            inicio: { type: ['string', 'null'], description: 'Só para compromisso de HORA MARCADA: a hora, HH:MM. Nunca em tarefa.' },
             repete: {
               type: ['object', 'null'],
-              description: 'Só para compromisso de TEMPO RESERVADO, quando ela disser uma '
-                + 'cadência ("2h por dia", "2 a 3 dias por semana"). Não mande quando junto: '
-                + 'quem acha os dias e as horas livres é o app.',
+              description: 'Só para compromisso de TEMPO SEPARADO, quando ela disser uma '
+                + 'cadência ("2h por dia", "2 a 3 dias por semana"). Não é hora marcada: '
+                + 'não mande quando nem inicio, porque quem escolhe os dias é o app, pelo '
+                + 'que sobra de cada um.',
               properties: {
                 minutos: { type: 'number', description: 'Duração de cada bloco, em minutos.' },
                 vezes: { type: 'number', description: 'Quantos blocos. Uma semana de trabalho é 5.' },
@@ -194,13 +195,30 @@ Hoje é ${ctx.hoje}.${aprendido}${comExpediente}${comAgenda}${comCaderno}${comCa
 Ela está falando sozinha, para o app ouvir. Não é conversa de equipe: não tem ninguém
 para quem delegar, e tudo que está escrito ela escreveu de propósito, para não perder.
 
+A SEPARAÇÃO QUE MAIS IMPORTA É ESTA, E ERRAR NELA ESTRAGA A AGENDA DELA:
+
+  COMPROMISSO é hora combinada com alguém ou com um lugar.
+  TAREFA é trabalho que ela faz quando couber.
+
+O teste, e use ele sempre que ficar em dúvida: **se ela fizer isso duas horas antes ou
+depois, alguém fica esperando?** Reunião, consulta, entrega no cartório, viagem, aula,
+prova: sim, alguém espera, é compromisso. Estudar canais de venda, escrever a proposta,
+revisar o contrato, fazer os vídeos: não, ninguém espera, é TAREFA, mesmo que leve o dia
+inteiro e mesmo que ela diga quanto tempo leva.
+
+O erro comum é esse último: "estudar canais e vendas, 2h por dia" NÃO é compromisso das
+13h30 às 15h30. É tarefa, e o que ela disse foi a duração. Hora só quando ela disser a
+hora, e só quando houver com quem ou onde.
+
 Três tipos:
-- tarefa: algo que ela precisa fazer. Uma ação, com verbo.
-- compromisso: hora reservada. São DOIS casos, e o segundo é o que mais importa aqui:
-  (a) algo marcado num dia e hora (reunião, consulta, viagem, prova). Use quando e inicio.
-  (b) TEMPO RESERVADO PARA TRABALHAR numa coisa, quando ela disser uma cadência. Use
-      repete, e NÃO use quando: quem acha os dias e as horas livres é o app, dentro do
-      expediente dela e desviando do que já está marcado. Você só diz quanto e quantas.
+- tarefa: algo que ela precisa fazer. Uma ação, com verbo. NUNCA ponha hora numa tarefa:
+  quem decide a ordem do dia dela é ela, e o app só guarda o dia e quanto leva.
+- compromisso: São DOIS casos, e eles são bem diferentes:
+  (a) HORA MARCADA: algo combinado com alguém ou num lugar, num dia e numa hora
+      (reunião, consulta, viagem, prova). Use quando e inicio. Só aqui existe hora.
+  (b) TEMPO SEPARADO para trabalhar numa coisa, quando ela disser uma cadência. Use
+      repete e NÃO use quando nem inicio: isso não é hora marcada, é quanto do dia ela
+      quer dar àquilo. Quem escolhe os dias é o app, olhando o que sobra de cada um.
 - nota: todo o resto que valha guardar. Ideia, insight, DECISÃO que ela tomou, número que
   ela ouviu, nome de alguém, link, trecho de raciocínio, dúvida para pensar depois. Em
   texto, ponha o pensamento dela quase como ela escreveu, sem resumir até virar nada.

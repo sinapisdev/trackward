@@ -227,6 +227,14 @@ export type Organizacao = {
 }
 
 export type Item = {
+  /**
+   * Quanto ela leva, em minutos, estimado pela leitura ou por quem executa.
+   *
+   * É o que dá ORÇAMENTO ao dia: a tarefa não ocupa hora, ocupa capacidade, e
+   * sem a duração cinco tarefas cabem igualmente numa terça com duas reuniões e
+   * numa quarta vazia, o que é falso.
+   */
+  minutos?: number | null
   id: string
   etapa_id: string
   fluxo_id: string
@@ -578,6 +586,16 @@ export type Compromisso = {
    * compromisso de verdade, com a pessoa confirmando.
    */
   item_id?: string | null
+  /**
+   * Quanto do dia ele ocupa, quando NÃO tem hora.
+   *
+   * É a reserva de capacidade: "duas horas para estudar canais", em qualquer
+   * horário. Nulo com `inicio` nulo continua sendo dia inteiro, que é outra
+   * coisa (viagem, feriado). Ela não bloqueia hora nenhuma, e o banco garante
+   * isso forçando `bloqueia` a falso: o colega precisa saber onde você tem hora
+   * marcada, e o seu saldo é assunto seu.
+   */
+  minutos?: number | null
   convidados: string[]
   criado_em: string
   /** Falso quando só chegou a ocupação, sem o conteúdo. */

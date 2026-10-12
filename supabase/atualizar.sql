@@ -7751,6 +7751,79 @@ $$;
 revoke all on function public.minha_agenda() from public, anon;
 grant execute on function public.minha_agenda() to authenticated, service_role;
 
+-- --------------------------------------------------------------------------
+-- 77. Hora é de compromisso; tarefa toma SALDO
+--
+--     A seção 76 pôs a tarefa na grade da agenda, com hora. Estava errado, e o
+--     Leo apontou no primeiro uso: "horário é horário, horário são
+--     compromissos". A agenda tinha virado uma lista de blocos que não eram
+--     compromisso com ninguém, e que se fura sem culpa nenhuma, porque a hora
+--     foi inventada pelo app.
+--
+--     A distinção que vale: **compromisso é hora combinada com alguém ou com um
+--     lugar; tarefa é trabalho que você faz quando couber.** O teste é "se eu
+--     fizer isso duas horas antes ou depois, alguém fica esperando?". Reunião,
+--     consulta, viagem e aula: sim. Estudar, escrever, revisar: não.
+--
+--     Então a tarefa deixa de ocupar HORA e passa a ocupar CAPACIDADE: ela come
+--     minutos do dia, em qualquer horário. Quatro horas de tarefa num dia de
+--     oito querem dizer que dá para marcar o que quiser nas outras quatro.
+--
+--     **E o saldo é CALCULADO, nunca guardado**, que é o ganho de brinde desta
+--     virada: concluir a tarefa devolve a folga sozinho, sem gatilho nenhum,
+--     porque a conta é feita no instante em que a tela pergunta. O gatilho da
+--     seção 76 continua de pé para o caso que sobrou (a tarefa que alguém FIXA
+--     numa hora de propósito), e deixou de ser o caminho normal.
+--
+--     `compromissos.minutos` é a peça nova, e ela existe porque "sem hora" e
+--     "o dia inteiro" eram a mesma coisa no banco. Uma reserva de duas horas
+--     sem hora marcada precisa dizer que são duas horas, senão a agenda só pode
+--     concluir que ela come o dia.
+-- --------------------------------------------------------------------------
+
+/**
+ * Quanto do dia este compromisso ocupa, quando ele NÃO tem hora.
+ *
+ * Nulo com `inicio` nulo continua sendo o que sempre foi: dia inteiro (viagem,
+ * feriado, folga). Preenchido quer dizer "tome duas horas deste dia, em
+ * qualquer horário": é a reserva de capacidade, que nasce de uma cadência
+ * ("2h por dia para estudar canais") e que o Organizar distribui.
+ *
+ * Com `inicio` preenchido ele é ignorado: ali a duração é `fim - inicio`, e
+ * duas verdades sobre a mesma coisa é o jeito de um dia elas discordarem.
+ */
+alter table public.compromissos add column if not exists minutos integer;
+alter table public.compromissos drop constraint if exists compromissos_minutos_cabe;
+alter table public.compromissos add constraint compromissos_minutos_cabe
+  check (minutos is null or (minutos >= 10 and minutos <= 480));
+
+/**
+ * A reserva de capacidade NÃO bloqueia hora, e quem garante isso é o `bloqueia`
+ * dela, que nasce falso.
+ *
+ * Nada muda em `ocupacao()`, que já pergunta por `bloqueia`, e é esse o ponto:
+ * se ela entrasse lá sem hora, o colega leria o dia inteiro como ocupado por
+ * causa de duas horas de estudo. O que o colega precisa saber continua sendo
+ * onde você tem hora marcada; o seu saldo é assunto seu.
+ *
+ * Esta trava existe porque a regra é fácil de violar escrevendo um insert
+ * distraído, e o estrago aparece na agenda de OUTRA pessoa, que é onde ninguém
+ * vai procurar.
+ */
+create or replace function public.reserva_sem_hora_nao_bloqueia()
+returns trigger language plpgsql as $$
+begin
+  if new.minutos is not null and new.inicio is null then new.bloqueia := false; end if;
+  return new;
+end $$;
+revoke all on function public.reserva_sem_hora_nao_bloqueia() from public, anon, authenticated;
+
+drop trigger if exists ao_salvar_reserva on public.compromissos;
+create trigger ao_salvar_reserva
+  before insert or update on public.compromissos
+  for each row execute function public.reserva_sem_hora_nao_bloqueia();
+
+
 
 select
   (select count(*) from pg_trigger where tgname = 'ao_inserir_org' and not tgisinternal)
@@ -8309,4 +8382,15 @@ select
   -- acontece de quatro lugares e a tela de um deles sempre esquece.
   (select count(*) from pg_trigger
     where tgname = 'ao_concluir_libera_reserva' and not tgisinternal)
-    as "concluir libera a reserva (1)";
+    as "concluir libera a reserva (1)",
+  -- Hora é de compromisso; tarefa toma saldo. A reserva sem hora precisa dizer
+  -- quantos minutos ela come, senão "sem hora" e "o dia inteiro" viram a mesma
+  -- coisa e a agenda conclui que ela tomou o dia.
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'compromissos' and column_name = 'minutos')
+    as "a reserva diz quanto ocupa (1)",
+  -- E ela não bloqueia hora nenhuma: sem isto o colega leria o seu dia inteiro
+  -- como ocupado por causa de duas horas de estudo.
+  (select count(*) from pg_trigger
+    where tgname = 'ao_salvar_reserva' and not tgisinternal)
+    as "reserva sem hora nao bloqueia (1)";

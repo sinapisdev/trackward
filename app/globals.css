@@ -654,6 +654,13 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns
 .auth .alt button:hover{text-decoration:underline}
 .erro{background:var(--late-soft);color:var(--late);padding:9px 12px;border-radius:var(--r-sm);font-size:12px;
   margin-bottom:13px;display:flex;gap:8px;align-items:flex-start;box-shadow:0 0 0 1px var(--late-linha)}
+/* O aviso que não é erro: âmbar, e com a porta aberta. O dia estourado não é
+   coisa proibida, é coisa que alguém precisa saber antes de confirmar. */
+.aviso{background:var(--warn-soft,var(--brilho));color:var(--warn);padding:9px 12px;
+  border-radius:var(--r-sm);font-size:12px;margin-bottom:13px;display:flex;gap:8px;
+  align-items:flex-start;box-shadow:0 0 0 1px var(--warn-linha,var(--line-2))}
+.aviso b{font-weight:var(--fw-semibold)}
+.aviso>svg{flex:none;margin-top:1px;width:13px;height:13px}
 .ok-box{background:var(--ac-soft);color:var(--ac-tinta);padding:9px 12px;border-radius:var(--r-sm);font-size:12px;
   margin-bottom:13px;display:flex;gap:8px;align-items:flex-start;box-shadow:0 0 0 1px var(--ac-linha)}
 .espera{min-height:100dvh;display:grid;place-items:center;padding:24px 16px}
@@ -5310,3 +5317,19 @@ a.btn{text-decoration:none}
 .ev-bloco.reserva{background:var(--brilho);border-left:2px solid var(--line-3)}
 .ev-bloco.reserva b{color:var(--tx-2);font-weight:var(--fw-regular)}
 .ev-chip.reserva{opacity:.78}
+
+/* --------------------------------------------- o saldo do dia, na agenda */
+
+/* A conta que faltava: um dia com quatro horas de tarefa tem quatro horas para
+   marcar, e não oito. Barra fina e frase curta, porque ela informa e não cobra. */
+.ag-saldo{display:grid;grid-template-columns:var(--ag-rot,64px) repeat(var(--ag-dias,7),minmax(0,1fr));
+  border-bottom:1px solid var(--line)}
+.ag-saldo .rot{font-size:var(--fs-micro);color:var(--tx-3);padding:5px 8px;text-align:right}
+.ag-saldo-d{padding:5px 8px;position:relative;font-size:var(--fs-micro);color:var(--tx-3)}
+.ag-saldo-d i{position:absolute;left:0;top:0;height:2px;background:var(--line-3)}
+.ag-saldo-d.cheio{color:var(--warn)}
+.ag-saldo-d.cheio i{background:var(--warn)}
+.ag-saldo-d span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* A duração da reserva de capacidade, na pílula de dia inteiro. */
+.ev-chip em{font-style:normal;margin-left:auto;padding-left:6px;color:var(--tx-3);font-size:var(--fs-micro)}

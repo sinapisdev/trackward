@@ -24,7 +24,7 @@ const ULTIMA = 19
 const hhmm = (h: number) => `${String(h).padStart(2, '0')}:00`
 
 export function TelaAgenda() {
-  const { eu, perfis, agenda, fluxos, carregando, nomeDe, perfilDe } = useDados()
+  const { eu, perfis, agenda, fluxos, carregando, nomeDe, perfilDe , saldoEm } = useDados()
   const { abrir } = useModais()
   const [modo, setModo] = useState<Modo>('semana')
   const [lente, setLente] = useState<Lente>('minha')
@@ -200,6 +200,10 @@ export function TelaAgenda() {
             })}
           </div>
 
+          {/* A faixa do que NÃO tem hora: prazo de tarefa, reserva de
+              capacidade e compromisso de dia inteiro. Prazo é um dia, não uma
+              hora: pôr "vence quinta" entre as 14h e as 15h seria o app
+              inventando que você vai fazer aquilo às duas da tarde. */}
           <div className="ag-dia-inteiro">
             <div className="rot">Prazos</div>
             {dias.map((d) => (
@@ -211,7 +215,10 @@ export function TelaAgenda() {
                     title={c.espaco ? `${c.titulo}, em ${c.espaco}` : undefined}
                     onClick={() => c.aberto && abrir({ tipo: 'compromisso', compromisso: c })}>
                     <i className="k" style={{ background: c.bloqueia ? 'var(--ac)' : 'var(--line-3)' }} />
+                    {/* A reserva de capacidade diz QUANTO, porque é disso que
+                        ela é feita: duas horas do dia, em qualquer horário. */}
                     <span>{c.aberto ? c.titulo : 'Ocupado'}</span>
+                    {!!c.minutos && <em>{c.minutos >= 60 ? `${(c.minutos / 60).toFixed(c.minutos % 60 ? 1 : 0)}h` : `${c.minutos}min`}</em>}
                   </button>
                 ))}
                 {prazos.filter((p) => p.dia === d).map((p, k) => (
@@ -222,6 +229,26 @@ export function TelaAgenda() {
                 ))}
               </div>
             ))}
+          </div>
+
+          {/* O SALDO de cada dia: quanto ele já deve a trabalho sem hora e
+              quanto ainda sobra. É a conta que faltava para a agenda dizer a
+              verdade: um dia com quatro horas de tarefa tem quatro horas para
+              marcar, e não oito. */}
+          <div className="ag-saldo">
+            <div className="rot">Saldo</div>
+            {dias.map((d) => {
+              const { devido, sobra } = saldoEm(d)
+              if (!devido) return <div key={d} />
+              const h = (m: number) => (m >= 60 ? `${(m / 60).toFixed(m % 60 ? 1 : 0)}h` : `${m}min`)
+              return (
+                <div key={d} className={`ag-saldo-d ${sobra <= 0 ? 'cheio' : ''}`}
+                  title={`${h(devido)} de trabalho sem hora neste dia, e ${h(sobra)} livres`}>
+                  <i style={{ width: `${Math.min(100, Math.round((devido / Math.max(devido + sobra, 1)) * 100))}%` }} />
+                  <span>{h(devido)} de tarefa{sobra > 0 ? `, ${h(sobra)} livres` : ', dia cheio'}</span>
+                </div>
+              )
+            })}
           </div>
 
           <div className="ag-corpo">

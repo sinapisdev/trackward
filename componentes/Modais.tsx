@@ -3,6 +3,7 @@
 import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { useDados } from './Dados'
+import { emMinutos } from '@/lib/expediente'
 import { Ic } from './Icones'
 import { explicaTipo, rotuloTipo } from '@/lib/rotulos'
 import { AvisoPrazo } from './AvisoPrazo'
@@ -1544,7 +1545,7 @@ function MTravar({ fluxo, fechar }: { fluxo: Fluxo; fechar: () => void }) {
 function MCompromisso({ pedido, fechar }: {
   pedido: Extract<Pedido, { tipo: 'compromisso' }>; fechar: () => void
 }) {
-  const { eu, perfis, fluxos, agenda, nomeDe, salvarCompromisso, excluirCompromisso } = useDados()
+  const { eu, perfis, fluxos, agenda, nomeDe, salvarCompromisso, excluirCompromisso, saldoEm } = useDados()
   const c = pedido.compromisso
   const souDono = !c || c.dono_id === eu.id || eu.papel === 'admin'
   const ativos = perfis.filter((p) => p.ativo && p.id !== eu.id)
@@ -1710,6 +1711,34 @@ function MCompromisso({ pedido, fechar }: {
           * fila com o prazo dela, e quem lhe acha hora de novo é o Organizar,
           * olhando a agenda de depois desta reunião.
           */}
+        {/**
+          * O SALDO do dia, quando a reunião nova come a folga das tarefas.
+          *
+          * **Avisa e deixa marcar.** Decisão do Leo, 12/10/2026, e é a mesma
+          * régua do expediente: a reunião das 19h com o cliente existe, e um
+          * app que a recusa é um app que se descobre contornando. O que ele
+          * pode fazer é não deixar você descobrir na terça de manhã que o dia
+          * não fecha.
+          */}
+        {(() => {
+          if (diaInteiro || !bloqueia) return null
+          const { devido, sobra } = saldoEm(quando)
+          if (!devido) return null
+          const dura = Math.max(0, emMinutos(fim) - emMinutos(inicio))
+          if (dura <= 0 || sobra - dura >= 0) return null
+          const h = (m: number) => (m >= 60 ? `${(m / 60).toFixed(m % 60 ? 1 : 0)}h` : `${m}min`)
+          return (
+            <div className="aviso">
+              <Ic.espera />
+              <span>
+                Esse dia já tem <b>{h(devido)} de tarefa</b> com prazo, e ficaria com{' '}
+                {h(Math.max(0, sobra - dura))} livres. Dá para marcar assim mesmo, e aí
+                alguma coisa vai ter que esperar.
+              </span>
+            </div>
+          )
+        })()}
+
         {!!conflitos.length && (
           <div className="erro">
             <Ic.x />

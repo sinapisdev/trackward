@@ -43,6 +43,8 @@ import {
   valida as validaExpediente, paraOModelo as expedienteParaOModelo, proximoUtil,
   dentro, diaUtil, somaMinutos, temExpediente, vagas, type Expediente,
 } from '@/lib/expediente'
+import { envolvidos } from '@/lib/agenda'
+import { devidoNoDia, diasComSaldo, saldoDoDia, type Devedor } from '@/lib/plano'
 import type { ContextoConversa, Fala } from '@/lib/conversa'
 import type { Alvo } from '@/lib/tipos'
 import { iso } from '@/lib/datas'
@@ -378,6 +380,14 @@ type Contexto = {
   excluirEmpresa: (id: string) => Promise<void>
   salvarOrg: (d: Partial<Organizacao>) => Promise<void>
   /** Devolve o id, para quem criou de dentro de uma proposta poder desfazer. */
+  /**
+   * Quanto este dia já deve a trabalho SEM HORA, e quanto ainda sobra.
+   *
+   * Hora é de compromisso; tarefa toma capacidade. Quem pergunta isto é a
+   * agenda, para dizer o saldo do dia, e o formulário de compromisso, para
+   * avisar quando a reunião nova come a folga que as tarefas precisam.
+   */
+  saldoEm: (dia: string) => { devido: number; sobra: number }
   salvarCompromisso: (d: Partial<Compromisso> & { convidados: string[] }) => Promise<string | null>
   excluirCompromisso: (id: string) => Promise<void>
   ligarAgendaExterna: (url: string) => Promise<{ blocos: number } | null>
@@ -2499,6 +2509,46 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     return canais.find((c) => c.id === sug.canal_id)?.tipo === 'aberto'
   }, [canais])
 
+  /**
+   * O que cada dia já DEVE a trabalho sem hora.
+   *
+   * Tarefa aberta com prazo e duração, mais a reserva de capacidade. As duas
+   * somam no mesmo saldo porque, do ponto de vista do dia, são a mesma coisa:
+   * trabalho que vai acontecer ali, em algum momento.
+   *
+   * **É calculado, nunca guardado**, e esse é o ganho da virada: concluir a
+   * tarefa devolve a folga sozinho, sem gatilho e sem a chance de o número
+   * guardado discordar da realidade na semana seguinte.
+   */
+  const devedores = useMemo<Devedor[]>(() => {
+    const saida: Devedor[] = []
+    for (const f of fluxosComImplicitas) {
+      if (f.desfecho) continue
+      for (const et of f.etapas) {
+        for (const i of et.itens) {
+          if (i.feito || !i.prazo || !i.minutos) continue
+          if (i.resp_id && i.resp_id !== eu.id) continue
+          saida.push({ quando: i.prazo, minutos: i.minutos })
+        }
+      }
+    }
+    for (const c of agenda) {
+      if (!c.inicio && c.minutos && envolvidos(c).includes(eu.id)) {
+        saida.push({ quando: c.quando, minutos: c.minutos })
+      }
+    }
+    return saida
+  }, [fluxosComImplicitas, agenda, eu.id])
+
+  const saldoEm = useCallback<Contexto['saldoEm']>((dia) => {
+    const devido = devidoNoDia(devedores, dia)
+    // Só o que tem HORA tira espaço do expediente; o resto já está no `devido`.
+    const comHora = agenda
+      .filter((c) => c.quando === dia && c.inicio && c.bloqueia)
+      .map((c) => ({ quando: c.quando, inicio: c.inicio, fim: c.fim }))
+    return { devido, sobra: saldoDoDia(expediente, dia, comHora, devido) }
+  }, [devedores, agenda, expediente])
+
   const aceitarSugestao: Contexto['aceitarSugestao'] = useCallback(async (sug, ajuste, porIa = false) => {
     const dados: Alvo = { ...sug.dados, ...ajuste }
     const fluxoEscolhido = todosFluxos.find((x) => x.id === dados.fluxo_id) || null
@@ -2558,41 +2608,6 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       // Guardamos o que nasceu daqui, senão não há como desfazer depois.
       dados.criou_id = id
 
-      /**
-       * A RESERVA: a hora que esta tarefa ocupa na agenda.
-       *
-       * O plano já escolheu o dia e a hora olhando o que estava livre, então
-       * aqui é só gravar. Sem isto, a tarefa nasce com um prazo e o dia dela
-       * continua parecendo vazio para todo mundo, inclusive para o próprio
-       * app na próxima vez que ele for distribuir: era assim que a terça
-       * ganhava sete horas de promessa num dia de três horas livres.
-       *
-       * Sem hora não há reserva, e isso é de propósito: tarefa aceita de um
-       * cartão solto, fora de um plano, continua sendo só uma tarefa com
-       * prazo. Reservar a agenda de alguém sem ela ter visto a semana seria
-       * marcar o dia dela por conta própria.
-       *
-       * `bloqueia` nasce verdadeiro sempre, e quem decide se ela TRAVA é o
-       * banco, por `reserva_trava`: longe ela aparece e aceita compromisso por
-       * cima, de perto ela segura a hora. A regra mora num lugar só, na seção
-       * 76, senão a tela e o banco discordariam no primeiro dia em que alguém
-       * mexesse num dos dois.
-       */
-      if (dados.inicio && dados.prazo && dados.minutos) {
-        const fim = somaMinutos(dados.inicio, dados.minutos)
-        // Sem pedir a linha de volta: ver AGENTS, o RETURNING passa pela
-        // política de leitura e a recusa é indistinguível da de escrita.
-        const { error } = await sb.from('compromissos').insert({
-          id: novoId(), titulo: texto, quando: dados.prazo, inicio: dados.inicio, fim,
-          nota: 'Hora reservada para esta tarefa.', bloqueia: true, visivel: true,
-          dono_id: eu.id, item_id: id,
-        })
-        // A reserva que falha não derruba a tarefa: o trabalho existe, e a
-        // hora dele é um acréscimo. O contrário seria perder a tarefa por
-        // causa do calendário.
-        if (error) console.warn('a reserva não entrou', error)
-      }
-      dados.fluxo_id = et.fluxo_id
       /**
        * Duas linhas para a mesma coisa, e o canal virava mural de recibo.
        *
@@ -2847,44 +2862,57 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
        */
       if (dados.repete) {
         /**
-         * A agenda vem do BANCO, e não do estado.
+         * A reserva de CAPACIDADE, que é no que a cadência virou.
          *
-         * Aceitando três blocos seguidos, os dois últimos olhariam uma agenda
-         * de antes do primeiro: `recarregar()` é debounced em 220ms e ninguém
-         * espera por ele. O resultado seria três reservas começando na mesma
-         * hora do mesmo dia, que é exatamente o encaixe manual que o botão
-         * existe para evitar. Uma consulta a mais numa ação que já foi ao
-         * servidor, e ela é exata.
+         * "2h por dia para estudar canais" não é uma reunião às 13h30: é duas
+         * horas daquele dia, em qualquer horário. Virando bloco com hora, a
+         * agenda enchia de compromisso que não era compromisso com ninguém, e
+         * que se fura sem culpa, porque a hora tinha sido inventada pelo app.
+         *
+         * Ela toma SALDO e não horário, então procura dia com folga em vez de
+         * buraco na agenda, e nasce sem `inicio`.
          */
         const { data: cheio } = await sb.from('compromissos')
-          .select('quando,inicio,fim')
+          .select('quando,inicio,fim,minutos')
           .gte('quando', hojeIso())
           .order('quando')
           .limit(400)
-        const ocupado = ((cheio || []) as { quando: string; inicio: string | null; fim: string | null }[])
+        const linhas = (cheio || []) as { quando: string; inicio: string | null; fim: string | null; minutos: number | null }[]
+        // Só o que tem HORA ocupa horário; o resto deve saldo, e entra na outra conta.
+        const ocupado = linhas.filter((c) => c.inicio)
           .map((c) => ({ quando: c.quando, inicio: c.inicio, fim: c.fim }))
-        const achadas = vagas(
-          expediente, ocupado, proximoUtil(expediente, hojeIso()),
-          dados.repete.vezes, dados.repete.minutos,
-          { cadencia: dados.repete.cadencia, periodo: dados.repete.periodo },
-        )
-        if (!achadas.length) {
+        const carga: Record<string, number> = {}
+        for (const c of linhas) {
+          if (!c.inicio && c.minutos) carga[c.quando] = (carga[c.quando] || 0) + c.minutos
+        }
+        for (const d of devedores) carga[d.quando] = (carga[d.quando] || 0) + d.minutos
+
+        const dias = temExpediente(expediente)
+          ? diasComSaldo(expediente, ocupado, carga, proximoUtil(expediente, hojeIso()),
+              dados.repete.vezes, dados.repete.minutos, dados.repete.cadencia)
+          : []
+        if (!dias.length) {
           return toast(temExpediente(expediente)
-            ? 'Não achei espaço livre no seu expediente para isto.'
+            ? 'Não sobra tempo no seu expediente para isto.'
             : 'Diga o seu expediente primeiro, em Ajustes: sem ele não dá para achar espaço.', true)
         }
         const ids: string[] = []
-        for (const v of achadas) {
-          const id = await salvarCompromisso({
-            titulo: sug.texto, quando: v.quando, inicio: v.inicio, fim: v.fim,
-            nota: sug.motivo || '', bloqueia: true, visivel: true, convidados: [],
+        for (const dia of dias) {
+          const id = novoId()
+          const { error } = await sb.from('compromissos').insert({
+            id, titulo: sug.texto, quando: dia, inicio: null, fim: null,
+            minutos: dados.repete.minutos, nota: sug.motivo || '',
+            // `bloqueia` nasce falso de qualquer jeito, pelo gatilho da seção 77:
+            // reserva sem hora não pode aparecer como ocupação para o colega.
+            bloqueia: false, visivel: true, dono_id: eu.id,
           })
-          if (id) ids.push(id)
+          if (error) { falhou(error, 'Não deu para reservar o tempo.'); continue }
+          ids.push(id)
         }
         if (!ids.length) return
         dados.criou_ids = ids
-        contou = `reservou ${ids.length} ${ids.length === 1 ? 'vez' : 'vezes'} para "${sug.texto}", `
-          + `a partir de ${curta(achadas[0].quando)}`
+        contou = `reservou ${ids.length} ${ids.length === 1 ? 'dia' : 'dias'} para "${sug.texto}", `
+          + `a partir de ${curta(dias[0])}`
       } else {
         if (!dados.quando) return toast('A proposta não diz o dia.', true)
         const id = await salvarCompromisso({
@@ -4410,6 +4438,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     preverCascata, moverPrazo, devolverItem, pedidosPrazo, decidirPrazo,
     enviar, enviarAudio, abrirAudio, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
     executarComando, passarContato,
+    saldoEm,
     lerConversa, lerNota, aceitarSugestao, recusarSugestao,
     espacos, trocarEspaco, abrirEspaco,
   }

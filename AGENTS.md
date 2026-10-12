@@ -3405,7 +3405,7 @@ ninguém fez a conta.
   calendário com uma confiança que ninguém audita depois.
 - **A ordem do encaixe é a regra inteira:** a agenda que já existe ocupa primeiro; depois o
   compromisso com dia e hora, firme, porque o app não remarca o que a pessoa combinou com
-  alguém; depois os blocos que se repetem; e a **tarefa por último, no que sobrou**. É isso
+  alguém; depois as reservas de capacidade; e a **tarefa por último, no saldo que sobrou**. É isso
   que faz "dia cheio de compromisso recebe menos tarefa" acontecer sem nenhuma regra dizendo
   isso. O contrário vale porque cada tarefa encaixada passa a OCUPAR, então o compromisso
   seguinte já encontra o dia menor.
@@ -3423,35 +3423,43 @@ ninguém fez a conta.
   dia em que vence, e o que não couber vira **sobra visível**, dizendo por quê. Plano que
   esconde sobra mente.
 
-### A reserva: a hora que a tarefa ocupa na agenda
+### Hora é de compromisso; tarefa toma SALDO
 
-`compromissos.item_id` é a peça (seção 76). Sem a ligação, a reserva seria um compromisso
-qualquer chamado "Trabalho", que ninguém sabe de onde veio nem quando apagar, e que apodrece
-na agenda até a pessoa desistir do recurso.
+**A primeira versão disto estava errada, e o Leo apontou no primeiro uso:** ela punha a
+tarefa na grade da agenda, com hora. A agenda virou uma lista de blocos que não eram
+compromisso com ninguém, e que se fura sem culpa, porque a hora tinha sido inventada pelo
+app. Seção 77, 12/10/2026.
 
-- **Ela só TRAVA de perto.** Decisão do Leo, 11/10/2026, e é o meio-termo entre as duas
-  coisas que se queria ao mesmo tempo. Longe (mais de `dias_que_a_reserva_trava()`, hoje 3),
-  ela aparece e não bloqueia: a semana que vem ainda vai mudar, e uma agenda que recusa
-  reunião daqui a duas semanas por causa de uma tarefa é uma agenda que se passa a
-  contornar. De perto ela trava, porque ali o plano é o plano. Quem responde é
-  `reserva_trava()`, e `ocupacao()` pergunta a ela: a regra mora num lugar só.
-- **Concluir a tarefa LIBERA a hora**, e só as reservas de hoje para a frente: a de ontem é
-  registro do que aconteceu, e apagar o passado da agenda de alguém porque ela terminou o
-  trabalho é reescrever o dia dela depois de vivido. **Desmarcar não devolve o bloco**: a
-  tarefa reaberta precisa de hora de novo, e quem acha hora é o plano, olhando a agenda de
-  agora. Quem faz é gatilho e não a tela, pelo mesmo motivo de `aviso_ao_concluir`: concluir
-  acontece de quatro lugares, e a tela de um deles sempre esquece.
-- **Substituir reserva por compromisso é permitido, com a pessoa aprovando.** O banco não
-  recusa nem desfaz: a troca é decisão de gente ("tenho reunião nessa hora, tudo bem perder
-  o bloco"), e decisão de gente pede uma pergunta na tela, não uma recusa em inglês vinda de
-  um gatilho. O aviso de conflito trata a reserva à parte e oferece "Liberar a hora": sobre
-  uma hora que é sua e da qual você pode abrir mão, **o aviso certo é a porta, não a
-  parede**. Liberar apaga o bloco e não a tarefa.
-- **Sem hora não há reserva.** Tarefa aceita de um cartão solto, fora de um plano, continua
-  sendo só tarefa com prazo: reservar a agenda de alguém sem ela ter visto a semana seria
-  marcar o dia dela por conta própria.
-- **Na agenda ela se distingue pela FORMA**, fio à esquerda e texto mais apagado, nunca por
-  cor nova: reunião é combinada com alguém, reserva é hora guardada para trabalho seu.
+**A distinção, e ela vale para o modelo e para a tela:** compromisso é hora combinada com
+alguém ou com um lugar; tarefa é trabalho que se faz quando couber. O teste é **"se eu
+fizer isso duas horas antes ou depois, alguém fica esperando?"**. Reunião, consulta,
+viagem, aula: sim. Estudar canais, escrever a proposta, revisar o contrato: não, e isso
+continua valendo mesmo quando leva o dia inteiro e mesmo quando ela diz quanto leva.
+
+- **A tarefa ocupa CAPACIDADE, nunca horário.** Quatro horas de tarefa num dia de oito
+  querem dizer que dá para marcar o que quiser nas outras quatro, em qualquer horário. Na
+  agenda ela aparece só na faixa de Prazos, porque prazo é um dia e não uma hora.
+- **O saldo é CALCULADO, nunca guardado**, e é esse o ganho da virada: concluir a tarefa
+  devolve a folga sozinho, sem gatilho, e não existe número guardado para discordar da
+  realidade na semana seguinte. Quem responde é `saldoEm(dia)`, em `Dados`, sobre
+  `devedores`: tarefa aberta com prazo e duração, mais reserva de capacidade.
+- **A cadência vira reserva de CAPACIDADE, sem hora** (`compromissos.minutos`). "2h por dia
+  para estudar canais" não é uma reunião às 13h30, é duas horas daquele dia. A coluna existe
+  porque no banco "sem hora" e "o dia inteiro" eram a mesma coisa, e uma reserva de duas
+  horas precisa dizer que são duas.
+- **Reserva de capacidade NÃO bloqueia hora**, e quem garante é um gatilho que força
+  `bloqueia` a falso (seção 77), não a boa vontade de quem escreve o insert. Entrando em
+  `ocupacao()` sem hora, o colega leria o seu dia inteiro como ocupado por causa de duas
+  horas de estudo. O que ele precisa saber é onde você tem hora marcada; o seu saldo é
+  assunto seu.
+- **O compromisso que come a folga AVISA, e deixa marcar.** Decisão do Leo, 12/10/2026, e é
+  a mesma régua do expediente: a reunião das 19h com o cliente existe, e um app que a recusa
+  é um app que se descobre contornando. O que ele pode fazer é não deixar você descobrir na
+  terça de manhã que o dia não fecha.
+- **O que sobrou da seção 76** é a tarefa que alguém FIXA numa hora de propósito (o "fazer
+  vídeos das 8h às 11h30" que de fato tem hora). `compromissos.item_id`, a janela de três
+  dias e o gatilho que libera ao concluir continuam de pé para esse caso, e deixaram de ser
+  o caminho normal. Não voltar a fazer o plano criar bloco com hora para tarefa.
 
 ### O plano se aceita inteiro, e cada linha continua tendo porta
 

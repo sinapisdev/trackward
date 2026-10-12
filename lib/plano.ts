@@ -1,7 +1,7 @@
 import { data, iso } from './datas'
 import {
   type Expediente, type Ocupado, type Vaga,
-  diaUtil, emMinutos, livresDoDia, temExpediente, vagas,
+  diaUtil, emMinutos, livresDoDia, temExpediente,
 } from './expediente'
 
 /**
@@ -42,14 +42,24 @@ export type Peca = {
   repete?: { minutos: number; vezes: number; cadencia: 'dia' | 'semana'; periodo?: 'manha' | 'tarde' } | null
 }
 
-/** Uma peça já com lugar no calendário. */
+/**
+ * Uma peça já com lugar no calendário.
+ *
+ * **`inicio` é NULO na tarefa, e isso é a regra inteira desta versão.** Hora é
+ * de compromisso: reunião, consulta, viagem, aula. Tarefa é trabalho que você
+ * faz quando couber, e cravar "escrever a proposta às 9h" é o app decidindo a
+ * ordem do seu dia por você, com a certeza de errar na primeira vez que o
+ * telefone tocar. O que a tarefa ocupa é CAPACIDADE: ela come minutos do dia,
+ * em qualquer horário.
+ */
 export type Encaixe = {
   chave: string
   tipo: 'tarefa' | 'compromisso'
   texto: string
   quando: string
-  inicio: string
-  fim: string
+  /** Hora, só quando ela existe de verdade. Tarefa e reserva de capacidade não têm. */
+  inicio: string | null
+  fim: string | null
   minutos: number
   /** Veio com dia e hora de fábrica: o plano não escolheu, só respeitou. */
   firme: boolean
@@ -86,26 +96,6 @@ const amanha = (dia: string) => {
 
 const paraHora = (m: number) =>
   `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
-
-/**
- * A primeira fatia livre do dia que caiba, já com a hora.
- *
- * Devolve nulo quando não cabe, e não "o maior pedaço disponível": meia tarefa
- * marcada é pior que tarefa não marcada, porque dá a ela a aparência de
- * resolvida.
- */
-function primeiraFatia(
-  e: Expediente, dia: string, ocupado: Ocupado[], minutos: number,
-  periodo?: 'manha' | 'tarde',
-): Vaga | null {
-  for (const [a, b] of livresDoDia(e, dia, ocupado)) {
-    if (b - a < minutos) continue
-    if (periodo === 'manha' && a >= 12 * 60) continue
-    if (periodo === 'tarde' && a < 12 * 60) continue
-    return { quando: dia, inicio: paraHora(a), fim: paraHora(a + minutos) }
-  }
-  return null
-}
 
 /**
  * O horizonte do plano.
@@ -171,16 +161,21 @@ export function montar(
   // exatamente o encaixe manual que o botão existe para evitar.
   let ocupado: Ocupado[] = [...agendaDeHoje]
   /**
-   * `carga` conta só TAREFA, e isso não é descuido.
+   * Duas contas, e elas são diferentes.
    *
-   * Ela é o tamanho da reserva que vai para a agenda, e reunião não se
-   * reserva: ela já está lá. Somar as duas faria o dia com três reuniões
-   * pedir três horas de bloco de trabalho por cima delas. Quem conta o dia
-   * inteiro para a conta da folga é `ocupado`, que recebe tudo.
+   * `ocupado` são as HORAS tomadas: o que já estava na agenda mais o
+   * compromisso marcado que o plano acabou de pôr. Serve para dois
+   * compromissos não nascerem na mesma hora.
+   *
+   * `carga` são os MINUTOS que o dia deve a trabalho sem hora: tarefa e
+   * reserva de capacidade. Eles não tomam horário nenhum, tomam saldo, e é
+   * esse saldo que a agenda mostra e que o compromisso novo tem que respeitar.
    */
-  const tomar = (v: Vaga, minutos: number, eTarefa: boolean) => {
+  const tomarHora = (v: Vaga) => {
     ocupado = [...ocupado, { quando: v.quando, inicio: v.inicio, fim: v.fim }]
-    if (eTarefa) carga[v.quando] = (carga[v.quando] || 0) + minutos
+  }
+  const tomarSaldo = (dia: string, minutos: number) => {
+    carga[dia] = (carga[dia] || 0) + minutos
   }
 
   const marcados = pecas.filter((p) => p.tipo === 'compromisso' && p.quando)
@@ -197,42 +192,52 @@ export function montar(
       chave: p.chave, tipo: 'compromisso', texto: p.texto,
       quando: p.quando as string, inicio, fim, minutos: p.minutos || 60, firme: true,
     })
-    tomar({ quando: p.quando as string, inicio, fim }, p.minutos || 60, false)
+    tomarHora({ quando: p.quando as string, inicio, fim })
   }
 
-  // 3. Os blocos de tempo reservado, com a mesma função de sempre.
+  /**
+   * 3. As reservas de CAPACIDADE, que é no que a cadência virou.
+   *
+   * "2h por dia para estudar canais" não é uma reunião às 13h30: é duas horas
+   * daquele dia, em qualquer horário. Antes isso virava bloco com hora, e o
+   * resultado era uma agenda cheia de compromissos que não eram compromissos
+   * com ninguém, e que a pessoa furava sem culpa nenhuma, porque a hora tinha
+   * sido inventada pelo app.
+   *
+   * Ela toma SALDO e não hora, então não procura buraco: procura dia com
+   * folga. "dia" sai em dias seguidos, "semana" sai espaçado.
+   */
   for (const p of blocos) {
     const r = p.repete as NonNullable<Peca['repete']>
-    const achadas = vagas(e, ocupado, proximoDia(e, hoje), r.vezes, r.minutos,
-      { cadencia: r.cadencia, periodo: r.periodo })
-    if (!achadas.length) {
-      sobras.push({ chave: p.chave, texto: p.texto, porque: 'Não há espaço livre no seu expediente.' })
+    const achados = diasComSaldo(e, ocupado, carga, proximoDia(e, hoje), r.vezes, r.minutos,
+      r.cadencia)
+    if (!achados.length) {
+      sobras.push({ chave: p.chave, texto: p.texto, porque: 'Não sobra tempo no seu expediente.' })
       continue
     }
-    for (const v of achadas) {
+    for (const dia of achados) {
       encaixes.push({
         chave: p.chave, tipo: 'compromisso', texto: p.texto,
-        quando: v.quando, inicio: v.inicio, fim: v.fim, minutos: r.minutos, firme: false,
+        quando: dia, inicio: null, fim: null, minutos: r.minutos, firme: false,
       })
-      tomar(v, r.minutos, false)
+      tomarSaldo(dia, r.minutos)
     }
-    if (achadas.length < r.vezes) {
+    if (achados.length < r.vezes) {
       sobras.push({
         chave: p.chave, texto: p.texto,
-        porque: `Coube ${achadas.length} de ${r.vezes} vezes no seu expediente.`,
+        porque: `Coube ${achados.length} de ${r.vezes} vezes no seu expediente.`,
       })
     }
   }
 
   /**
-   * 4. As tarefas, no que sobrou.
+   * 4. As tarefas, no saldo que sobrou, e SEM HORA.
    *
    * **A ordem entre elas é o prazo, e as sem prazo vão por último.** Quem tem
-   * data tem data por um motivo que o app não conhece, e dar a vaga da terça
+   * data tem data por um motivo que o app não conhece, e dar o dia da terça
    * para a tarefa que vence em duas semanas é exatamente o erro que o botão
    * existe para não cometer. A longa antes da curta dentro do mesmo prazo,
-   * porque bloco grande só cabe em dia vazio e a tarefa de quinze minutos cabe
-   * em qualquer fresta depois.
+   * porque o dia cheio ainda aceita a de quinze minutos depois.
    */
   const porPrazo = [...tarefas].sort((a, b) => {
     const pa = a.prazo || '9999-12-31'
@@ -243,14 +248,11 @@ export function montar(
 
   for (const p of porPrazo) {
     let dia = proximoDia(e, hoje)
-    let achou: Vaga | null = null
+    let achou: string | null = null
     for (let i = 0; i < HORIZONTE; i++) {
       // Prazo é parede: a tarefa não nasce depois do dia em que ela vence.
       if (p.prazo && dia > p.prazo) break
-      if (diaUtil(e, dia) && cabeNoDia(e, dia, ocupado, p.minutos)) {
-        achou = primeiraFatia(e, dia, ocupado, p.minutos)
-        if (achou) break
-      }
+      if (diaUtil(e, dia) && cabeNoDia(e, dia, ocupado, carga, p.minutos)) { achou = dia; break }
       dia = amanha(dia)
     }
     if (!achou) {
@@ -264,13 +266,14 @@ export function montar(
     }
     encaixes.push({
       chave: p.chave, tipo: 'tarefa', texto: p.texto,
-      quando: achou.quando, inicio: achou.inicio, fim: achou.fim,
-      minutos: p.minutos, firme: false,
+      quando: achou, inicio: null, fim: null, minutos: p.minutos, firme: false,
     })
-    tomar(achou, p.minutos, true)
+    tomarSaldo(achou, p.minutos)
   }
 
-  encaixes.sort((a, b) => (a.quando + a.inicio < b.quando + b.inicio ? -1 : 1))
+  // Dia primeiro, e dentro do dia o que tem hora antes do que não tem: a
+  // reunião das 10h é um ponto fixo, e o resto do dia se arruma em volta dela.
+  encaixes.sort((a, b) => (a.quando + (a.inicio || '~') < b.quando + (b.inicio || '~') ? -1 : 1))
   return { encaixes, sobras, carga }
 }
 
@@ -285,19 +288,31 @@ function proximoDia(e: Expediente | null | undefined, dia: string): string {
 }
 
 /**
+ * O SALDO do dia: quanto tempo ainda sobra para trabalho sem hora.
+ *
+ * É a conta que a agenda mostra e a que o compromisso novo tem que respeitar.
+ * Expediente, menos as horas já marcadas, menos o que o dia já deve a tarefa e
+ * a reserva de capacidade.
+ */
+export function saldoDoDia(
+  e: Expediente | null | undefined, dia: string, ocupado: Ocupado[], jaDevido: number,
+): number {
+  if (!temExpediente(e)) return 0
+  return Math.max(0, minutosLivres(e, dia, ocupado) - Math.max(0, jaDevido))
+}
+
+/**
  * Este dia ainda aguenta mais isto?
  *
- * Duas perguntas, e as duas precisam ser feitas. A primeira é se existe fatia
- * livre contígua, que `primeiraFatia` responde. A segunda é se o dia não passou
- * da FOLGA, e é ela que impede o plano de encher as oito horas de alguém com
- * oito horas de lista: tem espaço no calendário e não tem espaço na vida.
+ * Duas perguntas, e as duas precisam ser feitas. A primeira é o SALDO: o que
+ * sobra do expediente depois das horas marcadas e do que o dia já deve a
+ * trabalho sem hora. A segunda é a FOLGA, e é ela que impede o plano de encher
+ * as oito horas de alguém com oito horas de lista: tem espaço no calendário e
+ * não tem espaço na vida.
  *
  * **A conta é do dia INTEIRO, e não só do que o plano pôs.** Foi assim que ela
  * nasceu errada: olhando só a própria carga, uma terça com seis horas e meia de
- * reunião ainda parecia vazia, e ganhava tarefa nas frestas até somar oito horas
- * e meia de compromisso. Quem já estava lá conta, e por isso a pergunta se faz
- * ao `ocupado`, que carrega a agenda de verdade mais tudo que o plano encaixou
- * até agora.
+ * reunião ainda parecia vazia e ganhava tarefa até somar oito e meia.
  *
  * O `Math.max` com os próprios minutos existe para a tarefa grande não ficar
  * órfã: uma de quatro horas num dia de quatro horas livres passaria do teto de
@@ -305,12 +320,55 @@ function proximoDia(e: Expediente | null | undefined, dia: string): string {
  * a coisa que mais precisa de lugar.
  */
 function cabeNoDia(
-  e: Expediente, dia: string, ocupado: Ocupado[], minutos: number,
+  e: Expediente, dia: string, ocupado: Ocupado[],
+  carga: Record<string, number>, minutos: number,
 ): boolean {
-  const livre = minutosLivres(e, dia, ocupado)
-  if (livre < minutos) return false
+  const devido = carga[dia] || 0
+  if (saldoDoDia(e, dia, ocupado, devido) < minutos) return false
   const expediente = minutosLivres(e, dia, [])
-  const comprometido = expediente - livre
+  const comprometido = (expediente - minutosLivres(e, dia, ocupado)) + devido
   const teto = Math.round(expediente * FOLGA)
   return comprometido + minutos <= Math.max(teto, minutos)
 }
+
+/**
+ * Os dias em que cabe uma reserva de capacidade que se repete.
+ *
+ * Procura DIA com folga, e não buraco na agenda, porque o que ela toma é saldo.
+ * "semana" pula um dia útil entre uma e outra, que é o que "2 a 3 dias por
+ * semana" quer dizer; "dia" sai em dias seguidos.
+ */
+export function diasComSaldo(
+  e: Expediente, ocupado: Ocupado[], carga: Record<string, number>,
+  deDia: string, quantas: number, minutos: number, cadencia: 'dia' | 'semana',
+): string[] {
+  const saida: string[] = []
+  let dia = deDia
+  let folga = false
+  for (let i = 0; i < HORIZONTE && saida.length < quantas; i++) {
+    if (i > 0) dia = amanha(dia)
+    if (!diaUtil(e, dia)) continue
+    if (folga) { folga = false; continue }
+    if (!cabeNoDia(e, dia, ocupado, carga, minutos)) continue
+    saida.push(dia)
+    carga[dia] = (carga[dia] || 0) + minutos
+    if (cadencia === 'semana') folga = true
+  }
+  // A carga foi somada aqui para um dia não receber duas, e quem soma de
+  // verdade é `tomarSaldo`: desfaz, senão ela conta duas vezes.
+  for (const d of saida) carga[d] = (carga[d] || 0) - minutos
+  return saida
+}
+
+/**
+ * Uma coisa que deve tempo a um dia, sem ter hora.
+ *
+ * Tarefa aberta com prazo, e reserva de capacidade. As duas somam no mesmo
+ * saldo porque, do ponto de vista do dia, são a mesma coisa: trabalho que vai
+ * acontecer ali, em algum momento.
+ */
+export type Devedor = { quando: string; minutos: number }
+
+/** Quanto este dia já deve a trabalho sem hora. */
+export const devidoNoDia = (devedores: Devedor[], dia: string) =>
+  devedores.reduce((t, d) => (d.quando === dia ? t + d.minutos : t), 0)
