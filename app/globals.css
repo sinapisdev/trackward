@@ -5183,9 +5183,12 @@ a.btn{text-decoration:none}
 /* De qual espaço, no pessoal. Pílulas como o segmento do lado, e não um botão
    de ligar: a pergunta deixou de ser "tudo ou só o meu" e passou a ser "qual",
    e para "qual" a forma certa é a lista das respostas. */
-.fila-esp{flex:none;max-width:100%;overflow-x:auto;scrollbar-width:none}
-.fila-esp::-webkit-scrollbar{display:none}
-.fila-esp>button{white-space:nowrap}
+/* `fila-espacos` e não `fila-esp`: aquele já é a etiqueta do espaço DENTRO da
+   linha, e classe curta repetida é o jeito mais silencioso de uma tela quebrar
+   a outra, como `.trk` e `.cn` já fizeram. */
+.fila-espacos{flex:none;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.fila-espacos::-webkit-scrollbar{display:none}
+.fila-espacos>button{white-space:nowrap}
 
 /* De qual espaço a linha veio, quando não é deste. Etiqueta e não cor: cor
    nova só entra quando significa algo que a pessoa precisa agir, e "de qual
@@ -5337,48 +5340,6 @@ a.btn{text-decoration:none}
 /* A duração da reserva de capacidade, na pílula de dia inteiro. */
 .ev-chip em{font-style:normal;margin-left:auto;padding-left:6px;color:var(--tx-3);font-size:var(--fs-micro)}
 
-/* ------------------------------------- o saldo dos próximos dias, na fila */
-
-/* A fila diz O QUE fazer e a agenda diz QUANDO dá. Esta linha é onde as duas se
-   encontram: tarefa não ocupa horário, ocupa capacidade, e é essa capacidade em
-   números. Sem cor nova: a barra é neutra e só vira âmbar quando o dia estourou,
-   que é a mesma régua do "vence em breve". */
-.fila-saldo{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;
-  margin:0 0 12px;padding:10px 12px;border:1px solid var(--line);
-  border-radius:var(--r);background:var(--brilho)}
-.fila-saldo-d{min-width:0}
-.fila-saldo-d b{display:block;font:var(--fw-medium) var(--fs-micro)/1.2 var(--sans);
-  color:var(--tx-2);text-transform:capitalize;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.fila-saldo-d i{display:block;height:3px;border-radius:2px;background:var(--line-2);margin:5px 0 4px}
-.fila-saldo-d i em{display:block;height:100%;border-radius:2px;background:var(--line-3)}
-.fila-saldo-d span{font-size:var(--fs-micro);color:var(--tx-3);
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
-.fila-saldo-d.cheio span{color:var(--warn)}
-.fila-saldo-d.cheio i em{background:var(--warn)}
-
-@media (max-width:840px){
-  /* Três dias no telefone: cinco colunas em 393px dão 60px cada, e "12 out"
-     não cabe em 60px sem virar reticências. */
-  .fila-saldo{grid-template-columns:repeat(3,minmax(0,1fr))}
-  .fila-saldo-d:nth-child(n+4){display:none}
-}
-
-/* ------------------------------------- a dúvida da proposta, perguntada */
-
-/* Na dúvida entre tarefa e compromisso, o app pergunta em vez de chutar. A caixa
-   é discreta e fica dentro do cartão: ela não é um alerta, é uma pergunta de um
-   toque, e a proposta continua legível acima dela. */
-.sug-duvida{margin-top:9px;padding:9px 11px;border-radius:var(--r-sm);
-  background:var(--brilho);box-shadow:0 0 0 1px var(--line)}
-.sug-duvida b{display:block;font:var(--fw-medium) var(--fs-ui)/1.3 var(--sans);color:var(--tx)}
-.sug-duvida>span{display:block;margin:3px 0 8px;font-size:var(--fs-micro);color:var(--tx-3)}
-.sug-duvida .btn{padding:6px 12px;font-size:var(--fs-meta)}
-
-/* Faixa de tempo na fila: a mesma hierarquia dos grupos de antes, com o cabeçalho
-   grudado no alto enquanto a faixa rola. Sem isso, numa faixa de trinta linhas a
-   pessoa perde de vista se está lendo "Esta semana" ou "Este mês". */
-.fila-gh{position:sticky;top:0;z-index:2;background:var(--bg)}
-
 /* ------------------------------------ o ajuste do Organizar, conversando */
 
 /* Organizar devolvia uma lista e acabava ali: faltou uma coisa, e a saída era
@@ -5440,3 +5401,23 @@ a.btn{text-decoration:none}
 .gav-irmas li svg{width:12px;height:12px;color:var(--tx-3);flex:none}
 .gav-irmas li.feita{color:var(--tx-3);text-decoration:line-through}
 .gav-pe{margin-top:14px;flex-wrap:wrap}
+
+/* ------------------------------- a faixa do dia na fila, que abre e fecha */
+
+/* O cabeçalho substituiu a régua que ficava no alto: a informação encosta no
+   que ela descreve, em vez de repetir cinco dias numa fileira própria. E ele é
+   botão, porque numa fila de cem, três dias abertos e o resto recolhido é a
+   diferença entre olhar e procurar. */
+.fila-gh-b{display:flex;align-items:center;gap:8px;width:100%;background:none;
+  border:0;padding:0;font:inherit;color:inherit;text-align:left}
+.fila-gh-ch{display:inline-flex;transition:var(--t);color:var(--tx-3)}
+.fila-gh-ch svg{width:13px;height:13px}
+/* Fechado aponta para a direita; aberto, para baixo. O ícone é o mesmo. */
+.fila-gh-ch.virado{transform:rotate(-90deg)}
+.fila-gh-b>i{font-style:normal;font-size:var(--fs-micro);color:var(--tx-3);font-weight:400}
+.fila-gh-b>em{margin-left:auto;font-style:normal;font-size:var(--fs-micro);
+  color:var(--tx-3);font-weight:400;white-space:nowrap}
+
+/* A duração na linha. Ao lado do endereço, porque as duas respondem "o que é
+   esta tarefa" e não "o que fazer com ela". */
+.fila-dur{margin-left:8px;color:var(--tx-3);white-space:nowrap}

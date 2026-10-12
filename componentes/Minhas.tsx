@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { PedidosDePrazo } from './PedidosDePrazo'
 import { useDados } from './Dados'
@@ -60,6 +60,19 @@ export function Minhas() {
    * empresa ela já é daquela empresa, e não há o que estreitar.
    */
   const [espacoSo, setEspacoSo] = useState('')
+  /**
+   * Quais faixas estão recolhidas. Guardado no navegador, não no perfil.
+   *
+   * É preferência de leitura daquela tela naquele aparelho, e não um fato sobre
+   * a pessoa: no telefone ela recolhe quase tudo, no computador quase nada.
+   * Mesma régua do convite de instalar.
+   */
+  const [fechados, setFechados] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('track.fila.fechados') || '[]') } catch { return [] }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('track.fila.fechados', JSON.stringify(fechados)) } catch { /* sem armazenamento, sem memória */ }
+  }, [fechados])
   const [indo, setIndo] = useState('')
   const [termo, setTermo] = useState('')
   const [aberta, setAberta] = useState<string | null>(null)
@@ -277,32 +290,45 @@ export function Minhas() {
   const atual = abas.find((a) => a.id === filtro) || abas[0]
 
   /**
-   * A fila agrupada por TEMPO, e em todo filtro.
+   * A fila agrupada por DIA, e em todo filtro.
    *
-   * "A seguir" era um balaio: tudo que tem prazo futuro mais tudo que não tem
-   * prazo nenhum, numa lista só. Com cem tarefas isso não é uma fila, é um
-   * depósito, e quem abre fica perdido, que foi exatamente a palavra que o Leo
-   * usou. E escolher "Executar" devolvia um bloco chamado Executar, com a
-   * mesma pilha dentro.
+   * "A seguir" era um balaio, e virou sete faixas. Faltava o passo seguinte:
+   * dentro de "Esta semana" estavam quatro dias misturados, e saber se uma
+   * coisa é de quarta ou de sexta exigia ler o prazo linha por linha. Agora
+   * cada dia é um grupo, em ordem, **independente do espaço de cada tarefa**:
+   * o dia é um só, e ele não se divide pelo número de contratos que a pessoa
+   * tem.
    *
-   * Sete faixas, e elas são as perguntas que a pessoa realmente faz: o que
-   * passou, o que é hoje, o que é amanhã, o que é desta semana, o que é deste
-   * mês, o que vem depois e o que não tem data. **Faixa vazia não aparece**,
-   * então um dia tranquilo mostra duas linhas e não sete cabeçalhos vazios.
+   * Por dia até duas semanas, e depois disso em bloco: vinte cabeçalhos de um
+   * mês adiante seriam um calendário, e para calendário existe a Agenda.
+   *
+   * **Vencida fica em um grupo só.** Por dia ela viraria uma lista de lápides
+   * com data, e o que importa ali não é de quando é, é que passou.
    */
   const porTempo = (itens: Pendencia[]) => {
     const d = (p: Pendencia) => (p.prazo ? dias(p.prazo) : null)
-    return [
-      { titulo: 'Vencida', itens: itens.filter((p) => d(p) !== null && d(p)! < 0) },
-      { titulo: 'Hoje', itens: itens.filter((p) => d(p) === 0) },
-      { titulo: 'Amanhã', itens: itens.filter((p) => d(p) === 1) },
-      { titulo: 'Esta semana', itens: itens.filter((p) => d(p) !== null && d(p)! > 1 && d(p)! <= 7) },
-      { titulo: 'Este mês', itens: itens.filter((p) => d(p) !== null && d(p)! > 7 && d(p)! <= 31) },
-      { titulo: 'Depois', itens: itens.filter((p) => d(p) !== null && d(p)! > 31) },
-      // Sem prazo fica no FIM, e não no começo: ela é a que menos cobra, e pôr
-      // no alto empurra para baixo o que tem data, que é o que de fato vence.
-      { titulo: 'Sem prazo', itens: itens.filter((p) => d(p) === null) },
-    ].filter((b) => b.itens.length)
+    const saida: { titulo: string; quando?: string; itens: Pendencia[] }[] = []
+
+    const vencidas = itens.filter((p) => d(p) !== null && d(p)! < 0)
+    if (vencidas.length) saida.push({ titulo: 'Vencida', itens: vencidas })
+
+    for (let k = 0; k <= 14; k++) {
+      const doDia = itens.filter((p) => d(p) === k)
+      if (!doDia.length) continue
+      saida.push({
+        titulo: k === 0 ? 'Hoje' : k === 1 ? 'Amanhã' : `Em ${k} dias`,
+        quando: doDia[0].prazo || undefined,
+        itens: doDia,
+      })
+    }
+
+    const depois = itens.filter((p) => d(p) !== null && d(p)! > 14)
+    if (depois.length) saida.push({ titulo: 'Depois', itens: depois })
+    // Sem prazo no FIM: é a que menos cobra, e no alto empurra para baixo o que
+    // de fato vence.
+    const soltas = itens.filter((p) => d(p) === null)
+    if (soltas.length) saida.push({ titulo: 'Sem prazo', itens: soltas })
+    return saida
   }
 
   const blocos = filtro === 'tudo'
@@ -310,9 +336,9 @@ export function Minhas() {
         // Em "Tudo", o que eu pedi fica no fim, depois do que é meu: a fila
         // responde primeiro "o que eu faço", e só depois "o que estou esperando".
         ...porTempo(busca.filter((p) => p.tipo !== 'pedi' && !presa(p))),
-        { titulo: 'Aguardando', itens: travadas },
-        { titulo: 'Pedi', itens: pedidas },
-      ].filter((b) => b.itens.length)
+        ...(travadas.length ? [{ titulo: 'Aguardando', itens: travadas }] : []),
+        ...(pedidas.length ? [{ titulo: 'Pedi', itens: pedidas }] : []),
+      ]
     : porTempo(atual.itens)
 
   const naFila = blocos.flatMap((b) => b.itens)
@@ -390,7 +416,7 @@ export function Minhas() {
                 meu" e passa a ser "só a AVLE agora". Dentro de uma empresa a
                 fila já é daquela empresa, e não há o que estreitar. */}
             {pessoal && outros.length > 0 && (
-              <div className="seg fila-esp" role="group" aria-label="De qual espaço">
+              <div className="seg fila-espacos" role="group" aria-label="De qual espaço">
                 <button className={espacoSo ? '' : 'on'}
                   onClick={() => { setEspacoSo(''); setAberta(null) }}>Todos</button>
                 <button className={espacoSo === 'daqui' ? 'on' : ''}
@@ -408,30 +434,41 @@ export function Minhas() {
             </label>
           </div>
 
-          {/**
-            * O SALDO dos próximos dias, em cima da fila.
-            *
-            * A fila diz O QUE fazer e a agenda diz QUANDO dá; separadas, a
-            * pergunta que fica sem resposta é a única que importa de manhã, que
-            * é se o dia cabe. Aqui elas se encontram: tarefa não ocupa horário,
-            * ocupa capacidade, e esta linha é essa capacidade em números.
-            *
-            * Some quando ninguém deve nada, em vez de mostrar uma régua de
-            * zeros: dia sem tarefa com duração não tem o que dizer, e barra
-            * vazia ocupando o alto da tela é ruído que se aprende a pular.
-            */}
-          <SaldoDosDias saldoEm={saldoEm} temExpediente={!!expediente} />
-
           <p className="fila-ord"><Ic.chev />Ordenado por urgência</p>
 
           <div className="tf-cab fila-cab"><span>Pendência</span><span>Prazo</span></div>
 
-          {blocos.map((b) => (
+          {blocos.map((b) => {
+            /**
+             * O cabeçalho do dia diz o que o dia pesa, e ele SUBSTITUI a régua
+             * que ficava no alto da tela.
+             *
+             * Era uma fileira de cinco dias repetindo o que estes cabeçalhos já
+             * podiam dizer sozinhos, e ocupando o alto da tela para isso. Aqui a
+             * informação encosta no que ela descreve: "Em 2 dias · 3,2h de
+             * tarefa" é a mesma frase, no lugar certo, de graça.
+             */
+            const saldo = b.quando ? saldoEm(b.quando) : null
+            const fechado = fechados.includes(b.titulo)
+            return (
             <section key={b.titulo}>
               <h2 className={`fila-gh ${b.titulo === 'Vencida' ? 'late' : ''}`}>
-                {b.titulo} <span className="num">({b.itens.length})</span>
+                {/* O cabeçalho é BOTÃO: numa fila de cem, três dias abertos e o
+                    resto recolhido é a diferença entre olhar e procurar. O que
+                    está dentro continua dito no cabeçalho (quantas e quantas
+                    horas), então recolher não esconde quanto é. */}
+                <button className="fila-gh-b" aria-expanded={!fechado}
+                  onClick={() => setFechados((f) => (
+                    f.includes(b.titulo) ? f.filter((x) => x !== b.titulo) : [...f, b.titulo]
+                  ))}>
+                  <i className={`fila-gh-ch ${fechado ? 'virado' : ''}`}><Ic.chev /></i>
+                  {b.titulo}
+                  {!!b.quando && <i>{curta(b.quando)}</i>}
+                  <span className="num">({b.itens.length})</span>
+                  {!!saldo?.devido && <em>{horas(saldo.devido)} de tarefa</em>}
+                </button>
               </h2>
-              {b.itens.map((p) => {
+              {!fechado && b.itens.map((p) => {
                 const travas = travasDe(p)
                 const k = chave(p)
                 const feitos = p.tipo === 'aprov' ? p.etapa.itens.filter((x) => x.feito).length : 0
@@ -480,6 +517,12 @@ export function Minhas() {
                             : p.fora
                               ? `${p.fluxo.nome}${p.tipo === 'aprov' ? '' : ` / ${p.etapa.nome}`}`
                               : `${p.fluxo.nome}${p.tipo === 'aprov' ? '' : ` / ${etapaAtual(p.fluxo)?.nome || ''}`}`}
+                        {/* Quanto ela leva, na própria linha: o cabeçalho diz
+                            quanto o dia pesa, e sem isto não dá para saber qual
+                            das cinco é a que está pesando. */}
+                        {p.tipo === 'item' && !!p.item.minutos && (
+                          <span className="fila-dur">{horas(p.item.minutos)}</span>
+                        )}
                       </small>
                       {!!travas.length && (
                         <small className="fila-trava">
@@ -534,7 +577,8 @@ export function Minhas() {
                 )
               })}
             </section>
-          ))}
+            )
+          })}
 
           {!naFila.length && (
             <div className="tb-vazio">
@@ -769,44 +813,8 @@ function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoA
   )
 }
 
-/**
- * Os próximos dias úteis, com o que cada um já deve e o que sobra.
- *
- * Cinco dias, que é a semana de trabalho: mais que isso vira calendário, e para
- * calendário existe a Agenda. O que esta linha responde é "o dia de hoje e os
- * próximos cabem?", e para isso cinco bastam.
- */
-function SaldoDosDias({ saldoEm, temExpediente }: {
-  saldoEm: (dia: string) => { devido: number; sobra: number }
-  temExpediente: boolean
-}) {
-  const dias = useMemo(() => {
-    const saida: { dia: string; devido: number; sobra: number }[] = []
-    const d = data(hojeIso())
-    for (let i = 0; i < 14 && saida.length < 5; i++) {
-      const dia = iso(d)
-      const { devido, sobra } = saldoEm(dia)
-      // Dia sem expediente devolve sobra zero e devido zero: ele não entra, em
-      // vez de aparecer como um sábado lotado.
-      if (devido || sobra) saida.push({ dia, devido, sobra })
-      d.setDate(d.getDate() + 1)
-    }
-    return saida
-  }, [saldoEm])
 
-  if (!temExpediente || !dias.some((x) => x.devido)) return null
-  const h = (m: number) => (m >= 60 ? `${(m / 60).toFixed(m % 60 ? 1 : 0)}h` : `${m}min`)
-
-  return (
-    <div className="fila-saldo" data-tut="minhas-saldo">
-      {dias.map(({ dia, devido, sobra }) => (
-        <div className={`fila-saldo-d ${sobra <= 0 && devido ? 'cheio' : ''}`} key={dia}
-          title={`${h(devido)} de tarefa e ${h(sobra)} livres`}>
-          <b>{curta(dia)}</b>
-          <i><em style={{ width: `${Math.min(100, Math.round((devido / Math.max(devido + sobra, 1)) * 100))}%` }} /></i>
-          <span>{devido ? `${h(devido)} de tarefa` : 'livre'}</span>
-        </div>
-      ))}
-    </div>
-  )
+/** "3,2h", "45min". Duração escrita como gente fala, não em minutos crus. */
+function horas(m: number) {
+  return m >= 60 ? `${(m / 60).toFixed(m % 60 ? 1 : 0).replace('.', ',')}h` : `${m}min`
 }

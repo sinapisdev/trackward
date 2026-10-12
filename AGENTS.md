@@ -2496,6 +2496,25 @@ trabalho com o que ele já enxerga em Tracks. O buraco que a lista fecha é outr
 combinado num canal que ainda não tem forma mora numa track escondida, que não aparece em
 lugar nenhum, e sem ela quem pediu só descobre perguntando.
 
+**A fila agrupa por DIA, e cada faixa abre e fecha.** Primeiro "A seguir" virou sete faixas;
+depois "Esta semana" ainda misturava quatro dias, e saber se uma coisa é de quarta ou de
+sexta exigia ler o prazo linha por linha. Agora cada dia é um grupo ("Hoje", "Amanhã", "Em 2
+dias"), em ordem e **independente do espaço de cada tarefa**: o dia é um só, e não se divide
+pelo número de contratos que a pessoa tem. Por dia até duas semanas, e depois disso em
+bloco, porque vinte cabeçalhos de um mês adiante seriam um calendário, e para calendário
+existe a Agenda. **Vencida fica em um grupo só**: por dia ela viraria uma lista de lápides
+com data, e o que importa ali não é de quando é, é que passou.
+
+**O cabeçalho do dia diz o que o dia pesa, e ele SUBSTITUIU a régua do alto da tela.** Era
+uma fileira de cinco dias repetindo o que estes cabeçalhos já podiam dizer sozinhos, e
+ocupando o alto da tela para isso. "Em 2 dias · 14 out · (3) · 3,2h de tarefa" é a mesma
+informação encostada no que ela descreve. **E recolher não esconde quanto é**, porque a
+contagem e as horas continuam no cabeçalho; o que fica guardado é a escolha, no navegador,
+porque é preferência daquela tela naquele aparelho e não um fato sobre a pessoa.
+
+**E a duração aparece na própria linha**: o cabeçalho diz quanto o dia pesa, e sem ela não
+dá para saber qual das cinco é a que está pesando.
+
 **A fila agrupa por TEMPO, e em todo filtro.** "A seguir" era um balaio: tudo que tem
 prazo futuro mais tudo que não tem prazo nenhum, numa lista só. Com cem tarefas isso não é
 fila, é depósito, e quem abre fica **perdido**, que foi a palavra que o Leo usou em
