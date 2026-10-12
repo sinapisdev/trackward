@@ -15,7 +15,7 @@ import { TrilhaH } from './Trilha'
 import { MenuTarefa } from './MenuTarefa'
 import { Anexos } from './Anexos'
 import { classePrazo } from './partes'
-import { dias, isoDe, rel } from '@/lib/datas'
+import { curta, data, dias, hojeIso, iso, isoDe, rel } from '@/lib/datas'
 import { etapaAtual, oQuePedi, pendencias } from '@/lib/regras'
 import { AVULSA, NOME_DA_LISTA } from '@/lib/rotulos'
 import { minhaCarga } from '@/lib/sobrecarga'
@@ -34,7 +34,7 @@ const chave = (p: Pendencia) =>
 export function Minhas() {
   const { eu, org, pessoal, fluxos, fluxosComImplicitas, carregando, nomeDe, perfilDe, minhaLista,
     alternarItem, aprovar: aprovarSaida, meuDia, minhasEntregas, espacos,
-    trocarEspaco, notas, salvarNota, excluirItem } = useDados()
+    trocarEspaco, notas, salvarNota, excluirItem, saldoEm, expediente } = useDados()
   const { abrir } = useModais()
   const celular = useCelular()
   const router = useRouter()
@@ -358,6 +358,20 @@ export function Minhas() {
                 placeholder="Buscar na minha fila" aria-label="Buscar na minha fila" />
             </label>
           </div>
+
+          {/**
+            * O SALDO dos próximos dias, em cima da fila.
+            *
+            * A fila diz O QUE fazer e a agenda diz QUANDO dá; separadas, a
+            * pergunta que fica sem resposta é a única que importa de manhã, que
+            * é se o dia cabe. Aqui elas se encontram: tarefa não ocupa horário,
+            * ocupa capacidade, e esta linha é essa capacidade em números.
+            *
+            * Some quando ninguém deve nada, em vez de mostrar uma régua de
+            * zeros: dia sem tarefa com duração não tem o que dizer, e barra
+            * vazia ocupando o alto da tela é ruído que se aprende a pular.
+            */}
+          <SaldoDosDias saldoEm={saldoEm} temExpediente={!!expediente} />
 
           <p className="fila-ord"><Ic.chev />Ordenado por urgência</p>
 
@@ -700,5 +714,47 @@ function Gaveta({ p, travas, avulsa, nomeDe, perfilDe, aoFechar, aoConcluir, aoA
         : <Link className="gaveta-abrir" href={`/fluxo/${p.fluxo.id}`}>Abrir track <Ic.seta /></Link>
       )}
     </aside>
+  )
+}
+
+/**
+ * Os próximos dias úteis, com o que cada um já deve e o que sobra.
+ *
+ * Cinco dias, que é a semana de trabalho: mais que isso vira calendário, e para
+ * calendário existe a Agenda. O que esta linha responde é "o dia de hoje e os
+ * próximos cabem?", e para isso cinco bastam.
+ */
+function SaldoDosDias({ saldoEm, temExpediente }: {
+  saldoEm: (dia: string) => { devido: number; sobra: number }
+  temExpediente: boolean
+}) {
+  const dias = useMemo(() => {
+    const saida: { dia: string; devido: number; sobra: number }[] = []
+    const d = data(hojeIso())
+    for (let i = 0; i < 14 && saida.length < 5; i++) {
+      const dia = iso(d)
+      const { devido, sobra } = saldoEm(dia)
+      // Dia sem expediente devolve sobra zero e devido zero: ele não entra, em
+      // vez de aparecer como um sábado lotado.
+      if (devido || sobra) saida.push({ dia, devido, sobra })
+      d.setDate(d.getDate() + 1)
+    }
+    return saida
+  }, [saldoEm])
+
+  if (!temExpediente || !dias.some((x) => x.devido)) return null
+  const h = (m: number) => (m >= 60 ? `${(m / 60).toFixed(m % 60 ? 1 : 0)}h` : `${m}min`)
+
+  return (
+    <div className="fila-saldo" data-tut="minhas-saldo">
+      {dias.map(({ dia, devido, sobra }) => (
+        <div className={`fila-saldo-d ${sobra <= 0 && devido ? 'cheio' : ''}`} key={dia}
+          title={`${h(devido)} de tarefa e ${h(sobra)} livres`}>
+          <b>{curta(dia)}</b>
+          <i><em style={{ width: `${Math.min(100, Math.round((devido / Math.max(devido + sobra, 1)) * 100))}%` }} /></i>
+          <span>{devido ? `${h(devido)} de tarefa` : 'livre'}</span>
+        </div>
+      ))}
+    </div>
   )
 }

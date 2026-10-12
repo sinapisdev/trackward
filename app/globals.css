@@ -5333,3 +5333,29 @@ a.btn{text-decoration:none}
 
 /* A duração da reserva de capacidade, na pílula de dia inteiro. */
 .ev-chip em{font-style:normal;margin-left:auto;padding-left:6px;color:var(--tx-3);font-size:var(--fs-micro)}
+
+/* ------------------------------------- o saldo dos próximos dias, na fila */
+
+/* A fila diz O QUE fazer e a agenda diz QUANDO dá. Esta linha é onde as duas se
+   encontram: tarefa não ocupa horário, ocupa capacidade, e é essa capacidade em
+   números. Sem cor nova: a barra é neutra e só vira âmbar quando o dia estourou,
+   que é a mesma régua do "vence em breve". */
+.fila-saldo{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;
+  margin:0 0 12px;padding:10px 12px;border:1px solid var(--line);
+  border-radius:var(--r);background:var(--brilho)}
+.fila-saldo-d{min-width:0}
+.fila-saldo-d b{display:block;font:var(--fw-medium) var(--fs-micro)/1.2 var(--sans);
+  color:var(--tx-2);text-transform:capitalize;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fila-saldo-d i{display:block;height:3px;border-radius:2px;background:var(--line-2);margin:5px 0 4px}
+.fila-saldo-d i em{display:block;height:100%;border-radius:2px;background:var(--line-3)}
+.fila-saldo-d span{font-size:var(--fs-micro);color:var(--tx-3);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+.fila-saldo-d.cheio span{color:var(--warn)}
+.fila-saldo-d.cheio i em{background:var(--warn)}
+
+@media (max-width:840px){
+  /* Três dias no telefone: cinco colunas em 393px dão 60px cada, e "12 out"
+     não cabe em 60px sem virar reticências. */
+  .fila-saldo{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .fila-saldo-d:nth-child(n+4){display:none}
+}

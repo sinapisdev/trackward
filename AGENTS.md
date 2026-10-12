@@ -3452,6 +3452,13 @@ continua valendo mesmo quando leva o dia inteiro e mesmo quando ela diz quanto l
   `ocupacao()` sem hora, o colega leria o seu dia inteiro como ocupado por causa de duas
   horas de estudo. O que ele precisa saber é onde você tem hora marcada; o seu saldo é
   assunto seu.
+- **O saldo aparece nas DUAS telas, e isso não é repetição.** Na agenda ele é uma linha
+  por dia abaixo de Prazos, porque ali a pergunta é "o que cabe nesta terça". Na fila de
+  Tarefas são os cinco próximos dias em cima da lista, porque ali a pergunta é "o que eu
+  tenho pela frente". A fila diz O QUE fazer, a agenda diz QUANDO dá, e sem o saldo nos dois
+  lugares a única pergunta que importa de manhã, que é se o dia cabe, não tem resposta em
+  lugar nenhum. **Some quando ninguém deve nada**, em vez de mostrar uma régua de zeros:
+  barra vazia no alto da tela é ruído que se aprende a pular.
 - **O compromisso que come a folga AVISA, e deixa marcar.** Decisão do Leo, 12/10/2026, e é
   a mesma régua do expediente: a reunião das 19h com o cliente existe, e um app que a recusa
   é um app que se descobre contornando. O que ele pode fazer é não deixar você descobrir na
