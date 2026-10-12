@@ -8,7 +8,7 @@ import { curta, hojeIso, isoDe, soma } from '@/lib/datas'
 import { esqueletoEmBranco, proxPeriodo } from '@/lib/modelos'
 import type { RascunhoEtapa } from '@/lib/modelos'
 import { etapaAtual, pendencias } from '@/lib/regras'
-import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Feedback, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta, Anexo, Decisao, TipoDecisao, NaCascata, PedidoPrazo, Agente, Conector, Nota, LinhaDoDia,
+import type { AgendaExterna, Atividade, Canal, Compromisso, Espaco, Organizacao, Convite, Empresa, Etapa, Feedback, Fluxo, Item, Mensagem, Papel, Perfil, Area, Processo, ProcessoEtapa, ProcessoItem, Sugestao, TipoCanal, Volta, Anexo, Decisao, TipoDecisao, NaCascata, PedidoPrazo, Agente, Conector, Nota, LinhaDoDia, DetalheDeFora,
   Aviso, AvisoContato, PushAssinatura, Ciclo } from '@/lib/tipos'
 import { chama } from '@/lib/mencao'
 import { MODO_LOCAL } from '@/lib/modo'
@@ -393,6 +393,20 @@ type Contexto = {
    * agenda, para dizer o saldo do dia, e o formulário de compromisso, para
    * avisar quando a reunião nova come a folga que as tarefas precisam.
    */
+  /**
+   * O detalhe de uma tarefa de OUTRO espaço meu, para a gaveta abrir inteira.
+   *
+   * A gaveta mostra trilha, critério e as outras tarefas do checkpoint, e nada
+   * disso atravessa pela tabela: era por isso que a linha de fora levava ao
+   * outro espaço em vez de abrir. Trocar de empresa para mexer numa linha custa
+   * duas trocas por tarefa, que é o que `concluir_meu_item` existiu para evitar.
+   */
+  detalheDeFora: (itemId: string) => Promise<DetalheDeFora | null>
+  /** Edita a minha tarefa em qualquer espaço meu. Prazo continua obedecendo ao banco. */
+  editarDeFora: (d: {
+    item_id: string; texto: string; descricao?: string
+    prazo?: string | null; minutos?: number | null; repete?: Repeticao | null
+  }) => Promise<boolean>
   saldoEm: (dia: string) => { devido: number; sobra: number }
   salvarCompromisso: (d: Partial<Compromisso> & { convidados: string[] }) => Promise<string | null>
   excluirCompromisso: (id: string) => Promise<void>
@@ -2605,6 +2619,24 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     return { devido, sobra: saldoDoDia(expediente, dia, comHora, devido) }
   }, [devedores, agenda, expediente])
 
+  const detalheDeFora = useCallback<Contexto['detalheDeFora']>(async (itemId) => {
+    const { data, error } = await sb.rpc('detalhe_do_item', { p_item: itemId })
+    if (error) { falhou(error, 'Não deu para abrir esta tarefa.'); return null }
+    const linha = (Array.isArray(data) ? data[0] : data) as DetalheDeFora | undefined
+    return linha || null
+  }, [sb, falhou])
+
+  const editarDeFora = useCallback<Contexto['editarDeFora']>(async (d) => {
+    const { error } = await sb.rpc('editar_meu_item', {
+      p_item: d.item_id, p_texto: d.texto, p_descricao: d.descricao ?? null,
+      p_prazo: d.prazo || null, p_minutos: d.minutos ?? null, p_repete: d.repete ?? null,
+    })
+    if (error) { falhou(error, 'Não deu para salvar esta tarefa.'); return false }
+    toast('Tarefa salva.')
+    recarregar()
+    return true
+  }, [sb, falhou, toast, recarregar])
+
   const aceitarSugestao: Contexto['aceitarSugestao'] = useCallback(async (sug, ajuste, porIa = false) => {
     const dados: Alvo = { ...sug.dados, ...ajuste }
     const fluxoEscolhido = todosFluxos.find((x) => x.id === dados.fluxo_id) || null
@@ -4554,7 +4586,7 @@ linhas dizendo o que você fez. Se ela apontou algo que faltou, procure na nota 
     preverCascata, moverPrazo, devolverItem, pedidosPrazo, decidirPrazo,
     enviar, enviarAudio, abrirAudio, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
     executarComando, passarContato,
-    saldoEm,
+    saldoEm, detalheDeFora, editarDeFora,
     lerConversa, lerNota, ajustarOrganizacao, aceitarSugestao, recusarSugestao,
     espacos, trocarEspaco, abrirEspaco,
   }

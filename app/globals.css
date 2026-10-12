@@ -5426,3 +5426,17 @@ a.btn{text-decoration:none}
 .dur-livre{margin-top:8px;align-items:center}
 .dur-livre .inp{width:96px;flex:none}
 .dur-livre .hint{margin:0}
+
+/* ------------------------------- a gaveta de uma tarefa de outro espaço */
+
+/* Mesma caixa da gaveta de sempre; o que muda é o conteúdo, que vem do banco em
+   vez da árvore local. A etiqueta do espaço fica no alto, porque é a primeira
+   coisa que a pessoa precisa saber: esta tarefa não é daqui. */
+.gav-onde{margin:0 0 4px;font-size:var(--fs-ui);color:var(--tx-2)}
+.gav-onde b{font-weight:var(--fw-medium);color:var(--tx)}
+.gav-criterio{margin:0 0 14px}
+.gav-irmas{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.gav-irmas li{display:flex;align-items:center;gap:7px;font-size:var(--fs-meta);color:var(--tx-2)}
+.gav-irmas li svg{width:12px;height:12px;color:var(--tx-3);flex:none}
+.gav-irmas li.feita{color:var(--tx-3);text-decoration:line-through}
+.gav-pe{margin-top:14px;flex-wrap:wrap}

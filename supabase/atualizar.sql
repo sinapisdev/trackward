@@ -8156,6 +8156,131 @@ $$;
 revoke all on function public.meu_dia() from public, anon;
 grant execute on function public.meu_dia() to authenticated, service_role;
 
+-- --------------------------------------------------------------------------
+-- 81. A tarefa de outro espaço se abre e se edita AQUI
+--
+--     A regra era "a gaveta é só do que é daqui, e para o que é de fora a linha
+--     leva ao espaço da tarefa". O motivo era honesto: a gaveta mostra trilha,
+--     critério e as outras tarefas do checkpoint, e nada disso atravessa, então
+--     ela abriria pela metade.
+--
+--     Em uso isso virou outra coisa. Quem abre o pessoal de manhã vê o dia
+--     inteiro, de todas as empresas, e tocar numa linha **troca a empresa
+--     debaixo dos pés**: a lista some, a tela recarrega, e para voltar é trocar
+--     de novo. Fechar cinco tarefas no fim do dia custa dez trocas de espaço,
+--     que é exatamente o que `concluir_meu_item` existiu para evitar. O Leo
+--     apontou em 12/10/2026: "no pessoal eu posso editar, fazer tudo por ali
+--     mesmo".
+--
+--     O conserto não é afrouxar política nenhuma: é dar à tela o que falta para
+--     ela abrir INTEIRA. `detalhe_do_item` devolve o contexto que a gaveta
+--     mostra, e `editar_meu_item` escreve pelo mesmo caminho de
+--     `concluir_meu_item`, com `agir_como` carimbando a casa certa.
+--
+--     **As duas são estreitas de propósito**, pela mesma razão daquela: é o
+--     atalho de quem vai FAZER o trabalho, não um segundo caminho para mexer no
+--     dos outros. Fora quem executa (ou escreveu), elas recusam, e a pessoa
+--     continua indo ao espaço da tarefa, onde as regras valem inteiras.
+-- --------------------------------------------------------------------------
+
+/**
+ * O que a gaveta precisa para abrir inteira, de qualquer espaço meu.
+ *
+ * `security definer` porque RLS filtra por `minha(org_id)`, e a graça aqui é
+ * justamente ler o que está noutra casa minha. A conferência é dentro, e é a
+ * mesma de `concluir_meu_item`: tem que ser tarefa em que EU executo ou que EU
+ * escrevi. Função definer que aceita um id sem conferir é a porta dos fundos da
+ * política que está ao lado dela (seção 52).
+ */
+create or replace function public.detalhe_do_item(p_item uuid)
+returns table (
+  item_id uuid, texto text, descricao text, prazo date, minutos integer,
+  repete jsonb, feito boolean, priv boolean, ressalva boolean,
+  fluxo_id uuid, track text, tipo text, implicita boolean,
+  etapa_id uuid, checkpoint text, criterio text, ordem int,
+  org_id uuid, espaco text, manda boolean,
+  /* As outras tarefas do mesmo checkpoint, para a gaveta dizer onde esta mora.
+     Só texto e situação: quem não participa daquele espaço não ganha a lista
+     de quem faz o quê por abrir uma gaveta. */
+  irmas jsonb
+)
+language sql stable security definer set search_path = public as $$
+  with meu as (
+    select i.*
+    from itens i
+    where i.id = p_item
+      and (
+        i.resp_id in (select p.id from perfis p where p.user_id = auth.uid() and p.ativo)
+        or i.autor_id in (select p.id from perfis p where p.user_id = auth.uid() and p.ativo)
+      )
+  )
+  select
+    m.id, m.texto, m.descricao, m.prazo, m.minutos, m.repete, m.feito, m.priv, m.ressalva,
+    f.id, f.nome, f.tipo, f.implicita,
+    e.id, e.nome, e.criterio, e.ordem,
+    f.org_id, o.nome,
+    /* Se eu mando no processo daquela track, LÁ. `manda_no_processo` pergunta
+       pela sessão, que é daqui, então ela responderia sobre a casa errada: a
+       pergunta certa é se o meu perfil DAQUELA casa é admin ou dono. */
+    exists (
+      select 1 from perfis p
+      where p.user_id = auth.uid() and p.ativo and p.org_id = f.org_id
+        and (p.papel in ('admin', 'gestor') or f.dono_id = p.id or e.aprovador_id = p.id)
+    ),
+    coalesce((
+      select jsonb_agg(jsonb_build_object('texto', x.texto, 'feito', x.feito) order by x.ordem)
+      from itens x where x.etapa_id = e.id and x.id <> m.id and not x.priv
+    ), '[]'::jsonb)
+  from meu m
+  join etapas e on e.id = m.etapa_id
+  join fluxos f on f.id = m.fluxo_id
+  join organizacoes o on o.id = f.org_id;
+$$;
+revoke all on function public.detalhe_do_item(uuid) from public, anon;
+grant execute on function public.detalhe_do_item(uuid) to authenticated, service_role;
+
+/**
+ * Editar a minha tarefa, em qualquer espaço meu.
+ *
+ * Mesmo caminho de `concluir_meu_item`, e as mesmas duas travas. `agir_como`
+ * (seção 44) é o que faz a escrita nascer com a organização certa: sem ele a
+ * linha sai com a casa da SESSÃO e ninguém a enxerga, nem quem a escreveu.
+ *
+ * **O prazo obedece a `proteger_item`**, e não a este parâmetro: quem não
+ * responde pelo processo manda o que quiser aqui que o gatilho devolve o antigo.
+ * É de propósito, e é o que impede esta função de ser a porta dos fundos da
+ * regra "prazo é compromisso com quem espera".
+ */
+create or replace function public.editar_meu_item(
+  p_item uuid, p_texto text, p_descricao text default null,
+  p_prazo date default null, p_minutos integer default null, p_repete jsonb default null
+) returns void language plpgsql volatile security definer set search_path = public as $$
+declare it itens%rowtype; v_eu uuid;
+begin
+  select * into it from itens where id = p_item;
+  if it.id is null then raise exception 'Tarefa não encontrada.'; end if;
+
+  select p.id into v_eu from perfis p
+   where p.id in (it.resp_id, it.autor_id) and p.user_id = auth.uid() and p.ativo
+   limit 1;
+  if v_eu is null then raise exception 'Essa tarefa não é sua.'; end if;
+
+  perform agir_como(v_eu);
+
+  update itens set
+    texto     = coalesce(nullif(btrim(p_texto), ''), texto),
+    descricao = coalesce(p_descricao, descricao),
+    prazo     = p_prazo,
+    minutos   = p_minutos,
+    repete    = p_repete
+  where id = p_item;
+end $$;
+revoke all on function public.editar_meu_item(uuid, text, text, date, integer, jsonb)
+  from public, anon;
+grant execute on function public.editar_meu_item(uuid, text, text, date, integer, jsonb)
+  to authenticated, service_role;
+
+
 
 
 
@@ -8753,4 +8878,15 @@ select
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname = 'meu_dia'
       and pg_get_functiondef(p.oid) like '%i.minutos%')
-    as "o dia leva a duracao (1)";
+    as "o dia leva a duracao (1)",
+  -- A tarefa de outro espaço abre e se edita aqui, em vez de trocar a empresa
+  -- debaixo dos pés de quem só queria mexer numa linha.
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname in ('detalhe_do_item', 'editar_meu_item'))
+    as "abrir e editar de fora (2)",
+  -- E elas são do dono do trabalho: definer que aceita id sem conferir é a
+  -- porta dos fundos da política que está ao lado dela.
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'editar_meu_item'
+      and pg_get_functiondef(p.oid) like '%Essa tarefa não é sua%')
+    as "editar de fora confere o dono (1)";

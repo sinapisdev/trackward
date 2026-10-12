@@ -268,9 +268,24 @@ teria custado.
   recusa a dos outros, e desmarcar a de alguém é dizer que não foi feito o que foi. O botão
   é quieto: desfazer não é a ação que faz o trabalho andar.
 
-- **A gaveta é só do que é daqui.** Ela mostra trilha, critério e as outras tarefas do
-  checkpoint, e nada disso atravessa: para o que é de fora ela abriria pela metade. Lá a
-  linha leva ao espaço da tarefa. O que atravessa é concluir, e isso é o visto da linha.
+- **A gaveta ABRE para o que é de outro espaço meu, e dá para editar ali** (seção 81). A
+  regra era a contrária, e o motivo era honesto: trilha, critério e as outras tarefas do
+  checkpoint não atravessam pela tabela, então ela abriria pela metade. **Em uso isso virou
+  outra coisa**: quem abre o pessoal de manhã vê o dia inteiro, e tocar numa linha trocava a
+  empresa debaixo dos pés, com a lista sumindo e a tela recarregando. Fechar cinco tarefas
+  no fim do dia custava dez trocas de espaço, que é exatamente o que `concluir_meu_item`
+  existiu para evitar. O conserto não afrouxa política: `detalhe_do_item` dá à gaveta o que
+  faltava para ela abrir inteira, e `editar_meu_item` escreve pelo mesmo caminho de
+  concluir, com `agir_como` carimbando a casa certa.
+- **As duas são estreitas, como aquela**: só a tarefa que EU executo ou que EU escrevi.
+  Definer que aceita um id sem conferir é a porta dos fundos da política que está ao lado
+  dela (seção 52), e esta não é um segundo caminho para mexer no trabalho dos outros.
+- **E o prazo continua obedecendo ao BANCO**, não ao campo: quem não responde pelo processo
+  daquela casa manda o que quiser que `proteger_item` devolve o antigo. A tela desabilita o
+  campo só para dizer a verdade antes.
+- **A porta para o espaço da tarefa continua, e virou ESCOLHA**, dentro da gaveta. O que ela
+  dá a mais é a conversa da track, os anexos e a trilha inteira, que não cabem ali e não
+  deveriam caber.
 - **`agir_como` é o que deixa escrever noutro espaço meu**, e `carimbar_org` passou a
   resolver `org_de_quem_age()` ANTES de `minha_org()`: sem a troca, a linha escrita fora
   nasce com a organização da sessão e **ninguém a enxerga, nem quem a escreveu**, que é o

@@ -13,6 +13,7 @@ import { Ic } from './Icones'
 import { Av } from './atomos'
 import { TrilhaH } from './Trilha'
 import { MenuTarefa } from './MenuTarefa'
+import { GavetaDeFora } from './GavetaDeFora'
 import { Anexos } from './Anexos'
 import { classePrazo } from './partes'
 import { curta, data, dias, hojeIso, iso, isoDe, rel } from '@/lib/datas'
@@ -204,10 +205,15 @@ export function Minhas() {
    * e nada disso atravessa. O que atravessa é concluir, e isso acontece no
    * visto da própria linha, sem sair do lugar.
    */
-  const abrirLinha = async (p: Pendencia, k: string) => {
-    if (!p.fora) { setAberta(k); return }
-    await irPara({ org_id: p.org_id!, fluxo_id: p.fluxo.id, implicita: !!p.fluxo.implicita })
-  }
+  /**
+   * Abrir a linha, e agora também a de FORA.
+   *
+   * Ela trocava a empresa debaixo dos pés: a lista sumia, a tela recarregava, e
+   * para voltar era trocar de novo. Fechar cinco tarefas no fim do dia custava
+   * dez trocas de espaço, que é o que `concluir_meu_item` existiu para evitar.
+   * A porta para o espaço dela continua, dentro da gaveta, e virou escolha.
+   */
+  const abrirLinha = async (p: Pendencia, k: string) => { setAberta(k) }
 
   /**
    * Levar a pessoa até a tarefa, trocando de espaço quando ela é de outro.
@@ -322,7 +328,7 @@ export function Minhas() {
      disso atravessa: para o que é de fora ela abriria pela metade. Lá a linha
      leva ao espaço da tarefa, onde a gaveta está inteira. */
   const daquiNaFila = naFila.filter((p) => !p.fora)
-  const sel = naFila.find((p) => chave(p) === aberta && !p.fora)
+  const sel = naFila.find((p) => chave(p) === aberta)
     || (celular ? null : daquiNaFila[0]) || null
 
   const Etiqueta = ({ p }: { p: Pendencia }) =>
@@ -551,7 +557,10 @@ export function Minhas() {
         {sel && celular && (
           <div className="folha-fundo" onClick={() => setAberta(null)} aria-hidden />
         )}
-        {sel && <Gaveta p={sel} travas={travasDe(sel).length}
+        {/* A de fora abre a sua própria gaveta: a daqui mostra trilha e
+            critério lidos da árvore local, que não atravessa. */}
+        {sel?.fora && <GavetaDeFora p={sel} aoFechar={() => setAberta(null)} />}
+        {sel && !sel.fora && <Gaveta p={sel} travas={travasDe(sel).length}
           avulsa={sel.fluxo.id === minhaLista?.id} nomeDe={nomeDe} perfilDe={perfilDe}
           aoFechar={() => setAberta(null)}
           aoConcluir={() => { if (sel.tipo === 'item') void alternarItem(sel.item) }}

@@ -1060,3 +1060,36 @@ export type ProcessoDescoberto = {
   criado_em: string
   mexido_em: string
 }
+
+/**
+ * O detalhe de uma tarefa que mora noutro espaço meu.
+ *
+ * A gaveta precisa disto para abrir INTEIRA: sem a trilha, o critério e as
+ * outras tarefas do checkpoint ela abriria pela metade, e era por isso que a
+ * linha de fora levava ao outro espaço em vez de abrir aqui. Vem de
+ * `detalhe_do_item` (seção 81), que confere lá dentro que a tarefa é minha.
+ */
+export type DetalheDeFora = {
+  item_id: string
+  texto: string
+  descricao: string
+  prazo: string | null
+  minutos: number | null
+  repete: Repeticao | null
+  feito: boolean
+  priv: boolean
+  ressalva: boolean
+  fluxo_id: string
+  track: string
+  tipo: Tipo
+  implicita: boolean
+  etapa_id: string
+  checkpoint: string
+  criterio: string
+  ordem: number
+  org_id: string
+  espaco: string
+  /** Mando no processo DAQUELA casa: é o que decide se o prazo é editável. */
+  manda: boolean
+  irmas: { texto: string; feito: boolean }[]
+}
