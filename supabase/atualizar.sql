@@ -7898,6 +7898,145 @@ $$;
 revoke all on function public.minhas_estimativas() from public, anon;
 grant execute on function public.minhas_estimativas() to authenticated, service_role;
 
+-- --------------------------------------------------------------------------
+-- 79. A tarefa que volta
+--
+--     "Toda segunda eu mando o relatório" não tem onde morar: vira sete tarefas
+--     digitadas à mão, ou uma rotina inteira com checkpoint e aprovação, que é
+--     maquinário demais para uma coisa que leva dez minutos. A rotina continua
+--     sendo a resposta para o processo que dá voltas (fechamento mensal, com
+--     etapas e arquivo); isto aqui é a resposta para o LEMBRETE que dá voltas.
+--
+--     **É a MESMA linha que volta, e não uma por volta.** Decisão do Leo,
+--     12/10/2026, e ela vem de uma pergunta só: "você olha para trás para ver se
+--     cumpriu?". Não olha. Então guardar uma linha por semana seria encher a
+--     lista e o banco para alimentar um histórico que ninguém abre, e a lista
+--     que cresce sozinha é o que faz alguém largar o app. Concluir empurra o
+--     prazo para a próxima vez e desmarca.
+--
+--     **A consequência, dita para não ser descoberta depois:** a tarefa que
+--     volta nunca aparece em "O que saiu", no Desempenho, porque ela nunca fica
+--     concluída. É o preço de não guardar histórico, e foi escolhido sabendo.
+--
+--     **A conta mora SÓ aqui**, e a regra em TypeScript (`lib/repetir.ts`) só
+--     sabe dizer a frase ("toda segunda"). Duas aritméticas de calendário é a
+--     garantia de que um dia a tela promete uma data e o banco grava outra.
+-- --------------------------------------------------------------------------
+
+/**
+ * A regra da volta, ou nulo quando a tarefa não volta.
+ *
+ *   {"cada": "dia",    "n": 2}                 dia sim, dia não
+ *   {"cada": "semana", "n": 1, "dias": [1]}    toda segunda
+ *   {"cada": "semana", "n": 1, "dias": [1,3,5]} segunda, quarta e sexta
+ *   {"cada": "mes",    "n": 1}                 todo mês, no mesmo dia
+ *
+ * `dias` usa 0 para domingo, como `extract(dow)` e como `Date.getDay()`: três
+ * lugares com a mesma convenção é o que evita a segunda-feira virar terça na
+ * tradução.
+ */
+alter table public.itens add column if not exists repete jsonb;
+alter table public.itens drop constraint if exists itens_repete_vale;
+alter table public.itens add constraint itens_repete_vale check (
+  repete is null or (
+    repete->>'cada' in ('dia', 'semana', 'mes')
+    and (repete->>'n')::int between 1 and 30
+  )
+);
+
+/**
+ * A próxima data de uma tarefa que volta.
+ *
+ * Conta a partir da data que ela TINHA, e não de hoje: quem conclui a segunda
+ * na quarta continua com a próxima na segunda seguinte, que é o que "toda
+ * segunda" quer dizer. Mas nunca devolve passado, senão concluir uma atrasada
+ * de três semanas devolveria outra atrasada, e a pessoa ficaria marcando a
+ * mesma coisa até alcançar o presente.
+ */
+create or replace function public.proxima_volta(p_de date, p_regra jsonb)
+returns date language plpgsql immutable as $$
+declare
+  v_cada text := p_regra->>'cada';
+  v_n    int  := coalesce((p_regra->>'n')::int, 1);
+  v_dias int[];
+  v_d    date := coalesce(p_de, current_date);
+  i      int;
+begin
+  if p_regra is null then return null; end if;
+
+  if v_cada = 'semana' and p_regra ? 'dias' then
+    select array_agg(x::int) into v_dias
+    from jsonb_array_elements_text(p_regra->'dias') x;
+  end if;
+
+  if v_dias is not null and array_length(v_dias, 1) > 0 then
+    -- Dias da semana escolhidos: anda um dia por vez até cair num deles. O teto
+    -- de 70 cobre a cada-10-semanas sem virar laço infinito se a regra for torta.
+    for i in 1..70 loop
+      v_d := v_d + 1;
+      if extract(dow from v_d)::int = any(v_dias) then exit; end if;
+    end loop;
+  elsif v_cada = 'dia' then
+    v_d := v_d + v_n;
+  elsif v_cada = 'semana' then
+    v_d := v_d + (v_n * 7);
+  else
+    v_d := (v_d + (v_n || ' month')::interval)::date;
+  end if;
+
+  -- Nunca para trás: a atrasada de três semanas volta para a próxima de
+  -- verdade, e não para outra atrasada.
+  while v_d < current_date loop
+    if v_dias is not null and array_length(v_dias, 1) > 0 then
+      v_d := v_d + 1;
+      while extract(dow from v_d)::int <> all(v_dias) loop v_d := v_d + 1; end loop;
+    elsif v_cada = 'dia' then v_d := v_d + v_n;
+    elsif v_cada = 'semana' then v_d := v_d + (v_n * 7);
+    else v_d := (v_d + (v_n || ' month')::interval)::date;
+    end if;
+  end loop;
+
+  return v_d;
+end $$;
+revoke all on function public.proxima_volta(date, jsonb) from public, anon;
+grant execute on function public.proxima_volta(date, jsonb) to authenticated, service_role;
+
+/**
+ * Concluída, ela volta.
+ *
+ * Gatilho e não tela, pelo mesmo motivo de `liberar_reserva` e de
+ * `aviso_ao_concluir`: concluir acontece de quatro lugares (a linha, a gaveta,
+ * a track, o WhatsApp), e a tela de um deles sempre esquece.
+ *
+ * `before` e não `after`, porque o que ele faz é DESFAZER a conclusão na mesma
+ * instrução: a linha nunca chega a existir concluída, e por isso ela não dispara
+ * aviso de conclusão nem entra no relatório. É de propósito, e é o preço de não
+ * guardar uma linha por volta.
+ */
+create or replace function public.volta_a_tarefa()
+returns trigger language plpgsql as $$
+begin
+  if new.repete is not null and new.feito and not coalesce(old.feito, false) then
+    new.prazo    := proxima_volta(old.prazo, new.repete);
+    new.feito    := false;
+    new.feito_em := null;
+  end if;
+  return new;
+end $$;
+revoke all on function public.volta_a_tarefa() from public, anon, authenticated;
+
+/**
+ * Ele roda ANTES de `proteger_item`, e a ordem não é acaso: o Postgres dispara
+ * gatilhos do mesmo evento em ordem alfabética, e `ao_repetir_item` vem antes de
+ * `ao_salvar_item`. Assim o `feito_em` que aquele calcula já vê a conclusão
+ * desfeita, em vez de carimbar hora numa tarefa que voltou a ficar aberta.
+ */
+drop trigger if exists ao_repetir_item on public.itens;
+create trigger ao_repetir_item
+  before update of feito on public.itens
+  for each row execute function public.volta_a_tarefa();
+
+
 
 
 
@@ -8478,4 +8617,13 @@ select
   -- E ela é do dono e de mais ninguém: quanto tempo você leva é seu.
   (select count(*) from pg_policies
     where schemaname = 'public' and tablename = 'estimativas')
-    as "politicas das estimativas (3)";
+    as "politicas das estimativas (3)",
+  -- A tarefa que volta: a MESMA linha, com o prazo empurrado. Guardar uma por
+  -- volta seria encher a lista para alimentar um histórico que ninguém abre.
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'itens' and column_name = 'repete')
+    as "a tarefa que volta (1)",
+  -- E quem a devolve é gatilho, não a tela: concluir acontece de quatro lugares.
+  (select count(*) from pg_trigger
+    where tgname = 'ao_repetir_item' and not tgisinternal)
+    as "concluir devolve a repetida (1)";

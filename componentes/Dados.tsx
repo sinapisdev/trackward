@@ -44,6 +44,7 @@ import {
   dentro, diaUtil, somaMinutos, temExpediente, vagas, type Expediente,
 } from '@/lib/expediente'
 import { envolvidos } from '@/lib/agenda'
+import type { Repeticao } from '@/lib/repetir'
 import { devidoNoDia, diasComSaldo, saldoDoDia, type Devedor } from '@/lib/plano'
 import type { ContextoConversa, Fala } from '@/lib/conversa'
 import type { Alvo } from '@/lib/tipos'
@@ -91,6 +92,8 @@ type DadosItem = {
    * hora. É também o tamanho da reserva que vai para a agenda.
    */
   minutos?: number | null
+  /** A regra da volta, quando a tarefa se repete. Nulo é tarefa que acaba. */
+  repete?: Repeticao | null
   /** Sem aviso na tela: quem chamou já vai dizer algo mais importante. */
   quieto?: boolean
 }
@@ -1282,6 +1285,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       priv: d.priv,
       prazo_firme: !!d.firme,
       minutos: d.minutos ?? null,
+      repete: d.repete ?? null,
       autor_id: eu.id,
       ordem: et.itens.length,
     })
@@ -1311,7 +1315,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       .from('itens')
       .update({
         texto: d.texto, descricao: d.descricao ?? '', resp_id: d.resp_id, prazo: d.prazo || null,
-        priv: d.priv, prazo_firme: !!d.firme,
+        priv: d.priv, prazo_firme: !!d.firme, repete: d.repete ?? null,
       })
       .eq('id', item.id)
     if (error) return falhou(error, 'Não foi possível salvar o item.')

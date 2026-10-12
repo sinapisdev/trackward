@@ -4,13 +4,16 @@ import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, u
 import { useRouter } from 'next/navigation'
 import { useDados } from './Dados'
 import { emMinutos } from '@/lib/expediente'
+import {
+  ATALHOS, escrito as escritoRepeticao, mesma as mesmaRepeticao, valida as validaRepeticao,
+} from '@/lib/repetir'
 import { Ic } from './Icones'
 import { explicaTipo, rotuloTipo } from '@/lib/rotulos'
 import { AvisoPrazo } from './AvisoPrazo'
 import { FAIXAS, porque } from '@/lib/sobrecarga'
 import { Av } from './atomos'
 import Link from 'next/link'
-import { curta, dias, hojeIso } from '@/lib/datas'
+import { curta, dias, DSEM, hojeIso } from '@/lib/datas'
 import { podeMexerNoPrazo } from '@/lib/acesso'
 import { MOTIVOS } from '@/lib/desfecho'
 import { faixa, minutos, ocupados } from '@/lib/agenda'
@@ -1329,6 +1332,14 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
   )
   const [priv, setPriv] = useState(!!item?.priv)
   const [firme, setFirme] = useState(!!item?.prazo_firme)
+  /**
+   * A regra da volta. Nulo é tarefa que acaba, que é a maioria.
+   *
+   * Repetição morre de formulário: "a cada [2] [semanas] nos dias [ ][x][ ]" é
+   * correto e ninguém preenche. São atalhos, e o ajuste fino é escolher os dias
+   * da semana, que é o único que vale a tela.
+   */
+  const [repete, setRepete] = useState(validaRepeticao(item?.repete) )
   const [avisando, setAvisando] = useState(false)
   const [travas, setTravas] = useState<string[]>(item?.depende_de || [])
   const [busca, setBusca] = useState('')
@@ -1359,7 +1370,7 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
   const gravarResto = async () => {
     if (!item) return
     await editarItem(item, {
-      texto: texto.trim(), descricao, resp_id: resp, prazo, priv, firme, quieto: true,
+      texto: texto.trim(), descricao, resp_id: resp, prazo, priv, firme, repete, quieto: true,
     })
     if (JSON.stringify(travas) !== JSON.stringify(item.depende_de)) await definirTravas(item, travas)
   }
@@ -1371,7 +1382,7 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
     // O aviso vem antes de gravar qualquer coisa: quem vai mexer numa data
     // precisa ver o que ela arrasta antes de arrastar.
     if (mexeuNoPrazo) { setAvisando(true); return }
-    const d = { texto: texto.trim(), descricao, resp_id: resp, prazo, priv, firme }
+    const d = { texto: texto.trim(), descricao, resp_id: resp, prazo, priv, firme, repete }
     if (item) {
       await editarItem(item, d)
       if (JSON.stringify(travas) !== JSON.stringify(item.depende_de)) await definirTravas(item, travas)
@@ -1435,6 +1446,49 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
               </p>
             )
           })()}
+
+          {/* A tarefa que volta, logo depois do prazo, porque é o prazo que ela
+              empurra: concluir não fecha a tarefa, manda para a próxima vez. A
+              rotina continua sendo outra coisa, para o processo que dá voltas
+              com checkpoint e arquivo; isto é o lembrete que dá voltas. */}
+          {mandaNoPrazo && (
+            <div className="fld">
+              <label>Repetir</label>
+              <div className="rep-atalhos">
+                <button type="button" className={repete ? '' : 'on'}
+                  onClick={() => setRepete(null)}>Não repete</button>
+                {ATALHOS.map((a) => (
+                  <button type="button" key={a.nome}
+                    className={mesmaRepeticao(repete, a.volta) ? 'on' : ''}
+                    onClick={() => setRepete(a.volta)}>{a.nome}</button>
+                ))}
+              </div>
+              {/* Os dias da semana só aparecem quando a repetição é semanal:
+                  antes disso eles são sete caixas perguntando sobre uma coisa
+                  que ainda não existe. */}
+              {repete?.cada === 'semana' && (
+                <div className="rep-dias">
+                  {DSEM.map((d, k) => (
+                    <button type="button" key={k}
+                      className={repete.dias?.includes(k) ? 'on' : ''}
+                      onClick={() => {
+                        const atuais = repete.dias || []
+                        const novos = atuais.includes(k)
+                          ? atuais.filter((x) => x !== k)
+                          : [...atuais, k].sort((a, b) => a - b)
+                        setRepete({ ...repete, ...(novos.length ? { dias: novos } : { dias: undefined }) })
+                      }}>{d}</button>
+                  ))}
+                </div>
+              )}
+              {!!repete && (
+                <p className="hint">
+                  {escritoRepeticao(repete)}. Concluir não fecha esta tarefa: ela volta com o
+                  prazo da próxima vez. Por isso ela não aparece em Desempenho.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="fld">
             <label htmlFor="i-p">Prazo</label>

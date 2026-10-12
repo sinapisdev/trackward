@@ -1,3 +1,4 @@
+import type { Repeticao } from './repetir'
 /**
  * admin: sócio ou diretor, enxerga e muda tudo.
  * gestor: desenha processos e acompanha quem está abaixo dele.
@@ -234,6 +235,15 @@ export type Item = {
    * sem a duração cinco tarefas cabem igualmente numa terça com duas reuniões e
    * numa quarta vazia, o que é falso.
    */
+  /**
+   * A regra da volta, quando a tarefa se repete. Nulo é tarefa que acaba.
+   *
+   * Concluir não a fecha: empurra o prazo para a próxima vez e desmarca, e quem
+   * faz isso é o banco (seção 79). A consequência, escolhida sabendo: ela nunca
+   * aparece em "O que saiu", porque nunca fica concluída. É o preço de não
+   * guardar uma linha por volta, e ninguém olha para trás numa repetida.
+   */
+  repete?: Repeticao | null
   minutos?: number | null
   id: string
   etapa_id: string

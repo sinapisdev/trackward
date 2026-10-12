@@ -3482,6 +3482,41 @@ continua valendo mesmo quando leva o dia inteiro e mesmo quando ela diz quanto l
   dias e o gatilho que libera ao concluir continuam de pé para esse caso, e deixaram de ser
   o caminho normal. Não voltar a fazer o plano criar bloco com hora para tarefa.
 
+### A tarefa que volta, e por que ela não é uma rotina
+
+"Toda segunda eu mando o relatório" não tinha onde morar: virava sete tarefas digitadas à
+mão, ou uma rotina inteira com checkpoint e aprovação, que é maquinário demais para uma
+coisa de dez minutos. **A ROTINA continua sendo a resposta para o processo que dá voltas**
+(fechamento mensal, com etapas e arquivo); isto é a resposta para o LEMBRETE que dá voltas.
+Seção 79, `itens.repete`.
+
+- **É a MESMA linha que volta, e não uma por volta.** Decisão do Leo, 12/10/2026, e ela saiu
+  de uma pergunta só: "você olha para trás para ver se cumpriu?". Não olha. Guardar uma linha
+  por semana seria encher a lista e o banco para alimentar um histórico que ninguém abre, e
+  lista que cresce sozinha é o que faz largar o app.
+- **A consequência está escrita para não ser descoberta depois:** a tarefa que volta **nunca
+  aparece em "O que saiu"**, no Desempenho, porque ela nunca fica concluída. É o preço de não
+  guardar histórico, e foi escolhido sabendo.
+- **Quem a devolve é GATILHO, não a tela** (`volta_a_tarefa`), pelo mesmo motivo de
+  `liberar_reserva`: concluir acontece de quatro lugares, e a tela de um deles sempre
+  esquece. É `before` porque ele DESFAZ a conclusão na mesma instrução, e por isso ela não
+  dispara aviso de conclusão. E roda antes de `proteger_item` pela ordem alfabética do nome
+  do gatilho, senão o `feito_em` carimbaria hora numa tarefa que voltou a ficar aberta.
+- **A aritmética mora SÓ no banco** (`proxima_volta`), e `lib/repetir.ts` só sabe dizer a
+  frase ("toda segunda"). Duas aritméticas de calendário é a garantia de que um dia a tela
+  promete uma data e o banco grava outra, e quem descobre isso é a pessoa, na segunda.
+- **A próxima conta a partir da data que ela TINHA**, e não de hoje: quem conclui a segunda
+  na quarta continua com a próxima na segunda seguinte. Mas nunca devolve passado, senão
+  concluir uma atrasada de três semanas devolveria outra atrasada, e a pessoa ficaria
+  marcando a mesma coisa até alcançar o presente.
+- **Na tela são ATALHOS, não um formulário.** "A cada [2] [semanas] nos dias [ ][x][ ]" é
+  correto e ninguém preenche. Seis atalhos cobrem o que se pede de fato, e o ajuste fino é
+  escolher os dias da semana, que só aparecem quando a repetição é semanal: antes disso são
+  sete caixas perguntando sobre uma coisa que ainda não existe.
+- **O tipo chama-se `Repeticao` e não `Volta`**, porque `Volta` já existe e quer dizer a
+  volta de uma rotina. Dois nomes iguais no mesmo repositório é o jeito mais silencioso de
+  alguém usar um achando que é o outro, como `.cn` e `.cnx`.
+
 ### Na dúvida entre tarefa e compromisso, pergunta
 
 **"Fazer os vídeos" é tarefa para quem edita sozinho e compromisso para quem grava com três

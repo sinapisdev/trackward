@@ -5398,3 +5398,23 @@ a.btn{text-decoration:none}
   .plano-ajuste .row-inline{flex-direction:column;align-items:stretch}
   .plano-ajuste .btn{width:100%;justify-content:center}
 }
+
+/* --------------------------------------------------- a tarefa que volta */
+
+/* Repetição morre de formulário: "a cada [2] [semanas] nos dias [ ][x][ ]" é
+   correto e ninguém preenche. Atalhos em pílula, e os dias da semana só quando
+   a repetição é semanal, senão são sete caixas perguntando sobre uma coisa que
+   ainda não existe. */
+.rep-atalhos{display:flex;flex-wrap:wrap;gap:6px}
+.rep-atalhos>button{padding:6px 12px;border-radius:var(--r-pill);
+  border:1px solid var(--line-2);background:none;color:var(--tx-2);
+  font:var(--fw-medium) var(--fs-meta)/1 var(--sans);transition:var(--t)}
+.rep-atalhos>button:hover{border-color:var(--line-3);color:var(--tx)}
+.rep-atalhos>button.on{background:var(--alto);border-color:var(--line-3);color:var(--tx)}
+
+.rep-dias{display:flex;gap:5px;margin-top:8px}
+.rep-dias>button{width:34px;height:34px;border-radius:var(--r-pill);
+  border:1px solid var(--line-2);background:none;color:var(--tx-3);
+  font:var(--fw-medium) var(--fs-micro)/1 var(--sans);text-transform:capitalize;
+  transition:var(--t)}
+.rep-dias>button.on{background:var(--alto);border-color:var(--line-3);color:var(--tx)}
