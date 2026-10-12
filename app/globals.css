@@ -5421,3 +5421,8 @@ a.btn{text-decoration:none}
 /* A segunda fileira, do até quando. Afastada da primeira porque são duas
    perguntas (com que frequência, e até quando), e coladas elas parecem uma. */
 .rep-quantas{margin-top:8px}
+/* O campo de minutos, quando nenhum atalho serve. Estreito: ele aceita três
+   dígitos, e largo ele promete um texto que não cabe ali. */
+.dur-livre{margin-top:8px;align-items:center}
+.dur-livre .inp{width:96px;flex:none}
+.dur-livre .hint{margin:0}

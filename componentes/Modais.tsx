@@ -4,10 +4,8 @@ import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, u
 import { useRouter } from 'next/navigation'
 import { useDados } from './Dados'
 import { emMinutos } from '@/lib/expediente'
-import {
-  ATALHOS, QUANTAS, escrito as escritoRepeticao, mesma as mesmaRepeticao,
-  valida as validaRepeticao,
-} from '@/lib/repetir'
+import { valida as validaRepeticao, type Repeticao } from '@/lib/repetir'
+import { CampoDuracao, CampoRepeticao } from './CamposDaTarefa'
 import { Ic } from './Icones'
 import { explicaTipo, rotuloTipo } from '@/lib/rotulos'
 import { AvisoPrazo } from './AvisoPrazo'
@@ -1177,6 +1175,10 @@ function MAvulsa({ fechar, pedido }: {
   const [ondeId, setOndeId] = useState('')
   const [etapaId, setEtapaId] = useState('')
   const [resp, setResp] = useState(pedido.resp || eu.id)
+  /* Quanto leva e se volta, que faltavam aqui: quem cria pelo botão redondo
+     nascia sem duração (e sem peso no orçamento do dia) e sem como repetir. */
+  const [minutos, setMinutos] = useState<number | null>(null)
+  const [repete, setRepete] = useState<Repeticao | null>(null)
   const [indo, setIndo] = useState(false)
 
   const ativos = perfis.filter((p) => p.ativo)
@@ -1196,13 +1198,14 @@ function MAvulsa({ fechar, pedido }: {
       if (track && etapa) {
         const novo = await adicionarItem(etapa, {
           texto: texto.trim(), descricao, resp_id: resp, prazo, priv: false, firme: false,
+          minutos, repete,
         })
         if (novo) fechar()
         return
       }
       // Livre: a lista pessoal nasce na primeira, e não no cadastro. Quem nunca
       // criou uma não precisa de uma track vazia no nome dele.
-      if (await criarAvulsa(texto, prazo, descricao)) fechar()
+      if (await criarAvulsa(texto, prazo, descricao, { minutos, repete })) fechar()
     } finally {
       setIndo(false)
     }
@@ -1309,6 +1312,13 @@ function MAvulsa({ fechar, pedido }: {
             Sem prazo ela fica em &quot;mais adiante&quot;, e não entra em aviso nenhum.
           </p>
         </div>
+
+        {/* Os mesmos dois campos do formulário da track, pelo mesmo componente.
+            Faltavam aqui, e é por aqui que nasce quase toda tarefa criada à
+            mão: ela nascia sem duração, sem peso no orçamento do dia, e sem
+            como repetir. */}
+        <CampoDuracao minutos={minutos} aoMudar={setMinutos} />
+        <CampoRepeticao repete={repete} aoMudar={setRepete} />
       </div>
       <Rodape fechar={fechar} acao={() => void salvar()}
         rotulo={indo ? 'Um instante...' : 'Criar tarefa'} />
@@ -1340,7 +1350,10 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
    * correto e ninguém preenche. São atalhos, e o ajuste fino é escolher os dias
    * da semana, que é o único que vale a tela.
    */
-  const [repete, setRepete] = useState(validaRepeticao(item?.repete) )
+  const [repete, setRepete] = useState(validaRepeticao(item?.repete))
+  /* A duração vem da leitura ou do app (45 min), e aqui ela é editável: o
+     degrau de 50% nunca caía num número redondo. */
+  const [minutos, setMinutos] = useState<number | null>(item?.minutos ?? null)
   const [avisando, setAvisando] = useState(false)
   const [travas, setTravas] = useState<string[]>(item?.depende_de || [])
   const [busca, setBusca] = useState('')
@@ -1371,7 +1384,7 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
   const gravarResto = async () => {
     if (!item) return
     await editarItem(item, {
-      texto: texto.trim(), descricao, resp_id: resp, prazo, priv, firme, repete, quieto: true,
+      texto: texto.trim(), descricao, resp_id: resp, prazo, priv, firme, repete, minutos, quieto: true,
     })
     if (JSON.stringify(travas) !== JSON.stringify(item.depende_de)) await definirTravas(item, travas)
   }
@@ -1383,7 +1396,7 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
     // O aviso vem antes de gravar qualquer coisa: quem vai mexer numa data
     // precisa ver o que ela arrasta antes de arrastar.
     if (mexeuNoPrazo) { setAvisando(true); return }
-    const d = { texto: texto.trim(), descricao, resp_id: resp, prazo, priv, firme, repete }
+    const d = { texto: texto.trim(), descricao, resp_id: resp, prazo, priv, firme, repete, minutos }
     if (item) {
       await editarItem(item, d)
       if (JSON.stringify(travas) !== JSON.stringify(item.depende_de)) await definirTravas(item, travas)
@@ -1448,65 +1461,12 @@ function MItem({ etapa, item, fechar }: { etapa: Etapa; item?: Item; fechar: () 
             )
           })()}
 
-          {/* A tarefa que volta, logo depois do prazo, porque é o prazo que ela
-              empurra: concluir não fecha a tarefa, manda para a próxima vez. A
-              rotina continua sendo outra coisa, para o processo que dá voltas
-              com checkpoint e arquivo; isto é o lembrete que dá voltas. */}
-          {mandaNoPrazo && (
-            <div className="fld">
-              <label>Repetir</label>
-              <div className="rep-atalhos">
-                <button type="button" className={repete ? '' : 'on'}
-                  onClick={() => setRepete(null)}>Não repete</button>
-                {ATALHOS.map((a) => (
-                  <button type="button" key={a.nome}
-                    className={mesmaRepeticao(repete, a.volta) ? 'on' : ''}
-                    onClick={() => setRepete(a.volta)}>{a.nome}</button>
-                ))}
-              </div>
-              {/* Os dias da semana só aparecem quando a repetição é semanal:
-                  antes disso eles são sete caixas perguntando sobre uma coisa
-                  que ainda não existe. */}
-              {repete?.cada === 'semana' && (
-                <div className="rep-dias">
-                  {DSEM.map((d, k) => (
-                    <button type="button" key={k}
-                      className={repete.dias?.includes(k) ? 'on' : ''}
-                      onClick={() => {
-                        const atuais = repete.dias || []
-                        const novos = atuais.includes(k)
-                          ? atuais.filter((x) => x !== k)
-                          : [...atuais, k].sort((a, b) => a - b)
-                        setRepete({ ...repete, ...(novos.length ? { dias: novos } : { dias: undefined }) })
-                      }}>{d}</button>
-                  ))}
-                </div>
-              )}
-              {/* Até quando. Em VEZES e não em dias, porque é o que a regra
-                  conta: "7 vezes" numa diária é uma semana e numa semanal é
-                  quase dois meses, e traduzir para dias daria dois números para
-                  a mesma coisa. "Sempre" é o padrão e vem primeiro. */}
-              {!!repete && (
-                <div className="rep-atalhos rep-quantas">
-                  {QUANTAS.map((q) => (
-                    <button type="button" key={q}
-                      className={(repete.vezes || 0) === q ? 'on' : ''}
-                      onClick={() => setRepete({ ...repete, vezes: q || undefined })}>
-                      {q ? `${q} vezes` : 'Sempre'}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {!!repete && (
-                <p className="hint">
-                  {escritoRepeticao(repete)}. Concluir não fecha esta tarefa: ela volta com o
-                  prazo da próxima vez{repete.vezes
-                    ? `, e depois da ${repete.vezes}ª ela fecha de vez`
-                    : ''}. Por isso ela não aparece em Desempenho.
-                </p>
-              )}
-            </div>
-          )}
+          {/* Quanto leva e se volta, nos dois formulários pelo mesmo
+              componente: três cópias disto viram três comportamentos no mês
+              seguinte. Atrás de `mandaNoPrazo` porque as duas mexem no que a
+              tarefa cobra de quem espera, como o prazo. */}
+          {mandaNoPrazo && <CampoDuracao minutos={minutos} aoMudar={setMinutos} />}
+          {mandaNoPrazo && <CampoRepeticao repete={repete} aoMudar={setRepete} />}
 
           <div className="fld">
             <label htmlFor="i-p">Prazo</label>

@@ -3543,9 +3543,19 @@ trata como se não custasse nada: entra em qualquer dia, por cima de qualquer co
 que a pessoa digite o tempo de cada coisa é o formulário que o Organizar existe para não
 ser, então o app afirma e ela corrige, que é a mesma regra do processo descoberto.
 
-- **A correção é em PORCENTAGEM, não em minutos** ("leva mais tempo" sobe 50%). A pessoa
-  sabe que foi pouco; ela não sabe que eram 68 minutos. Dois toques chegam ao dobro, que é
-  a correção que a maioria quer.
+- **A correção é um CAMPO, e não um degrau.** A primeira versão subia 50% por toque, e era
+  ruim pelo motivo que o Leo achou em uma tarde: 45min virava 1,1h, depois 1,7h, depois
+  2,5h, e não havia como cair em "2h". A pessoa sabe o número que ela quer; o que ela não
+  quer é digitar minutos. Então são atalhos nos tamanhos que se dizem em voz alta (15, 30,
+  45, 1h, 1h30, 2h, 3h, 4h) mais um campo para o resto.
+- **E os campos moram num componente só** (`componentes/CamposDaTarefa.tsx`), porque são
+  TRÊS formulários: a tarefa da track, a avulsa e a edição. Eles existiam em um só, e quem
+  criava pelo botão redondo (que é por onde nasce quase toda tarefa feita à mão) nascia sem
+  duração, sem peso no orçamento do dia e sem como repetir.
+- **E quem grava o aprendizado é `editarItem`**, não o campo da tela, pelo mesmo motivo: a
+  regra não pode existir em três cópias. Só conta quando JÁ havia um palpite: pôr duração
+  numa tarefa que não tinha nenhuma não corrige nada e encheria a tabela de exemplos cujo
+  "estimado" é invenção.
 - **E ela vira exemplo** (`estimativas`, seção 78): as doze últimas voltam no pedido
   seguinte. Sem a volta, o modelo erra igual na semana que vem, e aí a pessoa para de
   corrigir, porque corrigir não muda nada.

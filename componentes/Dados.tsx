@@ -362,7 +362,10 @@ type Contexto = {
    * Cria uma tarefa avulsa: a que não pertence a objetivo nem a rotina.
    * Devolve o id, ou nulo quando não deu.
    */
-  criarAvulsa: (texto: string, prazo?: string, descricao?: string) => Promise<string | null>
+  criarAvulsa: (
+    texto: string, prazo?: string, descricao?: string,
+    extra?: { minutos?: number | null; repete?: Repeticao | null },
+  ) => Promise<string | null>
 
   conectores: Conector[]
   salvarConector: (c: Partial<Conector>) => Promise<string | null>
@@ -391,20 +394,6 @@ type Contexto = {
    * avisar quando a reunião nova come a folga que as tarefas precisam.
    */
   saldoEm: (dia: string) => { devido: number; sobra: number }
-  /**
-   * Corrige quanto uma tarefa leva, e ENSINA.
-   *
-   * O app estima sempre, porque sem duração o dia não tem orçamento, e pedir
-   * que a pessoa digite o tempo de cada coisa é o formulário que o Organizar
-   * existe para não ser. O que faltava era a volta: estimativa corrigida e
-   * esquecida faz o modelo errar igual na semana seguinte, e aí ela para de
-   * corrigir, porque corrigir não muda nada.
-   *
-   * `mais` é um empurrão de 50%, e não um campo de minutos: a pessoa sabe que
-   * foi pouco, não sabe que eram 68 minutos. Dois toques chegam ao dobro, que
-   * é a correção que a maioria quer.
-   */
-  corrigirDuracao: (item: Item, mais: boolean) => Promise<void>
   salvarCompromisso: (d: Partial<Compromisso> & { convidados: string[] }) => Promise<string | null>
   excluirCompromisso: (id: string) => Promise<void>
   ligarAgendaExterna: (url: string) => Promise<{ blocos: number } | null>
@@ -1316,12 +1305,34 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       .update({
         texto: d.texto, descricao: d.descricao ?? '', resp_id: d.resp_id, prazo: d.prazo || null,
         priv: d.priv, prazo_firme: !!d.firme, repete: d.repete ?? null,
+        minutos: d.minutos ?? null,
       })
       .eq('id', item.id)
     if (error) return falhou(error, 'Não foi possível salvar o item.')
+    /**
+     * Mudou a duração? Isso é uma CORREÇÃO de estimativa, e ela ensina.
+     *
+     * Mora aqui e não no campo da tela porque editar acontece de três
+     * formulários, e o que não pode existir em três cópias é a regra. Só conta
+     * quando havia um palpite antes: pôr duração numa tarefa que não tinha
+     * nenhuma não corrige nada, ensina nada, e encheria a tabela de exemplos
+     * onde o "estimado" é invenção.
+     *
+     * Falha calada: um ensinamento que não entrou não pode impedir a edição que
+     * a pessoa acabou de fazer, que é a parte que ela vê.
+     */
+    const antes = item.minutos
+    const agora = d.minutos ?? null
+    if (antes && agora && agora !== antes) {
+      const { error: eErr } = await sb.from('estimativas').insert({
+        id: novoId(), user_id: eu.user_id, texto: item.texto.slice(0, 160),
+        estimado: antes, corrigido: agora,
+      })
+      if (eErr) console.warn('a correção não virou exemplo', eErr)
+    }
     if (!d.quieto) toast('Item salvo.')
     recarregar()
-  }, [sb, falhou, toast, recarregar])
+  }, [sb, eu.user_id, falhou, toast, recarregar])
 
   /** Regrava as travas de uma tarefa: apaga as antigas e põe as novas. */
   const definirTravas: Contexto['definirTravas'] = useCallback(async (item, ids) => {
@@ -1867,7 +1878,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    * modal não tem como esperar por isso sem virar uma máquina de estados; aqui
    * dentro, basta perguntar o checkpoint ao banco na hora.
    */
-  const criarAvulsa: Contexto['criarAvulsa'] = useCallback(async (texto, prazo, descricao) => {
+  const criarAvulsa: Contexto['criarAvulsa'] = useCallback(async (texto, prazo, descricao, extra) => {
     const t = texto.trim()
     if (!t) return null
     const id = minhaLista?.id || await abrirMinhaLista()
@@ -1887,6 +1898,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     const { error } = await sb.from('itens').insert({
       id: item, etapa_id: etapaId, fluxo_id: id, texto: t, descricao: descricao?.trim() || '',
       resp_id: eu.id, prazo: prazo || null, priv: false, prazo_firme: false,
+      minutos: extra?.minutos ?? null, repete: extra?.repete ?? null,
       autor_id: eu.id, ordem: Date.now() % 100000,
     })
     if (error) { falhou(error, 'Não deu para criar a tarefa.'); return null }
@@ -2590,31 +2602,6 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       .map((c) => ({ quando: c.quando, inicio: c.inicio, fim: c.fim }))
     return { devido, sobra: saldoDoDia(expediente, dia, comHora, devido) }
   }, [devedores, agenda, expediente])
-
-  const corrigirDuracao = useCallback<Contexto['corrigirDuracao']>(async (item, mais) => {
-    const antes = item.minutos || 45
-    // Os degraus são os mesmos da estimativa: 10 é o menor que vale medir e 480
-    // é o dia inteiro. Fora disso o botão não tem para onde ir, e dizer isso é
-    // melhor que fingir que mexeu.
-    const novo = Math.max(10, Math.min(480, Math.round(mais ? antes * 1.5 : antes / 1.5)))
-    if (novo === antes) return toast(mais ? 'Já é um dia inteiro.' : 'Já é o menor que dá para medir.')
-    const { error } = await sb.from('itens').update({ minutos: novo }).eq('id', item.id)
-    if (error) return falhou(error, 'Não deu para mudar a duração.')
-    /**
-     * A correção vira exemplo para a próxima estimativa.
-     *
-     * Falha calada: um ensinamento que não entrou não pode impedir a correção
-     * que a pessoa acabou de fazer, que é a parte que ela vê. A queixa vai para
-     * o console, como em `logar` e no rastro do canal.
-     */
-    const { error: eErr } = await sb.from('estimativas').insert({
-      id: novoId(), user_id: eu.user_id, texto: item.texto.slice(0, 160),
-      estimado: antes, corrigido: novo,
-    })
-    if (eErr) console.warn('a correção não virou exemplo', eErr)
-    toast(`Agora são ${novo >= 60 ? `${(novo / 60).toFixed(novo % 60 ? 1 : 0)}h` : `${novo}min`}.`)
-    recarregar()
-  }, [sb, eu.user_id, falhou, toast, recarregar])
 
   const aceitarSugestao: Contexto['aceitarSugestao'] = useCallback(async (sug, ajuste, porIa = false) => {
     const dados: Alvo = { ...sug.dados, ...ajuste }
@@ -4565,7 +4552,7 @@ linhas dizendo o que você fez. Se ela apontou algo que faltou, procure na nota 
     preverCascata, moverPrazo, devolverItem, pedidosPrazo, decidirPrazo,
     enviar, enviarAudio, abrirAudio, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
     executarComando, passarContato,
-    saldoEm, corrigirDuracao,
+    saldoEm,
     lerConversa, lerNota, ajustarOrganizacao, aceitarSugestao, recusarSugestao,
     espacos, trocarEspaco, abrirEspaco,
   }

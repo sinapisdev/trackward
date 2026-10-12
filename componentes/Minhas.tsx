@@ -34,8 +34,7 @@ const chave = (p: Pendencia) =>
 export function Minhas() {
   const { eu, org, pessoal, fluxos, fluxosComImplicitas, carregando, nomeDe, perfilDe, minhaLista,
     alternarItem, aprovar: aprovarSaida, meuDia, minhasEntregas, espacos,
-    trocarEspaco, notas, salvarNota, excluirItem, saldoEm, expediente,
-    corrigirDuracao } = useDados()
+    trocarEspaco, notas, salvarNota, excluirItem, saldoEm, expediente } = useDados()
   const { abrir } = useModais()
   const celular = useCelular()
   const router = useRouter()
@@ -511,20 +510,6 @@ export function Minhas() {
                           aoEscolher: () => void abrirNotaDaTarefa(p.item!),
                         },
                         {
-                          /* A correção da estimativa, e é ela que faz o app
-                             aprender: o modelo chuta, a pessoa diz se foi muito
-                             ou pouco, e a correção volta no pedido seguinte.
-                             Em porcentagem e não em minutos, porque ela sabe
-                             que foi pouco e não sabe que eram 68 minutos. */
-                          rotulo: `Leva mais tempo (hoje ${duracao(p.item.minutos)})`,
-                          icone: <Ic.mais />,
-                          aoEscolher: () => void corrigirDuracao(p.item!, true),
-                        },
-                        {
-                          rotulo: 'Leva menos tempo', icone: <Ic.menos />,
-                          aoEscolher: () => void corrigirDuracao(p.item!, false),
-                        },
-                        {
                           /* Anexar abre a GAVETA e pede o arquivo lá, porque é
                              lá que o bloco de anexos mora: a linha não tem
                              onde pôr um campo de arquivo, e um input invisível
@@ -815,10 +800,4 @@ function SaldoDosDias({ saldoEm, temExpediente }: {
       ))}
     </div>
   )
-}
-
-/** "1h30", "45min". Duração escrita como gente fala, não em minutos crus. */
-function duracao(m?: number | null) {
-  const n = m || 45
-  return n >= 60 ? `${(n / 60).toFixed(n % 60 ? 1 : 0)}h` : `${n}min`
 }
