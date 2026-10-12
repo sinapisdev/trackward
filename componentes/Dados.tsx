@@ -477,7 +477,25 @@ type Contexto = {
    * Reusar em vez de escrever uma segunda não é economia: é o que garante que a
    * nota e o canal aprendam a mesma coisa e proponham do mesmo jeito.
    */
-  lerNota: (notaId: string) => Promise<{ achou: number; motor: string } | null>
+  /**
+   * Organiza a nota. Devolve o que achou, e o que já tinha sido decidido antes.
+   *
+   * `repetidas` não é curiosidade: sem ele, a segunda vez que alguém organiza a
+   * mesma nota parece que o app leu pela metade. O filtro de repetidas está
+   * certo (propor de novo o que a pessoa já dispensou é o jeito mais rápido de
+   * ela parar de ler o que o app diz); o que estava errado era ele ser calado.
+   */
+  lerNota: (notaId: string) => Promise<{ achou: number; repetidas: number; motor: string } | null>
+  /**
+   * Ajusta o que o Organizar separou, conversando.
+   *
+   * Organizar devolvia uma lista e acabava ali: faltou uma coisa, e a saída era
+   * reescrever a nota e organizar de novo, torcendo. Aqui a pessoa diz o que
+   * faltou ou o que está errado, e o agente MEXE, porque isto é ordem e não
+   * pensamento solto: o campo existe para isso, e pedir confirmação do que ela
+   * acabou de mandar fazer é desconfiar dela, a mesma regra da barra.
+   */
+  ajustarOrganizacao: (notaId: string, pedido: string) => Promise<string | null>
   aceitarSugestao: (s: Sugestao, ajuste?: Alvo, porIa?: boolean) => Promise<void>
   /** Volta atrás no que a leitura fez sozinha. */
   desfazerSugestao: (s: Sugestao) => Promise<void>
@@ -4040,6 +4058,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     const novas = propostas
       .filter((p) => !jaVistas.some((v) => v.texto.trim().toLowerCase() === p.texto.trim().toLowerCase()))
       .filter((p) => !jaFoiRecusada(p, memoria))
+    const repetidas = propostas.length - novas.length
 
     for (const p of novas) {
       await sb.from('sugestoes').insert({
@@ -4056,12 +4075,68 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       })
     }
     recarregar()
+    /**
+     * A frase conta as DUAS coisas, e a segunda é a que faltava.
+     *
+     * Organizando a mesma nota pela quinta vez, oito das doze já tinham sido
+     * decididas e sumiam no filtro: a pessoa lia "4 propostas" e concluía que o
+     * app tinha lido pela metade. Dizer quantas se repetiram custa meia frase e
+     * é a diferença entre um filtro e um defeito.
+     */
     toast(novas.length
-      ? `${novas.length} ${novas.length === 1 ? 'proposta' : 'propostas'} da sua nota.`
-      : 'Li a nota e não achei nada para propor.')
-    return { achou: novas.length, motor }
+      ? `${novas.length} ${novas.length === 1 ? 'proposta' : 'propostas'} da sua nota`
+        + (repetidas ? `. Outras ${repetidas} você já tinha decidido antes.` : '.')
+      : repetidas
+        ? `Li a nota inteira, e as ${repetidas} coisas que achei você já tinha decidido antes.`
+        : 'Li a nota e não achei nada para propor.')
+    return { achou: novas.length, repetidas, motor }
   }, [sb, notas, todasNotas, mensagensDaNota, eu.id, eu.nome, perfis, memoria, expediente, agenda,
       estimativas, oQueACasaTem, sugestoesDaNota, toast, recarregar])
+
+  const ajustarOrganizacao: Contexto['ajustarOrganizacao'] = useCallback(async (notaId, pedido) => {
+    const nota = todasNotas.find((n) => n.id === notaId)
+    if (!nota || !pedido.trim()) return null
+    const abertas = sugestoesDaNota(notaId).filter((x) => x.estado === 'aberta')
+    const decididas = sugestoesDaNota(notaId).filter((x) => x.estado !== 'aberta')
+
+    /**
+     * O pedido vai com o QUE JÁ FOI SEPARADO, nas duas listas.
+     *
+     * Sem as abertas, ele propõe de novo o que está na tela. Sem as decididas,
+     * ele propõe de novo o que a pessoa já dispensou, que é o jeito mais rápido
+     * de ela parar de ler o que o app diz. As duas juntas são o que permite a
+     * frase "faltou isto" querer dizer alguma coisa.
+     */
+    const resumo = [
+      abertas.length ? `JÁ SEPARADO E ESPERANDO DECISÃO:\n${abertas.map((x) => `- [${x.tipo}] ${x.texto}`).join('\n')}` : '',
+      decididas.length ? `JÁ DECIDIDO ANTES (não proponha de novo):\n${decididas.map((x) => `- ${x.texto}`).join('\n')}` : '',
+    ].filter(Boolean).join('\n\n')
+
+    const texto = `A pessoa organizou esta nota e está pedindo um ajuste.
+
+A NOTA:
+${nota.texto.slice(0, 8000)}
+
+${resumo}
+
+O QUE ELA PEDIU AGORA: ${pedido.trim()}
+
+Faça o que ela pediu, criando ou mudando o que for preciso, e responda em uma ou duas
+linhas dizendo o que você fez. Se ela apontou algo que faltou, procure na nota de novo:
+é bem possível que esteja lá e você tenha deixado passar.`
+
+    setRespondendo(notaId)
+    try {
+      const ctx = { ...contextoDaNota(nota, []), secretario: true as const }
+      const resposta = await conversarEFazer(
+        { ...ctx, falas: [{ de: 'pessoa' as const, texto }] }, notaId,
+      )
+      recarregar()
+      return resposta?.texto || null
+    } finally {
+      setRespondendo('')
+    }
+  }, [todasNotas, sugestoesDaNota, contextoDaNota, conversarEFazer, recarregar])
 
   /**
    * A linguagem do chat.
@@ -4487,7 +4562,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     enviar, enviarAudio, abrirAudio, apagarMensagem, marcarLido, salvarCanal, excluirCanal,
     executarComando, passarContato,
     saldoEm, corrigirDuracao,
-    lerConversa, lerNota, aceitarSugestao, recusarSugestao,
+    lerConversa, lerNota, ajustarOrganizacao, aceitarSugestao, recusarSugestao,
     espacos, trocarEspaco, abrirEspaco,
   }
 

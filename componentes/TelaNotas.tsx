@@ -38,6 +38,9 @@ function Aberta({ nota, ir, aoApagar }: {
   const { notas, salvarNota, toast, eu, lerNota, org, sugestoesDaNota } = useDados()
   const [lendo, setLendo] = useState(false)
   const propostas = sugestoesDaNota(nota.id).filter((s) => s.estado === 'aberta')
+  /* As já decididas antes: elas não voltam, e dizer quantas são é a diferença
+     entre um filtro e um defeito. */
+  const decididasDaNota = sugestoesDaNota(nota.id).filter((s) => s.estado !== 'aberta').length
 
   const aponta = saidas(nota, notas)
   const citam = entradas(nota, notas)
@@ -107,7 +110,8 @@ function Aberta({ nota, ir, aoApagar }: {
               distribuir é decisão sobre o conjunto, e aceitas uma a uma a ordem
               do clique decidia quem ficava com os melhores horários. Os cartões
               continuam logo abaixo, que é a saída para o detalhe. */}
-          <PlanoDaSemana propostas={propostas} />
+          <PlanoDaSemana propostas={propostas} notaId={nota.id}
+            decididas={decididasDaNota} />
           {propostas.map((s) => <CartaoSugestao key={s.id} s={s} despejo />)}
         </section>
       )}

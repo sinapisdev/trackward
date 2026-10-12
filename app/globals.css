@@ -5378,3 +5378,23 @@ a.btn{text-decoration:none}
    grudado no alto enquanto a faixa rola. Sem isso, numa faixa de trinta linhas a
    pessoa perde de vista se está lendo "Esta semana" ou "Este mês". */
 .fila-gh{position:sticky;top:0;z-index:2;background:var(--bg)}
+
+/* ------------------------------------ o ajuste do Organizar, conversando */
+
+/* Organizar devolvia uma lista e acabava ali: faltou uma coisa, e a saída era
+   reescrever a nota e organizar de novo, torcendo. O campo fica no rodapé do
+   painel, depois do que já foi separado, porque é olhando a lista que a pessoa
+   repara no que falta. */
+.plano-ajuste{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.plano-ajuste .hint{margin:0 0 8px}
+.plano-ajuste .inp{flex:1;min-width:0}
+.plano-ajuste .row-inline{gap:8px}
+/* A resposta do agente, marcada como fala dele: o que a máquina escreveu não
+   pode se passar pelo que você escreveu, a mesma regra do bloco da leitura. */
+.plano-resp{margin:0 0 9px;padding:8px 11px;border-left:2px solid var(--ac-tinta);
+  font-size:var(--fs-meta);color:var(--tx-2)}
+
+@media (max-width:840px){
+  .plano-ajuste .row-inline{flex-direction:column;align-items:stretch}
+  .plano-ajuste .btn{width:100%;justify-content:center}
+}

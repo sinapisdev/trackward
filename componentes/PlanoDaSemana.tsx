@@ -27,8 +27,12 @@ import type { Sugestao } from '@/lib/tipos'
  * e quem quiser trocar a frase, a espécie ou o dia de uma linha sozinha tem o
  * caminho que já existia, com Ajustar e Dispensar.
  */
-export function PlanoDaSemana({ propostas }: { propostas: Sugestao[] }) {
-  const { expediente, agenda, aceitarSugestao } = useDados()
+export function PlanoDaSemana({ propostas, notaId, decididas = 0 }: {
+  propostas: Sugestao[]; notaId?: string; decididas?: number
+}) {
+  const { expediente, agenda, aceitarSugestao, ajustarOrganizacao, respondendo } = useDados()
+  const [pedido, setPedido] = useState('')
+  const [resposta, setResposta] = useState('')
   const [fora, setFora] = useState<string[]>([])
   const [indo, setIndo] = useState(false)
 
@@ -73,7 +77,61 @@ export function PlanoDaSemana({ propostas }: { propostas: Sugestao[] }) {
     return [...m.entries()].sort()
   }, [plano])
 
-  if (!propostas.length) return null
+  /**
+   * Some quando não há nada a mostrar NEM nada a pedir.
+   *
+   * Com a lista vazia o painel continua, porque é justamente aí que a pessoa
+   * mais precisa do campo de ajuste: "organizou e não achou nada" e "faltou
+   * isto" são a mesma frase dita de dois lados.
+   */
+  const campoDeAjuste = (
+    <>
+      {/**
+      * O ajuste conversando, que é o que faltava para Organizar ser prático.
+      *
+      * Ele devolvia uma lista e acabava ali: faltou uma coisa, e a saída era
+      * reescrever a nota e organizar de novo, torcendo. Aqui ela diz o que
+      * faltou, e o agente mexe. **Isto é ordem e não pensamento solto**, e é o
+      * campo que diz isso: pedir confirmação do que ela acabou de mandar fazer
+      * é desconfiar dela, a mesma regra da barra.
+      *
+      * O pedido viaja com o que JÁ foi separado e com o que JÁ foi decidido,
+      * senão ele repropõe o que está na tela e o que ela já dispensou.
+      */}
+    {!!notaId && (
+      <div className="plano-ajuste">
+        {!!decididas && (
+          <p className="hint">
+            Outras {decididas} coisas desta nota você já decidiu em organizações
+            anteriores, então elas não voltam aqui.
+          </p>
+        )}
+        {!!resposta && <p className="plano-resp">{resposta}</p>}
+        <div className="row-inline">
+          <input className="inp" value={pedido} placeholder="Faltou alguma coisa? Diga o que ajustar."
+            aria-label="Pedir um ajuste ao agente"
+            onChange={(e) => setPedido(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void pedir() }} />
+          <button className="btn" disabled={!pedido.trim() || !!respondendo}
+            onClick={() => void pedir()}>
+            <Ic.faisca />{respondendo ? 'Ajustando...' : 'Pedir'}
+          </button>
+        </div>
+      </div>
+    )}
+    </>
+  )
+
+  if (!propostas.length && !notaId) return null
+
+  if (!propostas.length) {
+    return (
+      <section className="plano">
+        <div className="plano-h"><Ic.agenda /><b>Nada em aberto</b></div>
+        {campoDeAjuste}
+      </section>
+    )
+  }
 
   if (!temExpediente(expediente)) {
     return (
@@ -115,6 +173,13 @@ export function PlanoDaSemana({ propostas }: { propostas: Sugestao[] }) {
     }
     for (const s of guardar) await aceitarSugestao(s)
     setIndo(false)
+  }
+
+  const pedir = async () => {
+    if (!notaId || !pedido.trim()) return
+    const r = await ajustarOrganizacao(notaId, pedido)
+    setResposta(r || 'Não consegui ajustar agora.')
+    setPedido('')
   }
 
   const horas = (m: number) => (m >= 60 ? `${(m / 60).toFixed(m % 60 ? 1 : 0)}h` : `${m}min`)
@@ -172,6 +237,8 @@ export function PlanoDaSemana({ propostas }: { propostas: Sugestao[] }) {
           <Ic.seta />Trazer de volta {fora.length} que você tirou
         </button>
       )}
+
+      {campoDeAjuste}
 
       {!!guardar.length && (
         <p className="hint plano-guardar">

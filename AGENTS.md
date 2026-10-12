@@ -3518,6 +3518,31 @@ ser, então o app afirma e ela corrige, que é a mesma regra do processo descobe
   existir, ou seja, as mais ANTIGAS: separá-las seria pôr o trabalho mais velho num segundo
   plano, por um detalhe técnico que quem usa não deveria precisar conhecer.
 
+### Organizar de novo não é organizar pela metade, e o ajuste é conversando
+
+**O filtro de repetidas estava certo e ser calado estava errado.** Organizando a mesma nota
+pela quinta vez, 8 das 12 coisas já tinham sido aceitas ou dispensadas e sumiam no filtro
+(`jaVistas`, `jaFoiRecusada`): a pessoa lia "4 propostas" e concluía, com razão, que o app
+tinha lido a nota pela metade. Medido em 12/10/2026 na produção, nas cinco rodadas daquela
+nota: 8, 5, 3, 4, 4. **Propor de novo o que ela já dispensou continua proibido**, porque é o
+jeito mais rápido de ela parar de ler o que o app diz; o que mudou é que agora ele CONTA
+quantas pulou, na frase e no painel. É o modo de falha mais caro deste app outra vez: lista
+incompleta bem-comportada.
+
+**E o Organizar deixou de acabar na lista.** Faltou uma coisa, e a única saída era reescrever
+a nota e organizar de novo, torcendo. O painel ganhou um campo ("faltou alguma coisa? diga o
+que ajustar") que fala com o agente pelo laço que já existe (`conversarEFazer`), e ele MEXE.
+
+- **Isto é ordem, e não pensamento solto.** A regra velha é a que autoriza: conversa solta
+  vira proposta, comando vira coisa feita, e a diferença é quem pediu. O campo existe para
+  ajustar o que ele acabou de separar, então pedir confirmação do que ela acabou de mandar
+  fazer é desconfiar dela, igual à barra.
+- **O pedido viaja com as DUAS listas**, o que está em aberto e o que já foi decidido. Sem a
+  primeira ele repropõe o que está na tela; sem a segunda, o que ela já dispensou.
+- **O painel não some com a lista vazia**, e isso é de propósito: "organizou e não achou
+  nada" e "faltou isto" são a mesma frase dita de dois lados, e é justamente aí que o campo
+  mais serve.
+
 ### O plano se aceita inteiro, e cada linha continua tendo porta
 
 `componentes/PlanoDaSemana.tsx`, acima dos cartões, nas duas telas de nota.

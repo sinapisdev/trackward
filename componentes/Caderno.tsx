@@ -95,6 +95,12 @@ export function Caderno({ abas }: { abas?: ReactNode }) {
   const propostas = aberta
     ? sugestoesDaNota(aberta.id).filter((s) => s.estado === 'aberta')
     : []
+  /* As que já foram aceitas ou dispensadas em organizações anteriores. O filtro
+     que as esconde está certo; o que estava errado era ele ser calado, e a
+     pessoa concluir que o app leu a nota pela metade. */
+  const decididasDaNota = aberta
+    ? sugestoesDaNota(aberta.id).filter((s) => s.estado !== 'aberta').length
+    : 0
 
   /** Nota em branco, aberta na hora para escrever. */
   const nova = async () => {
@@ -274,7 +280,8 @@ export function Caderno({ abas }: { abas?: ReactNode }) {
               distribuir é decisão sobre o conjunto, e aceitas uma a uma a ordem
               do clique decidia quem ficava com os melhores horários. Os cartões
               continuam logo abaixo, que é a saída para o detalhe. */}
-          <PlanoDaSemana propostas={propostas} />
+          <PlanoDaSemana propostas={propostas} notaId={aberta.id}
+            decididas={decididasDaNota} />
           {/* O MESMO cartão do chat e do secretário, e não um feito à mão.
               O daqui não tinha "Ajustar", e a regra é que ele aparece em TODA
               proposta: sem ele, "quase isso" só tem a saída de dispensar e
