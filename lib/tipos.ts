@@ -631,6 +631,8 @@ export type Compromisso = {
  * e a track inteira mora do outro lado, no espaço dela.
  */
 export type LinhaDoDia = {
+  /** Quanto a tarefa leva. É o que dá saldo ao dia, e ele é de todos os espaços. */
+  minutos?: number | null
   item_id: string
   /** 'item' (executo), 'aprov' (aprovo) ou 'pedi' (pedi a alguém). */
   tipo: 'item' | 'aprov' | 'pedi'

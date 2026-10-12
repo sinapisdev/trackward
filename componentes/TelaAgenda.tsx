@@ -24,7 +24,7 @@ const ULTIMA = 19
 const hhmm = (h: number) => `${String(h).padStart(2, '0')}:00`
 
 export function TelaAgenda() {
-  const { eu, perfis, agenda, fluxos, carregando, nomeDe, perfilDe , saldoEm } = useDados()
+  const { eu, perfis, agenda, fluxos, carregando, nomeDe, perfilDe , saldoEm, meuDia } = useDados()
   const { abrir } = useModais()
   const [modo, setModo] = useState<Modo>('semana')
   const [lente, setLente] = useState<Lente>('minha')
@@ -42,21 +42,43 @@ export function TelaAgenda() {
     return () => mq.removeEventListener('change', ver)
   }, [])
 
-  /** Prazos de tarefas entram na agenda como compromissos de dia inteiro. */
+  /**
+   * Prazos de tarefa, e eles ATRAVESSAM os espaços.
+   *
+   * A agenda nunca muda de espaço: o compromisso marcado no pessoal trava a
+   * terça às 15h na Simonetto, e é essa a promessa da seção 68. Só que esta
+   * faixa saía de `fluxos`, que é o espaço em uso, então quem abria a agenda no
+   * pessoal via os prazos do pessoal e mais nada, com as tarefas das empresas
+   * sumindo da tela em que elas mais importam. Inconsistência pura, e que
+   * aparecia como ausência.
+   *
+   * Quem responde "o que depende de mim em todos os meus espaços" já existia:
+   * `meu_dia()`. Faltava a agenda perguntar a ela.
+   *
+   * Na lente da equipe entram TAMBÉM os prazos dos outros, e só do espaço em
+   * uso: o que atravessa é o meu, porque é o meu dia que não se divide pelo
+   * número de contratos que eu tenho. O dos colegas é da casa em que eles
+   * trabalham comigo.
+   */
   const prazos = useMemo(() => {
     const saida: { dia: string; texto: string; fluxoId: string; resp: string | null }[] = []
-    for (const f of fluxos) {
-      if (f.concluido) continue
-      const et = etapaAtual(f)
-      if (!et) continue
-      for (const i of et.itens) {
-        if (i.feito || !i.prazo) continue
-        if (lente === 'minha' && i.resp_id !== eu.id) continue
-        saida.push({ dia: i.prazo, texto: i.texto, fluxoId: f.id, resp: i.resp_id })
+    for (const l of meuDia) {
+      if (!l.prazo || l.tipo === 'pedi') continue
+      saida.push({ dia: l.prazo, texto: l.texto, fluxoId: l.fluxo_id, resp: l.resp_id })
+    }
+    if (lente !== 'minha') {
+      for (const f of fluxos) {
+        if (f.concluido) continue
+        const et = etapaAtual(f)
+        if (!et) continue
+        for (const i of et.itens) {
+          if (i.feito || !i.prazo || i.resp_id === eu.id) continue
+          saida.push({ dia: i.prazo, texto: i.texto, fluxoId: f.id, resp: i.resp_id })
+        }
       }
     }
     return saida
-  }, [fluxos, lente, eu.id])
+  }, [meuDia, fluxos, lente, eu.id])
 
   if (carregando) return <Carregando />
 

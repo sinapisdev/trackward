@@ -2576,15 +2576,17 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
    */
   const devedores = useMemo<Devedor[]>(() => {
     const saida: Devedor[] = []
-    for (const f of fluxosComImplicitas) {
-      if (f.desfecho) continue
-      for (const et of f.etapas) {
-        for (const i of et.itens) {
-          if (i.feito || !i.prazo || !i.minutos) continue
-          if (i.resp_id && i.resp_id !== eu.id) continue
-          saida.push({ quando: i.prazo, minutos: i.minutos })
-        }
-      }
+    /**
+     * De TODOS os espaços, por `meu_dia()`, e não do espaço em uso.
+     *
+     * O saldo tinha a mesma doença que a faixa de Prazos: ele somava a duração
+     * das tarefas da casa em que a pessoa estava, então o dia parecia caber em
+     * qualquer lugar menos naquele. O dia é de um corpo, como a agenda: ele não
+     * se divide pelo número de contratos que ela tem.
+     */
+    for (const l of meuDia) {
+      if (!l.prazo || !l.minutos || l.tipo === 'pedi') continue
+      saida.push({ quando: l.prazo, minutos: l.minutos })
     }
     for (const c of agenda) {
       if (!c.inicio && c.minutos && envolvidos(c).includes(eu.id)) {
@@ -2592,7 +2594,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       }
     }
     return saida
-  }, [fluxosComImplicitas, agenda, eu.id])
+  }, [meuDia, agenda, eu.id])
 
   const saldoEm = useCallback<Contexto['saldoEm']>((dia) => {
     const devido = devidoNoDia(devedores, dia)

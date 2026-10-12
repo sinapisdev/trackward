@@ -3466,6 +3466,17 @@ continua valendo mesmo quando leva o dia inteiro e mesmo quando ela diz quanto l
   `ocupacao()` sem hora, o colega leria o seu dia inteiro como ocupado por causa de duas
   horas de estudo. O que ele precisa saber é onde você tem hora marcada; o seu saldo é
   assunto seu.
+- **O prazo e o saldo ATRAVESSAM os espaços, como a agenda** (seção 80). A agenda nunca
+  muda de espaço, e é essa a promessa da seção 68; só que a faixa de Prazos em cima dela
+  saía de `fluxos`, que é o espaço EM USO. Quem abria a agenda no pessoal via os prazos do
+  pessoal e mais nada, com as tarefas das empresas sumindo da tela em que elas mais
+  importam. O saldo tinha a mesma doença: somava a duração das tarefas da casa em que a
+  pessoa estava, então o dia parecia caber em qualquer lugar menos naquele. Quem responde
+  "o que depende de mim em todos os meus espaços" já existia (`meu_dia()`); faltava as duas
+  perguntarem a ela, e ela ganhou `minutos`. **Na lente da equipe entram também os prazos
+  dos outros, e só do espaço em uso**: o que atravessa é o MEU dia, porque ele não se divide
+  pelo número de contratos que eu tenho; o dos colegas é da casa em que eles trabalham
+  comigo.
 - **O saldo aparece nas DUAS telas, e isso não é repetição.** Na agenda ele é uma linha
   por dia abaixo de Prazos, porque ali a pergunta é "o que cabe nesta terça". Na fila de
   Tarefas são os cinco próximos dias em cima da lista, porque ali a pergunta é "o que eu

@@ -6553,6 +6553,10 @@ drop function if exists public.meu_dia();
  * tarefa é minha e está presa numa que não ficou pronta. Calcular isso na tela
  * exigiria carregar as dependências de todos os espaços, e elas não atravessam.
  */
+/* A forma ANTIGA sai antes: a seção 80 recria esta função com `minutos` no
+   retorno, e `create or replace` não troca assinatura. Mesmo cuidado de
+   `minha_agenda` e do `avisar` com dez e onze argumentos. */
+drop function if exists public.meu_dia();
 create or replace function public.meu_dia()
 returns table (
   item_id uuid, tipo text, texto text, prazo date, org_id uuid, espaco text,
@@ -8057,6 +8061,102 @@ create trigger ao_repetir_item
   before update of feito on public.itens
   for each row execute function public.volta_a_tarefa();
 
+-- --------------------------------------------------------------------------
+-- 80. O prazo também é da pessoa, e atravessa os espaços
+--
+--     A agenda nunca muda de espaço: o compromisso marcado no pessoal trava a
+--     terça às 15h na Simonetto, e é essa a promessa inteira da seção 68. Só que
+--     a faixa de PRAZOS, logo em cima dela, saía da lista do espaço em uso: quem
+--     abria a agenda no pessoal via os prazos do pessoal e mais nada, com as
+--     tarefas das empresas sumindo da tela em que elas mais importam.
+--
+--     Era inconsistência pura, e aparecia como ausência: "a agenda é a mesma em
+--     qualquer espaço" com metade do conteúdo mudando junto com o espaço. Quem
+--     responde isto já existia, `meu_dia()`, que é "o que depende de mim em
+--     todos os meus espaços"; faltava a agenda perguntar a ela.
+--
+--     E ela ganha `minutos`, porque o SALDO do dia tem a mesma doença: ele somava
+--     a duração das tarefas do espaço em uso, então o dia parecia caber em
+--     qualquer lugar menos naquele em que a pessoa estava.
+-- --------------------------------------------------------------------------
+drop function if exists public.meu_dia();
+
+/**
+ * O meu dia, agora com as QUATRO coisas que dependem de mim.
+ *
+ * A primeira versão trazia só o que eu executo, e com ela os filtros de
+ * Tarefas (executar, aprovar, aguardando, pedi) deixavam de valer assim que a
+ * lista virava a do dia inteiro: a pessoa trocava de lente e perdia os
+ * filtros, que é perder a tela.
+ *
+ * `travado` vem junto porque "aguardando" não é um tipo, é uma condição: a
+ * tarefa é minha e está presa numa que não ficou pronta. Calcular isso na tela
+ * exigiria carregar as dependências de todos os espaços, e elas não atravessam.
+ */
+drop function if exists public.meu_dia();
+create or replace function public.meu_dia()
+returns table (
+  item_id uuid, tipo text, texto text, prazo date, org_id uuid, espaco text,
+  espaco_tipo text, fluxo_id uuid, track text, implicita boolean,
+  etapa_id uuid, checkpoint text, priv boolean, travado boolean, resp_id uuid,
+  minutos integer
+)
+language sql stable security definer set search_path = public as $$
+  -- 1. O que eu executo.
+  select
+    i.id, 'item', i.texto, i.prazo, f.org_id, o.nome, o.tipo,
+    f.id, f.nome, f.implicita, e.id, e.nome, i.priv,
+    exists (
+      select 1 from dependencias d join itens x on x.id = d.depende_de
+       where d.item_id = i.id and not x.feito
+    ),
+    i.resp_id, i.minutos
+  from itens i
+  join etapas e on e.id = i.etapa_id
+  join fluxos f on f.id = i.fluxo_id
+  join organizacoes o on o.id = f.org_id
+  where ativo() and not i.feito and f.desfecho is null and f.travado_motivo is null
+    and e.ordem = f.atual
+    and i.resp_id in (select perfil_id from meus_perfis())
+
+  union all
+
+  -- 2. O que eu aprovo, e só quando não falta mais nada para aprovar.
+  select
+    e.id, 'aprov', e.nome, e.prazo, f.org_id, o.nome, o.tipo,
+    f.id, f.nome, f.implicita, e.id, e.nome, false, false, e.aprovador_id, null::integer
+  from etapas e
+  join fluxos f on f.id = e.fluxo_id
+  join organizacoes o on o.id = f.org_id
+  where ativo() and f.desfecho is null and f.travado_motivo is null
+    and e.ordem = f.atual
+    and e.aprovador_id in (select perfil_id from meus_perfis())
+    and not exists (select 1 from itens x where x.etapa_id = e.id and not x.feito)
+
+  union all
+
+  -- 3. O que eu pedi a outra pessoa, e SÓ EM CANAL SEM TRACK: o que mora numa
+  --    track de verdade já aparece na trilha dela, e contá-lo aqui seria
+  --    contá-lo duas vezes. Mesma regra de `oQuePedi` em lib/regras.ts.
+  select
+    i.id, 'pedi', i.texto, i.prazo, f.org_id, o.nome, o.tipo,
+    f.id, f.nome, f.implicita, e.id, e.nome, i.priv, false, i.resp_id, i.minutos
+  from itens i
+  join etapas e on e.id = i.etapa_id
+  join fluxos f on f.id = i.fluxo_id
+  join organizacoes o on o.id = f.org_id
+  where ativo() and not i.feito and f.desfecho is null and f.travado_motivo is null
+    and e.ordem = f.atual and f.implicita
+    and i.autor_id in (select perfil_id from meus_perfis())
+    and i.resp_id is not null
+    and i.resp_id not in (select perfil_id from meus_perfis());
+$$;
+
+
+revoke all on function public.meu_dia() from public, anon;
+grant execute on function public.meu_dia() to authenticated, service_role;
+
+
 
 
 
@@ -8647,4 +8747,10 @@ select
   -- E quem a devolve é gatilho, não a tela: concluir acontece de quatro lugares.
   (select count(*) from pg_trigger
     where tgname = 'ao_repetir_item' and not tgisinternal)
-    as "concluir devolve a repetida (1)";
+    as "concluir devolve a repetida (1)",
+  -- O prazo atravessa os espaços, como a agenda: ela nunca muda de espaço, e a
+  -- faixa de Prazos em cima dela mudava.
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'meu_dia'
+      and pg_get_functiondef(p.oid) like '%i.minutos%')
+    as "o dia leva a duracao (1)";
