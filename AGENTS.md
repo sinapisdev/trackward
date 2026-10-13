@@ -3615,6 +3615,46 @@ ser, então o app afirma e ela corrige, que é a mesma regra do processo descobe
   existir, ou seja, as mais ANTIGAS: separá-las seria pôr o trabalho mais velho num segundo
   plano, por um detalhe técnico que quem usa não deveria precisar conhecer.
 
+### Organizar é DESENHAR o trabalho, e não etiquetar frases
+
+"Clico em Organizar, aí eu tenho que ler, interpretar, não concordo e vou criar a tarefa na
+mão. Não está sendo útil, está sendo mais difícil do que útil." (Leo, 12/10/2026, sobre uma
+nota que dizia "ajustar todos os números conforme o guia anexado até dia 20" e que virou uma
+tarefa para o dia 20.)
+
+**A régua: se depois de ler a lista a pessoa ainda precisa pensar, você não organizou
+nada.** Devolver a frase dela com um prazo colado é tecnicamente certo e inútil; ela já
+sabia disso, ela escreveu isso.
+
+Eram QUATRO buracos concretos, e nenhum deles era "o modelo é fraco":
+
+- **O anexo nunca ia junto.** `lerNota` mandava só o texto, e `arquivosParaOModelo` só olha
+  anexo de MENSAGEM: o anexo posto na própria nota mora noutra coluna (`anexos.nota_id`).
+  "Ajustar conforme o guia" é uma frase que não quer dizer nada sem o guia, e o modelo
+  estava cego exatamente onde a nota mais diz. Vai por url assinada de cinco minutos, como
+  na conversa, e o corpo do pedido vira BLOCOS quando há arquivo (o texto por último, porque
+  é ele que diz o que fazer com eles).
+- **A origem da nota não ia junto.** A nota escrita de dentro de uma tarefa sabe de qual
+  tarefa é (`notas.item_id`), e o Organizar lia tudo como pensamento solto. Com ela na mesa,
+  "isto conclui aquela e abre esta" vira proposta possível.
+- **`concluir` não existia no despejo**, então fechar o que acabou nunca era proposto. É o
+  que mais fica por fazer num caderno, e vale tanto quanto abrir o que começou.
+- **A cadência não tinha começo** (`repete.inicio_em`): "do dia 15 ao 20" só sabia dizer "a
+  partir de hoje".
+
+E a instrução deixou de ser um classificador de três caixas. Ela pergunta, para cada coisa:
+**cabe numa sentada?** (trabalho grande vira tempo separado mais a tarefa de fechamento, não
+uma linha que a pessoa adia); **isto fecha algo que já existe?**; **o anexo diz o tamanho?**;
+**quando ela precisa COMEÇAR para terminar no prazo?** ("até dia 20" não quer dizer "faça no
+dia 20"); e **o que dela mesma você está repetindo?**. Uma linha pode render três coisas, e
+o passo óbvio que ela não escreveu (conferir antes de enviar) pode ser proposto, dizendo no
+motivo que foi o app que viu.
+
+**Ensaiado contra o modelo de verdade**, com o caso que originou isto. Antes: três
+propostas, sem fechar nada. Depois: `concluir "Resolver financeiros"` + a nota de contexto +
+`1h por dia, 5 vezes, até 20/10` + a tarefa de conferência no fim. **Ao mexer no que o
+Organizar faz, ensaiar antes de entregar**, como já vale para o secretário.
+
 ### Organizar de novo não é organizar pela metade, e o ajuste é conversando
 
 **O filtro de repetidas estava certo e ser calado estava errado.** Organizando a mesma nota

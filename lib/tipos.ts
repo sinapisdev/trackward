@@ -852,6 +852,8 @@ export type Alvo = {
     vezes: number
     cadencia: 'dia' | 'semana'
     periodo?: 'manha' | 'tarde'
+    /** O primeiro dia, quando ela disse quando começa ("do dia 15 ao 20"). */
+    inicio_em?: string
   }
   /** Os compromissos que nasceram de um `repete`, para desfazer poder tirá-los. */
   criou_ids?: string[]

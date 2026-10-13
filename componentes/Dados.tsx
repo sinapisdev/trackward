@@ -2975,8 +2975,13 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
         }
         for (const d of devedores) carga[d.quando] = (carga[d.quando] || 0) + d.minutos
 
+        /* De onde começar: o dia que ela disse, quando disse, e nunca no
+           passado. "Do dia 15 ao 20" não quer dizer "a partir de hoje". */
+        const de = dados.repete.inicio_em && dados.repete.inicio_em > hojeIso()
+          ? dados.repete.inicio_em
+          : hojeIso()
         const dias = temExpediente(expediente)
-          ? diasComSaldo(expediente, ocupado, carga, proximoUtil(expediente, hojeIso()),
+          ? diasComSaldo(expediente, ocupado, carga, proximoUtil(expediente, de),
               dados.repete.vezes, dados.repete.minutos, dados.repete.cadencia)
           : []
         if (!dias.length) {
@@ -3833,6 +3838,31 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     return saida
   }, [sb, mensagens])
 
+  /**
+   * Os arquivos que a NOTA carrega, para o Organizar ler.
+   *
+   * `arquivosParaOModelo` só olha anexo de MENSAGEM, que é o da conversa. O
+   * anexo posto na própria nota mora noutra coluna (`anexos.nota_id`), e era
+   * justamente ele que o Organizar não via: "ajustar os números conforme o guia
+   * anexado" é uma frase que não quer dizer nada sem o guia.
+   */
+  const anexosDaNotaParaOModelo = useCallback(async (notaId: string) => {
+    const { data } = await sb.from('anexos').select('nome,tipo,caminho,criado_em')
+      .eq('nota_id', notaId)
+      .order('criado_em', { ascending: false }).limit(12)
+    const lidos = ((data || []) as { nome: string; tipo: string; caminho: string }[])
+      .filter((a) => a.tipo === 'application/pdf' || a.tipo.startsWith('image/'))
+      .slice(0, 4)
+    const saida: { nome: string; tipo: string; url: string }[] = []
+    for (const a of lidos) {
+      // Cinco minutos, como na conversa: a assinatura é a única coisa entre a
+      // url e o arquivo de um cliente.
+      const { data: url } = await sb.storage.from('anexos').createSignedUrl(a.caminho, 300)
+      if (url?.signedUrl) saida.push({ nome: a.nome, tipo: a.tipo, url: url.signedUrl })
+    }
+    return saida
+  }, [sb])
+
   const escreverNaNota: Contexto['escreverNaNota'] = useCallback(async (notaId, texto, arquivos) => {
     const limpo = texto.trim()
     if (!limpo && !arquivos?.length) return null
@@ -4032,6 +4062,25 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
         .slice(0, 40)
         .map((c) => ({ quando: c.quando, titulo: c.titulo, inicio: c.inicio, fim: c.fim })),
       despejo: true,
+      /**
+       * Os arquivos da nota, e DE ONDE ela veio.
+       *
+       * Os dois faltavam, e os dois deixavam o Organizar cego justamente onde a
+       * nota mais diz: sem o anexo, "conforme o guia" não quer dizer nada; sem a
+       * tarefa de origem, "ajustar os números até dia 20" é um pensamento solto
+       * em vez do próximo passo de um trabalho que já existe.
+       */
+      arquivos: await anexosDaNotaParaOModelo(notaId),
+      daNota: (() => {
+        const t = nota.item_id ? itemPorId(nota.item_id) : null
+        const f = nota.fluxo_id ? todosFluxos.find((x) => x.id === nota.fluxo_id) : null
+        return {
+          titulo: nota.titulo,
+          area: nota.area_id ? areaDe(nota.area_id).nome : null,
+          track: f ? { id: f.id, nome: f.nome, etapa_id: f.etapas[f.atual]?.id || f.etapas[0]?.id || '' } : null,
+          tarefa: t ? { id: t.item.id, texto: t.item.texto, feito: t.item.feito } : null,
+        }
+      })(),
       agentes: [],
       /**
        * O caderno vai junto, e é isto que faz ele somar em vez de só acumular.
@@ -4116,7 +4165,8 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
         : 'Li a nota e não achei nada para propor.')
     return { achou: novas.length, repetidas, motor }
   }, [sb, notas, todasNotas, mensagensDaNota, eu.id, eu.nome, perfis, memoria, expediente, agenda,
-      estimativas, oQueACasaTem, sugestoesDaNota, toast, recarregar])
+      estimativas, oQueACasaTem, sugestoesDaNota, anexosDaNotaParaOModelo, itemPorId,
+      todosFluxos, areaDe, toast, recarregar])
 
   const ajustarOrganizacao: Contexto['ajustarOrganizacao'] = useCallback(async (notaId, pedido) => {
     const nota = todasNotas.find((n) => n.id === notaId)

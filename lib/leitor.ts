@@ -119,6 +119,30 @@ export type Contexto = {
    * alguém muda e a correção de ontem vale mais que a de março.
    */
   estimativas?: { texto: string; estimado: number; corrigido: number }[]
+  /**
+   * Os arquivos da nota, para o modelo LER.
+   *
+   * O Organizar nunca os mandou, e isso o deixava cego justamente onde a nota
+   * mais diz: "ajustar os números conforme o guia anexado" é uma frase que não
+   * quer dizer nada sem o guia. Imagem e PDF, por url assinada de cinco
+   * minutos, como na conversa.
+   */
+  arquivos?: { nome: string; tipo: string; url: string }[]
+  /**
+   * De onde esta nota veio, quando ela veio de algum lugar.
+   *
+   * A nota escrita de dentro de uma tarefa SABE de qual tarefa é
+   * (`notas.item_id`), e o Organizar não recebia isso: ele lia "ajustar os
+   * números até dia 20" como se fosse um pensamento solto, sem a tarefa que o
+   * originou na mesa. Com ela, "isto conclui aquela e abre esta outra" vira uma
+   * proposta possível, em vez de uma coisa que a pessoa tem que fazer à mão.
+   */
+  daNota?: {
+    titulo: string
+    area?: string | null
+    track?: { id: string; nome: string; etapa_id: string } | null
+    tarefa?: { id: string; texto: string; feito: boolean } | null
+  }
   /** O que já está marcado, para o que for reservado não cair em cima. */
   agenda?: { quando: string; titulo: string; inicio: string | null; fim: string | null }[]
 }

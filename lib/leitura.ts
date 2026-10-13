@@ -70,6 +70,9 @@ const FERRAMENTA = {
                 vezes: { type: 'number', description: 'Quantos blocos. Uma semana de trabalho é 5.' },
                 cadencia: { type: 'string', enum: ['dia', 'semana'],
                   description: '"dia" sai em dias seguidos; "semana" sai espaçado.' },
+                inicio_em: { type: ['string', 'null'],
+                  description: 'O primeiro dia, AAAA-MM-DD, quando ela disser quando começa '
+                    + '("do dia 15 ao 20"). Sem isso o app começa no próximo dia útil.' },
                 periodo: { type: 'string', enum: ['manha', 'tarde'],
                   description: 'Quando ela pedir o turno. Omita se tanto faz.' },
               },
@@ -203,9 +206,31 @@ contar o expediente em Ajustes para você poder organizar a semana.
           .join('\n')}\n`
       : ''
 
+    /**
+     * De onde a nota veio. É isto que permite "isto conclui aquela".
+     *
+     * Sem a tarefa de origem na mesa, "ajustar os números até dia 20" é um
+     * pensamento solto; com ela, é o próximo passo de um trabalho que já existe,
+     * e o modelo pode propor fechar o que ficou pronto.
+     */
+    const comOrigem = ctx.daNota
+      ? `\nDE ONDE VEIO ESTA NOTA:
+- Título: "${ctx.daNota.titulo}"${ctx.daNota.area ? `\n- Área: ${ctx.daNota.area}` : ''}${
+  ctx.daNota.track ? `\n- Track: "${ctx.daNota.track.nome}" (id ${ctx.daNota.track.id})` : ''}${
+  ctx.daNota.tarefa
+    ? `\n- Ela foi escrita de DENTRO da tarefa "${ctx.daNota.tarefa.texto}" (id ${ctx.daNota.tarefa.id}${ctx.daNota.tarefa.feito ? ', já concluída' : ', ainda aberta'}).
+  Se o que ela escreveu aqui mostra que aquela tarefa ACABOU e o que sobrou é outro
+  trabalho, proponha concluir aquela (tipo concluir, com o item_id) e criar a nova.`
+    : ''}\n`
+      : ''
+    const comArquivos = ctx.arquivos?.length
+      ? `\nARQUIVOS ANEXADOS A ESTA NOTA (leia antes de propor, eles estão aqui em cima):\n${
+          ctx.arquivos.map((a) => `- ${a.nome}`).join('\n')}\n`
+      : ''
+
     return `Você lê o caderno de bolso de UMA pessoa e separa o que ela jogou lá dentro.
 
-Hoje é ${ctx.hoje}.${aprendido}${comExpediente}${comAgenda}${comEstimativas}${comCaderno}${comCasa}
+Hoje é ${ctx.hoje}.${aprendido}${comOrigem}${comArquivos}${comExpediente}${comAgenda}${comEstimativas}${comCaderno}${comCasa}
 Ela está falando sozinha, para o app ouvir. Não é conversa de equipe: não tem ninguém
 para quem delegar, e tudo que está escrito ela escreveu de propósito, para não perder.
 
@@ -231,9 +256,12 @@ numa coisa que não tem hora estraga a agenda dela. Perguntar custa um toque.
 Marque a dúvida quando o texto não disser nem a hora, nem com quem, nem onde, e a coisa
 puder razoavelmente ser as duas.
 
-Três tipos:
+Quatro tipos:
 - tarefa: algo que ela precisa fazer. Uma ação, com verbo. NUNCA ponha hora numa tarefa:
   quem decide a ordem do dia dela é ela, e o app só guarda o dia e quanto leva.
+- concluir: uma tarefa que JÁ EXISTE e que o texto mostra estar pronta. Use item_id, da
+  lista da casa ou da tarefa de onde esta nota veio. Fechar o que acabou vale tanto quanto
+  abrir o que começou, e é a coisa que mais fica por fazer num caderno.
 - compromisso: São DOIS casos, e eles são bem diferentes:
   (a) HORA MARCADA: algo combinado com alguém ou num lugar, num dia e numa hora
       (reunião, consulta, viagem, prova). Use quando e inicio. Só aqui existe hora.
@@ -246,31 +274,41 @@ Três tipos:
   Aqui não existe o tipo decisao: no caderno de uma pessoa, decisão é nota, e vai para a
   nota de decisões dela quando ela tem uma.
 
-ELA CLICOU EM ORGANIZAR, E ORGANIZAR É DISTRIBUIR. Devolver uma pilha de tarefas sem dia
-é devolver o trabalho para ela, que é o oposto do que o botão existe para fazer. Leia o
-que ela escreveu ENTRE PARÊNTESES e nas palavras de urgência: é ali que está a instrução
-de quando e de quanto.
+ELA CLICOU EM ORGANIZAR, E ORGANIZAR É DESENHAR O TRABALHO, não etiquetar frases.
 
-- "(2h por dia)", "(30 min a 1h por dia)" é compromisso com repete:
-  {minutos: 120, vezes: 5, cadencia: "dia"}. Cinco é uma semana de trabalho.
-  Faixa ("30 min a 1h") pegue o meio ou o menor: começar modesto é melhor que furar.
-- "(2 a 3 dias por semana)", "(meio período)" é repete com cadencia "semana":
-  {minutos: 210, vezes: 3, cadencia: "semana"}. Meio período é 3 a 4 horas.
-- "(o quanto antes)", "(finalizar tudo quanto antes)" não é cadência, é PRIORIDADE: vire
-  tarefa com prazo nos próximos dias úteis, e se a coisa for grande, reserve também um
-  bloco com repete.
-- "(lembrete de ideia)", "(pensar depois)" é NOTA, nunca tarefa. Ela disse o que é.
-- TODA TAREFA LEVA MINUTOS, e você estima SEMPRE, mesmo sem pista nenhuma: 15 para um
-  telefonema, 45 para conferir um documento, 120 para escrever uma proposta. Não é
-  precisão, é ordem de grandeza, e sem ela o app não sabe se cinco tarefas cabem numa
-  terça que já tem duas reuniões. Chute para mais quando não souber: a conta de um dia
-  que estourou dói mais que a de um dia que sobrou. Ela corrige com um toque, e a
-  correção volta para você da próxima vez.
-- Tarefa sem cadência e sem data ganha prazo mesmo assim, mas NÃO empilhe tudo para hoje
-  nem invente a distribuição: quem encaixa na semana, contando as horas livres de cada dia
-  e desviando do que já está marcado, é o app. Ponha o prazo que a coisa de fato tem, e
-  deixe sem prazo o que não tem nenhum.
-- Não marque nada fora do expediente dela nem em dia que ela não trabalha.
+Esta é a parte que mais importa, e é onde é fácil entregar pouco. Devolver "uma tarefa
+para o dia 20" quando ela escreveu "ajustar todos os números conforme o guia anexado até
+dia 20" é tecnicamente certo e inútil: ela já sabia disso, escreveu isso, e agora tem que
+pensar em como fazer. **Se depois de ler a sua lista ela ainda precisa pensar, você não
+organizou nada.**
+
+Então pergunte-se, para cada coisa que achar:
+
+1. **Isto cabe numa sentada?** Uma tarefa de uma hora cabe. "Ajustar todos os números de
+   acordo com um guia" não cabe: é trabalho de vários dias, e entregar como uma linha só
+   garante que ela adie. Trabalho grande vira tempo separado (compromisso com repete:
+   "1h por dia, 5 vezes"), com a tarefa de fechamento no fim, ou vira duas ou três tarefas
+   com os passos de verdade. Prefira o que a PESSOA conseguiria executar amanhã de manhã
+   sem decidir mais nada.
+2. **Isto fecha alguma coisa que já existe?** Se a nota veio de uma tarefa e o que está
+   escrito mostra que aquela acabou, proponha concluí-la (tipo concluir, com o item_id) e
+   crie a que nasceu dela. Fechar o que acabou vale tanto quanto abrir o que começou.
+3. **O anexo diz o tamanho?** Se há um guia, uma planilha ou uma proposta anexada, LEIA e
+   use: quantos itens são, quantas etapas o guia tem, quanto tempo cada uma pede. É a
+   diferença entre "ajustar os números" e "conferir as 6 contas do guia, uma por dia".
+4. **Quando ela precisa começar para terminar no prazo?** "Até dia 20" não quer dizer
+   "faça no dia 20": se são cinco horas de trabalho, ela precisa começar antes. Ponha
+   prazo e cadência que CABEM, contando de hoje até o prazo dela.
+5. **O que dela mesma você está repetindo?** Se a sua proposta é a frase dela com um
+   prazo colado, você não acrescentou nada. Acrescente o COMO.
+
+Você NÃO está limitado a uma coisa por frase: uma linha do caderno pode render uma tarefa,
+um bloco de tempo e uma nota de contexto. E não está limitado às frases: se o conjunto
+sugere um passo que ela não escreveu mas que é obviamente necessário (conferir antes de
+enviar, pedir o dado que falta), proponha, e diga no motivo que foi você que viu.
+
+E LEIA O QUE ELA ESCREVEU ENTRE PARÊNTESES e nas palavras de urgência: é ali que está a
+instrução de quando e de quanto.
 
 Regras:
 - VARRA O TEXTO INTEIRO, do começo ao fim, parágrafo por parágrafo. Não pare na metade e
@@ -322,6 +360,23 @@ Regras:
 - Nada a registrar é uma resposta boa: devolva a lista vazia.`
 }
 
+/**
+ * O que vai no pedido: os arquivos, e depois o texto.
+ *
+ * Sem arquivo continua sendo uma string, que é o caminho de sempre e o mais
+ * barato. Com arquivo, cada um vira um bloco e o texto fecha a lista.
+ */
+function corpoDaLeitura(ctx: Contexto) {
+  const arq = (ctx.arquivos || []).slice(0, 6)
+  if (!arq.length) return conversa(ctx)
+  return [
+    ...arq.map((a) => (a.tipo === 'application/pdf'
+      ? { type: 'document', source: { type: 'url', url: a.url }, title: a.nome }
+      : { type: 'image', source: { type: 'url', url: a.url } })),
+    { type: 'text', text: conversa(ctx) },
+  ]
+}
+
 function conversa(ctx: Contexto) {
   return ctx.mensagens.map((m) => `[${m.id}] ${m.autor}: ${m.texto}`).join('\n')
 }
@@ -333,7 +388,10 @@ type Cru = {
   tipo_incerto?: boolean | null
   agente_id?: string | null
   quando?: string | null; inicio?: string | null; somar_em?: string | null
-  repete?: { minutos?: number; vezes?: number; cadencia?: string; periodo?: string } | null
+  repete?: {
+    minutos?: number; vezes?: number; cadencia?: string; periodo?: string
+    inicio_em?: string | null
+  } | null
 }
 
 /** O que volta do modelo é texto, não verdade: cada campo é conferido aqui. */
@@ -454,6 +512,10 @@ function conferir(cru: Cru[], ctx: Contexto): Proposta[] {
           cadencia: r.cadencia as 'dia' | 'semana',
           ...(r.periodo === 'manha' || r.periodo === 'tarde'
             ? { periodo: r.periodo as 'manha' | 'tarde' } : {}),
+          /* O primeiro dia, quando ela disse quando começa. Sem ele o app começa
+             no próximo dia útil, que é o certo quando ninguém disse nada. */
+          ...(/^\d{4}-\d{2}-\d{2}$/.test(String(r.inicio_em))
+            ? { inicio_em: String(r.inicio_em) } : {}),
         }
       : null
     // Compromisso é ou um dia marcado, ou um bloco que se repete. Sem nenhum
@@ -538,7 +600,16 @@ export async function porModelo(
       system: instrucoes(ctx),
       tools: [FERRAMENTA],
       tool_choice: { type: 'tool', name: 'registrar' },
-      messages: [{ role: 'user', content: conversa(ctx) }],
+      /**
+       * O corpo vira BLOCOS quando há arquivo, e texto puro quando não há.
+       *
+       * Imagem e PDF vão por url assinada do balde: o arquivo não passa pelo
+       * servidor do app e a assinatura vence em cinco minutos, que é o mesmo
+       * endereço e o mesmo prazo de quando a própria pessoa clica para abrir.
+       * O texto vai POR ÚLTIMO, depois dos arquivos, porque é ele que diz o que
+       * fazer com eles.
+       */
+      messages: [{ role: 'user', content: corpoDaLeitura(ctx) }],
     }),
   })
   if (!r.ok) return null
