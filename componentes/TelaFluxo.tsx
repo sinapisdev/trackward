@@ -56,7 +56,18 @@ export function TelaFluxo({ id }: { id: string }) {
    * mesma coisa. Criar uma segunda coluna para dizer isso ao contrário seria
    * guardar o mesmo fato duas vezes e um dia elas discordarem.
    */
-  const notaDaTarefa = (itemId: string) => notas.find((n) => n.item_id === itemId && !n.arquivada)
+  /**
+   * A nota desta tarefa, pelos DOIS caminhos.
+   *
+   * `notas.item_id` é a nota escrita de dentro da tarefa; `itens.nota_id` é a
+   * nota de onde a tarefa saiu (o Organizar). São dois fatos com cardinalidade
+   * oposta, e para quem lê a linha dá no mesmo: tem contexto guardado em algum
+   * lugar, e ele fica a um toque. Sem os dois, a tarefa que nasceu de uma nota
+   * chega na fila sem o guia que ela manda conferir.
+   */
+  const notaDaTarefa = (itemId: string, notaId?: string | null) =>
+    (notaId ? notas.find((n) => n.id === notaId && !n.arquivada) : null)
+    || notas.find((n) => n.item_id === itemId && !n.arquivada)
 
   /**
    * Escrever sobre a tarefa, ou voltar ao que já se escreveu.
@@ -66,8 +77,8 @@ export function TelaFluxo({ id }: { id: string }) {
    * solto no meio de trezentas notas, sem dizer de quê. E ela é do dono, como
    * toda nota: o que você anota enquanto executa não é relatório para a casa.
    */
-  const abrirNotaDaTarefa = async (x: { id: string; texto: string; fluxo_id: string }) => {
-    const existente = notaDaTarefa(x.id)
+  const abrirNotaDaTarefa = async (x: { id: string; texto: string; fluxo_id: string; nota_id?: string | null }) => {
+    const existente = notaDaTarefa(x.id, x.nota_id)
     if (existente) { router.push(`/notas?nota=${existente.id}`); return }
     const id = await salvarNota({
       texto: `${x.texto}\n\n`, item_id: x.id, fluxo_id: x.fluxo_id,
@@ -371,8 +382,8 @@ export function TelaFluxo({ id }: { id: string }) {
                                 Sem um sinal, o que você escreveu enquanto fazia
                                 a tarefa só se acha procurando no caderno, que é
                                 o mesmo que não ter escrito. */}
-                            {notaDaTarefa(x.id) && (
-                              <Link className="tf-nota" href={`/notas?nota=${notaDaTarefa(x.id)!.id}`}
+                            {notaDaTarefa(x.id, x.nota_id) && (
+                              <Link className="tf-nota" href={`/notas?nota=${notaDaTarefa(x.id, x.nota_id)!.id}`}
                                 title="Esta tarefa tem uma nota sua" aria-label="Abrir a nota desta tarefa">
                                 <Ic.edit />
                               </Link>
@@ -419,7 +430,7 @@ export function TelaFluxo({ id }: { id: string }) {
                               /* A nota da tarefa é de quem escreve, e por isso
                                  não depende de mandar no processo: ela é o
                                  caderno de quem está fazendo aquilo. */
-                              rotulo: notaDaTarefa(x.id) ? 'Abrir a nota' : 'Escrever uma nota',
+                              rotulo: notaDaTarefa(x.id, x.nota_id) ? 'Abrir a nota' : 'Escrever uma nota',
                               icone: <Ic.edit />,
                               aoEscolher: () => void abrirNotaDaTarefa(x),
                             },

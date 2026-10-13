@@ -158,10 +158,21 @@ export function Minhas() {
    * (`notas.item_id` é a ligação). Pôr isto num gancho compartilhado custaria
    * mais do que ele devolve, e a ligação está escrita no AGENTS.
    */
-  const notaDaTarefa = (itemId: string) => notas.find((n) => n.item_id === itemId && !n.arquivada)
+  /**
+   * A nota desta tarefa, pelos DOIS caminhos.
+   *
+   * `notas.item_id` é a nota escrita de dentro da tarefa; `itens.nota_id` é a
+   * nota de onde a tarefa saiu (o Organizar). São dois fatos com cardinalidade
+   * oposta, e para quem lê a linha dá no mesmo: tem contexto guardado em algum
+   * lugar, e ele fica a um toque. Sem os dois, a tarefa que nasceu de uma nota
+   * chega na fila sem o guia que ela manda conferir.
+   */
+  const notaDaTarefa = (itemId: string, notaId?: string | null) =>
+    (notaId ? notas.find((n) => n.id === notaId && !n.arquivada) : null)
+    || notas.find((n) => n.item_id === itemId && !n.arquivada)
 
   const abrirNotaDaTarefa = async (x: Item) => {
-    const existente = notaDaTarefa(x.id)
+    const existente = notaDaTarefa(x.id, x.nota_id)
     if (existente) { router.push(`/notas?nota=${existente.id}`); return }
     const id = await salvarNota({ texto: `${x.texto}\n\n`, item_id: x.id, fluxo_id: x.fluxo_id })
     if (id) router.push(`/notas?nota=${id}`)
@@ -554,7 +565,7 @@ export function Minhas() {
                           aoEscolher: () => abrir({ tipo: 'item', etapa: p.etapa, item: p.item! }),
                         },
                         {
-                          rotulo: notaDaTarefa(p.item.id) ? 'Abrir a nota' : 'Escrever uma nota',
+                          rotulo: notaDaTarefa(p.item.id, p.item.nota_id) ? 'Abrir a nota' : 'Escrever uma nota',
                           icone: <Ic.edit />,
                           aoEscolher: () => void abrirNotaDaTarefa(p.item!),
                         },

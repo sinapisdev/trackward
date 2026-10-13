@@ -3650,6 +3650,24 @@ dia 20"); e **o que dela mesma você está repetindo?**. Uma linha pode render t
 o passo óbvio que ela não escreveu (conferir antes de enviar) pode ser proposto, dizendo no
 motivo que foi o app que viu.
 
+E três coisas que faltavam para ele parar de empilhar:
+
+- **O modelo vê COMO CADA DIA ESTÁ**, e não só a agenda (`diasCheios`). A agenda mostra
+  reunião, e o que enche o dia de quem usa este app é TAREFA: ele via uma terça com uma
+  reunião e concluía que ela estava vazia, tendo doze tarefas com prazo lá. Ensaiado: com
+  amanhã marcado como cheio, ele começa a cadência depois de amanhã sozinho.
+- **Tarefa sem estimativa pesa `PADRAO_MINUTOS` na conta do dia, e não zero.** Foi assim que
+  o Organizar encheu um dia que já estava cheio: medido na produção, 12 tarefas abertas num
+  dia, 5 com duração e **7 sem**, e as 7 pesavam zero. **Não grava nada**: a tarefa continua
+  sem duração no banco até alguém dizer qual é, e é por isso que o padrão não vira um número
+  falso que ninguém mais questiona. E toda tarefa NOVA já nasce com estimativa.
+- **A tarefa sabe de qual nota saiu** (`itens.nota_id`, seção 82), e aqui a regra de "uma
+  coluna basta" deixou de valer: ela era verdade enquanto era uma para uma, e o Organizar
+  propõe TRÊS tarefas de uma nota. `notas.item_id` obrigaria a nota a escolher uma e
+  esquecer as outras duas, com o caminho de volta existindo para uma e sumindo para as
+  outras sem ninguém entender por quê. São dois fatos de cardinalidade oposta. Para quem lê
+  a linha dá no mesmo: há contexto guardado, e ele fica a um toque.
+
 **Ensaiado contra o modelo de verdade**, com o caso que originou isto. Antes: três
 propostas, sem fechar nada. Depois: `concluir "Resolver financeiros"` + a nota de contexto +
 `1h por dia, 5 vezes, até 20/10` + a tarefa de conferência no fim. **Ao mexer no que o

@@ -120,6 +120,21 @@ export const HORIZONTE = 30
 export const FOLGA = 0.8
 
 /**
+ * O que vale uma tarefa que ninguém estimou.
+ *
+ * **Sem isto o dia mente para baixo, e foi assim que o Organizar encheu uma
+ * terça que já estava cheia:** 12 tarefas abertas naquele dia, 5 com duração e
+ * 7 sem, e as 7 pesavam ZERO. O dia parecia ter sete horas livres tendo três.
+ *
+ * Contar 45 minutos não é inventar dado: é a mesma afirmação que `conferir` já
+ * faz ao criar, e ela vale no lugar onde o estrago é maior, que é a conta do
+ * dia. **Não grava nada**: a tarefa continua sem duração no banco até alguém
+ * dizer qual é, e é por isso que ela não vira um número falso que ninguém mais
+ * questiona.
+ */
+export const PADRAO_MINUTOS = 45
+
+/**
  * Monta o plano.
  *
  * A ordem é a regra inteira, e ela não é arbitrária:

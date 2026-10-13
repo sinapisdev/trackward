@@ -229,12 +229,22 @@ export type Organizacao = {
 
 export type Item = {
   /**
+   * A nota de onde esta tarefa saiu, quando ela saiu de uma.
+   *
+   * `notas.item_id` diz o contrário ("esta nota é sobre aquela tarefa"), e são
+   * dois fatos de cardinalidade oposta: uma nota rende TRÊS tarefas no
+   * Organizar, e aquela coluna só guardaria uma. O caminho de volta é o motivo:
+   * a nota quase sempre tem o contexto que não cabe na tarefa.
+   */
+  nota_id?: string | null
+  /**
    * Quanto ela leva, em minutos, estimado pela leitura ou por quem executa.
    *
    * É o que dá ORÇAMENTO ao dia: a tarefa não ocupa hora, ocupa capacidade, e
    * sem a duração cinco tarefas cabem igualmente numa terça com duas reuniões e
    * numa quarta vazia, o que é falso.
    */
+  minutos?: number | null
   /**
    * A regra da volta, quando a tarefa se repete. Nulo é tarefa que acaba.
    *
@@ -244,7 +254,6 @@ export type Item = {
    * guardar uma linha por volta, e ninguém olha para trás numa repetida.
    */
   repete?: Repeticao | null
-  minutos?: number | null
   id: string
   etapa_id: string
   fluxo_id: string

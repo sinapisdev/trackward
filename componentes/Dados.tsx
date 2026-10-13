@@ -45,10 +45,10 @@ import {
 } from '@/lib/expediente'
 import { envolvidos } from '@/lib/agenda'
 import type { Repeticao } from '@/lib/repetir'
-import { devidoNoDia, diasComSaldo, saldoDoDia, type Devedor } from '@/lib/plano'
+import { devidoNoDia, diasComSaldo, saldoDoDia, PADRAO_MINUTOS, type Devedor } from '@/lib/plano'
 import type { ContextoConversa, Fala } from '@/lib/conversa'
 import type { Alvo } from '@/lib/tipos'
-import { iso } from '@/lib/datas'
+import { data, iso } from '@/lib/datas'
 import { itensVisiveis, podeMexerNoPrazo, veFluxo } from '@/lib/acesso'
 import { NOME_DA_LISTA } from '@/lib/rotulos'
 import { falaDeMaquina } from '@/lib/erros'
@@ -94,6 +94,8 @@ type DadosItem = {
   minutos?: number | null
   /** A regra da volta, quando a tarefa se repete. Nulo é tarefa que acaba. */
   repete?: Repeticao | null
+  /** A nota de onde ela saiu, para o caminho de volta existir. */
+  nota_id?: string | null
   /** Sem aviso na tela: quem chamou já vai dizer algo mais importante. */
   quieto?: boolean
 }
@@ -1287,8 +1289,12 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       prazo: d.prazo || null,
       priv: d.priv,
       prazo_firme: !!d.firme,
-      minutos: d.minutos ?? null,
+      /* Toda tarefa nasce COM estimativa: sem ela o dia não tem orçamento, e a
+         conta do painel passa a mentir para baixo. Quem não escolheu ganha o
+         padrão, e corrige num toque. */
+      minutos: d.minutos || PADRAO_MINUTOS,
       repete: d.repete ?? null,
+      nota_id: d.nota_id ?? null,
       autor_id: eu.id,
       ordem: et.itens.length,
     })
@@ -1912,7 +1918,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
     const { error } = await sb.from('itens').insert({
       id: item, etapa_id: etapaId, fluxo_id: id, texto: t, descricao: descricao?.trim() || '',
       resp_id: eu.id, prazo: prazo || null, priv: false, prazo_firme: false,
-      minutos: extra?.minutos ?? null, repete: extra?.repete ?? null,
+      minutos: extra?.minutos || PADRAO_MINUTOS, repete: extra?.repete ?? null,
       autor_id: eu.id, ordem: Date.now() % 100000,
     })
     if (error) { falhou(error, 'Não deu para criar a tarefa.'); return null }
@@ -2599,8 +2605,11 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
      * se divide pelo número de contratos que ela tem.
      */
     for (const l of meuDia) {
-      if (!l.prazo || !l.minutos || l.tipo === 'pedi') continue
-      saida.push({ quando: l.prazo, minutos: l.minutos })
+      if (!l.prazo || l.tipo === 'pedi') continue
+      // Sem estimativa vale o padrão, e isso conserta o dia que mentia para
+      // baixo: tarefa sem duração pesava zero, e um dia com sete delas parecia
+      // vazio para quem estava decidindo onde pôr mais trabalho.
+      saida.push({ quando: l.prazo, minutos: l.minutos || PADRAO_MINUTOS })
     }
     for (const c of agenda) {
       if (!c.inicio && c.minutos && envolvidos(c).includes(eu.id)) {
@@ -2691,6 +2700,10 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
       const id = await adicionarItem(et, {
         texto, resp_id: dados.resp_id ?? null, prazo: dados.prazo || '', priv: false,
         minutos: dados.minutos ?? null,
+        /* De onde ela saiu. A proposta que nasce de uma nota carrega a nota, e
+           é isso que faz a fila ter caminho de volta para o contexto que não
+           coube na linha. */
+        nota_id: sug.nota_id ?? null,
       }, porIa)
       if (!id) return
       // Guardamos o que nasceu daqui, senão não há como desfazer depois.
@@ -4071,6 +4084,19 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
        * em vez do próximo passo de um trabalho que já existe.
        */
       arquivos: await anexosDaNotaParaOModelo(notaId),
+      /* Como os próximos dias estão. Sem isto o modelo via a agenda (reuniões)
+         e concluía que amanhã estava livre, tendo doze tarefas com prazo lá. */
+      diasCheios: (() => {
+        const saida: { quando: string; devido: number; sobra: number }[] = []
+        const d = data(hojeIso())
+        for (let i = 0; i < 21 && saida.length < 14; i++) {
+          const dia = iso(d)
+          const { devido, sobra } = saldoEm(dia)
+          if (devido || sobra) saida.push({ quando: dia, devido, sobra })
+          d.setDate(d.getDate() + 1)
+        }
+        return saida
+      })(),
       daNota: (() => {
         const t = nota.item_id ? itemPorId(nota.item_id) : null
         const f = nota.fluxo_id ? todosFluxos.find((x) => x.id === nota.fluxo_id) : null
@@ -4165,7 +4191,7 @@ export function Dados({ perfil, children }: { perfil: Perfil; children: ReactNod
         : 'Li a nota e não achei nada para propor.')
     return { achou: novas.length, repetidas, motor }
   }, [sb, notas, todasNotas, mensagensDaNota, eu.id, eu.nome, perfis, memoria, expediente, agenda,
-      estimativas, oQueACasaTem, sugestoesDaNota, anexosDaNotaParaOModelo, itemPorId,
+      estimativas, oQueACasaTem, sugestoesDaNota, anexosDaNotaParaOModelo, itemPorId, saldoEm,
       todosFluxos, areaDe, toast, recarregar])
 
   const ajustarOrganizacao: Contexto['ajustarOrganizacao'] = useCallback(async (notaId, pedido) => {

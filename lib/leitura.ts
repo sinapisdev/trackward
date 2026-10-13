@@ -223,6 +223,19 @@ contar o expediente em Ajustes para você poder organizar a semana.
   trabalho, proponha concluir aquela (tipo concluir, com o item_id) e criar a nova.`
     : ''}\n`
       : ''
+    /**
+     * Como os próximos dias estão. É isto que impede "amanhã" de virar a
+     * resposta para tudo: a agenda mostra reunião, e quem enche o dia de quem
+     * usa este app é tarefa.
+     */
+    const h = (m: number) => (m >= 60 ? `${(m / 60).toFixed(m % 60 ? 1 : 0)}h` : `${m}min`)
+    const comDias = ctx.diasCheios?.length
+      ? `\nCOMO OS PRÓXIMOS DIAS DELA ESTÃO (não empilhe trabalho onde não sobra tempo):\n${
+          ctx.diasCheios.map((d) => `- ${d.quando}: ${h(d.devido)} já comprometidos, ${h(d.sobra)} livres${d.sobra <= 0 ? ' (CHEIO)' : ''}`).join('\n')}
+Ponha o prazo num dia que AGUENTA. Se tudo estiver cheio até o prazo que ela deu, diga
+isso no motivo e ponha mesmo assim: o prazo é dela, e a conta é um aviso, não uma parede.\n`
+      : ''
+
     const comArquivos = ctx.arquivos?.length
       ? `\nARQUIVOS ANEXADOS A ESTA NOTA (leia antes de propor, eles estão aqui em cima):\n${
           ctx.arquivos.map((a) => `- ${a.nome}`).join('\n')}\n`
@@ -230,7 +243,7 @@ contar o expediente em Ajustes para você poder organizar a semana.
 
     return `Você lê o caderno de bolso de UMA pessoa e separa o que ela jogou lá dentro.
 
-Hoje é ${ctx.hoje}.${aprendido}${comOrigem}${comArquivos}${comExpediente}${comAgenda}${comEstimativas}${comCaderno}${comCasa}
+Hoje é ${ctx.hoje}.${aprendido}${comOrigem}${comArquivos}${comExpediente}${comAgenda}${comDias}${comEstimativas}${comCaderno}${comCasa}
 Ela está falando sozinha, para o app ouvir. Não é conversa de equipe: não tem ninguém
 para quem delegar, e tudo que está escrito ela escreveu de propósito, para não perder.
 

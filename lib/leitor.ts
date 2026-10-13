@@ -127,6 +127,15 @@ export type Contexto = {
    * quer dizer nada sem o guia. Imagem e PDF, por url assinada de cinco
    * minutos, como na conversa.
    */
+  /**
+   * Como cada dia está, em horas livres.
+   *
+   * A agenda sozinha não bastava: ela mostra as reuniões, e o que enche o dia
+   * de quem usa este app é TAREFA. O modelo via uma terça com uma reunião e
+   * concluía que ela estava vazia, tendo oito tarefas com prazo lá. Aqui ele vê
+   * o saldo, que é a mesma conta que a tela mostra.
+   */
+  diasCheios?: { quando: string; devido: number; sobra: number }[]
   arquivos?: { nome: string; tipo: string; url: string }[]
   /**
    * De onde esta nota veio, quando ela veio de algum lugar.

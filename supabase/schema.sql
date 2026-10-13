@@ -10904,6 +10904,40 @@ revoke all on function public.editar_meu_item(uuid, text, text, date, integer, j
 grant execute on function public.editar_meu_item(uuid, text, text, date, integer, jsonb)
   to authenticated, service_role;
 
+-- --------------------------------------------------------------------------
+-- 82. A tarefa sabe de qual nota ela saiu
+--
+--     `notas.item_id` já dizia "esta nota é sobre aquela tarefa", e o AGENTS
+--     dizia que uma coluna bastava, porque a ligação é a mesma nos dois
+--     sentidos. **Era verdade enquanto era uma para uma, e deixou de ser.**
+--
+--     O Organizar lê uma nota e propõe TRÊS tarefas. Guardar isso em
+--     `notas.item_id` obrigaria a nota a escolher uma das três e esquecer as
+--     outras duas, e aí o caminho de volta ("de onde veio esta tarefa?") existe
+--     para uma e some para as outras, sem ninguém entender por quê.
+--
+--     São dois fatos com cardinalidade oposta, e por isso duas colunas:
+--       `notas.item_id`  uma nota é sobre UMA tarefa (a nota do trabalho)
+--       `itens.nota_id`  MUITAS tarefas saem de uma nota (o que o Organizar faz)
+--
+--     O caminho de volta é o motivo inteiro: a nota quase sempre tem o contexto
+--     que a tarefa não cabe. Sem o elo, "ajustar os números conforme o guia"
+--     chega na fila sem o guia, e a pessoa procura em trezentas notas.
+-- --------------------------------------------------------------------------
+
+/**
+ * A nota de onde esta tarefa saiu.
+ *
+ * `on delete set null` e não cascade: apagar a nota não pode apagar o trabalho
+ * que nasceu dela. O que se perde é o caminho de volta, e isso é o certo.
+ */
+alter table public.itens add column if not exists nota_id uuid
+  references public.notas(id) on delete set null;
+
+create index if not exists itens_da_nota on public.itens (nota_id)
+  where nota_id is not null;
+
+
 
 
 
